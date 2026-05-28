@@ -65,7 +65,7 @@ final class DirectByteBufferBodyHandlers {
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
-        private volatile ArrowBuf destinationBuf;
+        private volatile DirectReadBuffer destinationBuf;
         private volatile ByteBuffer destination;
         private int offset;
         private volatile Flow.Subscription subscription;
@@ -87,18 +87,12 @@ final class DirectByteBufferBodyHandlers {
             }
             this.subscription = subscription;
             try {
-                this.destinationBuf = allocator.buffer(expectedLength);
-                this.destination = destinationBuf.nioBuffer(0, expectedLength);
-            } catch (OutOfMemoryError | RuntimeException e) {
+                this.destinationBuf = DirectReadBuffer.allocate(allocator, expectedLength);
+                this.destination = destinationBuf.buffer();
+            } catch (IOException e) {
                 failed = true;
-                if (destinationBuf != null) {
-                    destinationBuf.close();
-                    destinationBuf = null;
-                }
                 subscription.cancel();
-                body.completeExceptionally(
-                    new IOException("failed to allocate " + expectedLength + " bytes from allocator " + allocator.getName(), e)
-                );
+                body.completeExceptionally(e);
                 return;
             }
             subscription.request(Long.MAX_VALUE);
@@ -152,10 +146,11 @@ final class DirectByteBufferBodyHandlers {
             destination.position(0).limit(offset);
             // Transfer ownership of the ArrowBuf to the caller via DirectReadBuffer.release().
             // Null out the field so releaseOnFailure (if ever invoked after this point) does not
-            // double-close it.
-            ArrowBuf transferred = destinationBuf;
+            // double-close it. The destination ByteBuffer's position/limit set above is observable
+            // through transferred.buffer() since they share the same NIO view.
+            DirectReadBuffer transferred = destinationBuf;
             destinationBuf = null;
-            body.complete(new DirectReadBuffer(destination, transferred::close));
+            body.complete(transferred);
         }
 
         @Override
@@ -171,10 +166,10 @@ final class DirectByteBufferBodyHandlers {
         }
 
         private void releaseOnFailure() {
-            ArrowBuf buf = destinationBuf;
-            if (buf != null) {
+            DirectReadBuffer drb = destinationBuf;
+            if (drb != null) {
                 destinationBuf = null;
-                buf.close();
+                drb.close();
             }
         }
     }
@@ -189,7 +184,7 @@ final class DirectByteBufferBodyHandlers {
         private final BufferAllocator allocator;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // See FixedLengthDirectSubscriber for the volatility rationale.
-        private volatile ArrowBuf destinationBuf;
+        private volatile DirectReadBuffer destinationBuf;
         private volatile ByteBuffer destination;
         private long skipRemaining;
         private int fillOffset;
@@ -217,18 +212,12 @@ final class DirectByteBufferBodyHandlers {
             }
             this.subscription = subscription;
             try {
-                this.destinationBuf = allocator.buffer(length);
-                this.destination = destinationBuf.nioBuffer(0, length);
-            } catch (OutOfMemoryError | RuntimeException e) {
+                this.destinationBuf = DirectReadBuffer.allocate(allocator, length);
+                this.destination = destinationBuf.buffer();
+            } catch (IOException e) {
                 failed = true;
-                if (destinationBuf != null) {
-                    destinationBuf.close();
-                    destinationBuf = null;
-                }
                 subscription.cancel();
-                body.completeExceptionally(
-                    new IOException("failed to allocate " + length + " bytes from allocator " + allocator.getName(), e)
-                );
+                body.completeExceptionally(e);
                 return;
             }
             subscription.request(Long.MAX_VALUE);
@@ -288,10 +277,10 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             destination.position(0).limit(fillOffset);
-            // Transfer ownership of the ArrowBuf to the caller; see FixedLengthDirectSubscriber.
-            ArrowBuf transferred = destinationBuf;
+            // Transfer ownership of the buffer to the caller; see FixedLengthDirectSubscriber.
+            DirectReadBuffer transferred = destinationBuf;
             destinationBuf = null;
-            body.complete(new DirectReadBuffer(destination, transferred::close));
+            body.complete(transferred);
         }
 
         @Override
@@ -300,10 +289,10 @@ final class DirectByteBufferBodyHandlers {
         }
 
         private void releaseOnFailure() {
-            ArrowBuf buf = destinationBuf;
-            if (buf != null) {
+            DirectReadBuffer drb = destinationBuf;
+            if (drb != null) {
                 destinationBuf = null;
-                buf.close();
+                drb.close();
             }
         }
     }

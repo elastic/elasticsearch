@@ -13,7 +13,6 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 
-import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
@@ -247,19 +245,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         }
 
         int len = Math.toIntExact(length);
-        final ArrowBuf buf;
-        final ByteBuffer initial;
+        final DirectReadBuffer drb;
         try {
-            buf = allocator.buffer(len);
-        } catch (OutOfMemoryError | RuntimeException e) {
-            listener.onFailure(new IOException("failed to allocate " + len + " bytes from allocator " + allocator.getName(), e));
-            return;
-        }
-        try {
-            initial = buf.nioBuffer(0, len);
-        } catch (RuntimeException e) {
-            buf.close();
-            listener.onFailure(new IOException("failed to obtain nio view of ArrowBuf for length " + len, e));
+            drb = DirectReadBuffer.allocate(allocator, len);
+        } catch (IOException e) {
+            listener.onFailure(e);
             return;
         }
 
@@ -267,7 +257,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         blobAsyncClient.downloadWithResponse(range, null, null, false)
             .flatMapMany(response -> response.getValue())
-            .reduce(initial, (acc, chunk) -> {
+            .reduce(drb.buffer(), (acc, chunk) -> {
                 if (chunk.remaining() > acc.remaining()) {
                     throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
                 }
@@ -284,12 +274,12 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Release eagerly on the failure path so the breaker charge does not outlive
                     // the failed request.
-                    buf.close();
+                    drb.close();
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     listener.onFailure(cause instanceof Exception e ? e : new RuntimeException(cause));
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
-                    listener.onResponse(new DirectReadBuffer(buffer, buf::close));
+                    listener.onResponse(drb);
                 }
             });
     }

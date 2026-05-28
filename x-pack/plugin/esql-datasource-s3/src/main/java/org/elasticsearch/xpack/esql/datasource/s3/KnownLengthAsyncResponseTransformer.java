@@ -150,7 +150,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         // depending on each publisher implementation honoring that subtlety correctly.
         // destinationBuf uses AtomicReference so releaseOnFailure() is safe when called
         // concurrently from exceptionOccurred() on the transformer and onError() on the subscriber.
-        private final AtomicReference<ArrowBuf> destinationBuf = new AtomicReference<>();
+        private final AtomicReference<DirectReadBuffer> destinationBuf = new AtomicReference<>();
         private volatile ByteBuffer destination;
         private int offset;
         private volatile Subscription subscription;
@@ -174,16 +174,14 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // routed through the result future instead of escaping publisher.subscribe(...) as
             // an Error.
             try {
-                ArrowBuf newBuf = allocator.buffer(expectedLength);
-                this.destinationBuf.set(newBuf);
-                this.destination = newBuf.nioBuffer(0, expectedLength);
-            } catch (OutOfMemoryError | RuntimeException e) {
+                DirectReadBuffer drb = DirectReadBuffer.allocate(allocator, expectedLength);
+                this.destinationBuf.set(drb);
+                this.destination = drb.buffer();
+            } catch (IOException e) {
                 failed = true;
                 releaseOnFailure();
                 s.cancel();
-                resultFuture.completeExceptionally(
-                    new IOException("failed to allocate " + expectedLength + " bytes from allocator " + allocator.getName(), e)
-                );
+                resultFuture.completeExceptionally(e);
                 return;
             }
             s.request(Long.MAX_VALUE);
@@ -239,17 +237,18 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             destination.position(0).limit(offset);
-            // Transfer ownership of the ArrowBuf to the caller; getAndSet(null) ensures any
+            // Transfer ownership of the buffer to the caller; getAndSet(null) ensures any
             // concurrent releaseOnFailure (e.g. exceptionOccurred) sees null and does not
-            // double-close.
-            ArrowBuf transferred = destinationBuf.getAndSet(null);
-            resultFuture.complete(new DirectReadBuffer(destination, transferred::close));
+            // double-close. The destination ByteBuffer's position/limit set above is observable
+            // through drb.buffer() since they share the same NIO view.
+            DirectReadBuffer transferred = destinationBuf.getAndSet(null);
+            resultFuture.complete(transferred);
         }
 
         void releaseOnFailure() {
-            ArrowBuf buf = destinationBuf.getAndSet(null);
-            if (buf != null) {
-                buf.close();
+            DirectReadBuffer drb = destinationBuf.getAndSet(null);
+            if (drb != null) {
+                drb.close();
             }
         }
     }

@@ -145,31 +145,21 @@ public interface StorageObject {
         // Allocate on the calling thread so a direct-memory OOM (or breaker trip) surfaces
         // synchronously via the listener instead of escaping the executor's Runnable as an Error
         // and leaving the listener permanently uncompleted.
-        final ArrowBuf buf;
-        final ByteBuffer direct;
+        final DirectReadBuffer drb;
         try {
-            buf = allocator.buffer(length);
-        } catch (OutOfMemoryError | RuntimeException e) {
-            listener.onFailure(new IOException("failed to allocate " + length + " bytes from allocator " + allocator.getName(), e));
-            return;
-        }
-        try {
-            // Explicit (index, length) overload: ArrowBuf may round capacity up, but the
-            // returned buffer's remaining() must equal the declared length.
-            direct = buf.nioBuffer(0, (int) length);
-        } catch (RuntimeException e) {
-            buf.close();
-            listener.onFailure(new IOException("failed to obtain nio view of ArrowBuf for length " + length, e));
+            drb = DirectReadBuffer.allocate(allocator, (int) length);
+        } catch (IOException e) {
+            listener.onFailure(e);
             return;
         }
         try {
             executor.execute(() -> {
                 try {
-                    int read = Math.max(0, readBytes(position, direct));
-                    direct.position(0).limit(read);
-                    listener.onResponse(new DirectReadBuffer(direct, buf::close));
+                    int read = Math.max(0, readBytes(position, drb.buffer()));
+                    drb.buffer().position(0).limit(read);
+                    listener.onResponse(drb);
                 } catch (Exception e) {
-                    buf.close();
+                    drb.close();
                     listener.onFailure(e);
                 }
             });
@@ -177,7 +167,7 @@ public interface StorageObject {
             // Route executor rejection (saturated queue, shutdown) through the listener and
             // release the allocator-backed buffer eagerly so it does not stay charged against
             // the breaker for the lifetime of the JVM.
-            buf.close();
+            drb.close();
             listener.onFailure(e);
         }
     }

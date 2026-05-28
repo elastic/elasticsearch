@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -76,7 +75,7 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
 
                         return isIndexShard
                             ? shardRoutingTable.primaryShard().unassigned()
-                            : shardRoutingTable.unpromotableShards().stream().allMatch(ShardRouting::unassigned);
+                            : shardRoutingTable.unpromotableShards().get(0).unassigned();
                     });
                     logger.info("--> failing {} shard {}", isIndexShard ? "index" : "search", shard.shardId());
                     shard.failShard("broken", new Exception("boom local"));

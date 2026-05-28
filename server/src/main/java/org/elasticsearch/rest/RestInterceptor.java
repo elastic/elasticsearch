@@ -25,4 +25,13 @@ public interface RestInterceptor {
      *                 rest exception handling will be performed
      */
     void intercept(RestRequest request, RestChannel channel, RestHandler targetHandler, ActionListener<Boolean> listener) throws Exception;
+
+    /**
+     * Whether this request may use browser-safelisted content types such as
+     * {@code application/x-www-form-urlencoded}. Form-encoded POST bodies still
+     * require an explicit handler opt-in via {@link RestHandler#supportsReadOnlyFormEncodedPostBody()}.
+     */
+    default boolean allowsBrowserSafelistedContentType(RestRequest request) {
+        return false;
+    }
 }

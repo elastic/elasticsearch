@@ -18,14 +18,11 @@ import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI4BulkSparse;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * Int4 packed-nibble query-time scorer. The float query is quantized externally
@@ -104,16 +101,13 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             Int4Corrections.singleCorrectionFor(similarityType),
             Int4Corrections.bulkCorrectionFor(similarityType)
         );
-
-        final MemorySegment unpackedQuerySegment;
-        if (SUPPORTS_HEAP_SEGMENTS) {
-            unpackedQuerySegment = MemorySegment.ofArray(unpackedQuery);
-        } else {
-            unpackedQuerySegment = Arena.ofAuto().allocate(unpackedQuery.length, 32);
-            MemorySegment.copy(unpackedQuery, 0, unpackedQuerySegment, ValueLayout.JAVA_BYTE, 0, unpackedQuery.length);
-        }
-
-        this.query = new QueryContext(lowerInterval, upperInterval, additionalCorrection, quantizedComponentSum, unpackedQuerySegment);
+        this.query = new QueryContext(
+            lowerInterval,
+            upperInterval,
+            additionalCorrection,
+            quantizedComponentSum,
+            MemorySegment.ofArray(unpackedQuery)
+        );
     }
 
     @Override
@@ -217,23 +211,21 @@ public final class Int4VectorScorer extends RandomVectorScorer.AbstractRandomVec
             if (numNodes == 0) {
                 return Float.NEGATIVE_INFINITY;
             }
-            if (SUPPORTS_HEAP_SEGMENTS) {
-                long[] offsets = offsetsScratch.get(numNodes);
-                for (int i = 0; i < numNodes; i++) {
-                    offsets[i] = (long) ordinals[i] * vectorPitch;
-                }
-                MemorySegment scoresSeg = MemorySegment.ofArray(scores);
-                boolean resolved = IndexInputUtils.withSliceAddresses(
-                    input,
-                    offsets,
-                    packedDims,
-                    numNodes,
-                    addrsScratch::get,
-                    addrs -> dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
-                );
-                if (resolved) {
-                    return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
-                }
+            long[] offsets = offsetsScratch.get(numNodes);
+            for (int i = 0; i < numNodes; i++) {
+                offsets[i] = (long) ordinals[i] * vectorPitch;
+            }
+            MemorySegment scoresSeg = MemorySegment.ofArray(scores);
+            boolean resolved = IndexInputUtils.withSliceAddresses(
+                input,
+                offsets,
+                packedDims,
+                numNodes,
+                addrsScratch::get,
+                addrs -> dotProductI4BulkSparse(addrs, query.unpackedQuery(), packedDims, numNodes, scoresSeg)
+            );
+            if (resolved) {
+                return applyCorrectionsBulk(scoresSeg, MemorySegment.ofArray(ordinals), numNodes, query);
             }
 
             // fallback to sequential scoring

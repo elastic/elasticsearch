@@ -25,7 +25,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI7u;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -45,9 +44,6 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         LegacyQuantizedByteVectorValues values,
         float[] queryVector
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         var input = values.getSlice();
         if (input == null) {

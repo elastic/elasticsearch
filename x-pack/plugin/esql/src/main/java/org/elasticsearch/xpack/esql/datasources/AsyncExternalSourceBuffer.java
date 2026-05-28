@@ -115,11 +115,18 @@ public final class AsyncExternalSourceBuffer {
         }
         HashMap<String, List<Map<String, Object>>> snapshot = new HashMap<>(currentSize);
         for (var entry : capturedSourceMetadata.entrySet()) {
-            snapshot.put(entry.getKey(), List.copyOf(entry.getValue()));
+            List<Map<String, Object>> list = entry.getValue();
+            List<Map<String, Object>> copy;
+            synchronized (list) {
+                copy = List.copyOf(list);
+            }
+            snapshot.put(entry.getKey(), copy);
         }
         Map<String, List<Map<String, Object>>> result = Collections.unmodifiableMap(snapshot);
-        cachedMetadataPathCount = currentSize;
+        // Write snapshot before count so that a reader observing the new count via the volatile
+        // read is guaranteed (by JMM happens-before) to also see the new snapshot.
         cachedMetadataSnapshot = result;
+        cachedMetadataPathCount = currentSize;
         return result;
     }
 

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -651,7 +652,8 @@ public final class ParallelParsingCoordinator {
          */
         private void publishFinalizeMarker() {
             try {
-                long mtimeMillis = storageObject.lastModified() != null ? storageObject.lastModified().toEpochMilli() : -1L;
+                Instant lastMod = storageObject.lastModified();
+                long mtimeMillis = lastMod != null ? lastMod.toEpochMilli() : -1L;
                 if (mtimeMillis < 0) {
                     return;
                 }

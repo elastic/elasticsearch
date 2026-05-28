@@ -625,3 +625,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testGroupOnManyLongs
   issue: https://github.com/elastic/elasticsearch/issues/150104
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparseWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/150106

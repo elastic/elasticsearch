@@ -299,8 +299,11 @@ public class SqlParserTests extends ESTestCase {
 
     public void testLimitToPreventStackOverflowFromLargeBinaryBooleanExpression() {
         // Create expression in the form of a = b OR a = b OR ... a = b
+
+        // 1000 elements is ok
         new SqlParser().createExpression(join(" OR ", nCopies(1000, "a = b")));
 
+        // 10000 elements cause stack overflow
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> new SqlParser().createExpression(join(" OR ", nCopies(10000, "a = b")))
@@ -327,8 +330,11 @@ public class SqlParserTests extends ESTestCase {
 
     public void testLimitToPreventStackOverflowFromLargeBinaryArithmeticExpression() {
         // Create expression in the form of a + a + a + ... + a
+
+        // 1000 elements is ok
         new SqlParser().createExpression(join(" + ", nCopies(1000, "a")));
 
+        // 10000 elements cause stack overflow
         ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(join(" + ", nCopies(10000, "a"))));
         assertThat(e.getMessage(), containsString("causing stack overflow"));
     }

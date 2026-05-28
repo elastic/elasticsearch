@@ -149,6 +149,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private final Map<Token, SqlTypedParamValue> params;
     private final ZoneId zoneId;
+
     ExpressionBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         this.params = params;
         this.zoneId = zoneId;

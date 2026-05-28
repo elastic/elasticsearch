@@ -1,5 +1,5 @@
-area: "ES|QL, Infra/Logging"
+area: "Infra/Logging"
 issues: []
 pr: 150127
-summary: Add query filter to more query types
+summary: Add query filter logging to SQl and EQL queries
 type: enhancement

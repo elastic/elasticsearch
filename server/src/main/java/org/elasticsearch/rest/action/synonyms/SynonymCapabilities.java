@@ -21,11 +21,7 @@ public final class SynonymCapabilities {
     }
 
     private static final String SYNONYMS_REFRESH_PARAM = "synonyms_refresh_param";
-    private static final String SYNONYMS_APPEND_PARAM = "synonyms_append_param";
 
     /** Capabilities for {@code PUT /_synonyms/{id}/{ruleId}} and {@code DELETE /_synonyms/{id}/{ruleId}}. */
     public static final Set<String> CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM);
-
-    /** Capabilities for {@code PUT /_synonyms/{id}}. */
-    public static final Set<String> PUT_SYNONYM_SET_CAPABILITIES = Set.of(SYNONYMS_REFRESH_PARAM, SYNONYMS_APPEND_PARAM);
 }

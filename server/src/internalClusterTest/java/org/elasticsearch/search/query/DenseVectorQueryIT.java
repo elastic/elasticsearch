@@ -65,6 +65,7 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
     public static final String INDEX_NAME = "dense_vector_query_it";
     public static final String VECTOR_FIELD = "vector";
     public static final String VECTOR_SCORE_SCRIPT = "vector_scoring";
+    public static final String VECTOR_SCORE_SCRIPT_COSINE = "vector_scoring_cosine";
     public static final String QUERY_VECTOR_PARAM = "query_vector";
 
     /** Tolerance for "raw path matches the script-score ground truth" — float arithmetic noise only. */
@@ -80,16 +81,27 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         private static final VectorSimilarityFunction SIMILARITY_FUNCTION = DenseVectorFieldMapper.VectorSimilarity.L2_NORM
             .vectorSimilarityFunction(IndexVersion.current(), ElementType.FLOAT);
+        // The literal cosine function (normalizes both operands itself); the ground truth for a per-query
+        // similarity_function=cosine override against the raw stored vectors of the l2_norm field.
+        private static final VectorSimilarityFunction COSINE_FUNCTION = DenseVectorFieldMapper.VectorSimilarity.COSINE
+            .rawVectorSimilarityFunction();
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Map.of(VECTOR_SCORE_SCRIPT, vars -> {
-                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-                return SIMILARITY_FUNCTION.compare(
-                    ((DenseVectorScriptDocValues) doc.get(VECTOR_FIELD)).getVectorValue(),
-                    (float[]) vars.get(QUERY_VECTOR_PARAM)
-                );
-            });
+            return Map.of(
+                VECTOR_SCORE_SCRIPT,
+                vars -> compare(SIMILARITY_FUNCTION, vars),
+                VECTOR_SCORE_SCRIPT_COSINE,
+                vars -> compare(COSINE_FUNCTION, vars)
+            );
+        }
+
+        private static float compare(VectorSimilarityFunction function, Map<String, Object> vars) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            return function.compare(
+                ((DenseVectorScriptDocValues) doc.get(VECTOR_FIELD)).getVectorValue(),
+                (float[]) vars.get(QUERY_VECTOR_PARAM)
+            );
         }
     }
 
@@ -131,7 +143,7 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
     public void testDenseVectorRawMatchesGroundTruth() {
         TestParams params = indexRandomDocs();
         DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(VECTOR_FIELD, params.queryVector(), null, false);
-        runAndCompare(query, params, DELTA);
+        runAndCompare(query, params, VECTOR_SCORE_SCRIPT, DELTA);
     }
 
     public void testDenseVectorQuantizedScoring() {
@@ -142,7 +154,26 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         // codecs the codec scorer uses the quantized representation, so scores stay within a per-codec
         // budget of the ground truth.
         double tolerance = selectedIndexType.isQuantized() ? quantizedTolerance(selectedIndexType) : DELTA;
-        runAndCompare(query, params, tolerance);
+        runAndCompare(query, params, VECTOR_SCORE_SCRIPT, tolerance);
+    }
+
+    /**
+     * A per-query {@code similarity_function} override that differs from the field's mapped similarity
+     * ({@code l2_norm}) must score the raw stored vectors with the literal chosen metric. This is the
+     * regression guard for the cosine override: previously the {@code NORMALIZE_COSINE} optimization
+     * mapped the override to {@code DOT_PRODUCT}, producing dot-product scores against un-normalized
+     * vectors instead of true cosine. The raw path always reads raw vectors, so scores must match the
+     * cosine ground truth within float tolerance on every codec, quantized or not.
+     */
+    public void testDenseVectorSimilarityOverrideMatchesGroundTruth() {
+        TestParams params = indexRandomDocs();
+        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(
+            VECTOR_FIELD,
+            params.queryVector(),
+            DenseVectorFieldMapper.VectorSimilarity.COSINE,
+            false
+        );
+        runAndCompare(query, params, VECTOR_SCORE_SCRIPT_COSINE, DELTA);
     }
 
     /** Loose per-codec budget for codec-path vs raw script-score distance. */
@@ -171,23 +202,24 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
      *
      * @param tolerance per-doc score delta tolerance.
      */
-    private void runAndCompare(DenseVectorQueryBuilder query, TestParams params, double tolerance) {
+    private void runAndCompare(DenseVectorQueryBuilder query, TestParams params, String baselineScript, double tolerance) {
         SearchRequestBuilder search = prepareSearch(INDEX_NAME).setQuery(query)
             .setSize(params.numDocs())
             .setTrackTotalHits(randomBoolean());
         assertNoFailuresAndResponse(
             search,
-            denseResponse -> compareWithExactSearch(denseResponse, params.queryVector(), params.numDocs(), tolerance)
+            denseResponse -> compareWithExactSearch(denseResponse, params.queryVector(), params.numDocs(), baselineScript, tolerance)
         );
     }
 
-    private static void compareWithExactSearch(SearchResponse denseResponse, float[] queryVector, int docCount, double tolerance) {
-        Script script = new Script(
-            ScriptType.INLINE,
-            CustomScriptPlugin.NAME,
-            VECTOR_SCORE_SCRIPT,
-            Map.of(QUERY_VECTOR_PARAM, queryVector)
-        );
+    private static void compareWithExactSearch(
+        SearchResponse denseResponse,
+        float[] queryVector,
+        int docCount,
+        String baselineScript,
+        double tolerance
+    ) {
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, baselineScript, Map.of(QUERY_VECTOR_PARAM, queryVector));
         ScriptScoreQueryBuilder scriptScoreQueryBuilder = QueryBuilders.scriptScoreQuery(new MatchAllQueryBuilder(), script);
         assertNoFailuresAndResponse(prepareSearch(INDEX_NAME).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
             assertHitCount(exactResponse, docCount);

@@ -37,6 +37,7 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -46,6 +47,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -126,7 +128,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
@@ -262,7 +264,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.serverSideEncryption()).thenReturn(serverSideEncryption);
 
         final StorageClass storageClass = randomFrom(StorageClass.values());
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
 
         final ObjectCannedACL cannedAccessControlList = randomBoolean() ? randomFrom(ObjectCannedACL.values()) : null;
         if (cannedAccessControlList != null) {
@@ -421,7 +423,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(bucketName);
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
-        when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(randomFrom(StorageClass.values()));
 
         final S3Client client = mock(S3Client.class);
         final SdkHttpClient httpClient = mock(SdkHttpClient.class);
@@ -532,7 +534,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final var blobStore = mock(S3BlobStore.class);
         when(blobStore.bucket()).thenReturn(sourceBucketName);
-        when(blobStore.getStorageClass()).thenReturn(storageClass);
+        when(blobStore.resolveStorageClass(any(OperationPurpose.class))).thenReturn(storageClass);
         if (cannedAccessControlList != null) {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
@@ -656,34 +658,52 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         assertThat(ex.getMessage(), equalTo("cannedACL is not valid: [test_invalid]"));
     }
 
-    public void testInitStorageClass() {
+    public void testInitStorageClassForAllowList() {
         // it should default to `standard`
-        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass(null, true), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass("", true), equalTo(StorageClass.STANDARD));
 
-        // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
-        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.STANDARD_IA));
-        assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.ONEZONE_IA));
-        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
-        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.INTELLIGENT_TIERING));
+        for (final String name : EnumSet.allOf(StorageClass.class)
+            .stream()
+            .filter(S3BlobStore.ALLOWED_STORAGE_CLASSES::contains)
+            .map(Enum::name)
+            .toList()) {
+            assertThat(S3BlobStore.initStorageClass(name, true), equalTo(StorageClass.valueOf(name)));
+        }
     }
 
     public void testCaseInsensitiveStorageClass() {
-        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.STANDARD));
-        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.STANDARD_IA));
-        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.ONEZONE_IA));
-        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
-        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.INTELLIGENT_TIERING));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd", true), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia", true), equalTo(StorageClass.STANDARD_IA));
+        assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA", true), equalTo(StorageClass.ONEZONE_IA));
+        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy", true), equalTo(StorageClass.REDUCED_REDUNDANCY));
+        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG", true), equalTo(StorageClass.INTELLIGENT_TIERING));
+        assertThat(S3BlobStore.initStorageClass("oUtPoSts", true), equalTo(StorageClass.OUTPOSTS));
+        assertThat(S3BlobStore.initStorageClass("glaCiEr_iR", true), equalTo(StorageClass.GLACIER_IR));
+        assertThat(S3BlobStore.initStorageClass("SnOw", true), equalTo(StorageClass.SNOW));
     }
 
     public void testInvalidStorageClass() {
-        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever"));
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("whatever", false));
         assertThat(ex.getMessage(), equalTo("`whatever` is not a known S3 Storage Class."));
     }
 
-    public void testRejectGlacierStorageClass() {
-        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("glacier"));
+    public void testDisallowedKnownStorageClassesInAllowList() {
+        for (final String name : EnumSet.allOf(StorageClass.class)
+            .stream()
+            .filter(
+                storageClass -> StorageClass.UNKNOWN_TO_SDK_VERSION.equals(storageClass) == false
+                    && S3BlobStore.ALLOWED_STORAGE_CLASSES.contains(storageClass) == false
+            )
+            .map(Enum::name)
+            .toList()) {
+            BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass(name, true));
+            assertThat(ex.getMessage(), equalTo("`" + name + "` is not an allowed S3 Storage Class."));
+        }
+    }
+
+    public void testRejectGlacierStorageClassForNonAllowList() {
+        BlobStoreException ex = expectThrows(BlobStoreException.class, () -> S3BlobStore.initStorageClass("glacier", false));
         assertThat(ex.getMessage(), equalTo("Glacier storage class is not supported"));
     }
 

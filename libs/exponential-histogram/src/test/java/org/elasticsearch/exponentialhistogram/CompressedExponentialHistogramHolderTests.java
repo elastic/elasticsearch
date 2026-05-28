@@ -24,6 +24,7 @@ package org.elasticsearch.exponentialhistogram;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.ByteArrayOutputStream;
@@ -31,6 +32,8 @@ import java.io.IOException;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils.randomHistogram;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 public class CompressedExponentialHistogramHolderTests extends ExponentialHistogramTestCase {
 
@@ -99,6 +102,24 @@ public class CompressedExponentialHistogramHolderTests extends ExponentialHistog
             // expected
         }
         assertThat(esBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testLargeHistogramTracksMemory() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        ExponentialHistogramCircuitBreaker ehBreaker = breaker(esBreaker);
+
+        ExponentialHistogramBuilder largeHistoBuilder = ExponentialHistogram.builder(0, ExponentialHistogramCircuitBreaker.noop());
+        for (int i = 0; i < 1000; i++) {
+            largeHistoBuilder.setPositiveBucket(i, 1);
+        }
+        ExponentialHistogram largeHistogram = largeHistoBuilder.build();
+
+        try (CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker)) {
+            assertThat(esBreaker.getUsed(), lessThan(1000L));
+            holder.set(largeHistogram);
+            assertThat(esBreaker.getUsed(), greaterThan(1000L));
+        }
+
     }
 
     private ReleasableExponentialHistogram randomHistogramWithDoubleZeroThreshold() {

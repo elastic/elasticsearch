@@ -117,7 +117,7 @@ public final class ResponseCollectorService implements ClusterStateListener {
         );
         probingDurationHistogram = meterRegistry.registerLongHistogram(
             "es.ars.nodes.probing.duration",
-            "Time in milliseconds from a data/search node joining the cluster until this coordinator records its first ARS observation for it",
+            "Milliseconds from a data/search node joining the cluster to this coordinator's first ARS observation for it",
             "ms"
         );
         warmingDurationHistogram = meterRegistry.registerLongHistogram(

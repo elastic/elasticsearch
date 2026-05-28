@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -112,6 +114,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 .get()
         );
         prepareIndex("test-auto-kw-off").setId("1").setSource("msg", "hello").get();
+
+        // Wait for all pending cluster state events (including the dynamic mapping update) to be
+        // applied on all nodes before retrieving mappings, to avoid a race where GetMappings hits
+        // a node that hasn't yet received the new mapping in its cluster state.
+        clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT).waitForEvents(Priority.LANGUID)).actionGet();
 
         GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test-auto-kw-off").get();
         Map<String, Object> source = mappings.mappings().get("test-auto-kw-off").sourceAsMap();

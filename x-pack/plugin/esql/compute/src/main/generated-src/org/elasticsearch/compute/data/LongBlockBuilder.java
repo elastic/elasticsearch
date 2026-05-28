@@ -115,9 +115,15 @@ final class LongBlockBuilder extends AbstractBlockBuilder implements LongBlock.B
     }
 
     private void copyFromVector(LongVector vector, int beginInclusive, int endExclusive) {
-        for (int p = beginInclusive; p < endExclusive; p++) {
-            appendLong(vector.getLong(p));
+        int count = endExclusive - beginInclusive;
+        if (count == 0) {
+            return;
         }
+        ensureCapacity(count);
+        vector.copyTo(beginInclusive, values, valueCount, count);
+        hasNonNullValue = true;
+        valueCount += count;
+        updatePositions(count);
     }
 
     /**

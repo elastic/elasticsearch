@@ -8,16 +8,29 @@
 package org.elasticsearch.xpack.esql.datasource.http;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpHeaders;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -112,6 +125,56 @@ public class HttpStorageObjectTests extends ESTestCase {
         assertFalse(object.exists());
     }
 
+    public void testReadBytesAsync206UsesBodyHandler() throws Exception {
+        byte[] payload = "hello parquet".getBytes(StandardCharsets.UTF_8);
+        HttpClient mockClient = mock(HttpClient.class);
+        mockSendAsyncWithBodyChunks(mockClient, HttpStatus.SC_PARTIAL_CONTENT, List.of(ByteBuffer.wrap(payload)));
+
+        StoragePath path = StoragePath.of("https://example.com/data.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        ByteBuffer result = readBytesAsyncToCompletion(object, 0, payload.length);
+        assertTrue("readBytesAsync must return a direct ByteBuffer", result.isDirect());
+        assertArrayEquals(payload, toByteArray(result));
+    }
+
+    public void testReadBytesAsync200OkUsesBodyHandlerToSlice() throws Exception {
+        byte[] fullBody = "0123456789ABCDEFGHIJ".getBytes(StandardCharsets.UTF_8);
+        byte[] expected = "56789".getBytes(StandardCharsets.UTF_8);
+        HttpClient mockClient = mock(HttpClient.class);
+        mockSendAsyncWithBodyChunks(mockClient, HttpStatus.SC_OK, List.of(ByteBuffer.wrap(fullBody)));
+
+        StoragePath path = StoragePath.of("https://example.com/data.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        ByteBuffer result = readBytesAsyncToCompletion(object, 5, expected.length);
+        assertTrue(result.isDirect());
+        assertArrayEquals(expected, toByteArray(result));
+    }
+
+    public void testReadBytesAsyncLengthExceedsIntMaxFails() throws Exception {
+        HttpClient mockClient = mock(HttpClient.class);
+        StoragePath path = StoragePath.of("https://example.com/data.parquet");
+        HttpStorageObject object = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        object.readBytesAsync(
+            0,
+            (long) Integer.MAX_VALUE + 1,
+            Runnable::run,
+            ActionListener.wrap(buf -> { fail("expected failure"); }, e -> {
+                error.set(e);
+                latch.countDown();
+            })
+        );
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertThat(error.get(), instanceOf(IllegalArgumentException.class));
+        assertThat(error.get().getMessage(), containsString("must fit in an int"));
+    }
+
     @SuppressWarnings("unchecked")
     private HttpStorageObject objectWithNotFoundResponse() throws Exception {
         HttpResponse<Void> mockResponse = mock(HttpResponse.class);
@@ -123,5 +186,106 @@ public class HttpStorageObjectTests extends ESTestCase {
 
         StoragePath path = StoragePath.of("https://example.com/missing.parquet");
         return new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+    }
+
+    /**
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
+     * the bytes read from the response.
+     */
+    public void testRangeNewStreamIncrementsMetrics() throws Exception {
+        long rangeBytes = 1024L;
+        HttpResponse<java.io.InputStream> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(rangeBytes))), (a, b) -> true)
+        );
+        when(mockResponse.body()).thenReturn(new ByteArrayInputStream(new byte[(int) rangeBytes]));
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        assertEquals(0L, obj.metrics().requestCount());
+        obj.newStream(0, rangeBytes).close();
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
+        assertEquals(0L, metrics.retryCount());
+    }
+
+    /**
+     * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted in
+     * metrics() — they're not data reads.
+     */
+    public void testMetadataProbesDoNotCountAsRequests() throws Exception {
+        long fileSize = 100_000L;
+        HttpResponse<Void> mockResponse = mock(HttpResponse.class);
+        when(mockResponse.statusCode()).thenReturn(HttpStatus.SC_OK);
+        when(mockResponse.headers()).thenReturn(
+            HttpHeaders.of(java.util.Map.of("Content-Length", java.util.List.of(Long.toString(fileSize))), (a, b) -> true)
+        );
+
+        HttpClient mockClient = mock(HttpClient.class);
+        doReturn(mockResponse).when(mockClient).send(any(), any());
+
+        StoragePath path = StoragePath.of("https://example.com/file.parquet");
+        HttpStorageObject obj = new HttpStorageObject(mockClient, path, HttpConfiguration.defaults());
+
+        obj.length();
+        obj.exists();
+
+        assertEquals(0L, obj.metrics().requestCount());
+        assertEquals(0L, obj.metrics().bytesRead());
+    }
+
+    private static ByteBuffer readBytesAsyncToCompletion(HttpStorageObject object, long position, long length) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+
+        object.readBytesAsync(position, length, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> { throw new AssertionError("unexpected failure", e); }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(result.get());
+        return result.get();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void mockSendAsyncWithBodyChunks(HttpClient mockClient, int statusCode, List<ByteBuffer> bodyChunks) throws Exception {
+        doAnswer(invocation -> {
+            HttpResponse.BodyHandler<ByteBuffer> handler = invocation.getArgument(1);
+            HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
+            when(responseInfo.statusCode()).thenReturn(statusCode);
+            HttpResponse.BodySubscriber<ByteBuffer> subscriber = handler.apply(responseInfo);
+            subscriber.onSubscribe(new NoOpSubscription());
+            subscriber.onNext(bodyChunks);
+            subscriber.onComplete();
+            ByteBuffer body = subscriber.getBody().toCompletableFuture().get();
+
+            HttpResponse<ByteBuffer> response = mock(HttpResponse.class);
+            when(response.statusCode()).thenReturn(statusCode);
+            when(response.body()).thenReturn(body);
+            return CompletableFuture.completedFuture(response);
+        }).when(mockClient).sendAsync(any(), any());
+    }
+
+    private static byte[] toByteArray(ByteBuffer buffer) {
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        return bytes;
+    }
+
+    private static final class NoOpSubscription implements Flow.Subscription {
+        @Override
+        public void request(long n) {}
+
+        @Override
+        public void cancel() {}
     }
 }

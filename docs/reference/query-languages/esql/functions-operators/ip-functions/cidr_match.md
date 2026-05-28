@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `CIDR_MATCH` function [esql-cidr_match]
 
-:::{include} ../../_snippets/functions/layout/cidr_match.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/cidr_match.md
 :::

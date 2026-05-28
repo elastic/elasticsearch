@@ -314,3 +314,45 @@ geo_tile agg":
             exists:
               field: rt_field
   - is_true: timed_out
+
+---
+"Def lambda loop cancelled in geo_shape (geometry_field) runtime script":
+  - do:
+      indices.create:
+        index: test_rt_geometry_def_lambda_timeout
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      index:
+        index: test_rt_geometry_def_lambda_timeout
+        id: d1
+        body: {"val": 1}
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_rt_geometry_def_lambda_timeout
+        timeout: 100ms
+        body:
+          runtime_mappings:
+            rt_field:
+              type: geo_shape
+              script:
+                source: |
+                  def l = new ArrayList();
+                  l.add(1);
+                  l.removeIf(x -> {
+                    long start = System.currentTimeMillis();
+                    while (System.currentTimeMillis() - start < 60000L) {
+                        /* deliberately empty: rely on timeout to cancel */
+                    }
+                    return false;
+                  });
+                  emit("POINT(0 0)");
+          query:
+            exists:
+              field: rt_field
+  - is_true: timed_out

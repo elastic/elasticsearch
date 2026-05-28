@@ -121,6 +121,7 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -142,6 +143,7 @@ import org.elasticsearch.xpack.stateless.cache.DefaultWarmingRatioProviderFactor
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.cache.StatelessCacheBoostSettings;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
@@ -517,6 +519,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<StatelessMemoryMetricsService> statelessMemoryMetricsService = new SetOnce<>();
     private final SetOnce<ShardsMappingSizeCollector> shardsMappingSizeCollector = new SetOnce<>();
     private final SetOnce<Client> clientRef = new SetOnce<>();
+    private final SetOnce<StatelessCacheBoostSettings> statelessCacheBoostSettingsRef = new SetOnce<>();
 
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricHolder = new ThreadLocalDirectoryMetricHolder<>(
         BlobStoreCacheDirectoryMetrics::new
@@ -720,6 +723,12 @@ public class StatelessPlugin extends Plugin
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        settings.put(Settings.builder().loadFromSource("""
+            {
+              "level0": { "age": "1d", "search_power": 200},
+              "level1": { "age": "7d", "search_power": 100},
+              "level2": { "age": "365d", "search_power": 10}
+            }""", XContentType.JSON).normalizePrefix(StatelessCacheBoostSettings.BOOST_CONFIGURATION_LOGS.getKey()).build());
         return settings.build();
     }
 
@@ -757,6 +766,7 @@ public class StatelessPlugin extends Plugin
         );
 
         final Collection<Object> components = new ArrayList<>();
+        components.add(setAndGet(this.statelessCacheBoostSettingsRef, new StatelessCacheBoostSettings(services.clusterService())));
         var objectStoreService = setAndGet(
             this.objectStoreService,
             createObjectStoreService(settings, services.repositoriesService(), threadPool, clusterService, projectResolver.get())
@@ -1303,7 +1313,9 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
-            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
+            StatelessCacheBoostSettings.BOOST_CONFIGURATION_LOGS,
+            StatelessCacheBoostSettings.BOOST_CONFIGURATION_METRICS
         );
     }
 

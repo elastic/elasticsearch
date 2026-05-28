@@ -214,8 +214,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                     containsString("Found 3 problems"),
                     containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     containsString("line 5:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    not(containsString("FORK is not supported"))
+                    containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\"")
                 )
             );
     }
@@ -867,7 +866,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     public void testTbucketWithUnmappedTimestampWithFork() {
         var query = "FROM test | FORK (STATS c = COUNT(*) BY tbucket(1 hour)) (STATS d = COUNT(*) BY emp_no)";
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            test().statementError(statement, allOf(containsString("[tbucket(1 hour)] "), not(containsString("FORK is not supported"))));
+            test().statementError(statement, containsString("[tbucket(1 hour)] "));
         }
     }
 

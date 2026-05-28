@@ -276,8 +276,9 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     }
 
     /**
-     * When the mounted index is allocated, the wait step issues a yellow-status health check and returns cleanly,
-     * letting the pipeline advance to the cleanup/swap step.
+     * When the mounted index is allocated (primary shard active), the wait step returns cleanly via
+     * ClusterStateObserver without issuing any client requests, letting the pipeline advance to the
+     * cleanup/swap step.
      */
     public void testWaitForMountedIndexToBeAvailableSucceeds() throws InterruptedException {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
@@ -294,8 +295,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
 
         convert.waitForMountedIndexToBeAvailable();
 
-        assertThat(capturedHealthRequest.get(), is(notNullValue()));
-        assertThat(capturedHealthRequest.get().indices(), equalTo(new String[] { snapshotName }));
+        assertThat(capturedHealthRequest.get(), is(nullValue()));
         assertThat(capturedMountRequest.get(), is(nullValue()));
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
@@ -309,11 +309,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
         createProjectStateWithMountedSnapshot(snapshotName);
 
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
-
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+        DLMConvertToFrozen convert = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
             indexName,
             projectId,
             client,

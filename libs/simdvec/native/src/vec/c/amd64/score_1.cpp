@@ -124,7 +124,10 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
             _mm256_fnmadd_ps(_mm256_set1_ps(2.0f), res, additionalCorrection),
             _mm256_set1_ps(queryAdditionalCorrection + 1.0f)
         );
-        res = _mm256_max_ps(_mm256_rcp_ps(res), _mm256_setzero_ps());
+        // Lucene 10.4 normalization performs `1 / (1 + max(euclideanScore, 0))`.
+        // Clamping res to >= 1 is equivalent to clamping euclideanScore to >= 0
+        // before the reciprocal.
+        res = _mm256_rcp_ps(_mm256_max_ps(res, _mm256_set1_ps(1.0f)));
 
         maxScore = __builtin_fmaxf(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
         _mm256_storeu_ps(scores + i, res);
@@ -248,7 +251,12 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
             _mm256_set1_ps(queryAdditionalCorrection - centroidDp + 1.0f)
         );
 
-        res = _mm256_max_ps(_mm256_mul_ps(res, _mm256_set1_ps(0.5f)), _mm256_setzero_ps());
+        // Lucene 10.4 normalization performs `(1 + clamp(score, -1, 1)) / 2`.
+        // Clamping res to [0, 2] is equivalent to clamping score to [-1, 1] before the halving.
+        res = _mm256_mul_ps(
+            _mm256_min_ps(_mm256_max_ps(res, _mm256_setzero_ps()), _mm256_set1_ps(2.0f)),
+            _mm256_set1_ps(0.5f)
+        );
 
         maxScore = __builtin_fmaxf(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
         _mm256_storeu_ps(scores + i, res);

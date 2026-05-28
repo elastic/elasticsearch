@@ -65,13 +65,26 @@ import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 public class ExpressionBuilder extends IdentifierBuilder {
 
     protected final ParserParams params;
+    private int expressionDepth = 0;
 
     public ExpressionBuilder(ParserParams params) {
         this.params = params;
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(this, ctx, Expression.class);
+        expressionDepth++;
+        if (expressionDepth > EqlParser.MAX_EXPRESSION_DEPTH) {
+            throw new ParsingException(
+                "EQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                EqlParser.MAX_EXPRESSION_DEPTH,
+                ctx.getParent().getText()
+            );
+        }
+        try {
+            return typedParsing(this, ctx, Expression.class);
+        } finally {
+            expressionDepth--;
+        }
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {

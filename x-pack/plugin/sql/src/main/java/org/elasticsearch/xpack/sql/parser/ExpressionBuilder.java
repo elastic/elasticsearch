@@ -149,6 +149,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private final Map<Token, SqlTypedParamValue> params;
     private final ZoneId zoneId;
+    private int expressionDepth = 0;
 
     ExpressionBuilder(Map<Token, SqlTypedParamValue> params, ZoneId zoneId) {
         this.params = params;
@@ -156,7 +157,19 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(this, ctx, Expression.class);
+        expressionDepth++;
+        if (expressionDepth > SqlParser.MAX_EXPRESSION_DEPTH) {
+            throw new ParsingException(
+                "SQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                SqlParser.MAX_EXPRESSION_DEPTH,
+                ctx.getParent().getText()
+            );
+        }
+        try {
+            return typedParsing(this, ctx, Expression.class);
+        } finally {
+            expressionDepth--;
+        }
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {

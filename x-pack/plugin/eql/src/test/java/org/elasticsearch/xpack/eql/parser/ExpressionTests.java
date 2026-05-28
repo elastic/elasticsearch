@@ -495,8 +495,9 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testMaxExpressionDepth_nestedFunction_maxAllowed() {
-        // MAX_EXPRESSION_DEPTH - 1 nested function calls: LP depth is within the pre-scan threshold
-        int depth = EqlParser.MAX_EXPRESSION_DEPTH - 1;
+        // MAX_EXPRESSION_DEPTH - 2 nested function calls: the visitor-level depth check fires
+        // before the stack overflows, so this is safe on all JVMs.
+        int depth = EqlParser.MAX_EXPRESSION_DEPTH - 2;
         String nested = "process where ".concat(String.join("", java.util.Collections.nCopies(depth, "abs(")))
             .concat("i")
             .concat(String.join("", java.util.Collections.nCopies(depth, ")")));

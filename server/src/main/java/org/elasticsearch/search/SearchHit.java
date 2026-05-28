@@ -432,6 +432,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
+     * Returns the stored byte length of the document source without decompressing
+     * or mutating the internal reference. Returns 0 if there is no source.
+     * Prefer this over {@link #getSourceRef()} when only the size is needed, for example
+     * for circuit-breaker accounting.
+     */
+    public int rawSourceLength() {
+        assert hasReferences() : "SearchHit must have a live reference";
+        return source == null ? 0 : source.length();
+    }
+
+    /**
      * Sets representation, might be compressed....
      */
     public SearchHit sourceRef(BytesReference source) {

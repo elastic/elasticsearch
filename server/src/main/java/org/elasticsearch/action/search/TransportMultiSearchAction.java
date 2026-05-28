@@ -22,18 +22,27 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
@@ -41,11 +50,71 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public static final String NAME = "indices:data/read/msearch";
     public static final ActionType<MultiSearchResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
+
+    /**
+     * Fixed per-response overhead charged against the circuit breaker for every sub-search
+     * response, regardless of the number of hits.
+     * <p>
+     * Covers the following objects (64-bit JVM, compressed oops):
+     * <ul>
+     *   <li>{@code SearchResponse} shell — 16 B header + ~10 reference fields ≈ 56 B</li>
+     *   <li>{@code SearchHits} wrapper — 16 B header + hits array ref + 3 primitive fields ≈ 48 B</li>
+     *   <li>{@code TotalHits} — 16 B header + long + enum ref ≈ 32 B</li>
+     *   <li>{@code Clusters} metadata object + its internal maps ≈ 80 B</li>
+     *   <li>Empty {@code ShardSearchFailure[]} array ≈ 16 B</li>
+     *   <li>{@code SimpleRefCounted}, {@code LeakTracker} wrapper, and release-tracking lists ≈ 120 B</li>
+     *   <li>Miscellaneous padding and amortised per-response allocations ≈ 140 B</li>
+     * </ul>
+     * Rounds to 512 B as a conservative upper bound; intentionally over-estimates the structural
+     * shell to account for fields not explicitly tracked (highlights, explain, profile, suggest).
+     */
+    static final long BASE_RESPONSE_OVERHEAD = 512L;
+
+    /**
+     * Per-hit structural overhead charged against the circuit breaker for each {@link SearchHit},
+     * excluding source bytes and field entries (both measured separately).
+     * <p>
+     * Covers the following objects (64-bit JVM, compressed oops):
+     * <ul>
+     *   <li>{@code SearchHit} shell — 16 B header + ~10 reference/primitive fields ≈ 96 B</li>
+     *   <li>{@code _id} String object + its {@code char[]} backing array (avg 16-char id) ≈ 72 B</li>
+     *   <li>{@code documentFields} {@code HashMap} shell + internal {@code Node[]} array ≈ 48 B</li>
+     *   <li>{@code metaFields} {@code HashMap} shell + internal {@code Node[]} array ≈ 48 B</li>
+     *   <li>{@code SearchShardTarget} + {@code ShardId} + index-name String (amortised) ≈ 96 B</li>
+     *   <li>Miscellaneous per-hit padding ≈ 40 B</li>
+     * </ul>
+     * Source bytes are measured precisely via {@link SearchHit#rawSourceLength()}.
+     * Field entries are counted separately via {@link #PER_FIELD_OVERHEAD}.
+     * Rounds to 400 B as a conservative upper bound.
+     */
+    static final long PER_HIT_OBJECT_OVERHEAD = 400L;
+
+    /**
+     * Per-field-entry structural overhead charged against the circuit breaker for each entry
+     * across {@link SearchHit#getDocumentFields()} and {@link SearchHit#getMetadataFields()}.
+     * Does not include the stored values inside the field (e.g. a large {@code keyword} value).
+     * <p>
+     * Covers the following objects (64-bit JVM, compressed oops):
+     * <ul>
+     *   <li>{@code HashMap.Node} shell — 16 B header + hash int + 3 refs ≈ 32 B</li>
+     *   <li>Field-name {@code String} object + its {@code char[]} backing array (avg 16-char name) ≈ 72 B</li>
+     *   <li>{@code DocumentField} shell — 16 B header + name ref + values ref ≈ 24 B</li>
+     *   <li>{@code ArrayList} for values — 16 B header + elementData ref + size int ≈ 32 B</li>
+     *   <li>Minimum {@code Object[]} backing array (capacity 1) ≈ 24 B</li>
+     * </ul>
+     * Rounds to 200 B as a conservative upper bound. Stored field values are not sized:
+     * their content varies widely (a large keyword from doc values may exceed {@code _source}),
+     * and walking the value list for every field on every hit would add non-trivial cost on the
+     * response path for a gain that is difficult to calibrate reliably.
+     */
+    static final long PER_FIELD_OVERHEAD = 200L;
+
     private final int allocatedProcessors;
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeProvider;
     private final NodeClient client;
     private final ProjectResolver projectResolver;
+    private final CircuitBreaker circuitBreaker;
 
     @Inject
     public TransportMultiSearchAction(
@@ -54,14 +123,19 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         ClusterService clusterService,
         ActionFilters actionFilters,
         NodeClient client,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        CircuitBreakerService circuitBreakerService
     ) {
-        super(TYPE.name(), transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        this.clusterService = clusterService;
-        this.allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-        this.relativeTimeProvider = System::nanoTime;
-        this.client = client;
-        this.projectResolver = projectResolver;
+        this(
+            actionFilters,
+            transportService,
+            clusterService,
+            EsExecutors.allocatedProcessors(settings),
+            System::nanoTime,
+            client,
+            projectResolver,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
     }
 
     TransportMultiSearchAction(
@@ -71,7 +145,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         int allocatedProcessors,
         LongSupplier relativeTimeProvider,
         NodeClient client,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        CircuitBreaker circuitBreaker
     ) {
         super(TYPE.name(), transportService, actionFilters, MultiSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
@@ -79,6 +154,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         this.relativeTimeProvider = relativeTimeProvider;
         this.client = client;
         this.projectResolver = projectResolver;
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -103,9 +179,17 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         int numRequests = request.requests().size();
         final AtomicArray<MultiSearchResponse.Item> responses = new AtomicArray<>(numRequests);
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
+        // Each completed sub-search stays in {@code responses} until the last one finishes. By then the coordinator-side
+        // aggregation reduce breaker has already released, so we accumulate REQUEST breaker bytes per response and
+        // release the sum when the combined {@link MultiSearchResponse} is delivered (success or failure).
+        final AtomicLong totalReservedBytes = new AtomicLong(0);
+        final ActionListener<MultiSearchResponse> breakerReleasingListener = ActionListener.runAfter(
+            listener,
+            () -> circuitBreaker.addWithoutBreaking(-totalReservedBytes.get())
+        );
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, listener, relativeStartTime);
+            executeSearch(searchRequestSlots, responses, responseCounter, breakerReleasingListener, relativeStartTime, totalReservedBytes);
         }
     }
 
@@ -122,6 +206,67 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     }
 
     /**
+     * Estimates coordinator heap for a single sub-search {@link SearchResponse} while it is buffered in the msearch
+     * {@link AtomicArray}. Used with {@link CircuitBreaker#REQUEST} in post-receipt reservation: the estimate is taken
+     * when the response arrives, not from request metadata alone.
+     * <p>
+     * Included: response shell ({@link #BASE_RESPONSE_OVERHEAD}), top-level and nested hits ({@link #estimateHitBytes}),
+     * and merged aggregations via {@link DelayableWriteable#getUncompressedSerializedSize} (same counting approach as
+     * {@code QueryPhaseResultConsumer}, without materialising a serialised buffer).
+     * A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be counted both there
+     * and in top-level hits — a known over-estimate.
+     * <p>
+     * Not included (known underestimate for atypical queries): {@link SearchHit} highlight fragments and explanations,
+     * {@link org.elasticsearch.search.suggest.Suggest}, {@link org.elasticsearch.search.profile.SearchProfileResults},
+     * and stored values inside {@link org.elasticsearch.common.document.DocumentField} (only field-entry structure is
+     * counted via {@link #PER_FIELD_OVERHEAD}). {@link #BASE_RESPONSE_OVERHEAD} is padded for untracked shell
+     * components but does not size their payload — large highlights or profile results are a known gap.
+     * Estimates use stored {@link SearchHit#rawSourceLength()} and never call
+     * {@link SearchHit#getSourceRef()}, which can decompress and mutate {@code _source}.
+     */
+    static long estimateActualBytes(SearchResponse response) {
+        long bytes = BASE_RESPONSE_OVERHEAD;
+
+        SearchHit[] hits = response.getHits().getHits();
+        if (hits != null) {
+            for (SearchHit hit : hits) {
+                bytes += estimateHitBytes(hit);
+            }
+        }
+
+        if (response.hasAggregations()) {
+            try {
+                bytes += DelayableWriteable.getUncompressedSerializedSize(response.getAggregations());
+            } catch (UncheckedIOException e) {
+                logger.warn("msearch circuit breaker: failed to estimate aggregation bytes", e);
+            }
+        }
+
+        return bytes;
+    }
+
+    /**
+     * Estimates the heap cost of a single {@link SearchHit}, including its stored
+     * source bytes, doc-value / stored field entry shells, and any nested {@code inner_hits}.
+     * Uses {@link SearchHit#getDocumentFields()} and {@link SearchHit#getMetadataFields()} rather than
+     * {@link SearchHit#getFields()}, which allocates a new {@code HashMap} on every call.
+     */
+    private static long estimateHitBytes(SearchHit hit) {
+        long bytes = PER_HIT_OBJECT_OVERHEAD;
+        bytes += hit.rawSourceLength();
+        bytes += (long) (hit.getDocumentFields().size() + hit.getMetadataFields().size()) * PER_FIELD_OVERHEAD;
+        Map<String, SearchHits> innerHits = hit.getInnerHits();
+        if (innerHits != null) {
+            for (SearchHits innerHitsValue : innerHits.values()) {
+                for (SearchHit innerHit : innerHitsValue.getHits()) {
+                    bytes += estimateHitBytes(innerHit);
+                }
+            }
+        }
+        return bytes;
+    }
+
+    /**
      * Executes a single request from the queue of requests. When a request finishes, another request is taken from the queue. When a
      * request is executed, a permit is taken on the specified semaphore, and released as each request completes.
      *
@@ -135,7 +280,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicArray<MultiSearchResponse.Item> responses,
         final AtomicInteger responseCounter,
         final ActionListener<MultiSearchResponse> listener,
-        final long relativeStartTime
+        final long relativeStartTime,
+        final AtomicLong totalReservedBytes
     ) {
         /*
          * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
@@ -148,7 +294,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         // If we have another request to execute, we execute it. If the execution forked #doExecuteSearch will return false and will
         // recursively call this method again eventually. If it did not fork and was able to execute the search right away #doExecuteSearch
         // will return true, in which case we continue and run the next search request here.
-        while (request != null && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener)) {
+        while (request != null
+            && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener, totalReservedBytes)) {
             request = requests.poll();
         }
     }
@@ -159,11 +306,22 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         AtomicInteger responseCounter,
         long relativeStartTime,
         SearchRequestSlot request,
-        ActionListener<MultiSearchResponse> listener
+        ActionListener<MultiSearchResponse> listener,
+        AtomicLong totalReservedBytes
     ) {
         final SubscribableListener<MultiSearchResponse.Item> subscribeListener = new SubscribableListener<>();
-        client.search(request.request, subscribeListener.safeMap(searchResponse -> {
-            searchResponse.mustIncRef(); // acquire reference on behalf of MultiSearchResponse.Item below
+        // Use map (not safeMap) so unexpected exceptions from estimation route to onFailure and still decrement
+        // responseCounter. CircuitBreakingException is caught below and returned as a failure item without throwing.
+        client.search(request.request, subscribeListener.map(searchResponse -> {
+            long bytes = estimateActualBytes(searchResponse);
+            try {
+                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
+            } catch (CircuitBreakingException e) {
+                // No mustIncRef() yet — respondAndRelease on the search path will decRef the response.
+                return new MultiSearchResponse.Item(null, e);
+            }
+            searchResponse.mustIncRef();
+            totalReservedBytes.addAndGet(bytes);
             return new MultiSearchResponse.Item(searchResponse, null);
         }));
         final ActionListener<MultiSearchResponse.Item> responseListener = new ActionListener<>() {
@@ -210,7 +368,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         subscribeListener.addListener(
             ActionListener.runAfter(
                 responseListener,
-                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime)
+                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime, totalReservedBytes)
             )
         );
         return false;

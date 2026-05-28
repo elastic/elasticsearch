@@ -9,15 +9,22 @@
 
 package org.elasticsearch.search.msearch;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.DummyQueryBuilder;
@@ -30,8 +37,13 @@ import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -40,6 +52,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MultiSearchIT extends ESIntegTestCase {
 
@@ -73,6 +87,82 @@ public class MultiSearchIT extends ESIntegTestCase {
                 assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
                 assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
             }
+        );
+    }
+
+    /**
+     * Verifies that {@code TransportMultiSearchAction} accounts for buffered sub-search responses on the
+     * coordinating node's {@link CircuitBreaker#REQUEST} breaker while the msearch is in flight, and releases
+     * the reservation when the combined {@link org.elasticsearch.action.search.MultiSearchResponse} is delivered.
+     */
+    public void testBreakerAccountingEndToEnd() throws Exception {
+        assumeFalse("noop breakers used, skipping test", noopBreakerUsed());
+
+        String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        String index = "msearch-breaker-it";
+        int numDocs = scaledRandomIntBetween(20, 50);
+        int numSearches = scaledRandomIntBetween(10, 25);
+
+        createIndex(index);
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            indexRequests.add(
+                prepareIndex(index).setId(Integer.toString(i))
+                    .setSource("payload", Strings.repeat("x", scaledRandomIntBetween(1_000, 5_000)))
+            );
+        }
+        indexRandom(true, indexRequests);
+        ensureGreen(index);
+
+        assertBusy(
+            () -> assertThat(
+                "request breaker should be at baseline before msearch",
+                requestBreakerEstimated(coordinatorNode),
+                lessThanOrEqualTo(0L)
+            )
+        );
+        long baseline = requestBreakerEstimated(coordinatorNode);
+
+        AtomicLong peakUsage = new AtomicLong(baseline);
+        AtomicBoolean msearchRunning = new AtomicBoolean(true);
+        Thread monitor = new Thread(() -> {
+            while (msearchRunning.get()) {
+                long used = requestBreakerEstimated(coordinatorNode);
+                peakUsage.updateAndGet(current -> Math.max(current, used));
+            }
+        }, "msearch-breaker-monitor");
+        monitor.setDaemon(true);
+        monitor.start();
+
+        try {
+            MultiSearchRequest request = new MultiSearchRequest();
+            request.maxConcurrentSearchRequests(1);
+            var coordinatorClient = internalCluster().client(coordinatorNode);
+            for (int i = 0; i < numSearches; i++) {
+                request.add(coordinatorClient.prepareSearch(index).setSize(numDocs).setQuery(QueryBuilders.matchAllQuery()).request());
+            }
+            assertResponse(coordinatorClient.multiSearch(request), response -> {
+                assertThat(response.getResponses().length, equalTo(numSearches));
+                for (Item item : response) {
+                    assertNoFailures(item.getResponse());
+                }
+            });
+        } finally {
+            msearchRunning.set(false);
+            monitor.join(TimeUnit.SECONDS.toMillis(30));
+        }
+
+        assertThat(
+            "msearch should reserve request breaker bytes on the coordinator while sub-responses are buffered",
+            peakUsage.get(),
+            greaterThan(baseline)
+        );
+        assertBusy(
+            () -> assertThat(
+                "request breaker should return to baseline after msearch completes",
+                requestBreakerEstimated(coordinatorNode),
+                lessThanOrEqualTo(baseline)
+            )
         );
     }
 
@@ -328,5 +418,27 @@ public class MultiSearchIT extends ESIntegTestCase {
             // Disable CPS for these tests.
             Optional.of(false)
         );
+    }
+
+    private boolean noopBreakerUsed() {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats().setBreaker(true).get();
+        for (NodeStats nodeStats : stats.getNodes()) {
+            if (nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST).getLimit() == NoopCircuitBreaker.LIMIT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private long requestBreakerEstimated(String nodeName) {
+        NodesStatsResponse stats = clusterAdmin().prepareNodesStats(nodeName).setBreaker(true).get();
+        long estimated = 0;
+        for (NodeStats nodeStats : stats.getNodes()) {
+            CircuitBreakerStats breakerStats = nodeStats.getBreaker().getStats(CircuitBreaker.REQUEST);
+            if (breakerStats != null) {
+                estimated += breakerStats.getEstimated();
+            }
+        }
+        return estimated;
     }
 }

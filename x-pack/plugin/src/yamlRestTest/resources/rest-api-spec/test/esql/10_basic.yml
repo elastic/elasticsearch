@@ -815,6 +815,59 @@ version is not allowed:
   - match: {values.2: [1, 43, 1, 1]}
 
 ---
+"Stats by constant":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats c = count(*) by 1'
+
+  - length: { columns: 2 }
+  - match: { columns.0.name: "c" }
+  - match: { columns.1.name: "1" }
+  - length: { values: 1 }
+  - match: { values.0: [ 40, 1 ] }
+
+---
+"Stats by constant with no rows":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where data < 0 | stats c = count(*) by 1'
+
+  - length: { columns: 2 }
+  - match: { columns.0.name: "c" }
+  - match: { columns.1.name: "1" }
+  - length: { values: 0 }
+
+---
+"Drop all columns then stats by constant":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ fix_no_columns ]
+      reason: "plans with no columns only recently supported"
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | keep color | drop color | eval k = 1 | stats c = count(*) by k'
+
+  - length: { columns: 2 }
+  - match: { columns.0.name: "c" }
+  - match: { columns.1.name: "k" }
+  - length: { values: 1 }
+  - match: { values.0: [ 40, 1 ] }
+
+---
 "Drop all columns with fork":
   - requires:
       test_runner_features: [ capabilities, allowed_warnings_regex ]

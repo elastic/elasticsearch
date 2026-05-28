@@ -24,8 +24,12 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
+import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -50,11 +54,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -83,6 +89,59 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
         internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
+    }
+
+    protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
+        final AtomicBoolean success = new AtomicBoolean();
+
+        final Map<String, IndicesService> indicesServices = new ConcurrentHashMap<>();
+        final Map<String, PeerRecoverySourceService> peerRecoverySourceServices = new ConcurrentHashMap<>();
+        final Map<String, PeerRecoveryTargetService> peerRecoveryTargetServices = new ConcurrentHashMap<>();
+        for (String nodeName : predicatePerNode.keySet()) {
+            indicesServices.put(nodeName, internalCluster().getInstance(IndicesService.class, nodeName));
+            peerRecoverySourceServices.put(nodeName, internalCluster().getInstance(PeerRecoverySourceService.class, nodeName));
+            peerRecoveryTargetServices.put(nodeName, internalCluster().getInstance(PeerRecoveryTargetService.class, nodeName));
+        }
+
+        final RecoverySchedulingListener listener = () -> {
+            if (success.get()) {
+                return;
+            }
+            // Check if all conditions are met
+            for (final var nodePredicate : predicatePerNode.entrySet()) {
+                final var indicesService = indicesServices.get(nodePredicate.getKey());
+
+                final var stats = new RecoveryStats();
+                for (IndexService indexService : indicesService) {
+                    for (IndexShard shard : indexService) {
+                        stats.add(shard.recoveryStats());
+                    }
+                }
+                if (nodePredicate.getValue().test(stats) == false) {
+                    return;
+                }
+            }
+            conditionLatch.countDown();
+            success.set(true);
+        };
+
+        // Plug in listener on all nodes
+        for (final var nodeName : predicatePerNode.keySet()) {
+            peerRecoverySourceServices.get(nodeName).ongoingRecoveries.addRecoverySchedulingListener(listener);
+            peerRecoveryTargetServices.get(nodeName).onGoingRecoveries.addRecoverySchedulingListener(listener);
+        }
+        try {
+            // In case conditions were already met before we added the listener everywhere
+            listener.onRecoverySchedulingChange();
+            safeAwait(conditionLatch);
+        } finally {
+            // Clean up all listeners
+            for (final var nodeName : predicatePerNode.keySet()) {
+                peerRecoverySourceServices.get(nodeName).ongoingRecoveries.removeRecoverySchedulingListener(listener);
+                peerRecoveryTargetServices.get(nodeName).onGoingRecoveries.removeRecoverySchedulingListener(listener);
+            }
+        }
     }
 
     protected void checkTransientErrorsDuringRecoveryAreRetried(String recoveryActionToBlock) throws Exception {

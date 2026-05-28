@@ -95,10 +95,8 @@ This endpoint returns sorted label names present on matching series.
 
 ### Label values [promql-http-api-label-values]
 
-`GET  /_prometheus/api/v1/label/{name}/values`\
-`POST /_prometheus/api/v1/label/{name}/values`\
-`GET  /_prometheus/{index}/api/v1/label/{name}/values`\
-`POST /_prometheus/{index}/api/v1/label/{name}/values`
+`GET /_prometheus/api/v1/label/{name}/values`\
+`GET /_prometheus/{index}/api/v1/label/{name}/values`
 
 This endpoint returns sorted, deduplicated values for one label.
 `match[]` is not required. If you omit every `match[]`, results are still limited to the `start` and `end` time range.
@@ -157,6 +155,10 @@ Parameter encodings match the [Prometheus HTTP API](https://prometheus.io/docs/p
 For `GET` requests, send parameters in the query string.
 For endpoints that support `POST`, send parameters in an `application/x-www-form-urlencoded` request body.
 Do not repeat a parameter in both the URL and the form body.
+
+::::{note}
+Form-encoded `POST` requests are accepted only when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true` on the Elasticsearch HTTP interface, and the request is authenticated (not anonymous). The check uses Elasticsearch’s own HTTP TLS setting, so deployments that terminate TLS before Elasticsearch and expose plain HTTP to the node must use `GET` with query-string parameters instead. Unauthenticated or plain-HTTP `POST` requests with `application/x-www-form-urlencoded` bodies return HTTP `406 Not Acceptable`.
+::::
 
 ### Timestamps [promql-http-api-param-timestamp]
 

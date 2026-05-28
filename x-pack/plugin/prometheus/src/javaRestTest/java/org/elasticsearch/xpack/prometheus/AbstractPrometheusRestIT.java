@@ -25,16 +25,24 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -60,20 +68,56 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     protected static final String PASS = "x-pack-test-password";
     protected static final String DEFAULT_DATA_STREAM = "metrics-generic.prometheus-default";
 
+    private static Path httpCertificateAuthority;
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .user(USER, PASS, "superuser", false)
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.autoconfiguration.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.watcher.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "http.crt")
+        .setting("xpack.security.http.ssl.key", "http.key")
+        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.http.ssl.client_authentication", "optional")
+        .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
+        .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .user(USER, PASS, "superuser", false)
         .build();
+
+    @BeforeClass
+    public static void findHttpCertificateAuthority() throws Exception {
+        httpCertificateAuthority = findResource("/ssl/ca.crt");
+    }
+
+    private static Path findResource(String name) throws FileNotFoundException, URISyntaxException {
+        final URL resource = AbstractPrometheusRestIT.class.getResource(name);
+        if (resource == null) {
+            throw new FileNotFoundException("Cannot find classpath resource " + name);
+        }
+        return PathUtils.get(resource.toURI());
+    }
+
+    @AfterClass
+    public static void cleanupStatics() {
+        httpCertificateAuthority = null;
+    }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected String getProtocol() {
+        return "https";
     }
 
     protected String writeApiKey;
@@ -82,7 +126,15 @@ public abstract class AbstractPrometheusRestIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return Settings.builder()
+            .put(super.restClientSettings())
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(restSslSettings())
+            .build();
+    }
+
+    private static Settings restSslSettings() {
+        return Settings.builder().put(CERTIFICATE_AUTHORITIES, httpCertificateAuthority).build();
     }
 
     @Before

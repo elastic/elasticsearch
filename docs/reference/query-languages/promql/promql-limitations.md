@@ -19,6 +19,12 @@ This functionality is in technical preview and might be changed or removed in a 
 Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
+## Form-encoded POST requests (HTTP API) [promql-limitations-form-post]
+
+Routes that document `POST` accept parameters in an `application/x-www-form-urlencoded` body only when [security](/reference/elasticsearch/configuration-reference/security-settings.md) is enabled, [`xpack.security.http.ssl.enabled`](/reference/elasticsearch/configuration-reference/security-settings.md) is `true` on the Elasticsearch HTTP interface, and the request is authenticated.
+TLS that terminates before Elasticsearch (plain HTTP to the node) does not satisfy this check.
+Use `GET` with query-string parameters when `POST` is unavailable.
+
 ## Unsupported Prometheus query parameters (HTTP API) [promql-limitations-unsupported-query-params]
 
 The [PromQL HTTP API](promql-http-api.md) documents only the parameters each route accepts. Extra parameters from the [Prometheus HTTP API](https://prometheus.io/docs/prometheus/latest/querying/api/) are not supported yet. {{es}} does not ignore them: the request fails with 400 Bad Request. Configure clients and integrations to omit them (for example, there is no per-request `timeout` query parameter). Cancellation and runtime limits follow {{esql}} and cluster settings.

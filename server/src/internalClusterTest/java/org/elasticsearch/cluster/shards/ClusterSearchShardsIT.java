@@ -188,9 +188,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         createIndex("slice-disabled");
         ensureGreen("slice-disabled");
 
-        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-disabled").routing("s1")
-            .searchSlice("s1")
-            .setRoutingFromSlice(true);
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-disabled").searchSlice("s1");
         IllegalArgumentException e = safeAwaitAndUnwrapFailure(
             IllegalArgumentException.class,
             ClusterSearchShardsResponse.class,
@@ -212,7 +210,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         ClusterSearchShardsResponse sliceS1S2 = safeExecute(sliceRequest("slice-routing", "s1,s2"));
         ClusterSearchShardsResponse sliceAll = safeExecute(
             new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-routing").searchSlice(SliceIndexing.SLICE_ALL)
-                .setRoutingFromSlice(true)
         );
 
         assertThat(sliceS1.getGroups().length, equalTo(1));
@@ -231,7 +228,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     private static ClusterSearchShardsRequest sliceRequest(String index, String slice) {
-        return new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, index).routing(slice).searchSlice(slice).setRoutingFromSlice(true);
+        return new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, index).routing(slice).searchSlice(slice);
     }
 
     private static Set<Integer> shardIds(ClusterSearchShardsResponse response) {

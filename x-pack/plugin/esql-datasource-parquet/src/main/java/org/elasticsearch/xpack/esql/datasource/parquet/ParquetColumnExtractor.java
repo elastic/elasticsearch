@@ -540,7 +540,8 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                 /* preloadedMetadata = */ null,
                 prefetched,
                 storageObject,
-                reader.codecFactory()
+                reader.codecFactory(),
+                blockFactory.arrowAllocator()
             )
         ) {
             if (info.maxRepLevel() == 0) {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
@@ -15,10 +17,13 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.io.ParquetDecodingException;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
@@ -32,8 +37,15 @@ import java.util.List;
  * {@link DataPage} from the queue and returns its decompressed equivalent, preserving the
  * original page type ({@link DataPageV1} stays V1, {@link DataPageV2} stays V2 with only the
  * data portion decompressed). Encryption and CRC verification are not supported.
+ *
+ * <p>Decompression buffers are allocated as {@link ArrowBuf}s from the supplied
+ * {@link BufferAllocator}, exposed to the codec via {@link ArrowBuf#nioBuffer(long, int)} to
+ * preserve the direct-to-direct JNI fast path. The reader owns these buffers; {@link #close()}
+ * releases them back to the allocator (which routes the accounting through the circuit breaker).
+ * The {@link DataPage}s and {@link BytesInput}s returned from {@link #readPage()} alias these
+ * buffers and must not be used after the reader is closed.
  */
-final class PrefetchedPageReader implements PageReader {
+final class PrefetchedPageReader implements PageReader, Releasable {
 
     /**
      * A compressed data page paired with its {@code firstRowIndex}. Required because
@@ -45,20 +57,25 @@ final class PrefetchedPageReader implements PageReader {
     record CompressedPage(DataPage page, long firstRowIndex) {}
 
     private final BytesInputDecompressor decompressor;
+    private final BufferAllocator allocator;
     private final long valueCount;
     private final Deque<CompressedPage> compressedPages;
     private final DictionaryPage compressedDictionaryPage;
+    private final List<Releasable> ownedBuffers = new ArrayList<>();
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
+    private boolean closed;
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
+        BufferAllocator allocator,
         List<CompressedPage> compressedPages,
         DictionaryPage compressedDictionaryPage,
         long valueCount
     ) {
         this.decompressor = decompressor;
+        this.allocator = allocator;
         this.compressedPages = new ArrayDeque<>(compressedPages);
         this.compressedDictionaryPage = compressedDictionaryPage;
         this.valueCount = valueCount;
@@ -233,15 +250,55 @@ final class PrefetchedPageReader implements PageReader {
             }
             return BytesInput.from(input);
         }
-        if (input.isDirect() == false) {
-            ByteBuffer directInput = ByteBuffer.allocateDirect(input.remaining());
-            directInput.put(input);
-            directInput.flip();
-            input = directInput;
+        // Scratch buffer used only when the input is on the heap and must be copied to direct
+        // memory to take the codec's direct-to-direct JNI fast path. decompress() consumes it
+        // synchronously, so it is released in the finally below rather than registered with the
+        // reader — otherwise it would sit in ownedBuffers for the rest of the row group.
+        ArrowBuf scratch = null;
+        try {
+            if (input.isDirect() == false) {
+                scratch = allocator.buffer(input.remaining());
+                ByteBuffer directInput = scratch.nioBuffer(0, input.remaining());
+                directInput.put(input);
+                directInput.flip();
+                input = directInput;
+            }
+            ByteBuffer output = allocateDirect(decompressedSize);
+            decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
+            output.flip();
+            return BytesInput.from(output);
+        } finally {
+            if (scratch != null) {
+                scratch.close();
+            }
         }
-        ByteBuffer output = ByteBuffer.allocateDirect(decompressedSize);
-        decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
-        output.flip();
-        return BytesInput.from(output);
+    }
+
+    /**
+     * Allocate a direct {@link ByteBuffer} of the requested size, backed by an {@link ArrowBuf}
+     * owned by this reader. The buffer is breaker-accounted via the allocator's listener and is
+     * released on {@link #close()}.
+     */
+    private ByteBuffer allocateDirect(int size) {
+        ArrowBuf buf = allocator.buffer(size);
+        ownedBuffers.add(buf::close);
+        // Use the explicit (index, length) overload: ArrowBuf may round capacity up, but the
+        // codec's size sanity check expects remaining() == declared decompressed size.
+        return buf.nioBuffer(0, size);
+    }
+
+    @Override
+    public void close() {
+        if (closed) {
+            return;
+        }
+        closed = true;
+        // Drop the cached dictionary BytesInput; it aliases an ArrowBuf we're about to release.
+        cachedDictionaryPage = null;
+        try {
+            Releasables.close(ownedBuffers);
+        } finally {
+            ownedBuffers.clear();
+        }
     }
 }

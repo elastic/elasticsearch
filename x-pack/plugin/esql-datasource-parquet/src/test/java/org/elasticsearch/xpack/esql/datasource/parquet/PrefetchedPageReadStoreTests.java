@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Encoding;
@@ -17,6 +18,9 @@ import org.apache.parquet.column.statistics.IntStatistics;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,11 +36,15 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PrefetchedPageReadStoreTests extends ESTestCase {
 
     private PlainCompressionCodecFactory codecFactory;
+    private BlockFactory blockFactory;
+    private BufferAllocator allocator;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         codecFactory = new PlainCompressionCodecFactory();
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        allocator = blockFactory.arrowAllocator();
     }
 
     @Override
@@ -51,11 +59,11 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         PrefetchedPageReader readerA = newPageReader(15);
         PrefetchedPageReader readerB = newPageReader(7);
 
-        PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(a, readerA, b, readerB), 22);
-
-        assertThat(store.getPageReader(a), sameInstance(readerA));
-        assertThat(store.getPageReader(b), sameInstance(readerB));
-        assertThat(store.getRowCount(), equalTo(22L));
+        try (PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(a, readerA, b, readerB), 22)) {
+            assertThat(store.getPageReader(a), sameInstance(readerA));
+            assertThat(store.getPageReader(b), sameInstance(readerB));
+            assertThat(store.getRowCount(), equalTo(22L));
+        }
     }
 
     public void testReadDictionaryPageDelegatesToColumnReader() throws IOException {
@@ -64,28 +72,32 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(payload), payload.length, 4, Encoding.PLAIN);
         PrefetchedPageReader reader = new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            allocator,
             List.of(),
             compressedDict,
             0
         );
-        PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(desc, reader), 0);
-
-        DictionaryPage out = store.readDictionaryPage(desc);
-        assertThat(out, notNullValue());
-        assertThat(out.getBytes().toByteArray(), equalTo(payload));
+        try (PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(desc, reader), 0)) {
+            DictionaryPage out = store.readDictionaryPage(desc);
+            assertThat(out, notNullValue());
+            assertThat(out.getBytes().toByteArray(), equalTo(payload));
+        }
     }
 
     public void testReadDictionaryPageReturnsNullForUnknownColumn() {
         ColumnDescriptor known = newColumn("known");
         ColumnDescriptor unknown = newColumn("unknown");
-        PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(known, newPageReader(0)), 0);
-        assertThat(store.readDictionaryPage(unknown), nullValue());
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> store.getPageReader(unknown));
-        assertThat(e.getMessage(), containsString("No prefetched reader for column"));
+        try (PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(known, newPageReader(0)), 0)) {
+            assertThat(store.readDictionaryPage(unknown), nullValue());
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> store.getPageReader(unknown));
+            assertThat(e.getMessage(), containsString("No prefetched reader for column"));
+        }
     }
 
     public void testCloseIsIdempotent() {
-        PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(), 0);
+        // close() now actively releases ArrowBufs owned by per-column readers; the second call
+        // must be a safe no-op.
+        PrefetchedPageReadStore store = new PrefetchedPageReadStore(Map.of(newColumn("a"), newPageReader(0)), 0);
         store.close();
         store.close();
     }
@@ -102,6 +114,7 @@ public class PrefetchedPageReadStoreTests extends ESTestCase {
         );
         return new PrefetchedPageReader(
             codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            allocator,
             List.of(new PrefetchedPageReader.CompressedPage(page, -1L)),
             null,
             valueCount

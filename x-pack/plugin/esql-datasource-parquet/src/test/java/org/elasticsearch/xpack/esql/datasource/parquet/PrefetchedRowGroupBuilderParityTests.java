@@ -210,7 +210,8 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                     metadata,
                     chunks,
                     storageObject,
-                    codecFactory
+                    codecFactory,
+                    blockFactory.arrowAllocator()
                 )
             ) {
                 ColumnDescriptor desc = schema.getColumns().getFirst();
@@ -318,7 +319,8 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                 metadata,
                 chunks,
                 storageObject,
-                codecFactory
+                codecFactory,
+                blockFactory.arrowAllocator()
             )
         ) {
             ColumnDescriptor desc = schema.getColumns().getFirst();

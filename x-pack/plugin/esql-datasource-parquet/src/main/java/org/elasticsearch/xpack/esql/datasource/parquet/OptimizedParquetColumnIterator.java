@@ -925,7 +925,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     preloadedMetadata,
                     chunks,
                     storageObject,
-                    codecFactory
+                    codecFactory,
+                    blockFactory.arrowAllocator()
                 );
                 rowsRemainingInGroup = buildRowRanges != null ? buildRowRanges.selectedRowCount() : rowGroup.getRowCount();
                 triggerNextRowGroupPrefetch();
@@ -1095,7 +1096,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             preloadedMetadata,
             phase1Chunks,
             storageObject,
-            codecFactory
+            codecFactory,
+            blockFactory.arrowAllocator()
         );
         rowGroup = predicateStore;
         initPredicateColumnReaders();
@@ -1352,7 +1354,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             preloadedMetadata,
             merged,
             storageObject,
-            codecFactory
+            codecFactory,
+            blockFactory.arrowAllocator()
         );
         rowsRemainingInGroup = rowGroup.getRowCount();
         initColumnReaders(null);
@@ -1443,7 +1446,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             preloadedMetadata,
             chunks,
             storageObject,
-            codecFactory
+            codecFactory,
+            blockFactory.arrowAllocator()
         );
     }
 

@@ -307,6 +307,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
+    private final CsvReaderCounters counters;
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
@@ -353,6 +356,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
+        this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -931,8 +935,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.batchSize(),
             effectiveSchema,
             effective,
-            object.path().toString()
+            object.path().toString(),
+            counters
         );
+    }
+
+    /**
+     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
+     * envelope. Zero-valued counters when no batches have run.
+     */
+    @Override
+    public CsvReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
@@ -1651,6 +1665,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long totalRowCount = 0;
         private String lastFieldError;
 
+        // Reader-level counters shared across this iterator and any sibling segments.
+        private final CsvReaderCounters counters;
+
         CsvBatchIterator(
             BufferedReader reader,
             InputStream stream,
@@ -1658,7 +1675,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int batchSize,
             List<Attribute> preResolvedSchema,
             ErrorPolicy errorPolicy,
-            String sourceLocation
+            String sourceLocation,
+            CsvReaderCounters counters
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1674,6 +1692,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.counters = counters;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1692,11 +1711,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (nextPage != null) {
                 return true;
             }
+            long startNanos = System.nanoTime();
+            long startTotal = totalRowCount;
+            long startError = errorCount;
             try {
                 nextPage = readNextBatch();
                 return nextPage != null;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read CSV batch", e);
+            } finally {
+                long deltaTotal = totalRowCount - startTotal;
+                long deltaErrors = errorCount - startError;
+                counters.addRowsEmitted(deltaTotal - deltaErrors);
+                counters.addParseErrors(deltaErrors);
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -1755,6 +1783,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (headerLine == null) {
                         return null;
                     }
+                    counters.markHeaderDetected();
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);

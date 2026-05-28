@@ -608,6 +608,7 @@ public abstract class LuceneOperator extends SourceOperator {
             return current;
         }
 
+        @Override
         public long rowsEmitted() {
             return rowsEmitted;
         }

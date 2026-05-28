@@ -70,6 +70,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -126,8 +127,13 @@ public class DatafeedManagerTests extends ESTestCase {
         }).when(apiKeyService).grantCloudAuthentication(any(CloudCredential.class), anyString(), any());
     }
 
+    private static void stubWrapClientForValidateProbe(CloudCredentialManager credentialManager, Client client) {
+        when(credentialManager.wrapClient(same(client), nullable(CloudCredential.class))).thenReturn(client);
+    }
+
     @SuppressWarnings("unchecked")
-    private static void mockSearchProbeSucceeds(Client client) {
+    private static void mockSearchProbeSucceeds(CloudCredentialManager credentialManager, Client client) {
+        stubWrapClientForValidateProbe(credentialManager, client);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = invocation.getArgument(2);
             SearchResponse response = mock(SearchResponse.class);
@@ -140,7 +146,8 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void mockSearchProbeOkWithSkippedClusterSecurityFailure(Client client) {
+    private static void mockSearchProbeOkWithSkippedClusterSecurityFailure(CloudCredentialManager credentialManager, Client client) {
+        stubWrapClientForValidateProbe(credentialManager, client);
         ShardSearchFailure failure = new ShardSearchFailure(new ElasticsearchSecurityException("action denied", RestStatus.FORBIDDEN));
         SearchResponse.Cluster cluster = new SearchResponse.Cluster(
             "linked_project",
@@ -169,7 +176,8 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void mockSearchProbeFails(Client client, Exception failure) {
+    private static void mockSearchProbeFails(CloudCredentialManager credentialManager, Client client, Exception failure) {
+        stubWrapClientForValidateProbe(credentialManager, client);
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = invocation.getArgument(2);
             listener.onFailure(failure);
@@ -313,7 +321,7 @@ public class DatafeedManagerTests extends ESTestCase {
         mockGrantSucceeds(apiKeyService, persisted);
 
         stubClientForSecurityPutPath(client, threadPool);
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
 
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -359,6 +367,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
         assertThat(response.get().getResponse().getCloudInternalCredential(), equalTo(persisted));
         Mockito.verify(secondaryAuth, Mockito.atLeast(2)).wrap(any(Runnable.class));
+        verify(credentialManager).wrapClient(same(client), eq(extractedCredential));
     }
 
     @SuppressWarnings("unchecked")
@@ -387,7 +396,7 @@ public class DatafeedManagerTests extends ESTestCase {
         mockGrantSucceeds(apiKeyService, persisted);
 
         stubClientForSecurityPutPath(client, threadPool);
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
 
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -458,7 +467,7 @@ public class DatafeedManagerTests extends ESTestCase {
         mockRevokeSucceeds(apiKeyService);
 
         stubClientForSecurityPutPath(client, threadPool);
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
 
         doAnswer(invocation -> {
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
@@ -514,7 +523,7 @@ public class DatafeedManagerTests extends ESTestCase {
         PersistedCloudCredential persisted = new PersistedCloudCredential("update-key-id", new SecureString("secret".toCharArray()));
         mockGrantSucceeds(apiKeyService, persisted);
         mockRevokeSucceeds(apiKeyService);
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
 
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
@@ -566,7 +575,7 @@ public class DatafeedManagerTests extends ESTestCase {
         mockGrantFails(apiKeyService, grantFailure);
 
         stubClientForSecurityPutPath(client, threadPool);
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         builder.setIndices(List.of("logs-*"));
@@ -619,7 +628,7 @@ public class DatafeedManagerTests extends ESTestCase {
         when(credentialManager.extractCloudManagedCredential(any())).thenReturn(new CloudCredential(new SecureString("t".toCharArray())));
         IOException grantFailure = new IOException("UIAM unreachable");
         mockGrantFails(apiKeyService, grantFailure);
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
 
         DatafeedConfig.Builder existingBuilder = new DatafeedConfig.Builder("test-datafeed", "test-job");
         existingBuilder.setIndices(List.of("logs-*"));
@@ -1032,7 +1041,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         RuntimeException probeFailure = new RuntimeException("search probe failed");
-        mockSearchProbeFails(client, probeFailure);
+        mockSearchProbeFails(credentialManager, client, probeFailure);
         stubUpdateDatefeedConfigInvokesMintHook(datafeedConfigProvider, existingBuilder.build(), null);
 
         DatafeedUpdate.Builder updateBuilder = new DatafeedUpdate.Builder("test-datafeed");
@@ -1083,7 +1092,7 @@ public class DatafeedManagerTests extends ESTestCase {
         withCpsSearchSurface(existingBuilder);
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
-        mockSearchProbeOkWithSkippedClusterSecurityFailure(client);
+        mockSearchProbeOkWithSkippedClusterSecurityFailure(credentialManager, client);
         stubUpdateDatefeedConfigInvokesMintHook(datafeedConfigProvider, existingBuilder.build(), null);
 
         DatafeedUpdate.Builder updateBuilder = new DatafeedUpdate.Builder("test-datafeed");
@@ -1135,7 +1144,7 @@ public class DatafeedManagerTests extends ESTestCase {
         withCpsSearchSurface(existingBuilder);
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
         mockGrantFails(apiKeyService, new IOException("stop after probe"));
         stubUpdateDatefeedConfigInvokesMintHook(datafeedConfigProvider, existingBuilder.build(), null);
 
@@ -1191,7 +1200,7 @@ public class DatafeedManagerTests extends ESTestCase {
         withCpsSearchSurface(existingBuilder);
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
-        mockSearchProbeSucceeds(client);
+        mockSearchProbeSucceeds(credentialManager, client);
         PersistedCloudCredential minted = new PersistedCloudCredential("minted-key", new SecureString("s".toCharArray()));
         mockGrantSucceeds(apiKeyService, minted);
         mockRevokeSucceeds(apiKeyService);

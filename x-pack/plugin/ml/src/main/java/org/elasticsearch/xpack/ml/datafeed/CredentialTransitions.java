@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -366,10 +367,16 @@ public final class CredentialTransitions {
         if (config.getProjectRouting() != null) {
             searchRequest.setProjectRouting(config.getProjectRouting());
         }
+        final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final CloudCredential callerCredential = credentialManager.hasCloudManagedCredential(threadContext)
+            ? credentialManager.extractCloudManagedCredential(threadContext)
+            : null;
+        final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         executeWithHeadersAsync(
             headers,
             ML_ORIGIN,
-            client,
+            searchClient,
             TransportSearchAction.TYPE,
             true,
             searchRequest,
@@ -410,7 +417,11 @@ public final class CredentialTransitions {
         BiConsumer<PersistedCloudCredential, Map<String, String>> onSuccess
     ) {
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            CloudCredential callerCredential = credentialManagerSupplier.get().extractCloudManagedCredential(threadPool.getThreadContext());
+            final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            final CloudCredential callerCredential = credentialManager.hasCloudManagedCredential(threadContext)
+                ? credentialManager.extractCloudManagedCredential(threadContext)
+                : null;
             Map<String, String> userHeaders = threadPool.getThreadContext().getHeaders();
             apiKeyServiceSupplier.get()
                 .grantCloudAuthentication(

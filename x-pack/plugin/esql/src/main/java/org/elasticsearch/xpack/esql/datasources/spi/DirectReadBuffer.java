@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
- * Result of {@link StorageObject#readBytesAsync(long, long, BufferAllocator, java.util.concurrent.Executor,
+ * Result of {@link StorageObject#readBytesAsync(long, long, DirectBufferFactory, java.util.concurrent.Executor,
  * org.elasticsearch.action.ActionListener)}: the bytes plus a {@link Releasable} that frees the
  * native memory backing them.
  *

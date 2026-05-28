@@ -17,6 +17,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -48,6 +49,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private static final String CONNECTION_STRING = "DefaultEndpointsProtocol=http;"
         + "AccountName=devstoreaccount1;"
@@ -86,7 +88,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, ALLOCATOR, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
@@ -110,7 +112,7 @@ public class AzureStorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, -1, ALLOCATOR, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, -1, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");

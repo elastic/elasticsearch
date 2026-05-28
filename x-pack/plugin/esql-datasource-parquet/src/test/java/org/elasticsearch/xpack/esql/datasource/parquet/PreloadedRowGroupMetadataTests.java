@@ -29,6 +29,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -411,7 +412,7 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
             public void readBytesAsync(
                 long position,
                 long length,
-                BufferAllocator allocator,
+                DirectBufferFactory factory,
                 java.util.concurrent.Executor ignored,
                 ActionListener<DirectReadBuffer> listener
             ) {

@@ -13,10 +13,10 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -36,7 +36,7 @@ import java.util.concurrent.Executor;
  * <ul>
  *   <li>{@link #readBytes(long, ByteBuffer)} — uses {@code ReadChannel.read(ByteBuffer)} for
  *       direct buffer reads without intermediate byte[] allocation.</li>
- *   <li>{@link #readBytesAsync(long, long, BufferAllocator, Executor, ActionListener)} — executor-wrapped
+ *   <li>{@link #readBytesAsync(long, long, DirectBufferFactory, Executor, ActionListener)} — executor-wrapped
  *       ReadChannel reads for the async API.</li>
  *   <li>{@link #supportsNativeAsync()} — returns {@code true} because this class provides custom
  *       async and byte-read implementations that are more efficient than the default InputStream
@@ -192,7 +192,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     public void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
@@ -210,7 +210,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
         try {
-            drb = DirectReadBuffer.allocate(allocator, len);
+            drb = factory.allocate(len);
         } catch (IOException e) {
             listener.onFailure(e);
             return;

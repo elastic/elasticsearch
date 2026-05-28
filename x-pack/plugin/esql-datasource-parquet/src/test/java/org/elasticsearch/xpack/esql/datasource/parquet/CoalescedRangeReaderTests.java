@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.ByteRange;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.CoalescedRangeResult;
 import org.elasticsearch.xpack.esql.datasource.parquet.CoalescedRangeReader.MergedRange;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -137,12 +138,12 @@ public class CoalescedRangeReaderTests extends ESTestCase {
             public void readBytesAsync(
                 long position,
                 long length,
-                BufferAllocator allocator,
+                DirectBufferFactory factory,
                 Executor executor,
                 ActionListener<DirectReadBuffer> listener
             ) {
                 asyncCallCount.incrementAndGet();
-                StorageObject.super.readBytesAsync(position, length, allocator, executor, listener);
+                StorageObject.super.readBytesAsync(position, length, factory, executor, listener);
             }
         };
 

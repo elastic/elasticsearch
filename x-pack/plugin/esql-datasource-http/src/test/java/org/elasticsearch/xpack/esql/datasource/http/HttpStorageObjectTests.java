@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -56,6 +57,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testPath() {
         HttpClient mockClient = mock(HttpClient.class);
@@ -174,7 +176,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         object.readBytesAsync(
             0,
             (long) Integer.MAX_VALUE + 1,
-            ALLOCATOR,
+            FACTORY,
             Runnable::run,
             ActionListener.wrap(buf -> { fail("expected failure"); }, e -> {
                 error.set(e);
@@ -258,7 +260,7 @@ public class HttpStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
 
-        object.readBytesAsync(position, length, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> {
+        object.readBytesAsync(position, length, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
             result.set(buf);
             latch.countDown();
         }, e -> { throw new AssertionError("unexpected failure", e); }));

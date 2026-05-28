@@ -18,12 +18,12 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -318,12 +318,12 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     public void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
         if (s3AsyncClient == null) {
-            super.readBytesAsync(position, length, allocator, executor, listener);
+            super.readBytesAsync(position, length, factory, executor, listener);
             return;
         }
 
@@ -355,7 +355,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
             (int) length,
-            allocator
+            factory
         );
         s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
             if (throwable != null) {

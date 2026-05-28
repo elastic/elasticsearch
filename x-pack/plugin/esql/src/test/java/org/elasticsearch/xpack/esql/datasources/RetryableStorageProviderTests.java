@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -42,6 +43,7 @@ public class RetryableStorageProviderTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testNewObjectWrapsWithRetry() throws IOException {
         AtomicInteger streamCalls = new AtomicInteger();
@@ -172,7 +174,7 @@ public class RetryableStorageProviderTests extends ESTestCase {
             public void readBytesAsync(
                 long position,
                 long length,
-                BufferAllocator allocator,
+                DirectBufferFactory factory,
                 Executor executor,
                 ActionListener<DirectReadBuffer> listener
             ) {
@@ -190,7 +192,7 @@ public class RetryableStorageProviderTests extends ESTestCase {
         ExecutorService exec = Executors.newSingleThreadExecutor();
         try {
             PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-            obj.readBytesAsync(0, 10, ALLOCATOR, exec, future);
+            obj.readBytesAsync(0, 10, FACTORY, exec, future);
             try (DirectReadBuffer result = future.actionGet()) {
                 byte[] bytes = new byte[result.buffer().remaining()];
                 result.buffer().get(bytes);

@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 
 import java.io.IOException;
@@ -24,11 +23,10 @@ import java.util.concurrent.Flow;
  * {@link HttpResponse.BodyHandler} implementations that accumulate HTTP response bodies directly
  * into a pre-allocated direct {@link ByteBuffer}, avoiding {@code BodyHandlers.ofByteArray()}.
  *
- * <p>Destination buffers are obtained from a caller-supplied {@link BufferAllocator} so the
- * allocation is breaker-accounted. On success the {@link ArrowBuf} is handed to the caller via
- * the {@link DirectReadBuffer#release()} returned to the listener; the caller releases it when
- * the bytes have been consumed. On failure paths the subscriber releases the {@link ArrowBuf}
- * itself so the charge does not outlive the failed request.
+ * <p>Destination buffers are obtained from a caller-supplied {@link DirectBufferFactory} so the
+ * allocation is breaker-accounted. On success the {@link DirectReadBuffer} is handed to the
+ * caller; the caller releases it when the bytes have been consumed. On failure paths the
+ * subscriber releases the buffer itself so the charge does not outlive the failed request.
  */
 final class DirectByteBufferBodyHandlers {
 
@@ -40,15 +38,15 @@ final class DirectByteBufferBodyHandlers {
      * {@code Range} header and responds with {@code 200 OK}, the first {@code skip} bytes are
      * discarded and the next {@code length} bytes are accumulated into a direct buffer.
      *
-     * @param allocator allocator used to back the destination buffer on the 200/206 paths
+     * @param factory factory used to produce the destination buffer on the 200/206 paths
      */
-    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, BufferAllocator allocator) {
+    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, DirectBufferFactory factory) {
         return responseInfo -> {
             int status = responseInfo.statusCode();
             if (status == HttpStatus.SC_PARTIAL_CONTENT) {
-                return new FixedLengthDirectSubscriber(length, allocator);
+                return new FixedLengthDirectSubscriber(length, factory);
             } else if (status == HttpStatus.SC_OK) {
-                return new SkipThenFillDirectSubscriber(skip, length, allocator);
+                return new SkipThenFillDirectSubscriber(skip, length, factory);
             } else {
                 return new DiscardingSubscriber();
             }
@@ -60,7 +58,7 @@ final class DirectByteBufferBodyHandlers {
      */
     static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final int expectedLength;
-        private final BufferAllocator allocator;
+        private final DirectBufferFactory factory;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
@@ -71,12 +69,12 @@ final class DirectByteBufferBodyHandlers {
         private volatile Flow.Subscription subscription;
         private volatile boolean failed;
 
-        FixedLengthDirectSubscriber(int expectedLength, BufferAllocator allocator) {
+        FixedLengthDirectSubscriber(int expectedLength, DirectBufferFactory factory) {
             if (expectedLength < 0) {
                 throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
             }
             this.expectedLength = expectedLength;
-            this.allocator = allocator;
+            this.factory = factory;
         }
 
         @Override
@@ -87,7 +85,7 @@ final class DirectByteBufferBodyHandlers {
             }
             this.subscription = subscription;
             try {
-                this.destinationBuf = DirectReadBuffer.allocate(allocator, expectedLength);
+                this.destinationBuf = factory.allocate(expectedLength);
                 this.destination = destinationBuf.buffer();
             } catch (IOException e) {
                 failed = true;
@@ -144,7 +142,7 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             destination.position(0).limit(offset);
-            // Transfer ownership of the ArrowBuf to the caller via DirectReadBuffer.release().
+            // Transfer ownership of the buffer to the caller.
             // Null out the field so releaseOnFailure (if ever invoked after this point) does not
             // double-close it. The destination ByteBuffer's position/limit set above is observable
             // through transferred.buffer() since they share the same NIO view.
@@ -181,7 +179,7 @@ final class DirectByteBufferBodyHandlers {
     static final class SkipThenFillDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final long skip;
         private final int length;
-        private final BufferAllocator allocator;
+        private final DirectBufferFactory factory;
         private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // See FixedLengthDirectSubscriber for the volatility rationale.
         private volatile DirectReadBuffer destinationBuf;
@@ -191,7 +189,7 @@ final class DirectByteBufferBodyHandlers {
         private volatile Flow.Subscription subscription;
         private volatile boolean failed;
 
-        SkipThenFillDirectSubscriber(long skip, int length, BufferAllocator allocator) {
+        SkipThenFillDirectSubscriber(long skip, int length, DirectBufferFactory factory) {
             if (skip < 0) {
                 throw new IllegalArgumentException("skip must be non-negative, got: " + skip);
             }
@@ -201,7 +199,7 @@ final class DirectByteBufferBodyHandlers {
             this.skip = skip;
             this.length = length;
             this.skipRemaining = skip;
-            this.allocator = allocator;
+            this.factory = factory;
         }
 
         @Override
@@ -212,7 +210,7 @@ final class DirectByteBufferBodyHandlers {
             }
             this.subscription = subscription;
             try {
-                this.destinationBuf = DirectReadBuffer.allocate(allocator, length);
+                this.destinationBuf = factory.allocate(length);
                 this.destination = destinationBuf.buffer();
             } catch (IOException e) {
                 failed = true;
@@ -299,7 +297,7 @@ final class DirectByteBufferBodyHandlers {
 
     /**
      * Discards the response body for unexpected status codes. Returns an empty heap buffer so we
-     * do not allocate from the user's {@link BufferAllocator} on an error path — the body is
+     * do not allocate from the user's {@link DirectBufferFactory} on an error path — the body is
      * never delivered to a successful listener and the caller's failure handler tears down the
      * surrounding allocator anyway.
      */

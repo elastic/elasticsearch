@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -134,7 +134,7 @@ class QueryBudgetedStorageObject implements StorageObject {
     public void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
@@ -145,7 +145,7 @@ class QueryBudgetedStorageObject implements StorageObject {
             return;
         }
         try {
-            delegate.readBytesAsync(position, length, allocator, executor, ActionListener.wrap(result -> {
+            delegate.readBytesAsync(position, length, factory, executor, ActionListener.wrap(result -> {
                 budget.release();
                 boolean success = false;
                 try {

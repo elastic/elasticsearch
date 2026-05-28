@@ -15,6 +15,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -27,9 +28,9 @@ import java.util.List;
 
 /**
  * Regression test for the direct-memory leak fixed in esql-planning#851: every
- * {@link StorageObject#readBytesAsync(long, long, BufferAllocator, java.util.concurrent.Executor, ActionListener)}
- * call must allocate through the supplied {@link BufferAllocator} and surface the underlying
- * {@code ArrowBuf} as a {@link DirectReadBuffer#release()} so the caller can release the memory
+ * {@link StorageObject#readBytesAsync(long, long, DirectBufferFactory, java.util.concurrent.Executor, ActionListener)}
+ * call must allocate through the supplied {@link DirectBufferFactory} (which is backed by a
+ * {@link BufferAllocator}) so the caller can release the memory
  * deterministically.
  *
  * <p>The checks below pin the contract from both sides:
@@ -58,10 +59,11 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
 
         try (RootAllocator root = new RootAllocator(Long.MAX_VALUE)) {
             assertEquals("RootAllocator starts empty", 0L, root.getAllocatedMemory());
+            DirectBufferFactory factory = DirectBufferFactory.forAllocator(root);
 
             for (int i = 0; i < CYCLES; i++) {
                 PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-                storage.readBytesAsync(0, PAYLOAD_SIZE, root, Runnable::run, future);
+                storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
                 DirectReadBuffer result = future.actionGet();
                 try {
                     assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
@@ -89,13 +91,14 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
         // via ByteBuffer.allocateDirect (which is what the original bug did). The DirectReadBuffers
         // are closed in the finally block so the RootAllocator can shut down cleanly.
         try (RootAllocator root = new RootAllocator(Long.MAX_VALUE)) {
+            DirectBufferFactory factory = DirectBufferFactory.forAllocator(root);
             int cyclesBeforeLeakCheck = 16;
             List<DirectReadBuffer> kept = new ArrayList<>(cyclesBeforeLeakCheck);
             try {
                 long previous = 0L;
                 for (int i = 0; i < cyclesBeforeLeakCheck; i++) {
                     PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-                    storage.readBytesAsync(0, PAYLOAD_SIZE, root, Runnable::run, future);
+                    storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
                     DirectReadBuffer result = future.actionGet();
                     kept.add(result);
                     assertEquals(PAYLOAD_SIZE, result.buffer().remaining());
@@ -130,11 +133,12 @@ public class StorageReadDirectMemoryLeakRegressionTests extends ESTestCase {
 
         BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
         BufferAllocator allocator = blockFactory.arrowAllocator();
+        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
         long baseline = allocator.getAllocatedMemory();
 
         for (int i = 0; i < CYCLES; i++) {
             PlainActionFuture<DirectReadBuffer> future = new PlainActionFuture<>();
-            storage.readBytesAsync(0, PAYLOAD_SIZE, allocator, Runnable::run, future);
+            storage.readBytesAsync(0, PAYLOAD_SIZE, factory, Runnable::run, future);
             DirectReadBuffer result = future.actionGet();
             try {
                 assertEquals(PAYLOAD_SIZE, result.buffer().remaining());

@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -96,19 +95,23 @@ class RangeStorageObject implements StorageObject {
     public void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
         if (position >= this.length) {
-            // Allocate a zero-length ArrowBuf so the returned DirectReadBuffer is direct and
-            // allocator-owned, consistent with the StorageObject.readBytesAsync contract.
-            ArrowBuf emptyBuf = allocator.buffer(0);
-            listener.onResponse(new DirectReadBuffer(emptyBuf.nioBuffer(0, 0), emptyBuf::close));
+            // Allocate a zero-length buffer through the factory so the returned DirectReadBuffer
+            // is direct and allocator-owned, consistent with the StorageObject.readBytesAsync
+            // contract.
+            try {
+                listener.onResponse(factory.allocate(0));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
             return;
         }
         long cappedLength = Math.min(length, this.length - position);
-        delegate.readBytesAsync(Math.addExact(offset, position), cappedLength, allocator, executor, listener);
+        delegate.readBytesAsync(Math.addExact(offset, position), cappedLength, factory, executor, listener);
     }
 
     @Override

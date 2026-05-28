@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -51,6 +52,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testStreamCloseReleasesBudget() throws Exception {
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
@@ -115,7 +117,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> response = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 4, ALLOCATOR, Runnable::run, ActionListener.wrap(r -> {
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(r -> {
             response.set(r);
             latch.countDown();
         }, e -> latch.countDown()));
@@ -138,7 +140,7 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         CountDownLatch latch = new CountDownLatch(1);
 
-        obj.readBytesAsync(0, 4, ALLOCATOR, Runnable::run, ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()));
+        obj.readBytesAsync(0, 4, FACTORY, Runnable::run, ActionListener.wrap(r -> latch.countDown(), e -> latch.countDown()));
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(0, budget.inFlight());

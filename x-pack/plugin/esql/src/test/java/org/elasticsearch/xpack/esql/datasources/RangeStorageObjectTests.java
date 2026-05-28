@@ -13,6 +13,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -38,6 +39,7 @@ public class RangeStorageObjectTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 
@@ -216,7 +218,7 @@ public class RangeStorageObjectTests extends ESTestCase {
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         Executor directExecutor = Runnable::run;
 
-        range.readBytesAsync(0, 6, ALLOCATOR, directExecutor, new ActionListener<>() {
+        range.readBytesAsync(0, 6, FACTORY, directExecutor, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer byteBuffer) {
                 result.set(byteBuffer);

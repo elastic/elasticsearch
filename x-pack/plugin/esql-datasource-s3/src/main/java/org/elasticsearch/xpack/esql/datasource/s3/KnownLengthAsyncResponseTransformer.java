@@ -11,9 +11,8 @@ import software.amazon.awssdk.core.SdkResponse;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -62,26 +61,26 @@ import java.util.concurrent.atomic.AtomicReference;
 final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, DirectReadBuffer> {
 
     private final int expectedLength;
-    private final BufferAllocator allocator;
+    private final DirectBufferFactory factory;
 
     private volatile R response;
     private volatile CompletableFuture<DirectReadBuffer> resultFuture;
-    // Kept so exceptionOccurred() can release the ArrowBuf even if the subscriber's onError
+    // Kept so exceptionOccurred() can release the buffer even if the subscriber's onError
     // is never delivered (e.g. SDK abandons the publisher after a transport error).
     private volatile ChunkCopyingSubscriber currentSubscriber;
 
     /**
      * @param expectedLength exact length of the response body in bytes
-     * @param allocator allocator from which the destination buffer is obtained; the returned
-     *     {@link DirectReadBuffer} wraps an {@link ArrowBuf} that is charged against this
-     *     allocator until {@link DirectReadBuffer#close()} is called by the caller
+     * @param factory factory from which the destination {@link DirectReadBuffer} is obtained; the
+     *     returned buffer is charged against the underlying allocator until {@link DirectReadBuffer#close()}
+     *     is called by the caller
      */
-    KnownLengthAsyncResponseTransformer(int expectedLength, BufferAllocator allocator) {
+    KnownLengthAsyncResponseTransformer(int expectedLength, DirectBufferFactory factory) {
         if (expectedLength < 0) {
             throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
         }
         this.expectedLength = expectedLength;
-        this.allocator = allocator;
+        this.factory = factory;
     }
 
     /**
@@ -115,14 +114,14 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void onStream(SdkPublisher<ByteBuffer> publisher) {
-        ChunkCopyingSubscriber subscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, allocator);
+        ChunkCopyingSubscriber subscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, factory);
         this.currentSubscriber = subscriber;
         publisher.subscribe(subscriber);
     }
 
     @Override
     public void exceptionOccurred(Throwable error) {
-        // Release the ArrowBuf if it was allocated in onSubscribe but onError was never
+        // Release the buffer if it was allocated in onSubscribe but onError was never
         // delivered to the subscriber (e.g. SDK abandons the publisher after a transport
         // error). releaseOnFailure() is idempotent — if onError already fired it is a no-op.
         ChunkCopyingSubscriber subscriber = currentSubscriber;
@@ -144,7 +143,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
         private final CompletableFuture<DirectReadBuffer> resultFuture;
         private final int expectedLength;
-        private final BufferAllocator allocator;
+        private final DirectBufferFactory factory;
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
@@ -156,10 +155,10 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         private volatile Subscription subscription;
         private volatile boolean failed;
 
-        ChunkCopyingSubscriber(CompletableFuture<DirectReadBuffer> resultFuture, int expectedLength, BufferAllocator allocator) {
+        ChunkCopyingSubscriber(CompletableFuture<DirectReadBuffer> resultFuture, int expectedLength, DirectBufferFactory factory) {
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
-            this.allocator = allocator;
+            this.factory = factory;
         }
 
         @Override
@@ -174,7 +173,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // routed through the result future instead of escaping publisher.subscribe(...) as
             // an Error.
             try {
-                DirectReadBuffer drb = DirectReadBuffer.allocate(allocator, expectedLength);
+                DirectReadBuffer drb = factory.allocate(expectedLength);
                 this.destinationBuf.set(drb);
                 this.destination = drb.buffer();
             } catch (IOException e) {

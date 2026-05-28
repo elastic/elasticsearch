@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.apache.arrow.memory.ArrowBuf;
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 
 import java.io.IOException;
@@ -106,31 +104,29 @@ public interface StorageObject {
      * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
      * <p>
-     * <b>Allocator ownership:</b> the returned buffer is a view of an {@link ArrowBuf} allocated
-     * from {@code allocator}. The caller must invoke {@link DirectReadBuffer#close()} once the
-     * bytes have been consumed; closing decrements the underlying {@code ArrowBuf}'s reference
-     * count, which is what actually returns the memory to the allocator. Closing the allocator
-     * alone is not enough — Arrow treats outstanding {@code ArrowBuf}s as a leak (see
-     * esql-planning#851).
+     * <b>Buffer ownership:</b> the storage object obtains exactly one {@link DirectReadBuffer} of
+     * {@code length} bytes from {@code factory}. The caller must invoke {@link DirectReadBuffer#close()}
+     * once the bytes have been consumed; closing releases the buffer back to its underlying
+     * allocator. See {@link DirectReadBuffer} for the contract.
      *
      * <p>
-     * <b>Implementation contract:</b> if the read fails, implementations must close the backing
-     * {@code ArrowBuf} before calling {@code listener.onFailure()}. Callers that fan out reads
-     * across multiple merged ranges rely on this invariant to avoid double-releasing buffers from
-     * the successfully-completed sibling ranges on the failure path.
+     * <b>Implementation contract:</b> if the read fails, implementations must close the
+     * {@link DirectReadBuffer} before calling {@code listener.onFailure()}. Callers that fan out
+     * reads across multiple merged ranges rely on this invariant to avoid double-releasing buffers
+     * from the successfully-completed sibling ranges on the failure path.
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
-     * @param allocator allocator used to back the returned direct buffer; the storage object
-     *            allocates exactly one {@code ArrowBuf} of {@code length} bytes from this
-     *            allocator and returns a {@link DirectReadBuffer} wrapping a view of it
+     * @param factory produces the {@link DirectReadBuffer} the bytes are read into; the storage
+     *            object calls {@link DirectBufferFactory#allocate(int)} exactly once with
+     *            {@code length}
      * @param executor executor for running the async operation
      * @param listener callback for the result or failure
      */
     default void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
@@ -147,7 +143,7 @@ public interface StorageObject {
         // and leaving the listener permanently uncompleted.
         final DirectReadBuffer drb;
         try {
-            drb = DirectReadBuffer.allocate(allocator, (int) length);
+            drb = factory.allocate((int) length);
         } catch (IOException e) {
             listener.onFailure(e);
             return;

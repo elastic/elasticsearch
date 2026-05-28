@@ -21,6 +21,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.reactivestreams.Subscriber;
@@ -55,6 +56,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private static final String BUCKET = "test-bucket";
     private static final String KEY = "data/file.parquet";
@@ -91,7 +93,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
 
-        obj.readBytesAsync(0, PAYLOAD.length, ALLOCATOR, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
                 result.set(buffer);
@@ -125,7 +127,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         S3StorageObject obj = new S3StorageObject(mockSyncClient, mockAsyncClient, BUCKET, KEY, PATH);
 
         CountDownLatch latch = new CountDownLatch(1);
-        obj.readBytesAsync(0, PAYLOAD.length, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> fail()));
+        obj.readBytesAsync(0, PAYLOAD.length, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> fail()));
         assertTrue(latch.await(5, TimeUnit.SECONDS));
 
         assertEquals(1024L, obj.length());
@@ -144,7 +146,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 10, ALLOCATOR, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
@@ -168,7 +170,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, ALLOCATOR, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");
@@ -192,7 +194,7 @@ public class S3StorageObjectAsyncTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, (long) Integer.MAX_VALUE + 1, ALLOCATOR, Runnable::run, new ActionListener<>() {
+        obj.readBytesAsync(0, (long) Integer.MAX_VALUE + 1, FACTORY, Runnable::run, new ActionListener<>() {
             @Override
             public void onResponse(DirectReadBuffer buffer) {
                 fail("expected failure");

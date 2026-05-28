@@ -11,6 +11,7 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
@@ -103,8 +104,12 @@ final class CoalescedRangeReader {
         AtomicInteger remaining = new AtomicInteger(merged.size());
         AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
+        // Bridge the Arrow allocator to the SPI's allocator-agnostic factory once, here at the
+        // boundary, so backends do not need to know about BufferAllocator at all.
+        DirectBufferFactory factory = DirectBufferFactory.forAllocator(allocator);
+
         for (MergedRange mr : merged) {
-            storageObject.readBytesAsync(mr.offset, mr.length, allocator, executor, new ActionListener<>() {
+            storageObject.readBytesAsync(mr.offset, mr.length, factory, executor, new ActionListener<>() {
                 @Override
                 public void onResponse(DirectReadBuffer result) {
                     synchronized (results) {

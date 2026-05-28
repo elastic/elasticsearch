@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -175,7 +176,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             public void readBytesAsync(
                 long position,
                 long length,
-                BufferAllocator allocator,
+                DirectBufferFactory factory,
                 Executor executor,
                 ActionListener<DirectReadBuffer> listener
             ) {
@@ -258,7 +259,7 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
             public void readBytesAsync(
                 long position,
                 long length,
-                BufferAllocator allocator,
+                DirectBufferFactory factory,
                 Executor executor,
                 ActionListener<DirectReadBuffer> listener
             ) {

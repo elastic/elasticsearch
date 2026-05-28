@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -48,6 +49,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     public void testReadFullFile() throws IOException {
         // Create a temporary file
@@ -259,7 +261,7 @@ public class LocalStorageProviderTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
 
-        object.readBytesAsync(5, 5, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> {
+        object.readBytesAsync(5, 5, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
             result.set(buf);
             latch.countDown();
         }, e -> { throw new AssertionError("unexpected failure", e); }));

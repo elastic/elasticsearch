@@ -13,9 +13,9 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -226,12 +226,12 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     public void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
         if (blobAsyncClient == null) {
-            super.readBytesAsync(position, length, allocator, executor, listener);
+            super.readBytesAsync(position, length, factory, executor, listener);
             return;
         }
 
@@ -247,7 +247,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
         try {
-            drb = DirectReadBuffer.allocate(allocator, len);
+            drb = factory.allocate(len);
         } catch (IOException e) {
             listener.onFailure(e);
             return;

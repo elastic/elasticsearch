@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
@@ -106,7 +106,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
         public void readBytesAsync(
             long position,
             long length,
-            BufferAllocator allocator,
+            DirectBufferFactory factory,
             Executor executor,
             ActionListener<DirectReadBuffer> listener
         ) {

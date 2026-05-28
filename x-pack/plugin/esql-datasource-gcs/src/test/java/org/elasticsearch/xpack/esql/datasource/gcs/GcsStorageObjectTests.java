@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -55,6 +56,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         .breaker(new NoopCircuitBreaker("test"))
         .build();
     private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private final Storage mockStorage = mock(Storage.class);
 
@@ -378,7 +380,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(10, 5, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> {
+        obj.readBytesAsync(10, 5, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
             result.set(buf);
             latch.countDown();
         }, e -> {
@@ -404,7 +406,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -422,7 +424,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, -1, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(0, -1, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -442,7 +444,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 10, ALLOCATOR, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));

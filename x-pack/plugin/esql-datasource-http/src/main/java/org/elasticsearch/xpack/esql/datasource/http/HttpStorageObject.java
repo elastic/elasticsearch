@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -197,7 +197,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
-     * @param allocator allocator used by the body subscriber to back the response buffer
+     * @param factory produces the destination {@link DirectReadBuffer} for the response body
      * @param executor executor (unused - HttpClient uses executor configured at creation)
      * @param listener callback for the result or failure
      */
@@ -205,7 +205,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
     public void readBytesAsync(
         long position,
         long length,
-        BufferAllocator allocator,
+        DirectBufferFactory factory,
         Executor executor,
         ActionListener<DirectReadBuffer> listener
     ) {
@@ -225,7 +225,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest request = buildRangeRequest(position, length);
 
         long startNanos = System.nanoTime();
-        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, allocator))
+        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory))
             .whenComplete((response, throwable) -> {
                 if (throwable != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);

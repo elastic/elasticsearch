@@ -31,6 +31,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -558,6 +559,22 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                 for (int i = 0; i < positions.length; i++) {
                     assertEquals((int) positions[i], ints.getInt(i));
                 }
+            }
+
+            // Also validate that the per-column schema and projection are built
+            // correctly when multiple dotted names are resolved in one pass.
+            Block[] blocks = extractor.extract(new String[] { "event.id", "event.action" }, positions, blockFactory);
+            try {
+                IntBlock ints = (IntBlock) blocks[0];
+                BytesRefBlock strs = (BytesRefBlock) blocks[1];
+                assertEquals(positions.length, ints.getPositionCount());
+                assertEquals(positions.length, strs.getPositionCount());
+                for (int i = 0; i < positions.length; i++) {
+                    assertEquals((int) positions[i], ints.getInt(i));
+                    assertEquals("action-" + positions[i], strs.getBytesRef(i, new org.apache.lucene.util.BytesRef()).utf8ToString());
+                }
+            } finally {
+                Releasables.close(blocks);
             }
         }
     }

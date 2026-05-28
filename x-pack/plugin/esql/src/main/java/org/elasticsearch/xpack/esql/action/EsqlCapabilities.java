@@ -2975,6 +2975,11 @@ public class EsqlCapabilities {
         COALESCE_DATE_RANGE(Build.current().isSnapshot()),
 
         /**
+         * Support for equality (==, !=) and IN with date_range type.
+         */
+        EQUALITY_DATE_RANGE(Build.current().isSnapshot()),
+
+        /**
          * Support for ESQL parameters in PromQL label matchers:
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */

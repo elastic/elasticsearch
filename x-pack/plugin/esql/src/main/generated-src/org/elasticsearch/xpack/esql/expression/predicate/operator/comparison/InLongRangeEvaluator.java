@@ -11,9 +11,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -30,8 +29,8 @@ import java.util.BitSet;
  * {@link ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
-public class InBooleanEvaluator implements ExpressionEvaluator {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InBooleanEvaluator.class);
+public class InLongRangeEvaluator implements ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InLongRangeEvaluator.class);
 
     private final Source source;
 
@@ -43,7 +42,7 @@ public class InBooleanEvaluator implements ExpressionEvaluator {
 
     private Warnings warnings;
 
-    public InBooleanEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator[] rhs, DriverContext driverContext) {
+    public InLongRangeEvaluator(Source source, ExpressionEvaluator lhs, ExpressionEvaluator[] rhs, DriverContext driverContext) {
         this.source = source;
         this.lhs = lhs;
         this.rhs = rhs;
@@ -52,32 +51,24 @@ public class InBooleanEvaluator implements ExpressionEvaluator {
 
     @Override
     public Block eval(Page page) {
-        try (BooleanBlock lhsBlock = (BooleanBlock) lhs.eval(page)) {
-            BooleanBlock[] rhsBlocks = new BooleanBlock[rhs.length];
+        try (LongRangeBlock lhsBlock = (LongRangeBlock) lhs.eval(page)) {
+            LongRangeBlock[] rhsBlocks = new LongRangeBlock[rhs.length];
             try (Releasable rhsRelease = Releasables.wrap(rhsBlocks)) {
                 for (int i = 0; i < rhsBlocks.length; i++) {
-                    rhsBlocks[i] = (BooleanBlock) rhs[i].eval(page);
+                    rhsBlocks[i] = (LongRangeBlock) rhs[i].eval(page);
                 }
-                BooleanVector lhsVector = lhsBlock.asVector();
-                if (lhsVector == null) {
-                    return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
-                }
-                BooleanVector[] rhsVectors = new BooleanVector[rhs.length];
-                for (int i = 0; i < rhsBlocks.length; i++) {
-                    rhsVectors[i] = rhsBlocks[i].asVector();
-                    if (rhsVectors[i] == null) {
-                        return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
-                    }
-                }
-                return eval(page.getPositionCount(), lhsVector, rhsVectors);
+                return eval(page.getPositionCount(), lhsBlock, rhsBlocks);
             }
         }
     }
 
-    private BooleanBlock eval(int positionCount, BooleanBlock lhsBlock, BooleanBlock[] rhsBlocks) {
+    private BooleanBlock eval(int positionCount, LongRangeBlock lhsBlock, LongRangeBlock[] rhsBlocks) {
         try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-            boolean hasTrue = false;
-            boolean hasFalse = false;
+            LongRangeBlockBuilder.LongRange lhsScratch = new LongRangeBlockBuilder.LongRange();
+            LongRangeBlockBuilder.LongRange[] rhsScratch = new LongRangeBlockBuilder.LongRange[rhs.length];
+            for (int i = 0; i < rhs.length; i++) {
+                rhsScratch[i] = new LongRangeBlockBuilder.LongRange();
+            }
             BitSet nulls = new BitSet(rhs.length);
             BitSet mvs = new BitSet(rhs.length);
             boolean foundMatch;
@@ -96,8 +87,6 @@ public class InBooleanEvaluator implements ExpressionEvaluator {
                 // unpack rhsBlocks into rhsValues
                 nulls.clear();
                 mvs.clear();
-                hasTrue = false;
-                hasFalse = false;
                 for (int i = 0; i < rhsBlocks.length; i++) {
                     if (rhsBlocks[i].isNull(p)) {
                         nulls.set(i);
@@ -108,21 +97,14 @@ public class InBooleanEvaluator implements ExpressionEvaluator {
                         warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
                         continue;
                     }
-                    if (hasTrue && hasFalse) {
-                        continue;
-                    }
                     int o = rhsBlocks[i].getFirstValueIndex(p);
-                    if (rhsBlocks[i].getBoolean(o)) {
-                        hasTrue = true;
-                    } else {
-                        hasFalse = true;
-                    }
+                    rhsScratch[i] = rhsBlocks[i].getLongRange(o, rhsScratch[i]);
                 }
                 if (nulls.cardinality() == rhsBlocks.length || mvs.cardinality() == rhsBlocks.length) {
                     result.appendNull();
                     continue;
                 }
-                foundMatch = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)) ? hasTrue : hasFalse;
+                foundMatch = In.processLongRange(nulls, mvs, lhsBlock.getLongRange(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsScratch);
                 if (foundMatch) {
                     result.appendBoolean(true);
                 } else {
@@ -137,33 +119,9 @@ public class InBooleanEvaluator implements ExpressionEvaluator {
         }
     }
 
-    private BooleanBlock eval(int positionCount, BooleanVector lhsVector, BooleanVector[] rhsVectors) {
-        try (BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-            boolean hasTrue = false;
-            boolean hasFalse = false;
-            for (int p = 0; p < positionCount; p++) {
-                // unpack rhsVectors into rhsValues
-                hasTrue = false;
-                hasFalse = false;
-                for (int i = 0; i < rhsVectors.length; i++) {
-                    if (hasTrue && hasFalse) {
-                        continue;
-                    }
-                    if (rhsVectors[i].getBoolean(p)) {
-                        hasTrue = true;
-                    } else {
-                        hasFalse = true;
-                    }
-                }
-                result.appendBoolean(lhsVector.getBoolean(p) ? hasTrue : hasFalse);
-            }
-            return result.build();
-        }
-    }
-
     @Override
     public String toString() {
-        return "InBooleanEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+        return "InLongRangeEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
     }
 
     @Override
@@ -200,14 +158,14 @@ public class InBooleanEvaluator implements ExpressionEvaluator {
         }
 
         @Override
-        public InBooleanEvaluator get(DriverContext context) {
+        public InLongRangeEvaluator get(DriverContext context) {
             ExpressionEvaluator[] rhs = Arrays.stream(this.rhs).map(a -> a.get(context)).toArray(ExpressionEvaluator[]::new);
-            return new InBooleanEvaluator(source, lhs.get(context), rhs, context);
+            return new InLongRangeEvaluator(source, lhs.get(context), rhs, context);
         }
 
         @Override
         public String toString() {
-            return "InBooleanEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+            return "InLongRangeEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
         }
     }
 }

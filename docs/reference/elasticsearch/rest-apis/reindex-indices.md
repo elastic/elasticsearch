@@ -38,7 +38,7 @@ You can learn how to:
 - [Reindex in {{cps}}](#reindex-cps)
 
 **Troubleshooting**
-- [Monitor asynchronous reindex operations](#monitor-reindex-tasks)
+- [Manage asynchronous reindex operations](#monitor-reindex-tasks)
 - [Diagnose node failures](#diagnose-node-failures)
 - [Version conflicts](#version-conflicts)
 
@@ -88,7 +88,7 @@ POST _reindex
 
 ## Reindex asynchronously [docs-reindex-task-api]
 
-If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a task ID you can use to [monitor](#monitor-reindex-tasks) the operation.
+If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a task ID you can use to [manage](#monitor-reindex-tasks) the operation.
 
 For long-running reindexes, prefer async reindexes. Synchronous reindex keeps a client waiting on the node that received the request, and this will time out.
 
@@ -157,7 +157,7 @@ The value of `requests_per_second` can be changed on a running reindex using the
 POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 ```
 
-Use the `task` ID returned from the call to `POST _reindex`, or find it using the [monitoring](#monitor-reindex-tasks) APIs.
+Use the `task` ID returned from the call to `POST _reindex`, or find it using the [management](#monitor-reindex-tasks) APIs.
 
 Similarly to setting `requests_per_second` in the `_reindex` request,  `requests_per_second` can be either `-1` to turn off throttling, or any decimal number like `1.7` or `12` to throttle to that level.
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
@@ -901,12 +901,12 @@ POST _reindex
 `project_routing` is only supported when the remote target is a {{serverless-short}} project. If you include `project_routing` in a request targeting a non-{{serverless-short}} deployment, the request returns an error.
 ::::
 
-## Monitor asynchronous reindex operations [monitor-reindex-tasks]
+## Manage asynchronous reindex operations [monitor-reindex-tasks]
 
 :::::{applies-switch}
 
 ::::{applies-item} { "stack": "ga 9.5+", "serverless": "ga" }
-When run asynchronously with `wait_for_completion=false`, a reindex operation can be monitored with the reindex management API, using the `task` ID returned from the `POST _reindex` call:
+When run asynchronously with `wait_for_completion=false`, a reindex operation can be managed with the reindex management API, using the `task` ID returned from the `POST _reindex` call:
 ```console
 GET _reindex/r1A2WoRbTwKZ516z6NEs5A:36619
 ```
@@ -933,7 +933,7 @@ POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
 ::::
 
 ::::{applies-item} { "stack": "ga 9.0-9.4" }
-When run asynchronously with `wait_for_completion=false`, a reindex task can be monitored with the task management API, using the `task` ID returned from the `POST _reindex` call:
+When run asynchronously with `wait_for_completion=false`, a reindex task can be managed with the task management API, using the `task` ID returned from the `POST _reindex` call:
 ```console
 GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
 ```

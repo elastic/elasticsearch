@@ -1750,9 +1750,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.startObject("doc_values").field("cardinality", "high").endObject();
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("cardinality: high"));
-        assertThat(e.getMessage(), containsString("host.name"));
-        assertThat(e.getMessage(), containsString("index sort field"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [host.name] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
+        );
     }
 
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {

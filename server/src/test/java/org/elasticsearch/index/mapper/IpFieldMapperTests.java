@@ -20,8 +20,11 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -600,6 +603,27 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getCause().getMessage(),
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
+        );
+    }
+
+    public void testHighCardinalityRejectedForIndexSortField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", "ip");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [field] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
         );
     }
 

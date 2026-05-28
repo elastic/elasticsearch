@@ -232,6 +232,11 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
+            enforceIndexSortDocValuesCompatibility(
+                context.buildFullName(leafName()),
+                indexSettings.getIndexSortConfig(),
+                docValuesParameters
+            );
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);
             }

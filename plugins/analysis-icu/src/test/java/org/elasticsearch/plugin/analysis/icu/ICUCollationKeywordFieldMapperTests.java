@@ -19,7 +19,10 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -364,6 +367,27 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "elasticsearch")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertThat(fields, empty());
+    }
+
+    public void testHighCardinalityRejectedForIndexSortField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "field")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("field");
+            b.field("type", FIELD_TYPE);
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [field] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
+        );
     }
 
     @Override

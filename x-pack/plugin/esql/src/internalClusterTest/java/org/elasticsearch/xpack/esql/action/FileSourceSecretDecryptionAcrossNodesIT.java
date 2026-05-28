@@ -44,25 +44,23 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * Proves end-to-end that the per-data-source secret reaches a data node other than the coordinator and is
- * decrypted there at storage-provider construction time. Strategy:
- * <ol>
- *   <li>Start a single-node cluster (master + data combined).</li>
- *   <li>Register a data source + dataset while still single-node (the full-state path that registers
- *     cleanly).</li>
- *   <li>Dynamically add a data-only node; it joins by receiving the full cluster state in one shot,
- *     avoiding the incremental-publication assertion that fires when a dataset is added to an already
- *     multi-node cluster.</li>
- *   <li>Force {@code external_distribution=round_robin} so the read fans out across both data nodes.</li>
- *   <li>The capturing storage-provider factory records {@code node-name -> plaintext secret} as it
- *     observes it. The test asserts the secret reached the joined data node (not just the coordinator)
- *     and was decrypted.</li>
- * </ol>
+ * Live multi-node demonstration that the data-source encryption pipeline survives cluster-state
+ * propagation: a node that joins after the dataset is registered receives the encrypted dataset purely
+ * via the cluster-state full-state-on-join path, and when asked to serve a query against it, its
+ * {@code StorageProviderRegistry} decrypts the secret at provider construction time.
+ *
+ * <p>Strategy: start single-node (master + data), register the data source + dataset there (encrypts at
+ * rest; no multi-node publication so no incremental-publication assertion), dynamically add a data-only
+ * node, then route the ES|QL query through the joined node's client so that node serves as the
+ * coordinator for the read. With {@code coordinator_only} distribution the read executes on the joined
+ * node, exercising its registry-side decrypt deterministically. A capturing storage-provider factory
+ * records the plaintext value it observed per node and the test asserts the joined node saw it.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTestCase {
@@ -133,6 +131,7 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
 
         @Override
         public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            // Single-file fixture; no directory listing exercised by this test.
             return new StorageIterator() {
                 @Override
                 public boolean hasNext() {
@@ -229,7 +228,10 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
 
     @Override
     protected QueryPragmas getPragmas() {
-        return new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "round_robin").build());
+        // coordinator_only is deterministic: whichever node receives the query runs the read locally.
+        // Combined with sending the query via the joined node's client below, this forces the read to
+        // execute on that node, exercising its registry-side decrypt.
+        return new QueryPragmas(Settings.builder().put(QueryPragmas.EXTERNAL_DISTRIBUTION.getKey(), "coordinator_only").build());
     }
 
     @Before
@@ -246,9 +248,9 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
     // multi-node cluster would trip a pre-existing main assertion in the publication path (the same bug
     // that blocks a static numDataNodes >= 2 form of this test).
 
-    public void testSecretReachesAndIsDecryptedOnNonCoordinatorDataNode() throws Exception {
-        // Step 1 — record the coordinator (the only node so far) for later differentiation.
-        String coordinatorName = internalCluster().getNodeNames()[0];
+    public void testJoinedDataNodeDecryptsTheSecret() throws Exception {
+        // Step 1 — record the original cluster bootstrap node (master + data).
+        String bootstrapName = internalCluster().getNodeNames()[0];
 
         Path fixture = createTempFile("secret-fixture-", ".csv");
         Files.writeString(fixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob") + "\n");
@@ -268,7 +270,7 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
                 )
             )
         );
-        String uri = SCHEME + "://" + StoragePath.fileUri(fixture).substring("file://".length());
+        String uri = SCHEME + "://" + fixture.toAbsolutePath();
         assertAcked(
             client().execute(
                 PutDatasetAction.INSTANCE,
@@ -276,27 +278,33 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
             )
         );
 
-        // Step 3 — add a data-only node; it bootstraps with the cluster state in one shot.
-        String dataNodeName = internalCluster().startDataOnlyNode();
+        // Step 3 — add a data-only node; it bootstraps with the full cluster state in one shot, so it
+        // receives the (already-encrypted-on-master) dataset + data source without going through the
+        // incremental-publication path that fires the pre-existing assertion on add/remove.
+        String joinedNodeName = internalCluster().startDataOnlyNode();
         ensureGreen();
 
-        // Step 4 — query. round_robin distributes the splits across data nodes.
-        try (var ignored = run(syncEsqlQueryRequest("FROM secret_ds | LIMIT 5"), TIMEOUT)) {
+        // Step 4 — route the query through the joined node's client so that node is the coordinator for
+        // this query; with coordinator_only distribution the read runs there. The point being proven:
+        // the joined node, which got the encrypted dataset purely via cluster state, can serve a query
+        // against it — its registry decrypts and the provider observes the plaintext.
+        try (
+            var ignored = client(joinedNodeName).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest("FROM secret_ds | LIMIT 5"))
+                .get(30, TimeUnit.SECONDS)
+        ) {
             // consumed for side effects
         }
 
-        logger.info("coordinator=[{}] dataNode=[{}] capturedByNode={}", coordinatorName, dataNodeName, capturedByNode);
+        logger.info("bootstrap=[{}] joined=[{}] capturedByNode={}", bootstrapName, joinedNodeName, capturedByNode);
 
-        // Step 5 — the read must have built the storage client on the data-only node (not just the
-        // coordinator) and the secret must have arrived there as plaintext.
         assertTrue(
-            "expected the data-only node [" + dataNodeName + "] to observe the secret; observed nodes=" + capturedByNode.keySet(),
-            capturedByNode.containsKey(dataNodeName)
+            "expected the joined node [" + joinedNodeName + "] to observe the secret; observed nodes=" + capturedByNode.keySet(),
+            capturedByNode.containsKey(joinedNodeName)
         );
         assertEquals(
-            "data-only node [" + dataNodeName + "] must receive the decrypted plaintext secret",
+            "joined node [" + joinedNodeName + "] must receive the decrypted plaintext secret",
             SECRET_VALUE,
-            capturedByNode.get(dataNodeName)
+            capturedByNode.get(joinedNodeName)
         );
     }
 }

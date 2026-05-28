@@ -383,7 +383,15 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
     }
 
-    public void testNodeInterleavedShardIterator() {
+    public void testNodeInterleavedShardIteratorSubset() {
+        testNodeInterleavedShardIteratorCommon(nodeIds -> Set.copyOf(randomNonEmptySubsetOf(nodeIds)));
+    }
+
+    public void testNodeInterleavedShardIteratorFull() {
+        testNodeInterleavedShardIteratorCommon(Set::copyOf);
+    }
+
+    public void testNodeInterleavedShardIteratorCommon(Function<Set<String>, Set<String>> subsetSelector) {
         final var projectId = randomProjectIdOrDefault();
         final var numberOfShards = between(1, 5);
         final var numberOfReplicas = between(0, 4);
@@ -431,21 +439,58 @@ public class RoutingNodesTests extends ESAllocationTestCase {
             }
         }
 
-        final var iterationCountsByNode = shardsByNode.keySet().stream().collect(Collectors.toMap(Function.identity(), ignored -> 0));
-        final var interleavingIterator = clusterState.getRoutingNodes().nodeInterleavedShardIterator();
+        final var includedNodes = subsetSelector.apply(shardsByNode.keySet());
+        final var iterationCountsByNode = shardsByNode.keySet()
+            .stream()
+            .filter(includedNodes::contains)
+            .collect(Collectors.toMap(Function.identity(), ignored -> 0));
+        // We use this logic to test both the subset and full iterator
+        final var interleavingIterator = includedNodes.size() == shardsByNode.size() && randomBoolean()
+            ? clusterState.getRoutingNodes().nodeInterleavedShardIterator()
+            : clusterState.getRoutingNodes().nodeInterleavedShardIterator(includedNodes);
         while (interleavingIterator.hasNext()) {
             final var shardRouting = interleavingIterator.next();
             final var expectedShards = shardsByNode.get(shardRouting.currentNodeId());
-            assertTrue(expectedShards.remove(shardRouting.shardId()));
+            assertTrue(
+                "Saw a shard from node " + shardRouting.currentNodeId() + " when subset " + includedNodes + " was specified",
+                includedNodes.contains(shardRouting.currentNodeId())
+            );
+            assertTrue("Shard " + shardRouting + " was visited more than once", expectedShards.remove(shardRouting.shardId()));
             iterationCountsByNode.computeIfPresent(shardRouting.currentNodeId(), (ignored, i) -> i + 1);
             final var minNodeCount = iterationCountsByNode.values().stream().mapToInt(i -> i).min().orElseThrow();
             final var maxNodeCount = iterationCountsByNode.values().stream().mapToInt(i -> i).max().orElseThrow();
-            assertThat(maxNodeCount - minNodeCount, oneOf(0, 1));
+            assertThat(
+                "The most visited node is more than one visit ahead of the least visited node. "
+                    + "This means we're not round-robin-ing correctly",
+                maxNodeCount - minNodeCount,
+                oneOf(0, 1)
+            );
             if (expectedShards.isEmpty()) {
                 iterationCountsByNode.remove(shardRouting.currentNodeId());
             }
         }
-        assertTrue(shardsByNode.values().stream().allMatch(Set::isEmpty));
+
+        final var nodesWithUnvisitedShards = shardsByNode.entrySet()
+            .stream()
+            .filter(e -> includedNodes.contains(e.getKey()))
+            .filter(e -> e.getValue().isEmpty() == false)
+            .map(Map.Entry::getKey)
+            .toList();
+        assertTrue("Shards on nodes " + nodesWithUnvisitedShards + " were left unvisited", nodesWithUnvisitedShards.isEmpty());
+    }
+
+    public void testNodeInterleavedShardIteratorEmptySubset() {
+        final var projectId = randomProjectIdOrDefault();
+        final var indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        final var metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, true)).build();
+        final var routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata).build();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-0")).masterNodeId("node-0").localNodeId("node-0"))
+            .metadata(metadata)
+            .routingTable(GlobalRoutingTableTestHelper.routingTable(projectId, routingTable))
+            .build();
+
+        assertFalse(clusterState.getRoutingNodes().nodeInterleavedShardIterator(Set.of()).hasNext());
     }
 
     public void testBuildRoutingNodesForMultipleProjects() {

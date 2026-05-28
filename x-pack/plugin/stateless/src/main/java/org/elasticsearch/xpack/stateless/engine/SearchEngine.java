@@ -706,6 +706,10 @@ public class SearchEngine extends Engine {
                     segmentInfosAndCommit.getGeneration()
                 );
                 assert assertCurrentPrimaryTermGeneration(segmentInfosAndCommit, currentPrimaryTermGeneration);
+                // The advance has caught up to (or past) any previously deferred notification, so the slot is
+                // obsolete. Clearing it lets a concurrent reader-close trigger or a scheduled timer read null
+                // and short-circuit, avoiding a wasted retry that races with this update.
+                pendingDeferredNotification = null;
 
                 var reader = readerManager.acquire();
                 try {

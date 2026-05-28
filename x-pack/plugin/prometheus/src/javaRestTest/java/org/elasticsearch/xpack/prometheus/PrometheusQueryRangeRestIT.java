@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.prometheus;
 
+import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -29,12 +30,13 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
      * ESRestTestCase wipes all indices between test methods, so this test always runs on a clean cluster.
      */
     public void testQueryRangeWithNoPrometheusIndicesReturnsEmptyResult() throws Exception {
-        Request request = new Request("GET", "/_prometheus/api/v1/query_range");
-        request.addParameter("query", "nonexistent_metric");
-        request.addParameter("start", "2026-01-01T00:00:00Z");
-        request.addParameter("end", "2026-01-01T00:05:00Z");
-        request.addParameter("step", "60s");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/query_range",
+            new BasicNameValuePair("query", "nonexistent_metric"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -81,12 +83,13 @@ public class PrometheusQueryRangeRestIT extends AbstractPrometheusRestIT {
 
     private ObjectPath executeQueryRangeWithIndex(String index) throws Exception {
         String path = index == null ? "/_prometheus/api/v1/query_range" : "/_prometheus/" + index + "/api/v1/query_range";
-        Request request = new Request("GET", path);
-        request.addParameter("query", "test_gauge_qr{job=\"test_job\"}");
-        request.addParameter("start", "2026-01-01T00:00:00Z");
-        request.addParameter("end", "2026-01-01T00:05:00Z");
-        request.addParameter("step", "60s");
-        addReadAuth(request);
+        Request request = prometheusReadRequest(
+            path,
+            new BasicNameValuePair("query", "test_gauge_qr{job=\"test_job\"}"),
+            new BasicNameValuePair("start", "2026-01-01T00:00:00Z"),
+            new BasicNameValuePair("end", "2026-01-01T00:05:00Z"),
+            new BasicNameValuePair("step", "60s")
+        );
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

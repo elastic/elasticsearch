@@ -126,7 +126,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.multiFileWriter = createMultiFileWriter();
         // make sure the store is not released until we are done.
         store.incRef();
-        indexShard.recoveryStats().incCurrentAsTarget();
     }
 
     private void recreateMultiFileWriter() {
@@ -316,7 +315,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         } finally {
             // free store. increment happens in constructor
             store.decRef();
-            indexShard.recoveryStats().decCurrentAsTarget();
             closedLatch.countDown();
             releaseSnapshotFileDownloadsPermit();
         }

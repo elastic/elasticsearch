@@ -31,7 +31,9 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 
 /**
- * Inverse tangent trigonometric function.
+ * The <a href="https://en.wikipedia.org/wiki/Atan2">angle</a> between the positive
+ * x-axis and the ray from the origin to the point (x , y) in the Cartesian plane,
+ * expressed in radians.
  */
 public class Atan2 extends EsqlScalarFunction {
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Atan2.class)

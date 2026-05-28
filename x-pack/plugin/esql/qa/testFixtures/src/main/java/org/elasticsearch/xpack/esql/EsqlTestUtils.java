@@ -693,7 +693,7 @@ public final class EsqlTestUtils {
 
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
 
-    public static final PromqlFunctionRegistry TEST_PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
+    public static final PromqlFunctionRegistry TEST_PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry(List.of());
 
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 

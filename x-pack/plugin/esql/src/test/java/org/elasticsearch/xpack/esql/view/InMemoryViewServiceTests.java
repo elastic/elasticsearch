@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
@@ -1297,17 +1297,17 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // in Configuration, this would cause deserialization to fail.
 
         String viewName = "my_view";
-        String viewQuery = "FROM employees | EVAL x = CASE(true, salary)";
+        String viewQuery = "FROM employees | EVAL x = COALESCE(salary)";
         String shortOuterQuery = "FROM v";
 
         // "FROM employees | EVAL x = " is 26 characters (0-indexed 0-25)
-        // "CASE(true, salary)" starts at index 26 (0-indexed), column 27 (1-indexed)
+        // "COALESCE(salary)" starts at index 26 (0-indexed), column 27 (1-indexed)
         // The Source constructor takes (line, charPositionInLine, text) where charPositionInLine is 0-indexed
-        Source sourceFromView = new Source(1, 26, "CASE(true, salary)");
+        Source sourceFromView = new Source(1, 26, "COALESCE(salary)");
 
-        // Create an expression with this source - Case writes source().writeTo(out)
+        // Create an expression with this source - Coalesce writes source().writeTo(out)
         Literal literalArg = new Literal(Source.EMPTY, 42, DataType.INTEGER);
-        Case caseExpr = new Case(sourceFromView, new Literal(Source.EMPTY, true, DataType.BOOLEAN), List.of(literalArg));
+        Coalesce caseExpr = new Coalesce(sourceFromView, literalArg, List.of());
 
         // Wrap in an Eval plan to make it serializable
         LogicalPlan child = EsRelationSerializationTests.randomEsRelation();
@@ -1329,7 +1329,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Test 2: With view name tagging AND view queries in Configuration, this should work
         Source taggedSource = sourceFromView.withViewName(viewName);
-        Case taggedCaseExpr = new Case(taggedSource, new Literal(Source.EMPTY, true, DataType.BOOLEAN), List.of(literalArg));
+        Coalesce taggedCaseExpr = new Coalesce(taggedSource, literalArg, List.of());
         Alias taggedAlias = new Alias(Source.EMPTY, "x", taggedCaseExpr);
         Eval taggedEval = new Eval(Source.EMPTY, child, List.of(taggedAlias));
 

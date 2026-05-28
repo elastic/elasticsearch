@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.promql.function;
 
+import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
@@ -40,7 +41,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Clamp
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.ClampMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToRadians;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -62,12 +62,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
+import org.elasticsearch.xpack.esql.expression.function.spi.FunctionPlugin;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -112,7 +114,6 @@ public class PromqlFunctionRegistry {
         Percentile.PROMQL_DEFINITION,
         //
         Ceil.PROMQL_DEFINITION,
-        Abs.PROMQL_DEFINITION,
         Signum.PROMQL_DEFINITION,
         Exp.PROMQL_DEFINITION,
         Sqrt.PROMQL_DEFINITION,
@@ -155,10 +156,36 @@ public class PromqlFunctionRegistry {
 
     private final Map<String, PromqlFunctionDefinition> promqlFunctions = new HashMap<>();
 
-    public PromqlFunctionRegistry() {
+    public PromqlFunctionRegistry(List<FunctionPlugin> plugins) {
         for (PromqlFunctionDefinition def : FUNCTION_DEFINITIONS) {
-            String normalized = normalize(def.name());
-            promqlFunctions.put(normalized, def);
+            promqlFunctions.put(normalize(def.name()), def);
+        }
+
+        Set<Class<? extends FunctionPlugin>> spiRegistered = new HashSet<>();
+        SPIClassIterator<FunctionPlugin> it = SPIClassIterator.get(FunctionPlugin.class, PromqlFunctionRegistry.class.getClassLoader());
+        while (it.hasNext()) {
+            Class<? extends FunctionPlugin> pluginClass = it.next();
+            spiRegistered.add(pluginClass);
+            try {
+                for (PromqlFunctionDefinition def : pluginClass.getConstructor().newInstance().promqlFunctions()) {
+                    promqlFunctions.put(normalize(def.name()), def);
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to instantiate FunctionPlugin: " + pluginClass.getName(), e);
+            }
+        }
+
+        for (FunctionPlugin plugin : plugins) {
+            if (spiRegistered.contains(plugin.getClass())) {
+                throw new IllegalStateException(
+                    "FunctionPlugin ["
+                        + plugin.getClass().getName()
+                        + "] was already registered via SPI; do not pass it again via ExtensionLoader"
+                );
+            }
+            for (PromqlFunctionDefinition def : plugin.promqlFunctions()) {
+                promqlFunctions.put(normalize(def.name()), def);
+            }
         }
     }
 

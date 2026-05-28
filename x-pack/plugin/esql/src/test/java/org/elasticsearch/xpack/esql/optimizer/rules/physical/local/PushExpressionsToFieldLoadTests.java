@@ -169,7 +169,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         PhysicalPlan plan = plannerOptimizer.plan("""
             FROM test
             | EVAL a1 = LENGTH(last_name), a2 = LENGTH(last_name), a3 = LENGTH(last_name),
-                   a4 = abs(LENGTH(last_name)) + a1 + LENGTH(first_name) * 3
+                   a4 = COALESCE(LENGTH(last_name), 0) + a1 + LENGTH(first_name) * 3
             | WHERE a1 > 1 and LENGTH(last_name) > 1
             | STATS l = SUM(LENGTH(last_name)) + AVG(a3) + SUM(LENGTH(first_name))
             """);
@@ -284,7 +284,7 @@ public class PushExpressionsToFieldLoadTests extends AbstractLocalPhysicalPlanOp
         PhysicalPlan plan = allTypesPlannerOptimizer.plan("""
             FROM test_all
             | EVAL a1 = ROUND_TO(long, 100, 200, 300), a2 = ROUND_TO(long, 100, 200, 300), a3 = ROUND_TO(long, 100, 200, 300),
-                   a4 = abs(ROUND_TO(long, 100, 200, 300)) + a1,
+                   a4 = COALESCE(ROUND_TO(long, 100, 200, 300), 0) + a1,
                    b1 = ROUND_TO(date, "2023-01-01"::date, "2024-01-01"::date)
             | WHERE a1 > 1 AND ROUND_TO(long, 100, 200, 300) > 1
             | SORT integer

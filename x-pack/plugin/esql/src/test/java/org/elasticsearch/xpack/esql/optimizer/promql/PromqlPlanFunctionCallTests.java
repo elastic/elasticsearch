@@ -40,7 +40,6 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     public void testConstantResults() {
         assertConstantResult("ceil(vector(3.14159))", equalTo(4.0));
         assertConstantResult("pi()", equalTo(Math.PI));
-        assertConstantResult("abs(vector(-1))", equalTo(1.0));
         assertConstantResult("quantile(0.5, vector(1))", equalTo(1.0));
     }
 

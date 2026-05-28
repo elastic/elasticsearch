@@ -44,7 +44,6 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         .unaryVariadic(Coalesce::new)
         .capabilities("flattened")
         .name("coalesce");
-
     private DataType dataType;
 
     @FunctionInfo(

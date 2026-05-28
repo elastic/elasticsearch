@@ -9,11 +9,16 @@ package org.elasticsearch.xpack.esql.function.math;
 
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.spi.FunctionPlugin;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 
 public class MathFunctions implements FunctionPlugin {
     @Override
     public FunctionDefinition[] functions() {
-        // TODO move Abs here when promql no longer depends on it
-        return new FunctionDefinition[] { Atan2.DEFINITION };
+        return new FunctionDefinition[] { Abs.DEFINITION, Atan2.DEFINITION };
+    }
+
+    @Override
+    public PromqlFunctionDefinition[] promqlFunctions() {
+        return new PromqlFunctionDefinition[] { Abs.PROMQL_DEFINITION };
     }
 }

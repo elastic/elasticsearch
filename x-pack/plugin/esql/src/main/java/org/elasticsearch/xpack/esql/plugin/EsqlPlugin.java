@@ -242,6 +242,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
     private final SetOnce<EsqlFunctionRegistry> functionRegistry = new SetOnce<>();
+    private final SetOnce<PromqlFunctionRegistry> promqlFunctionRegistry = new SetOnce<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
@@ -291,7 +292,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = this.functionRegistry.get();
-        PromqlFunctionRegistry promqlFunctionRegistry = new PromqlFunctionRegistry();
+        PromqlFunctionRegistry promqlFunctionRegistry = this.promqlFunctionRegistry.get();
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
@@ -595,6 +596,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     protected final void initFunctionRegistry(List<FunctionPlugin> plugins) {
         functionRegistry.set(new EsqlFunctionRegistry(plugins));
+        promqlFunctionRegistry.set(new PromqlFunctionRegistry(plugins));
     }
 
     @Override

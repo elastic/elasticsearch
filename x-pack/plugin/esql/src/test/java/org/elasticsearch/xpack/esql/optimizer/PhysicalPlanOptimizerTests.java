@@ -9106,8 +9106,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testMaxExpressionDepth_mixed() {
-        String prefix = "abs(";
-        String suffix = " + 12)";
+        String prefix = "COALESCE(";
+        String suffix = " + 12, 0)";
 
         String from = "row a = 1 | eval b = ";
 

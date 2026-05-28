@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -177,34 +178,20 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
     /**
      * {@link NumericMetricFieldDownsampler} implementation for creating the required downsampling doc to support a pre-aggregated
-     *  counter metric field. For {@link Temporality#CUMULATIVE} temporality (the default), this producer tracks the following:
-     * - The first value for this counter per tsid and bucket, so it can be stored in the downsampled document.
-     * - The last-seen timestamp, so it can update the extraDataPoints structure which is shared across all aggregate counter producers.
-     *
-     * For {@link Temporality#DELTA} temporality, we just collect the sum of all counter values.
+     * counter metric field. The way the counter values are aggregated depends on the fields temporality, which is the same for the
+     * same tsid. This class delegates to {@link TemporalityAwareCollector}s to perform the actual aggregation.
      * Important note: This class assumes that field values are collected and sorted by descending order by time.
-     *
-     * The behavior depends on the {@link Temporality}:
-     * <ul>
-     *     <li>{@link Temporality#CUMULATIVE} / {@link Temporality#DEFAULT}: cumulative counters with reset detection.
-     *         The oldest value in the bucket is kept and counter resets produce extra documents.</li>
-     *     <li>{@link Temporality#DELTA}: delta counters where each document represents an increment.
-     *         Values within a bucket are summed.</li>
-     * </ul>
      */
     static final class AggregateCounter extends NumericMetricFieldDownsampler {
 
-        final Deque<CounterResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
-        final CompensatedSum downsampledValue = new CompensatedSum();
-        long lastTimestamp = -1;
-        // Cross bucket value
-        double previousValue = Double.NaN;
-        // This value captures the persisted value of the previous bucket for the same tsid and
-        // allows us to avoid persisting the after-the-reset-document
-        double previousBucketValue = Double.NaN;
+        private final CumulativeCollector cumulativeCollector;
+        private final DeltaCollector deltaCollector;
+        private TemporalityAwareCollector temporalityCollector;
 
         AggregateCounter(String name, IndexFieldData<?> fieldData) {
             super(name, fieldData);
+            cumulativeCollector = new CumulativeCollector(name);
+            deltaCollector = new DeltaCollector();
         }
 
         public void collect(
@@ -213,10 +200,17 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             IntArrayList docIdBuffer,
             Temporality temporality
         ) throws IOException {
+            assert assertTemporality(temporality) : "delegate should change only after a tsid reset";
+            if (temporalityCollector == null) {
+                temporalityCollector = switch (temporality) {
+                    case DELTA -> deltaCollector;
+                    case CUMULATIVE, DEFAULT -> cumulativeCollector;
+                };
+            }
             assert timestamps.length == docIdBuffer.size() : "timestamps and docIdBuffer should have the same size";
             for (int i = 0; i < docIdBuffer.size(); i++) {
                 int docId = docIdBuffer.get(i);
-                long currentTimestamp = timestamps[i];
+                var currentTimestamp = timestamps[i];
                 if (counterDocValues.advanceExact(docId) == false || currentTimestamp < 0) {
                     continue;
                 }
@@ -224,74 +218,51 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 assert docValuesCount > 0;
                 isEmpty = false;
 
-                double currentCounterValue = counterDocValues.nextValue();
-                switch (temporality) {
-                    case DELTA -> collectDelta(currentCounterValue);
-                    case CUMULATIVE, DEFAULT -> collectCumulative(currentCounterValue, currentTimestamp);
-                }
+                var currentCounterValue = counterDocValues.nextValue();
+                temporalityCollector.collect(currentCounterValue, currentTimestamp);
             }
         }
 
-        private void collectDelta(double counterValue) {
-            downsampledValue.add(counterValue);
-        }
-
-        private void collectCumulative(double currentCounterValue, long currentTimestamp) {
-            // If this the first time we encounter a value for this tsid
-            if (Double.isNaN(previousValue)) {
-                downsampledValue.reset(currentCounterValue, 0);
-                previousValue = currentCounterValue;
-                lastTimestamp = currentTimestamp;
-                return;
+        private boolean assertTemporality(Temporality temporality) {
+            if (temporalityCollector == null) {
+                return true;
+            } else if (temporalityCollector == cumulativeCollector) {
+                return temporality == Temporality.DEFAULT || temporality == Temporality.CUMULATIVE;
+            } else if (temporalityCollector == deltaCollector) {
+                return temporality == Temporality.DELTA;
             }
-
-            // when we detect a reset, (remember that field values are collected and sorted by descending order by time)
-            if (currentCounterValue > previousValue) {
-                // We check if we need to persist the previous value too
-                // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
-                if (lastTimestamp > 0) {
-                    // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture the
-                    // reset or not.
-                    double lastPersisted = Double.NaN;
-                    if (resetStack.isEmpty() == false) {
-                        lastPersisted = resetStack.peek().value();
-                    } else if (Double.isNaN(previousBucketValue) == false) {
-                        lastPersisted = previousBucketValue;
-                    }
-                    // If there is no known last persisted value or the last persisted is larger than the current value,
-                    // we need to store the previous document to capture the reset.
-                    if (Double.isNaN(lastPersisted) || Double.compare(currentCounterValue, lastPersisted) < 0) {
-                        resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
-                    }
-                }
-                // This is the last value before reset, which we always need to persist
-                resetStack.push(new CounterResetDataPoints.ResetPoint(currentTimestamp, currentCounterValue));
-            }
-            downsampledValue.reset(currentCounterValue, 0);
-            previousValue = currentCounterValue;
-            assert lastTimestamp == -1 || currentTimestamp < lastTimestamp;
-            lastTimestamp = currentTimestamp;
+            throw new IllegalStateException("unexpected temporality collector");
         }
 
         public void reset() {
-            isEmpty = true;
-            previousBucketValue = downsampledValue.value();
-            downsampledValue.reset(0, 0);
-            lastTimestamp = -1;
-            resetStack.clear();
+            if (temporalityCollector != null) {
+                temporalityCollector.reset();
+            }
         }
 
         public void tsidReset() {
             reset();
-            previousValue = Double.NaN;
-            previousBucketValue = Double.NaN;
+            if (temporalityCollector != null) {
+                temporalityCollector.tsidReset();
+                temporalityCollector = null;
+            }
         }
 
         @Override
         public void write(XContentBuilder builder) throws IOException {
-            if (isEmpty() == false) {
-                builder.field(name(), downsampledValue.value());
+            if (isEmpty() == false && temporalityCollector != null) {
+                builder.field(name(), temporalityCollector.downsampledValue());
             }
+        }
+
+        // For testing
+        @Nullable
+        TemporalityAwareCollector delegateCollector() {
+            return temporalityCollector;
+        }
+
+        public double downsampledValue() {
+            return temporalityCollector != null ? temporalityCollector.downsampledValue() : Double.NaN;
         }
 
         @Override
@@ -305,17 +276,146 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
          * @param counterResetDataPoints the extra reset data values for every counter for this bucket
          */
         public void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
-            if (resetStack.isEmpty()) {
-                return;
+            if (temporalityCollector == cumulativeCollector) {
+                cumulativeCollector.updateResetDataPoints(counterResetDataPoints);
             }
-            // It is possible that the first reset data point is the same with the first data point
-            // we skip this if this is the case
-            var firstResetPoint = resetStack.pop();
-            if (firstResetPoint.value() != downsampledValue.value()) {
-                counterResetDataPoints.addDataPoint(name(), firstResetPoint);
+        }
+
+        interface TemporalityAwareCollector {
+            void collect(double counterValue, long timestamps) throws IOException;
+
+            void reset();
+
+            void tsidReset();
+
+            double downsampledValue();
+        }
+
+        /**
+         * For {@link Temporality#DELTA} temporality, we just collect the sum of all counter values.
+         * Important note: This class assumes that field values are collected and sorted by descending order by time.
+         */
+        static class DeltaCollector implements TemporalityAwareCollector {
+            private final CompensatedSum downsampledValue = new CompensatedSum();
+
+            public void collect(double counterValue, long unused) throws IOException {
+                downsampledValue.add(counterValue);
             }
-            while (resetStack.isEmpty() == false) {
-                counterResetDataPoints.addDataPoint(name(), resetStack.pop());
+
+            public double downsampledValue() {
+                return downsampledValue.value();
+            }
+
+            public void reset() {
+                downsampledValue.reset(0, 0);
+            }
+
+            @Override
+            public void tsidReset() {
+                // nothing to do here
+            }
+        }
+
+        /**
+         * For {@link Temporality#CUMULATIVE} temporality, we track the following:
+         * - The first value for this counter per tsid and bucket, so it can be stored in the downsampled document.
+         * - The last-seen timestamp, so it can update the extraDataPoints structure which is shared across all aggregate counter producers.
+         */
+        static class CumulativeCollector implements TemporalityAwareCollector {
+
+            private final String name;
+            private final Deque<CounterResetDataPoints.ResetPoint> resetStack = new ArrayDeque<>();
+            private double downsampledValue = Double.NaN;
+
+            // Visible for testing
+            long lastTimestamp = -1;
+            // Cross bucket value
+            double previousValue = Double.NaN;
+            // This value captures the persisted value of the previous bucket for the same tsid and
+            // allows us to avoid persisting the after-the-reset-document
+            double previousBucketValue = Double.NaN;
+
+            CumulativeCollector(String name) {
+                this.name = name;
+            }
+
+            @Override
+            public void collect(double counterValue, long timestamp) throws IOException {
+                // If this the first time we encounter a value for this tsid
+                if (Double.isNaN(previousValue)) {
+                    downsampledValue = counterValue;
+                    previousValue = counterValue;
+                    lastTimestamp = timestamp;
+                    return;
+                }
+
+                // when we detect a reset, (remember that field values are collected and sorted by descending order by time)
+                if (counterValue > previousValue) {
+                    // We check if we need to persist the previous value too
+                    // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
+                    if (lastTimestamp > 0) {
+                        // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture
+                        // the
+                        // reset or not.
+                        double lastPersisted = Double.NaN;
+                        if (resetStack.isEmpty() == false) {
+                            lastPersisted = resetStack.peek().value();
+                        } else if (Double.isNaN(previousBucketValue) == false) {
+                            lastPersisted = previousBucketValue;
+                        }
+                        // If there is no known last persisted value or the last persisted is larger than the current value,
+                        // we need to store the previous document to capture the reset.
+                        if (Double.isNaN(lastPersisted) || Double.compare(counterValue, lastPersisted) < 0) {
+                            resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                        }
+                    }
+                    // This is the last value before reset, which we always need to persist
+                    resetStack.push(new CounterResetDataPoints.ResetPoint(timestamp, counterValue));
+                }
+                downsampledValue = counterValue;
+                previousValue = counterValue;
+                assert lastTimestamp == -1 || timestamp < lastTimestamp;
+                lastTimestamp = timestamp;
+            }
+
+            @Override
+            public void reset() {
+                previousBucketValue = downsampledValue;
+                downsampledValue = Double.NaN;
+                lastTimestamp = -1;
+                resetStack.clear();
+            }
+
+            @Override
+            public void tsidReset() {
+                reset();
+                previousValue = Double.NaN;
+                previousBucketValue = Double.NaN;
+            }
+
+            /**
+             * Update {@link CounterResetDataPoints} which contains all reset counter values,
+             * with the latest reset points of this counter field.
+             * @param counterResetDataPoints the extra reset data values for every counter for this bucket
+             */
+            void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+                if (resetStack.isEmpty()) {
+                    return;
+                }
+                // It is possible that the first reset data point is the same with the first data point
+                // we skip this if this is the case
+                var firstResetPoint = resetStack.pop();
+                if (firstResetPoint.value() != downsampledValue) {
+                    counterResetDataPoints.addDataPoint(name, firstResetPoint);
+                }
+                while (resetStack.isEmpty() == false) {
+                    counterResetDataPoints.addDataPoint(name, resetStack.pop());
+                }
+            }
+
+            @Override
+            public double downsampledValue() {
+                return downsampledValue;
             }
         }
     }

@@ -72,7 +72,6 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
         supplier.get();
-        assertNotSame(MeterProvider.noop(), supplier.getMeterProvider());
         assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
     }

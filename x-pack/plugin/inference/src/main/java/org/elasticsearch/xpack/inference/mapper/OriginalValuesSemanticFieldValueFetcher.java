@@ -7,42 +7,31 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitSetProducer;
-import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
-class OriginalValuesSemanticFieldValueFetcher extends SemanticFieldValueFetcher {
-    private final Set<String> sourcePaths;
+class OriginalValuesSemanticFieldValueFetcher extends SourceValueFetcher {
+    private final String fieldName;
+
+    OriginalValuesSemanticFieldValueFetcher(String fieldName, SearchExecutionContext context) {
+        super(fieldName, context);
+        this.fieldName = fieldName;
+    }
 
     OriginalValuesSemanticFieldValueFetcher(
-        SemanticFieldMapper.SemanticFieldType fieldType,
-        Function<Query, BitSetProducer> bitSetCache,
-        IndexSearcher searcher,
-        Set<String> sourcePaths
+        String fieldName,
+        Set<String> sourcePaths,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
     ) {
-        super(fieldType, bitSetCache, searcher);
-        this.sourcePaths = sourcePaths;
+        super(sourcePaths, null, ignoredSourceFormat);
+        this.fieldName = fieldName;
     }
 
     @Override
-    protected List<Object> doFetchValues(Source source, int doc, DocIdSetIterator it) {
-        List<Object> values = new ArrayList<>();
-        for (String path : sourcePaths) {
-            Object valueObj = source.extractValue(path, null);
-            if (valueObj == null) {
-                continue;
-            }
-
-            values.addAll(SemanticTextUtils.nodeObjectValues(path, valueObj, false));
-        }
-
-        return values;
+    protected Object parseSourceValue(Object value) {
+        return SemanticTextUtils.nodeObjectValues(fieldName, value, false);
     }
 }

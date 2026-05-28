@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
@@ -913,17 +912,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
         }
 
         protected ValueFetcher valueFetcher(SearchExecutionContext context) {
-            return new OriginalValuesSemanticFieldValueFetcher(
-                this,
-                getChunksField().bitsetProducer(),
-                context.searcher(),
-                context.sourcePath(name())
-            );
+            return new OriginalValuesSemanticFieldValueFetcher(name(), context);
         }
 
         protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {
-            // TODO: Use OriginalValuesSemanticFieldValueFetcher here
-            return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
+            return new OriginalValuesSemanticFieldValueFetcher(
+                name(),
+                blContext.sourcePaths(name()),
+                blContext.indexSettings().getIgnoredSourceFormat()
+            );
         }
 
         /**

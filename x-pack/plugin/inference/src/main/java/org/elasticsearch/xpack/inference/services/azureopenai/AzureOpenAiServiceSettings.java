@@ -114,7 +114,6 @@ public abstract class AzureOpenAiServiceSettings extends FilteredXContentObject 
     }
 
     protected CommonSettings updateCommonSettings(Map<String, Object> serviceSettings, ValidationException validationException) {
-
         var extractedOAuth2Settings = oAuth2Settings;
         // If the endpoint was not initially configured with OAuth2 settings,
         // we do not allow OAuth2 fields in request map as that would lead to an invalid configuration and fail early.

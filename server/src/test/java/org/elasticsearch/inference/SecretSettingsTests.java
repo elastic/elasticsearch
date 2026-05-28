@@ -1,0 +1,150 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.inference;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
+
+public class SecretSettingsTests extends ESTestCase {
+
+    private static final String FIELD = "secret_field";
+    private static final String OTHER_FIELD = "other_field";
+    private static final String SCOPE = "service_settings";
+
+    // --- updateOnlyField tests ---
+
+    public void testUpdateOnlyField_UnchangedValue_ReturnsSameInstance() {
+        var value = new SecureString(randomAlphaOfLength(10).toCharArray());
+        var settings = new TestSecretSettings(value);
+        var result = settings.updateOnlyField(SCOPE, FIELD, value, Map.of(FIELD, value), TestSecretSettings::new);
+        assertThat(result, sameInstance(settings));
+    }
+
+    public void testUpdateOnlyField_ChangedValue_BuildsNewInstanceViaFactory() {
+        var str1 = randomAlphaOfLength(10);
+        var str2 = randomValueOtherThan(str1, () -> randomAlphaOfLength(10));
+        var value1 = new SecureString(str1.toCharArray());
+        var value2 = new SecureString(str2.toCharArray());
+        var settings = new TestSecretSettings(value1);
+        var result = settings.updateOnlyField(SCOPE, FIELD, value1, Map.of(FIELD, value2), TestSecretSettings::new);
+        assertThat(result, is(new TestSecretSettings(value2)));
+    }
+
+    public void testUpdateOnlyField_MultipleFields_ThrowsValidationException() {
+        var value = new SecureString(randomAlphaOfLength(10).toCharArray());
+        var settings = new TestSecretSettings(value);
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> settings.updateOnlyField(
+                SCOPE,
+                FIELD,
+                value,
+                Map.of(
+                    FIELD,
+                    new SecureString(randomAlphaOfLength(5).toCharArray()),
+                    OTHER_FIELD,
+                    new SecureString(randomAlphaOfLength(5).toCharArray())
+                ),
+                TestSecretSettings::new
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("only [%s] can be updated for this secret, received: [%s]", FIELD, OTHER_FIELD))
+        );
+    }
+
+    public void testUpdateOnlyField_MissingAllowedField_ThrowsValidationException() {
+        var value = new SecureString(randomAlphaOfLength(10).toCharArray());
+        var settings = new TestSecretSettings(value);
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> settings.updateOnlyField(
+                SCOPE,
+                FIELD,
+                value,
+                Map.of(OTHER_FIELD, new SecureString(randomAlphaOfLength(5).toCharArray())),
+                TestSecretSettings::new
+            )
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("only [%s] can be updated for this secret, received: [%s]", FIELD, OTHER_FIELD))
+        );
+    }
+
+    // --- validateExactlyOneField tests ---
+
+    public void testValidateExactlyOneField_SingleField_DoesNotThrow() {
+        SecretSettings.validateExactlyOneField(Map.of("some_field", "value"), "error message");
+    }
+
+    public void testValidateExactlyOneField_EmptyMap_ThrowsWithBaseMessage() {
+        var errorMessage = "must provide exactly one field";
+        var thrownException = expectThrows(ValidationException.class, () -> SecretSettings.validateExactlyOneField(Map.of(), errorMessage));
+        assertThat(thrownException.getMessage(), containsString(errorMessage));
+    }
+
+    public void testValidateExactlyOneField_MultipleFields_ThrowsWithReceivedKeys() {
+        var errorMessage = "must provide exactly one field";
+        var key1 = "key1";
+        var key2 = "key2";
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> SecretSettings.validateExactlyOneField(new TreeMap<>(Map.of(key1, "val1", key2, "val2")), errorMessage)
+        );
+        assertThat(thrownException.getMessage(), containsString(Strings.format("%s received: [%s, %s]", errorMessage, key1, key2)));
+    }
+
+    /**
+     * Minimal {@link SecretSettings} implementation used to exercise the interface's
+     * default and static methods directly without depending on a service-specific class.
+     */
+    private record TestSecretSettings(SecureString value) implements SecretSettings {
+
+        @Override
+        public String getWriteableName() {
+            return "test_secret_settings";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return this;
+        }
+    }
+}

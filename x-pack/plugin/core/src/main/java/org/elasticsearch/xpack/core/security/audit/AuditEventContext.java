@@ -8,6 +8,6 @@ package org.elasticsearch.xpack.core.security.audit;
 
 import org.elasticsearch.core.Nullable;
 
-public record AuditEventContext(@Nullable String[] indices) {
-    public static final AuditEventContext EMPTY = new AuditEventContext(null);
+public record AuditEventContext(@Nullable String[] indices, @Nullable String realm) {
+    public static final AuditEventContext EMPTY = new AuditEventContext(null, null);
 }

@@ -11,6 +11,8 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Objects;
+
 /**
  * Releasable, non-threadsafe version of {@link org.elasticsearch.core.AbstractRefCounted}.
  * Calls to {@link AbstractNonThreadSafeRefCounted#decRef()} and {@link AbstractNonThreadSafeRefCounted#close()} are equivalent.
@@ -39,9 +41,13 @@ public abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Rel
     /**
      * Attaches a {@link Releasable} that is invoked exactly once when this object's reference count reaches zero,
      * immediately after {@link #closeInternal()} completes. May be called at most once; throws
-     * {@link IllegalStateException} if called a second time.
+     * {@link IllegalStateException} if called after release or a second time.
      */
-    public void attachReleasable(Releasable releasable) {
+    public final void attachReleasable(Releasable releasable) {
+        Objects.requireNonNull(releasable, "releasable must not be null");
+        if (hasReferences() == false) {
+            throw new IllegalStateException("can't attach releasable to already released object [" + this + "]");
+        }
         if (this.onClose != null) {
             throw new IllegalStateException("onClose already attached to [" + this + "]");
         }

@@ -161,6 +161,20 @@ public class VectorReleasableTests extends ESTestCase {
         v.close();
     }
 
+    /** Attaching after release must throw. */
+    public void testAttachAfterReleaseThrows() {
+        IntVector v = blockFactory.newIntArrayVector(new int[] { 1 }, 1);
+        v.close();
+        expectThrows(IllegalStateException.class, () -> v.attachReleasable(() -> {}));
+    }
+
+    /** Attaching null must throw. */
+    public void testAttachNullThrows() {
+        IntVector v = blockFactory.newIntArrayVector(new int[] { 1 }, 1);
+        expectThrows(NullPointerException.class, () -> v.attachReleasable(null));
+        v.close();
+    }
+
     /** No callback attached: releasing a vector is fine. */
     public void testNoCallbackReleasesCleanly() {
         IntVector v = blockFactory.newIntArrayVector(new int[] { 1, 2 }, 2);

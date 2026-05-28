@@ -646,6 +646,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_fraction}
   issue: https://github.com/elastic/elasticsearch/issues/150098
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_half}
+  issue: https://github.com/elastic/elasticsearch/issues/150097
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
+  issue: https://github.com/elastic/elasticsearch/issues/150099
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_fraction}
+  issue: https://github.com/elastic/elasticsearch/issues/150098
 - class: org.elasticsearch.index.query.IntervalQueryBuilderTests
   method: testCacheability
   issue: https://github.com/elastic/elasticsearch/issues/150117

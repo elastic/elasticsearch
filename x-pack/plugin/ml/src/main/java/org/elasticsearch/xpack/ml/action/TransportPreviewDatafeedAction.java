@@ -21,6 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -40,7 +41,9 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
+import org.elasticsearch.xpack.ml.MachineLearningExtensionHolder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -71,6 +74,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final CloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportPreviewDatafeedAction(
@@ -82,7 +86,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         ClusterService clusterService,
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
         super(
             PreviewDatafeedAction.NAME,
@@ -101,6 +106,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.cloudCredentialManager = machineLearningExtensionHolder.isEmpty()
+            ? new CloudCredentialManager.Noop()
+            : machineLearningExtensionHolder.getMachineLearningExtension().getCloudCredentialManager();
     }
 
     @Override
@@ -168,7 +176,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             );
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
-                CloudCredentialsExtension.getInstance().credentialManager(),
+                cloudCredentialManager,
                 effectiveDatafeedConfig,
                 extraFilters,
                 job,
@@ -215,10 +223,15 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
         fieldCapabilitiesRequest.fields(timeField);
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final CloudCredential callerCredential = cloudCredentialManager.hasCloudManagedCredential(threadContext)
+            ? cloudCredentialManager.extractCloudManagedCredential(threadContext)
+            : null;
+        final Client fieldCapsClient = cloudCredentialManager.wrapClient(client, callerCredential);
         executeWithHeadersAsync(
             datafeed.getHeaders(),
             ML_ORIGIN,
-            client,
+            fieldCapsClient,
             TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             listener.delegateFailureAndWrap((l, fieldCapsResponse) -> l.onResponse(timeFieldIsDateNanos(fieldCapsResponse, timeField)))
@@ -237,6 +250,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     /**
      * Visible for testing
      */
+    @SuppressWarnings("PMD.AvoidCatchingGenericException") // reason: preview transport boundary; stream/XContent failures must reach
+                                                           // listener.onFailure
     static void previewDatafeed(DataExtractor dataExtractor, ActionListener<PreviewDatafeedAction.Response> listener) {
         try {
             Optional<InputStream> inputStream = dataExtractor.next().data();

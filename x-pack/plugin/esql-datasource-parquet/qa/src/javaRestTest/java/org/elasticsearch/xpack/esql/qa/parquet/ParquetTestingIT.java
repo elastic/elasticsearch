@@ -167,29 +167,14 @@ public class ParquetTestingIT extends ESRestTestCase {
     private static final Set<String> SKIP_TIMESTAMP_VALUE_CHECK = Set.of("data/int96_from_spark.parquet");
 
     /**
-     * Bad data files that still return HTTP 500 instead of 4xx. The corruption is only
-     * detected during data page decoding (not at metadata/open time), so the fix in
-     * {@code ParquetFormatReader#newInvalidParquetFileException} does not cover these.
-     */
-    private static final Set<String> BAD_DATA_RETURNS_500 = Set.of(
-        "bad_data/ARROW-GH-41321.parquet" // 500: Dictionary index bit width must be <= 32, got [254]
-    );
-
-    /**
      * Bad data files that ESQL reads successfully (200 OK) -- the corruption is not
      * detectable by or relevant to ESQL's reader.
      */
     private static final Set<String> BAD_DATA_READS_OK = Set.of(
         "bad_data/ARROW-GH-43605.parquet",
         "bad_data/ARROW-GH-45185.parquet",
-        "bad_data/ARROW-GH-47662.parquet",
         "bad_data/ARROW-RS-GH-6229-LEVELS.parquet"
     );
-
-    /**
-     * Bad data files that cause the server to hang (timeout).
-     */
-    private static final Set<String> BAD_DATA_HANGS = Set.of("bad_data/ARROW-RS-GH-6229-DICTHEADER.parquet");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.httpOnlyTestCluster();
@@ -327,31 +312,14 @@ public class ParquetTestingIT extends ESRestTestCase {
         String query = buildQuery(url, 10000);
         logger.info("Testing bad data: {}", parquetFile);
 
-        assumeFalse("KNOWN BUG: " + parquetFile + " causes server timeout", BAD_DATA_HANGS.contains(parquetFile));
-
         if (BAD_DATA_READS_OK.contains(parquetFile)) {
             try {
                 Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
                 assertNotNull("Expected " + parquetFile + " to read successfully (known readable)", result.get("columns"));
                 logger.info("Confirmed: {} is readable by ESQL despite being in bad_data/", parquetFile);
             } catch (ResponseException ex) {
-                if ("bad_data/ARROW-GH-47662.parquet".equals(parquetFile)) {
-                    logger.warn("File {} returned error (known non-deterministic): {}", parquetFile, ex.getMessage());
-                } else {
-                    throw new AssertionError("File " + parquetFile + " is in BAD_DATA_READS_OK but returned error: " + ex.getMessage(), ex);
-                }
+                throw new AssertionError("File " + parquetFile + " is in BAD_DATA_READS_OK but returned error: " + ex.getMessage(), ex);
             }
-            return;
-        }
-
-        if (BAD_DATA_RETURNS_500.contains(parquetFile)) {
-            ResponseException rex = expectThrows(
-                ResponseException.class,
-                () -> runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null)
-            );
-            int s = rex.getResponse().getStatusLine().getStatusCode();
-            assertEquals("Known-buggy file " + parquetFile + " expected 500 but got " + s, 500, s);
-            logger.warn("KNOWN BUG: {} returns HTTP 500 instead of 4xx (page-level decoding error)", parquetFile);
             return;
         }
 

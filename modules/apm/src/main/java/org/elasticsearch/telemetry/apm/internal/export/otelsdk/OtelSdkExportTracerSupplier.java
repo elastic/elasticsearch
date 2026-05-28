@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
@@ -39,10 +40,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private final OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings) {
-        this(settings, MeterProvider.noop());
+        this(settings, MeterProvider::noop);
     }
 
-    public OtelSdkExportTracerSupplier(Settings settings, MeterProvider meterProvider) {
+    public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(

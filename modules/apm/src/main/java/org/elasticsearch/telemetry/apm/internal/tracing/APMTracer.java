@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
@@ -114,10 +115,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
-        this(settings, MeterProvider.noop());
+        this(settings, MeterProvider::noop);
     }
 
-    public APMTracer(Settings settings, MeterProvider meterProvider) {
+    public APMTracer(Settings settings, Supplier<MeterProvider> meterProvider) {
         this(settings, traceSupplierFor(settings, meterProvider), otelTracesEnabled(), initialMaxTraceDepth(settings));
     }
 
@@ -140,7 +141,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false"));
     }
 
-    private static TraceSupplier traceSupplierFor(Settings settings, MeterProvider meterProvider) {
+    private static TraceSupplier traceSupplierFor(Settings settings, Supplier<MeterProvider> meterProvider) {
         return otelTracesEnabled() ? new OtelSdkExportTracerSupplier(settings, meterProvider) : new AgentExportTracerSupplier(settings);
     }
 

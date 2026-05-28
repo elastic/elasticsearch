@@ -32,6 +32,6 @@ class OriginalValuesSemanticFieldValueFetcher extends SourceValueFetcher {
 
     @Override
     protected Object parseSourceValue(Object value) {
-        return SemanticTextUtils.nodeObjectValues(fieldName, value, false);
+        return SemanticTextUtils.nodeObjectValue(fieldName, value, true, false);
     }
 }

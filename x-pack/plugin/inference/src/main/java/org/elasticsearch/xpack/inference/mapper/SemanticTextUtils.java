@@ -70,19 +70,8 @@ public class SemanticTextUtils {
         return nodeValues(valueObj, raw -> (String) nodeObjectValue(field, raw, false, false));
     }
 
-    private static <T> List<T> nodeValues(Object valueObj, Function<Object, T> parse) {
-        if (valueObj instanceof Collection<?> values) {
-            List<T> parsed = new ArrayList<>(values.size());
-            for (var v : values) {
-                parsed.add(parse.apply(v));
-            }
-            return parsed;
-        }
-
-        return List.of(parse.apply(valueObj));
-    }
-
-    private static Object nodeObjectValue(String field, Object valueObj, boolean parseObjects, boolean parseInferenceStrings) {
+    // TODO: Javadoc
+    public static Object nodeObjectValue(String field, Object valueObj, boolean parseObjects, boolean parseInferenceStrings) {
         if (valueObj instanceof Number || valueObj instanceof Boolean) {
             return valueObj.toString();
         } else if (valueObj instanceof String value) {
@@ -101,6 +90,18 @@ public class SemanticTextUtils {
                 valueObj.getClass().getSimpleName()
             );
         }
+    }
+
+    private static <T> List<T> nodeValues(Object valueObj, Function<Object, T> parse) {
+        if (valueObj instanceof Collection<?> values) {
+            List<T> parsed = new ArrayList<>(values.size());
+            for (var v : values) {
+                parsed.add(parse.apply(v));
+            }
+            return parsed;
+        }
+
+        return List.of(parse.apply(valueObj));
     }
 
     private static InferenceString parseInferenceStringValue(String field, Map<?, ?> value) {

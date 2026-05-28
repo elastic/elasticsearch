@@ -1982,7 +1982,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(),
             List.of(new Alias(EMPTY, "total", new Max(EMPTY, sumAlias.toAttribute()))),
             null,
-            timestampAttr
+            timestampAttr,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
 
         var searchStats = new EsqlTestUtils.TestSearchStats() {

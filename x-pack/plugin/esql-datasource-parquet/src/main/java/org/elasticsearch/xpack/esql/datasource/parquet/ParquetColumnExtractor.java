@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -358,13 +359,23 @@ final class ParquetColumnExtractor implements ColumnExtractor {
                     continue;
                 }
                 FutureUtils.cancel(f);
+                ColumnChunkPrefetcher.PrefetchedChunks landed;
                 try {
-                    ColumnChunkPrefetcher.PrefetchedChunks landed = f.getNow(null);
-                    if (landed != null) {
+                    landed = f.getNow(null);
+                } catch (CompletionException | CancellationException ignored) {
+                    // Future completed exceptionally (or was cancelled) — no chunks were ever
+                    // produced so there is nothing for us to release.
+                    continue;
+                }
+                if (landed != null) {
+                    try {
                         landed.release().close();
+                    } catch (Throwable releaseFailure) {
+                        // Surface release failures (e.g. ArrowBuf double-decrement) as suppressed
+                        // exceptions on the original error so they don't mask the root cause and
+                        // we still drain the rest of the prefetched chunks.
+                        t.addSuppressed(releaseFailure);
                     }
-                } catch (RuntimeException ignored) {
-                    // Future completed exceptionally — nothing to release.
                 }
             }
             throw t;

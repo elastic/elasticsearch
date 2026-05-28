@@ -60,7 +60,9 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 /**
  * Default Parquet column iterator with vectorized decoding and I/O prefetch.
@@ -1387,7 +1389,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = result != null ? result.chunks() : null;
         // The Phase-2 chunks' allocator-backed memory is the sole breaker accounting for this row
         // group's projection columns; closing currentChunksReleasable returns those bytes. The
-        // Phase-1 chunks were already released by the caller after predicate decode.
+        // Phase-1 chunks were already released by the caller after predicate decode — assert that
+        // here so any future refactor that breaks the precondition surfaces as a test failure
+        // instead of a silent leak of Phase-1 bytes.
+        assert currentChunksReleasable == null : "Phase-1 releasable must be closed before fetchProjectionPhase overwrites it";
         currentChunksReleasable = result != null ? result.release() : null;
         return PrefetchedRowGroupBuilder.build(
             block,
@@ -1524,11 +1529,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 return data;
             }
             if (result != null) {
-                try {
-                    result.release().close();
-                } catch (RuntimeException ignored) {
-                    // Empty result: nothing else to drain.
-                }
+                // Empty result still owns the breaker-tracked direct memory until released; any
+                // exception from release().close() (e.g. double-decrement of the underlying
+                // ArrowBuf) is a real bug we want to surface rather than silently swallow.
+                result.release().close();
             }
             return null;
         } catch (Exception e) {
@@ -2224,13 +2228,17 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // case FutureUtils.cancel() (called by the queue-management code before us) will
             // either complete the future exceptionally (no chunks to release) or propagate the
             // cancellation up to the storage backend.
+            ColumnChunkPrefetcher.PrefetchedChunks chunks;
             try {
-                ColumnChunkPrefetcher.PrefetchedChunks chunks = future.getNow(null);
-                if (chunks != null) {
-                    chunks.release().close();
-                }
-            } catch (RuntimeException ignored) {
-                // Future completed exceptionally — nothing to release.
+                chunks = future.getNow(null);
+            } catch (CompletionException | CancellationException ignored) {
+                // Future completed exceptionally (or was cancelled) — no chunks were ever produced
+                // so there is nothing for us to release. Narrowing the catch keeps real bugs in
+                // release().close() (e.g. ArrowBuf double-decrement) visible to the caller.
+                return;
+            }
+            if (chunks != null) {
+                chunks.release().close();
             }
         }
     }

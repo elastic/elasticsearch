@@ -93,7 +93,13 @@ final class DirectByteBufferBodyHandlers {
                 body.completeExceptionally(e);
                 return;
             }
-            subscription.request(Long.MAX_VALUE);
+            try {
+                subscription.request(Long.MAX_VALUE);
+            } catch (RuntimeException e) {
+                failed = true;
+                releaseOnFailure();
+                body.completeExceptionally(e);
+            }
         }
 
         @Override
@@ -135,6 +141,7 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             if (offset != expectedLength) {
+                failed = true;
                 releaseOnFailure();
                 body.completeExceptionally(
                     new IOException("HTTP response body shorter than expected: received=" + offset + ", expected=" + expectedLength)
@@ -218,7 +225,13 @@ final class DirectByteBufferBodyHandlers {
                 body.completeExceptionally(e);
                 return;
             }
-            subscription.request(Long.MAX_VALUE);
+            try {
+                subscription.request(Long.MAX_VALUE);
+            } catch (RuntimeException e) {
+                failed = true;
+                releaseOnFailure();
+                body.completeExceptionally(e);
+            }
         }
 
         @Override
@@ -259,6 +272,7 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             if (skipRemaining > 0) {
+                failed = true;
                 releaseOnFailure();
                 body.completeExceptionally(new IOException("Position " + skip + " is beyond content length for HTTP response body"));
                 return;
@@ -268,6 +282,7 @@ final class DirectByteBufferBodyHandlers {
             // Downstream consumers like CoalescedRangeReader trust the requested length when slicing,
             // so returning a short buffer here would surface as an IllegalArgumentException at slice time.
             if (fillOffset != length) {
+                failed = true;
                 releaseOnFailure();
                 body.completeExceptionally(
                     new IOException("HTTP response body shorter than expected: received=" + fillOffset + ", expected=" + length)

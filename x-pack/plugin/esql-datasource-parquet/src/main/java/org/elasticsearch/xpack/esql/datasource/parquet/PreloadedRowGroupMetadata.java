@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Holds pre-fetched metadata for a Parquet file's row groups: column indexes, offset indexes, and
@@ -82,6 +83,8 @@ final class PreloadedRowGroupMetadata implements Releasable {
      */
     private final Releasable releasable;
 
+    private final AtomicBoolean closed = new AtomicBoolean();
+
     private static final MessageType EMPTY_SCHEMA = new MessageType("empty");
 
     PreloadedRowGroupMetadata(Map<String, ColumnIndex> columnIndexes, Map<String, OffsetIndex> offsetIndexes, MessageType schema) {
@@ -107,8 +110,18 @@ final class PreloadedRowGroupMetadata implements Releasable {
         return new PreloadedRowGroupMetadata(Map.of(), Map.of(), EMPTY_SCHEMA);
     }
 
+    /**
+     * Idempotent and safe to call from multiple threads. Necessary because the underlying
+     * releasable wraps refcounted {@link org.apache.arrow.memory.ArrowBuf}s whose
+     * {@code close()} throws when the reference count reaches zero a second time. The
+     * {@link AtomicBoolean} mirrors {@link PrefetchedPageReader#close()} so both
+     * direct-memory-owning components have identical close semantics.
+     */
     @Override
     public void close() {
+        if (closed.compareAndSet(false, true) == false) {
+            return;
+        }
         releasable.close();
     }
 

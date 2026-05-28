@@ -127,6 +127,33 @@ public class PreloadedRowGroupMetadataTests extends ESTestCase {
     }
 
     /**
+     * Calling {@link PreloadedRowGroupMetadata#close()} twice must be a no-op. The underlying
+     * releasable wraps refcounted {@link org.apache.arrow.memory.ArrowBuf}s whose
+     * {@code close()} throws when the reference count reaches zero a second time; we want
+     * callers (e.g. an iterator with overlapping cleanup paths) to be able to close defensively
+     * without tripping on that.
+     */
+    public void testCloseIsIdempotent() throws IOException {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("v").named("schema");
+        int rows = 65_536;
+        long[] values = new long[rows];
+        for (int i = 0; i < rows; i++) {
+            values[i] = i % 16;
+        }
+        byte[] parquetData = writeDictionaryEncodedInt64Parquet(schema, values);
+        StorageObject storage = createRangeReadStorageObject(parquetData);
+
+        ParquetReadOptions options = PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build();
+        try (ParquetFileReader reader = ParquetFileReader.open(new ParquetStorageObjectAdapter(storage, allocator), options)) {
+            PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storage, Set.of("v"), allocator);
+            assertFalse("Pre-warm map must be populated to exercise the ArrowBuf-backed releasable", metadata.preWarmedChunks().isEmpty());
+            metadata.close();
+            // Without the idempotency guard this second close throws on ArrowBuf double-decrement.
+            metadata.close();
+        }
+    }
+
+    /**
      * Without predicate column names, pre-warm chunks must remain empty so the optimization is
      * disabled — this preserves the existing behavior for callers that don't have a filter.
      */

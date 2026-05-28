@@ -183,7 +183,13 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 resultFuture.completeExceptionally(e);
                 return;
             }
-            s.request(Long.MAX_VALUE);
+            try {
+                s.request(Long.MAX_VALUE);
+            } catch (RuntimeException e) {
+                failed = true;
+                releaseOnFailure();
+                resultFuture.completeExceptionally(e);
+            }
         }
 
         @Override
@@ -229,6 +235,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             }
             if (offset != destination.capacity()) {
                 int capacity = destination.capacity();
+                failed = true;
                 releaseOnFailure();
                 resultFuture.completeExceptionally(
                     new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + capacity)

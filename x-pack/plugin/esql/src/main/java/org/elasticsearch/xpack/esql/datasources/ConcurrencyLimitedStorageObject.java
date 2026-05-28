@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
@@ -141,21 +142,36 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             return;
         }
         try {
-            delegate.readBytesAsync(position, length, factory, executor, ActionListener.wrap(result -> {
-                limiter.release();
-                boolean success = false;
-                try {
-                    listener.onResponse(result);
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        result.close();
+            // We intentionally use a raw ActionListener instead of ActionListener.wrap so a
+            // throw from listener.onResponse(result) does NOT get auto-routed to our onFailure
+            // lambda — that would double-release the permit and double-fire the downstream
+            // listener (onResponse + onFailure for the same I/O).
+            delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(DirectReadBuffer result) {
+                    limiter.release();
+                    try {
+                        listener.onResponse(result);
+                    } catch (Exception e) {
+                        // listener.onResponse was already invoked; routing via listener.onFailure
+                        // here would violate the single-completion contract. Close the buffer to
+                        // free the breaker reservation and propagate so the caller observes the
+                        // failure instead of a silent swallow.
+                        try {
+                            result.close();
+                        } catch (Exception closeFailure) {
+                            e.addSuppressed(closeFailure);
+                        }
+                        throw ExceptionsHelper.convertToRuntime(e);
                     }
                 }
-            }, e -> {
-                limiter.release();
-                listener.onFailure(e);
-            }));
+
+                @Override
+                public void onFailure(Exception e) {
+                    limiter.release();
+                    listener.onFailure(e);
+                }
+            });
         } catch (Exception e) {
             limiter.release();
             listener.onFailure(e);
@@ -171,13 +187,25 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
             return;
         }
         try {
-            delegate.readBytesAsync(position, target, executor, ActionListener.wrap(result -> {
-                limiter.release();
-                listener.onResponse(result);
-            }, e -> {
-                limiter.release();
-                listener.onFailure(e);
-            }));
+            // Raw ActionListener (see overload above) so a throw from listener.onResponse does
+            // not get auto-routed and double-release the permit / double-fire the listener.
+            delegate.readBytesAsync(position, target, executor, new ActionListener<>() {
+                @Override
+                public void onResponse(Integer result) {
+                    limiter.release();
+                    try {
+                        listener.onResponse(result);
+                    } catch (Exception e) {
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    limiter.release();
+                    listener.onFailure(e);
+                }
+            });
         } catch (Exception e) {
             limiter.release();
             listener.onFailure(e);

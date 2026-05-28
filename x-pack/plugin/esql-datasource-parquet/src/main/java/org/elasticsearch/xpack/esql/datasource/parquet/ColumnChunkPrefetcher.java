@@ -142,7 +142,12 @@ final class ColumnChunkPrefetcher {
                 @Override
                 public void onResponse(CoalescedRangeReader.CoalescedRangeResult fetched) {
                     try {
-                        result.complete(buildPrefetched(fetched, allocator));
+                        PrefetchedChunks chunks = buildPrefetched(fetched, allocator);
+                        if (result.complete(chunks) == false) {
+                            // The future was cancelled between I/O completion and here; release
+                            // the direct memory we just allocated so the breaker charge returns.
+                            chunks.release().close();
+                        }
                     } catch (RuntimeException e) {
                         // buildPrefetched failed mid-way; the helper has already released its
                         // tracked buffers — surface the failure.
@@ -400,19 +405,27 @@ final class ColumnChunkPrefetcher {
         try {
             for (var entry : fetched.ranges().entrySet()) {
                 CoalescedRangeReader.ByteRange range = entry.getKey();
-                ByteBuffer data = promoteToDirect(entry.getValue(), allocator, extra);
+                // promoteToDirect's fast-path (already-direct) returns the slice as delivered
+                // by CoalescedRangeReader: position == relativeOffset within the merged S3 range,
+                // not 0. PrefetchedSource.slice() treats offsetInChunk as a 0-based index into
+                // chunk.data(), so normalise position here via slice(). The heap→direct copy path
+                // already flips the buffer to position=0, so slice() is a no-op for that case.
+                ByteBuffer data = promoteToDirect(entry.getValue(), allocator, extra).slice();
                 prefetched.put(range.offset(), new PrefetchedChunk(range.offset(), range.length(), data));
             }
-        } catch (RuntimeException e) {
+        } catch (Throwable t) {
             // Release the read result and any extras we managed to create before re-throwing so
-            // the caller sees a clean failure with no outstanding breaker reservation.
+            // the caller sees a clean failure with no outstanding breaker reservation. We catch
+            // Throwable (not just RuntimeException) so that Errors like OutOfMemoryError — which
+            // are a realistic outcome of allocating large direct buffers — also run the cleanup
+            // path; otherwise the breaker reservation would leak for the lifetime of the JVM.
             Releasables.close(extra);
             try {
                 fetched.release().close();
-            } catch (RuntimeException releaseFailure) {
-                e.addSuppressed(releaseFailure);
+            } catch (Throwable releaseFailure) {
+                t.addSuppressed(releaseFailure);
             }
-            throw e;
+            throw t;
         }
         Releasable composite = () -> {
             // Close the underlying coalesced-range child allocators first, then any extras created

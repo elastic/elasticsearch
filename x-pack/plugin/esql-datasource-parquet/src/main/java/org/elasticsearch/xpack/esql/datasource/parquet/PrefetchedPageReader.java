@@ -26,6 +26,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@link PageReader} backed by an in-memory queue of compressed {@link DataPage}s plus an
@@ -65,7 +66,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     private DictionaryPage cachedDictionaryPage;
     private boolean dictionaryDecompressed;
-    private boolean closed;
+    // AtomicBoolean (rather than a plain volatile flag) so concurrent close() callers race
+    // on a single compareAndSet and only one thread actually releases the owned buffers.
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     PrefetchedPageReader(
         BytesInputDecompressor decompressor,
@@ -289,10 +292,9 @@ final class PrefetchedPageReader implements PageReader, Releasable {
 
     @Override
     public void close() {
-        if (closed) {
+        if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        closed = true;
         // Drop the cached dictionary BytesInput; it aliases an ArrowBuf we're about to release.
         cachedDictionaryPage = null;
         try {

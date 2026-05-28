@@ -904,18 +904,15 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
             }
 
-            return originalValueFetcher(context);
+            return valueFetcher(context);
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BlockSourceReader.BytesRefsBlockLoader(allValuesFetcher(blContext), BlockSourceReader.lookupMatchingAll());
+            return new BlockSourceReader.BytesRefsBlockLoader(valueFetcher(blContext), BlockSourceReader.lookupMatchingAll());
         }
 
-        /**
-         * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
-         */
-        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
             return new OriginalValuesSemanticFieldValueFetcher(
                 this,
                 getChunksField().bitsetProducer(),
@@ -924,11 +921,8 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
             );
         }
 
-        /**
-         * Get a {@link ValueFetcher} for all values written to this field, both directly and via {@code copy_to}.
-         */
-        protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
-            // TODO: Implement a different all values fetcher
+        protected ValueFetcher valueFetcher(MappedFieldType.BlockLoaderContext blContext) {
+            // TODO: Use OriginalValuesSemanticFieldValueFetcher here
             return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
         }
 

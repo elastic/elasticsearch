@@ -604,19 +604,19 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
+        protected ValueFetcher valueFetcher(SearchExecutionContext context) {
             return useLegacyFormat
                 ? SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null)
-                : super.originalValueFetcher(context);
+                : super.valueFetcher(context);
         }
 
         @Override
-        protected ValueFetcher allValuesFetcher(BlockLoaderContext blContext) {
+        protected ValueFetcher valueFetcher(BlockLoaderContext blContext) {
             if (useLegacyFormat) {
                 return SourceValueFetcher.toString(blContext.sourcePaths(getOriginalTextFieldName(name())), blContext.indexSettings());
             }
 
-            return super.allValuesFetcher(blContext);
+            return super.valueFetcher(blContext);
         }
 
     }

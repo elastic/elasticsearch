@@ -26,14 +26,12 @@ import java.util.List;
 
 import static java.time.temporal.ChronoUnit.HOURS;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
- * REST handler for the Prometheus {@code GET /api/v1/series} endpoint.
+ * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/series} endpoint.
  * Returns the list of time series matching a label selector.
- * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
- * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
- * {@code RestController#isContentTypeDisallowed}.
  *
  * <p>When the path omits {@code {index}} and no {@code index} query parameter is set, the index
  * expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN} (same as PromQL query APIs).
@@ -57,7 +55,17 @@ public class PrometheusSeriesRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/series"), new Route(GET, "/_prometheus/{index}/api/v1/series"));
+        return List.of(
+            new Route(GET, "/_prometheus/api/v1/series"),
+            new Route(POST, "/_prometheus/api/v1/series"),
+            new Route(GET, "/_prometheus/{index}/api/v1/series"),
+            new Route(POST, "/_prometheus/{index}/api/v1/series")
+        );
+    }
+
+    @Override
+    public boolean supportsReadOnlyFormEncodedPostBody() {
+        return true;
     }
 
     @Override

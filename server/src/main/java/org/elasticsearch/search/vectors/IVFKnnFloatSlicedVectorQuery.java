@@ -124,14 +124,15 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             minDocID = 0;
         } else {
             skipper.advance(ord, Long.MAX_VALUE);
-            minDocID = nextDoc(skipper.minDocID(0), sortedDocValues, ord);
+            minDocID = skipper.minValue() == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
-            maxDocID = skipper.docCount() - 1;
+            maxDocID = skipper.docCount();
         } else {
-            skipper.advance(ord + 1, Long.MAX_VALUE);
-            maxDocID = nextDoc(skipper.minDocID(0), sortedDocValues, ord + 1) - 1;
+            int nextOrd = ord + 1;
+            skipper.advance(nextOrd, Long.MAX_VALUE);
+            maxDocID = skipper.minValue() == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
         }
         return new ESAcceptDocs.SliceAcceptDocs(minDocID, maxDocID);
     }

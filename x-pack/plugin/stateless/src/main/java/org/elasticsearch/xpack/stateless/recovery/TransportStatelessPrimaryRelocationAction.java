@@ -48,8 +48,8 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryClusterStateDelay;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.StatelessPrimaryRelocationAction;
 import org.elasticsearch.injection.guice.Inject;
@@ -219,7 +219,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         // Executed remotely by `TransportStatelessPrimaryRelocationAction#doExecute` (i.e. we are on the source node here)
         initiatePrewarm(task, request);
 
-        PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
+        RecoveryClusterStateDelay.ensureClusterStateVersion(
             request.clusterStateVersion(),
             clusterService,
             recoveryExecutor,

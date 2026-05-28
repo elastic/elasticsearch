@@ -1765,12 +1765,12 @@ public class EsqlSession {
             if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                 EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                     executionInfo,
-                     result.indexResolution.values(),
-                     result.linkedResolution.values(),
-                     requestFilter != null
-                 );
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                    executionInfo,
+                    result.indexResolution.values(),
+                    result.linkedResolution.values(),
+                    requestFilter != null
+                );
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();

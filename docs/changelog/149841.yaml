@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149841
+summary: Specialize TopN for numeric keys on external sources
+type: enhancement

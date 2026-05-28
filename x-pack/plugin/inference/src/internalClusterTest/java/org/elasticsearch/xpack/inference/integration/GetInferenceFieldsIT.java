@@ -510,9 +510,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_2)),
                 false,
                 false,
-                new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
-                ),
+                new InferenceStringGroup(List.of(InferenceString.ofText("first"), InferenceString.ofText("second"))),
                 null
             ),
             IllegalArgumentException.class,
@@ -535,9 +533,7 @@ public class GetInferenceFieldsIT extends ESIntegTestCase {
                 generateDefaultWeightFieldMap(Set.of(INFERENCE_FIELD_1)),
                 false,
                 false,
-                new InferenceStringGroup(
-                    List.of(new InferenceString(DataType.TEXT, "first"), new InferenceString(DataType.TEXT, "second"))
-                ),
+                new InferenceStringGroup(List.of(InferenceString.ofText("first"), InferenceString.ofText("second"))),
                 null
             ),
             IllegalArgumentException.class,

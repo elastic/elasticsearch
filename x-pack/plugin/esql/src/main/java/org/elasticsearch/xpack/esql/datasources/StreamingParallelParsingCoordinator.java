@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -99,6 +101,7 @@ public final class StreamingParallelParsingCoordinator {
         return parallelRead(
             reader,
             decompressedStream,
+            null,
             projectedColumns,
             batchSize,
             parallelism,
@@ -116,11 +119,14 @@ public final class StreamingParallelParsingCoordinator {
      * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
      * around the per-chunk {@link CloseableIterator#close()} so text-format readers' close hooks
      * publish into the same map the consumer-thread wrapper sees. Pass {@code null} for the sink
-     * when no capture is desired (tests, benchmarks).
+     * when no capture is desired (tests, benchmarks). When {@code storageObject} is non-null its
+     * path and mtime are stamped on every chunk so per-chunk partials and the outer finalize marker
+     * reconcile under the real file key (see {@link ParallelParsingCoordinator}).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
         InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
         List<String> projectedColumns,
         int batchSize,
         int parallelism,
@@ -153,6 +159,7 @@ public final class StreamingParallelParsingCoordinator {
         return new StreamingParallelIterator(
             reader,
             decompressedStream,
+            storageObject,
             projectedColumns,
             batchSize,
             parallelism,
@@ -192,6 +199,9 @@ public final class StreamingParallelParsingCoordinator {
          */
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
+        /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
+        @Nullable
+        private final StorageObject storageObject;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -245,6 +255,7 @@ public final class StreamingParallelParsingCoordinator {
         StreamingParallelIterator(
             SegmentableFormatReader reader,
             InputStream decompressedStream,
+            @Nullable StorageObject storageObject,
             List<String> projectedColumns,
             int batchSize,
             int parallelism,
@@ -255,6 +266,7 @@ public final class StreamingParallelParsingCoordinator {
             @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
         ) {
             this.reader = reader;
+            this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
@@ -426,12 +438,7 @@ public final class StreamingParallelParsingCoordinator {
          * skip per-chunk inference. Same approach as ClickHouse / DuckDB / Spark.
          */
         private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
-            ByteArrayStorageObject firstChunkObj = new ByteArrayStorageObject(
-                StoragePath.of("mem://chunk-schema-probe"),
-                buffer,
-                0,
-                length
-            );
+            ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
             SourceMetadata metadata = reader.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();
             if (schema == null) {
@@ -522,12 +529,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 int queueSlot = chunk.index % pageQueueRingSize;
                 queue = pageQueues[queueSlot];
-                ByteArrayStorageObject chunkObj = new ByteArrayStorageObject(
-                    StoragePath.of("mem://chunk-" + chunk.index),
-                    chunk.buffer,
-                    0,
-                    chunk.length
-                );
+                ByteArrayStorageObject chunkObj = chunkStorageObject(chunk.index, chunk.buffer, 0, chunk.length);
                 // - firstSplit: only chunk 0 carries the file's leading bytes (header for CSV).
                 // - lastSplit: every chunk is aligned to a record boundary by the segmentator, so
                 // line-oriented readers (NDJSON) can skip TrimLastPartialLineInputStream.
@@ -916,11 +918,30 @@ public final class StreamingParallelParsingCoordinator {
          * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
          * the leak window an exceptional condition; production workloads should not hit it.
          */
+        private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
+            StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
+            Instant mtime = Instant.EPOCH;
+            if (storageObject != null) {
+                try {
+                    Instant fileMtime = storageObject.lastModified();
+                    if (fileMtime != null) {
+                        mtime = fileMtime;
+                    }
+                } catch (IOException e) {
+                    // Fall back to EPOCH — chunk stats may be uncacheable without a pinned mtime.
+                }
+            }
+            return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
+        }
+
         @Override
         public void close() throws IOException {
             if (closed) {
                 return;
             }
+            // Mirror ParallelParsingCoordinator: decide clean completion before flipping closed so
+            // an in-flight segmentator/parser cannot enqueue after we've observed full consumption.
+            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
             closed = true;
             // Wake any consumer parked on {@link #waitForReady()}; isReadyNow now returns true on closed.
             signalReady();
@@ -947,6 +968,36 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
+            if (cleanCompletion && firstError.get() == null && captureSink != null) {
+                publishFinalizeMarker();
+            }
+        }
+
+        /**
+         * Signals the coordinator-side reconciler that the per-chunk partials shipped via
+         * {@link ExternalStatsCapture#record} cover the entire decompressed file cleanly.
+         */
+        private void publishFinalizeMarker() {
+            if (storageObject == null) {
+                return;
+            }
+            try {
+                Instant mtime = storageObject.lastModified();
+                if (mtime == null) {
+                    return;
+                }
+                Map<String, Object> marker = new HashMap<>();
+                marker.put(ExternalStats.MTIME_MILLIS_KEY, mtime.toEpochMilli());
+                marker.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+                ExternalStatsCapture.record(storageObject.path().toString(), marker);
+            } catch (IOException e) {
+                logger.debug(
+                    () -> "StreamingParallelParsingCoordinator: skipping finalize marker for ["
+                        + storageObject.path()
+                        + "] — lastModified() unavailable",
+                    e
+                );
+            }
         }
 
         private void drainAllQueues() {

@@ -1933,6 +1933,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     return StreamingParallelParsingCoordinator.parallelRead(
                         seg,
                         decompressed,
+                        obj,
                         cols,
                         batchSize,
                         parsingParallelism,

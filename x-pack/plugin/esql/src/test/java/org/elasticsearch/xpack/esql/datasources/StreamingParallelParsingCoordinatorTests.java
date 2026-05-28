@@ -33,12 +33,14 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -158,6 +160,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
                 reader,
                 stream,
+                null,
                 List.of("line"),
                 50,
                 4,
@@ -188,6 +191,52 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             partialCount,
             Matchers.greaterThanOrEqualTo(2L)
         );
+    }
+
+    /**
+     * Contract mirror of {@link ParallelParsingCoordinator}: clean close must publish a
+     * {@link ExternalStats#FINALIZE_CHUNKS_KEY} marker under the real file path so coordinator-side
+     * reconciliation commits the sum of per-chunk partials.
+     */
+    public void testCleanClosePublishesFinalizeMarkerToSink() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-finalize-test";
+        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
+        StorageObject file = new TestFileStorageObject(path, mtime);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+        boolean finalized = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.FINALIZE_CHUNKS_KEY)));
+        assertThat(partialCount, Matchers.greaterThanOrEqualTo(2L));
+        assertTrue("clean close must publish a finalize marker under the file path", finalized);
     }
 
     public void testParserErrorPropagates() throws Exception {
@@ -769,6 +818,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
                 new ByteArrayInputStream(bytes),
+                null,
                 List.of("line"),
                 50,
                 4,
@@ -1512,5 +1562,46 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** Path + mtime only — bytes come from the decompressed stream, not this object. */
+    private static final class TestFileStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final Instant mtime;
+
+        TestFileStorageObject(String path, Instant mtime) {
+            this.path = StoragePath.of(path);
+            this.mtime = mtime;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return mtime;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
     }
 }

@@ -92,7 +92,12 @@ labels
     ;
 
 label
-    : labelName (kind=(LABEL_EQ | NEQ | LABEL_RGX | LABEL_RGX_NEQ) STRING)?
+    : labelName (kind=(LABEL_EQ | NEQ | LABEL_RGX | LABEL_RGX_NEQ) labelValue)?
+    ;
+
+labelValue
+    : STRING
+    | NAMED_OR_POSITIONAL_PARAM
     ;
 
 labelName

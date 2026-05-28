@@ -343,8 +343,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {stats.StatsByMvFieldWhere ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/140916
-- class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
-  method: testMigrationWithConcurrentUpdates
-  issue: https://github.com/elastic/elasticsearch/pull/149700
-- class: org.elasticsearch.xpack.security.transport.filter.IpFilteringIntegrationTests
-  issue: https://github.com/elastic/elasticsearch/pull/149700

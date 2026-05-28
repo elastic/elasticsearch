@@ -63,6 +63,9 @@ final class ProjectEncryptionKeyPasswordSettings {
      */
     @Nullable
     static SecureString getPassword(Settings settings, String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
         try (SecureString value = PASSWORD.getConcreteSetting(PASSWORD_PREFIX + id).get(settings)) {
             if (value == null || value.isEmpty()) {
                 return null;
@@ -75,7 +78,7 @@ final class ProjectEncryptionKeyPasswordSettings {
      * Returns whether a password is configured for {@code id} in {@code settings}.
      */
     static boolean hasPassword(Settings settings, String id) {
-        return PASSWORD.getConcreteSetting(PASSWORD_PREFIX + id).exists(settings);
+        return id != null && id.isEmpty() == false && PASSWORD.getConcreteSetting(PASSWORD_PREFIX + id).exists(settings);
     }
 
     /**

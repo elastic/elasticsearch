@@ -329,12 +329,6 @@ public class EsqlFunctionRegistry {
 
     private final EsqlFunctionRegistry snapshotRegistry;
 
-    // TODO remove this constructor once all callers pass plugins explicitly or use initFunctionRegistry
-    @SuppressWarnings("this-escape")
-    public EsqlFunctionRegistry() {
-        this(List.of());
-    }
-
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry(List<FunctionPlugin> plugins) {
         this(plugins, false);

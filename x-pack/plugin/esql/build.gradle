@@ -105,7 +105,6 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
-  // TODO: global integration tests (CsvIT etc) should move to a test suite that loads all function plugins
   internalClusterTestImplementation project(path: ':x-pack:plugin:esql:function:math')
   internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
   internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }

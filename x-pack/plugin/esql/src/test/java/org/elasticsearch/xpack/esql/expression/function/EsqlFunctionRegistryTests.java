@@ -138,7 +138,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
     }
 
     public void testTStepIsSnapshotOnly() {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry(List.of());
         assertThat(EsqlFunctionRegistry.isSnapshotOnly("tstep"), is(true));
         assertThat(registry.functionExists("tstep"), is(false));
         assertThat(registry.snapshotRegistry().functionExists("tstep"), is(Build.current().isSnapshot()));

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 148513
+pr: 149911
+summary: Keep LIMIT BY above MV_EXPAND when needed
+type: bug

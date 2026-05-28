@@ -141,4 +141,29 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
         runner.run(expected);
     }
+
+    public void testBlockLoaderNonLatinDigit_parseFromSource() throws IOException {
+        runner.breaker(newLimitedBreaker(TEST_BREAKER_SIZE));
+
+        String value = "\u1a90";
+
+        runner.document(Map.of("field", value));
+        runner.fieldName("field");
+
+        var fieldMapping = new HashMap<String, Object>();
+        fieldMapping.put("type", fieldType);
+        fieldMapping.put("ignore_malformed", "true");
+        fieldMapping.put("doc_values", false);
+        if (fieldType.equals(FieldType.SCALED_FLOAT.toString())) {
+            fieldMapping.put("scaling_factor", "1");
+        }
+
+        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of("field", fieldMapping))), Map.of("field", fieldMapping));
+
+        Object expected = expected(mapping.lookup().get("field"), value, new TestContext(false, false));
+
+        var settings = getSettingsForParams();
+        runner.mapperService(createMapperService(settings.build(), XContentFactory.jsonBuilder().map(mapping.raw())));
+        runner.run(expected);
+    }
 }

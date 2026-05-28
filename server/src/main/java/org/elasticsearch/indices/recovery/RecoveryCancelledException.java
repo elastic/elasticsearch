@@ -33,7 +33,7 @@ public class RecoveryCancelledException extends RecoveryFailedException {
             shardId,
             sourceNode,
             targetNode,
-            reason == null ? null : "reason : " + reason,
+            reason == null ? null : "reason: " + reason,
             new ElasticsearchException("recovery cancelled by master node")
         );
     }

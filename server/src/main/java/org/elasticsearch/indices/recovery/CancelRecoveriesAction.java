@@ -88,10 +88,10 @@ public class CancelRecoveriesAction {
         @Nullable
         private final String reason;
 
-        public ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelInProgress, @Nullable String reason) {
+        public ShardRecoveryCancellation(ShardId shardId, String allocationId, boolean cancelIfStarted, @Nullable String reason) {
             this.shardId = shardId;
             this.allocationId = allocationId;
-            this.cancelIfStarted = cancelInProgress;
+            this.cancelIfStarted = cancelIfStarted;
             this.reason = reason;
         }
 

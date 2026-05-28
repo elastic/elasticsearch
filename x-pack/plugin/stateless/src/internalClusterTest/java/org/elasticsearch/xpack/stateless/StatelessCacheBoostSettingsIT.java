@@ -22,7 +22,9 @@ public class StatelessCacheBoostSettingsIT extends AbstractStatelessPluginIntegT
         logger.info("--> update level1 search power to 50");
         updateClusterSettings(
             Settings.builder()
+                // GroupSetting supports updating a single field
                 .put(StatelessCacheBoostSettings.BOOST_CONFIGURATION_LOGS.getKey() + "level1.search_power", 50)
+                // RichValueObject setting must be updated in its entirety
                 .put(StatelessCacheBoostSettings.BOOST_CONFIGURATION_METRICS.getKey(), """
                     {
                       "level0": { "age": "1d", "search_power": 200},

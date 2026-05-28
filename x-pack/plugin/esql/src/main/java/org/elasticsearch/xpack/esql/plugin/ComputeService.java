@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DirectoryBytesRead;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -1133,6 +1134,10 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
+        // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
+        // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
+        // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
+        long bytesBefore = DirectoryBytesRead.currentBytesRead();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,
@@ -1235,6 +1240,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            long planningBytesRead = Math.max(0L, DirectoryBytesRead.currentBytesRead() - bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(
                 listener,
@@ -1242,7 +1248,8 @@ public class ComputeService {
                 context,
                 localPlan,
                 logicalPlanString,
-                planTimeProfile
+                planTimeProfile,
+                planningBytesRead
             );
             driverRunner.executeDrivers(
                 task,
@@ -1265,7 +1272,8 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan localPlan,
         String logicalPlanString,
-        PlanTimeProfile planTimeProfile
+        PlanTimeProfile planTimeProfile,
+        long planningBytesRead
     ) {
         /*
          * We *really* don't want to close over the localPlan because it can
@@ -1282,7 +1290,8 @@ public class ComputeService {
                     transportService.getLocalNode().getName(),
                     planString,
                     logicalPlanString,
-                    planTimeProfile
+                    planTimeProfile,
+                    planningBytesRead
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);
                 if (context.configuration().profile()) {
@@ -1295,7 +1304,7 @@ public class ComputeService {
                 }
             }
 
-            return DriverCompletionInfo.excludingProfiles(drivers);
+            return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead);
         });
     }
 

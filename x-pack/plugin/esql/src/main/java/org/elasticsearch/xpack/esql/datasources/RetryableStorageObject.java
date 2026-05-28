@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -31,6 +33,15 @@ class RetryableStorageObject implements StorageObject {
 
     private final StorageObject delegate;
     private final RetryPolicy retryPolicy;
+    /**
+     * Local counter for retries observed at this decorator boundary, merged into {@link #metrics()}
+     * via {@link StorageObjectMetrics#add}.
+     * <p>
+     * <b>Invariant:</b> only {@link StorageObjectMetricsCounters#addRetry()} may be called on this
+     * instance. The delegate already counts requests / request-nanos / bytes-read; calling
+     * {@code addRequest} here would double-count those into the merged snapshot.
+     */
+    private final StorageObjectMetricsCounters retryCounters = new StorageObjectMetricsCounters();
 
     RetryableStorageObject(StorageObject delegate, RetryPolicy retryPolicy) {
         if (delegate == null) {
@@ -45,27 +56,32 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        return retryPolicy.execute(delegate::newStream, "newStream", delegate.path());
+        return retryPolicy.execute(delegate::newStream, "newStream", delegate.path(), retryCounters::addRetry);
     }
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        return retryPolicy.execute(() -> delegate.newStream(position, length), "newStream(range)", delegate.path());
+        return retryPolicy.execute(
+            () -> delegate.newStream(position, length),
+            "newStream(range)",
+            delegate.path(),
+            retryCounters::addRetry
+        );
     }
 
     @Override
     public long length() throws IOException {
-        return retryPolicy.execute(delegate::length, "length", delegate.path());
+        return retryPolicy.execute(delegate::length, "length", delegate.path(), retryCounters::addRetry);
     }
 
     @Override
     public Instant lastModified() throws IOException {
-        return retryPolicy.execute(delegate::lastModified, "lastModified", delegate.path());
+        return retryPolicy.execute(delegate::lastModified, "lastModified", delegate.path(), retryCounters::addRetry);
     }
 
     @Override
     public boolean exists() throws IOException {
-        return retryPolicy.execute(delegate::exists, "exists", delegate.path());
+        return retryPolicy.execute(delegate::exists, "exists", delegate.path(), retryCounters::addRetry);
     }
 
     @Override
@@ -74,12 +90,21 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        // No retry on abort: the underlying provider's abortStream is a best-effort
+        // connection-discard (e.g. S3 ResponseInputStream.abort()). If we silently fall back to
+        // the SPI default stream.close() here, providers like S3 drain the entire response body
+        // before returning, defeating the purpose of abortStream on partial-read paths.
+        delegate.abortStream(stream);
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
         int savedPosition = target.position();
         return retryPolicy.execute(() -> {
             target.position(savedPosition);
             return delegate.readBytes(position, target);
-        }, "readBytes", delegate.path());
+        }, "readBytes", delegate.path(), retryCounters::addRetry);
     }
 
     @Override
@@ -107,6 +132,7 @@ class RetryableStorageObject implements StorageObject {
             }
 
             if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
+                retryCounters.addRetry();
                 long delay = retryPolicy.delayMillis(attempt, isThrottle);
                 long budgetMs = retryPolicy.maxTotalDurationMs();
                 if (budgetMs > 0) {
@@ -151,5 +177,10 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public StorageObjectMetrics metrics() {
+        return delegate.metrics().add(retryCounters.snapshot());
     }
 }

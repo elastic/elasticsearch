@@ -84,15 +84,15 @@ public class LookAHeadTimeTests extends ESSingleNodeTestCase {
     public void testLookAheadTimeSettingLowerThanTimeSeriesPollIntervalSetting() {
         {
             var settings = Settings.builder()
-                .put(DataStreamsPlugin.LOOK_AHEAD_TIME.getKey(), "3m")
-                // default time_series.poll_interval is 5m
+                .put(DataStreamsPlugin.LOOK_AHEAD_TIME.getKey(), "2m")
+                // default time_series.poll_interval is 3m
                 .build();
             var e = expectThrows(IllegalArgumentException.class, () -> updateIndexSettings(settings));
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "failed to parse value [3m] for setting [index.look_ahead_time], must be lower than setting "
-                        + "[time_series.poll_interval] which is [5m]"
+                    "failed to parse value [2m] for setting [index.look_ahead_time], must be lower than setting "
+                        + "[time_series.poll_interval] which is [3m]"
                 )
             );
         }

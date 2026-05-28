@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.flattened.KeyedFlattenedDocValuesBlockLoader;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -255,7 +255,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS
         );
         ValuesSourceReaderOperator.LoaderAndConverter loaderAndConverter = temporalityLoader(provider);
-        assertThat(loaderAndConverter.loader(), instanceOf(AbstractBytesRefsFromOrdsBlockLoader.class));
+        assertThat(loaderAndConverter.loader(), instanceOf(BytesRefsFromOrdsBlockLoader.class));
         ensureNoWarnings();
     }
 
@@ -442,7 +442,7 @@ public class EsPhysicalOperationProvidersTests extends MapperServiceTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.availableModes()));
         return new SearchExecutionContext(
             0,
             0,

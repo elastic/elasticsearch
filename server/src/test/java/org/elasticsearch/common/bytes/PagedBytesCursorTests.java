@@ -487,6 +487,19 @@ public class PagedBytesCursorTests extends ESTestCase {
         }
     }
 
+    public void testMixHash64() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(50));
+        byte[] bytes = randomByteArrayOfLength(between(0, BYTE_PAGE_SIZE * 3));
+        try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {
+            builder.append(bytes, 0, bytes.length);
+            try (PagedBytes ref = builder.build()) {
+                PagedBytesCursor cursor = ref.cursor(new PagedBytesCursor());
+                BytesRef bytesRef = new BytesRef(bytes);
+                assertThat(cursor.mixHash64(), equalTo(MixHash64.hash64(bytesRef)));
+            }
+        }
+    }
+
     public void testReadLengthPrefixedEmpty() {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
         try (PagedBytesBuilder builder = new PagedBytesBuilder(recycler, breaker, "test", 0)) {

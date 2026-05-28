@@ -16,7 +16,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: n4-custom-16-32768
+          machineType: n4-standard-8
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
         env:

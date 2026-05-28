@@ -23,10 +23,11 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
- * REST handler for the Prometheus {@code GET /api/v1/query} instant query endpoint.
+ * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query} instant query endpoint.
  *
  * <p><b>Current implementation (temporary approximation):</b> translates the instant query into a
  * range query from {@code time - 5m} to {@code time} with a step of {@code 5m}, then returns only
@@ -66,7 +67,17 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/query"), new Route(GET, "/_prometheus/{index}/api/v1/query"));
+        return List.of(
+            new Route(GET, "/_prometheus/api/v1/query"),
+            new Route(POST, "/_prometheus/api/v1/query"),
+            new Route(GET, "/_prometheus/{index}/api/v1/query"),
+            new Route(POST, "/_prometheus/{index}/api/v1/query")
+        );
+    }
+
+    @Override
+    public boolean supportsReadOnlyFormEncodedPostBody() {
+        return true;
     }
 
     @Override
@@ -84,7 +95,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
         String start = DateTimeFormatter.ISO_INSTANT.format(startInstant);
         String end = DateTimeFormatter.ISO_INSTANT.format(endInstant);
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, STEP);
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, STEP, limit);
         var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
 
         return channel -> client.execute(

@@ -261,7 +261,7 @@ public class FixtureUtils {
      * Find the first pipe character that's not inside a quoted string.
      * Used by fixture injectParams methods to locate where to insert WITH clauses.
      */
-    static int findFirstPipeAfterExternal(String query) {
+    public static int findFirstPipeAfterExternal(String query) {
         boolean inQuotes = false;
         char quoteChar = 0;
 

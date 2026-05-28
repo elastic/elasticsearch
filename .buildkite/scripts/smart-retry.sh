@@ -120,8 +120,14 @@ if [[ -n "$BUILD_JSON" ]]; then
           # If this call fails, executedTestTasks will be null, triggering safe fallback.
           if wait "$PERF_PID" && [[ -s "$PERF_RESPONSE_FILE" ]]; then
 
-            # Extract taskPath values from testTasks array and merge into the JSON
-            EXECUTED_TASK_PATHS=$(jq '[.testTasks[].taskPath]' "$PERF_RESPONSE_FILE" 2>/dev/null)
+            # Extract taskPath values from testTasks array and merge into the JSON.
+            # `|| echo ""` keeps this assignment non-fatal under `set -e`: if the
+            # response body is unexpectedly shaped (e.g. Develocity returned a
+            # `build-processing-failed` 500 envelope without `.testTasks`), jq
+            # exits non-zero and would otherwise abort the sourced script. The
+            # downstream branch already handles an empty value as "fall back to
+            # safe mode".
+            EXECUTED_TASK_PATHS=$(jq '[.testTasks[].taskPath]' "$PERF_RESPONSE_FILE" 2>/dev/null || echo "")
             if [[ -n "$EXECUTED_TASK_PATHS" ]] && [[ "$EXECUTED_TASK_PATHS" != "null" ]]; then
               (umask 077 && jq --argjson executed "$EXECUTED_TASK_PATHS" '. + {executedTestTasks: $executed}' .failed-test-history.json > .failed-test-history.json.tmp) \
                 && [[ -s .failed-test-history.json.tmp ]] \
@@ -154,15 +160,19 @@ if [[ -n "$BUILD_JSON" ]]; then
             if [[ -n "$EXECUTED_TASK_PATHS" ]] && [[ "$EXECUTED_TASK_PATHS" != "null" ]]; then
               # Build an O(1) lookup: [":a",":b"] → {":a":true, ":b":true},
               # then keep only buildFailures whose taskPath is in the lookup.
+              # `|| echo ""` keeps this non-fatal under `set -e` for the same reason
+              # as the EXECUTED_TASK_PATHS assignment above.
               FAILED_TASK_PATHS=$(jq --argjson testTasks "$EXECUTED_TASK_PATHS" \
                 '($testTasks | map({(.): true}) | add // {}) as $lookup
                  | [.buildFailures[] | .taskPath | select(. != null) | select($lookup[.])]' \
-                "$FAILURES_RESPONSE_FILE" 2>/dev/null)
+                "$FAILURES_RESPONSE_FILE" 2>/dev/null || echo "")
             else
               # Without the test task list we cannot intersect, so take all buildFailure
               # taskPaths. The downstream plugin only consults this set per Test task,
               # so non-test entries (e.g. compileJava) are inert.
-              FAILED_TASK_PATHS=$(jq '[.buildFailures[] | .taskPath | select(. != null)]' "$FAILURES_RESPONSE_FILE" 2>/dev/null)
+              # `|| echo ""` keeps this non-fatal under `set -e` for the same reason
+              # as the EXECUTED_TASK_PATHS assignment above.
+              FAILED_TASK_PATHS=$(jq '[.buildFailures[] | .taskPath | select(. != null)]' "$FAILURES_RESPONSE_FILE" 2>/dev/null || echo "")
             fi
             if [[ -n "$FAILED_TASK_PATHS" ]] && [[ "$FAILED_TASK_PATHS" != "null" ]] && [[ "$FAILED_TASK_PATHS" != "[]" ]]; then
               (umask 077 && jq --argjson failed "$FAILED_TASK_PATHS" '. + {failedTestTasks: $failed}' .failed-test-history.json > .failed-test-history.json.tmp) \

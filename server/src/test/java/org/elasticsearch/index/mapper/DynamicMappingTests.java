@@ -14,8 +14,10 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -35,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
@@ -1062,5 +1065,89 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(context, "id");
 
         assertThat(context.getDynamicMappers("items.id"), hasSize(1));
+    }
+
+    private static Settings withoutDynamicStringsAutoText() {
+        return Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
+    }
+
+    /**
+     * With {@code index.mapping.dynamic_strings.auto_keyword} disabled, a dynamically introduced root-level string maps as
+     * {@code text} only (no {@code .keyword} multi-field) and does not index a separate keyword subfield.
+     */
+    public void testDynamicFieldWithoutAutoTextSubfield() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createMapperService(withoutDynamicStringsAutoText(), mapping(b -> {})).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "bar")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
+        Mapper foo = update.getRoot().getMapper("foo");
+        assertThat(foo, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) foo).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) foo).fieldType().usesBinaryDocValues());
+        assertNull(doc.rootDoc().getField("foo.keyword"));
+    }
+
+    /**
+     * Same as {@link #testDynamicFieldWithoutAutoTextSubfield()} for a new string field under {@code dynamic: true} when
+     * other properties are already mapped; the dynamically added field must still omit the automatic keyword subfield.
+     */
+    public void testDynamicFieldWithoutAutoTextSubfieldWithExistingMapping() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper defaultMapper = createMapperService(
+            withoutDynamicStringsAutoText(),
+            dynamicMapping("true", b -> b.startObject("field1").field("type", "text").endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("field1", "value1");
+            b.field("field2", "value2");
+        }));
+
+        assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
+        assertThat(doc.rootDoc().getBinaryValue("field2"), notNullValue());
+
+        Mapping update = parseDynamicUpdate(doc.dynamicMappingsUpdate());
+        Mapper field2 = update.getRoot().getMapper("field2");
+        assertThat(field2, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) field2).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) field2).fieldType().usesBinaryDocValues());
+        assertNull(doc.rootDoc().getField("field2.keyword"));
+    }
+
+    /**
+     * With auto-keyword disabled, strings under a {@code dynamic: true} object still map without a keyword subfield, while
+     * strings under a sibling {@code dynamic: runtime} object continue to become runtime keyword fields as usual.
+     */
+    public void testDynamicFieldWithoutAutoTextSubfieldWithRuntimeField() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        DocumentMapper mapper = createMapperService(
+            withoutDynamicStringsAutoText(),
+            dynamicMapping("true", b -> b.startObject("runtime_object").field("type", "object").field("dynamic", "runtime").endObject())
+        ).documentMapper();
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("runtime_object");
+            {
+                b.startObject("foo").startObject("bar").field("baz", "text").endObject().endObject();
+            }
+            b.endObject();
+            b.startObject("object");
+            {
+                b.startObject("foo").startObject("bar").field("baz", "text").endObject().endObject();
+            }
+            b.endObject();
+        }));
+
+        Mapping parsed = parseDynamicUpdate(doc.dynamicMappingsUpdate());
+        assertNotNull(parsed.getRoot().getRuntimeField("runtime_object.foo.bar.baz"));
+
+        ObjectMapper object = (ObjectMapper) parsed.getRoot().getMapper("object");
+        ObjectMapper foo = (ObjectMapper) object.getMapper("foo");
+        ObjectMapper bar = (ObjectMapper) foo.getMapper("bar");
+        Mapper baz = bar.getMapper("baz");
+        assertThat(baz, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) baz).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) baz).fieldType().usesBinaryDocValues());
+        assertNull(doc.rootDoc().getField("object.foo.bar.baz.keyword"));
     }
 }

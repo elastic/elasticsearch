@@ -518,6 +518,30 @@ public class PagedBytesCursor {
         return hasher.lastPage(flat, flat.length);
     }
 
+    /**
+     * Hashes the remaining unread bytes using an algorithm matching {@link MixHash64#hash64(byte[], int, int)}.
+     */
+    public long mixHash64() {
+        byte[] page = pages[pageIndex];
+        int avail = page.length - pageOffset;
+        if (avail >= remaining) {
+            return MixHash64.hash64(page, pageOffset, remaining);
+        }
+        MixHash64 hasher = new MixHash64();
+        int pi = pageIndex;
+        int po = pageOffset;
+        int rem = remaining;
+        while (rem > 0) {
+            page = pages[pi];
+            int chunk = Math.min(page.length - po, rem);
+            hasher.update(page, po, chunk);
+            rem -= chunk;
+            pi++;
+            po = 0;
+        }
+        return hasher.finish();
+    }
+
     @Override
     public String toString() {
         return PagedBytes.limitedToString(pages, pageIndex, pageOffset, remaining);

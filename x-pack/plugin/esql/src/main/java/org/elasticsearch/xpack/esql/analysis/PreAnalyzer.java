@@ -17,12 +17,15 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
@@ -33,12 +36,13 @@ public class PreAnalyzer {
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
+        Set<IndexPattern> optionalLinkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
         List<String> icebergPaths
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, false, List.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), Set.of(), false, false, false, List.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -65,6 +69,13 @@ public class PreAnalyzer {
                 );
             }
         });
+
+        // CPS lenient lookups: collect ViewShadowRelation patterns. Shadows live as siblings of the
+        // strict UnresolvedRelation inside per-resolution-level ViewUnionAlls (see ViewResolver).
+        // A LinkedHashSet preserves the order shadows were emitted in for deterministic test output;
+        // it also deduplicates so two shadows with the same indexPattern only produce one lenient call.
+        Set<IndexPattern> viewShadows = new LinkedHashSet<>();
+        plan.forEachUp(ViewShadowRelation.class, p -> viewShadows.add(p.optionalLinkedPattern()));
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
@@ -131,6 +142,7 @@ public class PreAnalyzer {
             indexes,
             unresolvedEnriches,
             lookupIndices,
+            viewShadows,
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),

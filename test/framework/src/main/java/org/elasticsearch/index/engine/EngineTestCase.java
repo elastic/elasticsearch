@@ -10,7 +10,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -59,7 +58,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -81,8 +79,10 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -110,6 +110,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -145,14 +146,13 @@ import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.shuffle;
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -184,16 +184,6 @@ public abstract class EngineTestCase extends ESTestCase {
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
     protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
-
-    protected static void assertVisibleCount(Engine engine, int numDocs, boolean refresh) throws IOException {
-        if (refresh) {
-            engine.refresh("test");
-        }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
-            assertThat(totalHits, equalTo(numDocs));
-        }
-    }
 
     protected Settings indexSettings() {
         // TODO randomize more settings
@@ -293,150 +283,6 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static EngineConfig copy(EngineConfig config, LongSupplier globalCheckpointSupplier) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            globalCheckpointSupplier,
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
-    public EngineConfig copy(EngineConfig config, Analyzer analyzer) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            analyzer,
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
-    public static EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            mergePolicy,
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            Collections.emptyList(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
-    public static EngineConfig copy(EngineConfig config, MapperService mapperService) {
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            config.getCodecProvider(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            mapperService,
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
-    }
-
     @Override
     @After
     public void tearDown() throws Exception {
@@ -476,7 +322,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
-        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null, false, false);
+        return testParsedDocument(id, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), false, false);
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing, boolean recoverySource) {
@@ -489,20 +335,17 @@ public abstract class EngineTestCase extends ESTestCase {
             routing,
             testDocumentWithTextField(),
             new BytesArray("{ \"value\" : \"test\" }"),
-            null,
             recoverySource,
             syntheticId
         );
     }
 
-    protected ParsedDocument testParsedDocument(
-        String id,
-        String routing,
-        LuceneDocument document,
-        BytesReference source,
-        CompressedXContent mappingUpdate
-    ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, false, false);
+    protected ParsedDocument testParsedDocument(String id, String routing, LuceneDocument document, BytesReference source) {
+        return testParsedDocument(id, routing, document, source, false, false);
+    }
+
+    protected static ParsedDocument testParsedDocument(String id, LuceneDocument document, BytesReference source, boolean recoverySource) {
+        return testParsedDocument(id, null, document, source, recoverySource, false);
     }
 
     protected static ParsedDocument testParsedDocument(
@@ -510,18 +353,6 @@ public abstract class EngineTestCase extends ESTestCase {
         String routing,
         LuceneDocument document,
         BytesReference source,
-        CompressedXContent mappingUpdate,
-        boolean recoverySource
-    ) {
-        return testParsedDocument(id, routing, document, source, mappingUpdate, recoverySource, false);
-    }
-
-    protected static ParsedDocument testParsedDocument(
-        String id,
-        String routing,
-        LuceneDocument document,
-        BytesReference source,
-        CompressedXContent mappingUpdate,
         boolean recoverySource,
         boolean syntheticId
     ) {
@@ -561,10 +392,10 @@ public abstract class EngineTestCase extends ESTestCase {
             seqID,
             id,
             routing,
-            Arrays.asList(document),
+            List.of(document),
             source,
             XContentType.JSON,
-            mappingUpdate,
+            null,
             XContentMeteringParserDecorator.UNKNOWN_SIZE
         );
     }
@@ -620,7 +451,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
-        return createEngine(defaultSettings, store, translogPath, newMergePolicy(), null);
+        return createEngine(defaultSettings, store, translogPath, newMergePolicy());
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath, LongSupplier globalCheckpointSupplier) throws IOException {
@@ -655,7 +486,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy)
         throws IOException {
-        return createEngine(indexSettings, store, translogPath, mergePolicy, null);
+        return createEngine(indexSettings, store, translogPath, mergePolicy, (IndexWriterFactory) null);
 
     }
 
@@ -729,6 +560,16 @@ public abstract class EngineTestCase extends ESTestCase {
         return createEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
     }
 
+    protected InternalEngine createEngine(
+        IndexSettings indexSettings,
+        Store store,
+        Path translogPath,
+        MergePolicy mergePolicy,
+        @Nullable Sort indexSort
+    ) throws IOException {
+        return createEngine(indexSettings, store, translogPath, mergePolicy, null, null, null, indexSort, null);
+    }
+
     protected InternalEngine createEngine(EngineConfig config) throws IOException {
         return createEngine(null, null, null, config);
     }
@@ -757,13 +598,16 @@ public abstract class EngineTestCase extends ESTestCase {
         return internalEngine;
     }
 
+    protected InternalEngine createEngine(@Nullable IndexWriterFactory indexWriterFactory, EngineConfig config) throws IOException {
+        return createEngine(indexWriterFactory, null, null, config);
+    }
+
     public static InternalEngine createEngine(EngineConfig engineConfig, int maxDocs) {
         return new InternalEngine(engineConfig, maxDocs, LocalCheckpointTracker::new);
     }
 
     @FunctionalInterface
     public interface IndexWriterFactory {
-
         IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException;
     }
 
@@ -816,6 +660,20 @@ public abstract class EngineTestCase extends ESTestCase {
             };
         }
 
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
+        return config(indexSettings, store, translogPath, mergePolicy, (ReferenceManager.RefreshListener) null);
+    }
+
+    public EngineConfig config(
+        IndexSettings indexSettings,
+        Store store,
+        Path translogPath,
+        MergePolicy mergePolicy,
+        LongSupplier globalCheckpointSupplier
+    ) {
+        return config(indexSettings, store, translogPath, mergePolicy, null, null, globalCheckpointSupplier);
     }
 
     public EngineConfig config(
@@ -876,6 +734,17 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public EngineConfig config(
+        final IndexSettings indexSettings,
+        final Store store,
+        final Path translogPath,
+        final MergePolicy mergePolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
+        return config(indexSettings, store, translogPath, mergePolicy, null, null, globalCheckpointSupplier, retentionLeasesSupplier);
+    }
+
+    public EngineConfig config(
         IndexSettings indexSettings,
         Store store,
         Path translogPath,
@@ -919,12 +788,6 @@ public abstract class EngineTestCase extends ESTestCase {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         final Engine.EventListener eventListener = new Engine.EventListener() {}; // we don't need to notify anybody in this test
-        final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
-            ? emptyList()
-            : Collections.singletonList(externalRefreshListener);
-        final List<ReferenceManager.RefreshListener> intRefreshListenerList = internalRefreshListener == null
-            ? emptyList()
-            : Collections.singletonList(internalRefreshListener);
         final LongSupplier globalCheckpointSupplier;
         final Supplier<RetentionLeases> retentionLeasesSupplier;
         if (maybeGlobalCheckpointSupplier == null) {
@@ -947,83 +810,37 @@ public abstract class EngineTestCase extends ESTestCase {
             globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
             retentionLeasesSupplier = maybeRetentionLeasesSupplier;
         }
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            mergePolicy,
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            newCodecService(),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            extRefreshListenerList,
-            intRefreshListenerList,
-            indexSort,
-            breakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTerm,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            this::relativeTimeInNanos,
-            indexCommitListener,
-            true,
-            mapperService,
-            new EngineResetLock(),
-            mergeMetrics,
-            indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper
-        );
-    }
-
-    protected EngineConfig config(EngineConfig config, Store store, Path translogPath) {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-            "test",
-            Settings.builder()
-                .put(config.getIndexSettings().getSettings())
-                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                .build()
-        );
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-        return new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getThreadPoolMergeExecutorService(),
-            indexSettings,
-            config.getWarmer(),
-            store,
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            newCodecService(),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            translogConfig,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getSnapshotCommitSupplier(),
-            config.getLeafSorter(),
-            config.getRelativeTimeInNanosSupplier(),
-            config.getIndexCommitListener(),
-            config.isPromotableToPrimary(),
-            config.getMapperService(),
-            config.getEngineResetLock(),
-            config.getMergeMetrics(),
-            config.getIndexDeletionPolicyWrapper()
-        );
+        return EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(mergePolicy)
+            .analyzer(iwc.getAnalyzer())
+            .similarity(iwc.getSimilarity())
+            .codecProvider(newCodecService())
+            .eventListener(eventListener)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(externalRefreshListener == null ? List.of() : List.of(externalRefreshListener))
+            .internalRefreshListener(internalRefreshListener == null ? List.of() : List.of(internalRefreshListener))
+            .indexSort(indexSort)
+            .circuitBreakerService(breakerService)
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(retentionLeasesSupplier)
+            .primaryTermSupplier(primaryTerm)
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(this::relativeTimeInNanos)
+            .indexCommitListener(indexCommitListener)
+            .promotableToPrimary(true)
+            .mapperService(mapperService)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(mergeMetrics)
+            .indexDeletionPolicyWrapper(indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper)
+            .build();
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath) {
@@ -1031,7 +848,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected EngineConfig noOpConfig(IndexSettings indexSettings, Store store, Path translogPath, LongSupplier globalCheckpointSupplier) {
-        return config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpointSupplier);
+        return config(indexSettings, store, translogPath, newMergePolicy(), globalCheckpointSupplier);
     }
 
     protected static final BytesReference B_1 = new BytesArray(new byte[] { 1 });
@@ -1125,7 +942,7 @@ public abstract class EngineTestCase extends ESTestCase {
             if (randomBoolean()) {
                 op = new Engine.Index(
                     id,
-                    testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null, false),
+                    testParsedDocument(docId, testDocumentWithTextField(valuePrefix + i), SOURCE, false),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -1270,8 +1087,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 firstOpWithSeqNo++;
             }
             // shuffle ops but make sure legacy ops are first
-            shuffle(ops.subList(0, firstOpWithSeqNo), random());
-            shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
+            Collections.shuffle(ops.subList(0, firstOpWithSeqNo), random());
+            Collections.shuffle(ops.subList(firstOpWithSeqNo, ops.size()), random());
         }
         boolean firstOp = true;
         for (Engine.Operation op : ops) {
@@ -1497,7 +1314,9 @@ public abstract class EngineTestCase extends ESTestCase {
             try {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-                    assertAtMostOneLuceneDocumentPerSequenceNumber(engine.config().getIndexSettings(), searcher.getDirectoryReader());
+                    var indexSettings = engine.config().getIndexSettings();
+                    var mapperService = engine.config().getMapperService();
+                    assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, searcher.getDirectoryReader());
                 }
             } catch (AlreadyClosedException ignored) {
                 // engine was closed
@@ -1505,13 +1324,19 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(IndexSettings indexSettings, DirectoryReader reader)
-        throws IOException {
+    public static void assertAtMostOneLuceneDocumentPerSequenceNumber(
+        IndexSettings indexSettings,
+        MapperService mapperService,
+        DirectoryReader reader
+    ) throws IOException {
         Set<Long> seqNos = new HashSet<>();
         final DirectoryReader wrappedReader = indexSettings.isSoftDeleteEnabled() ? Lucene.wrapAllDocsLive(reader) : reader;
+        final IdLoader idLoader = IdLoader.create(indexSettings, mapperService.mappingLookup());
+        final StoredFieldLoader storedFieldLoader = StoredFieldLoader.fromSpecSequential(new StoredFieldsSpec(false, true, Set.of("_id")));
         for (LeafReaderContext leaf : wrappedReader.leaves()) {
             NumericDocValues primaryTermDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
             NumericDocValues seqNoDocValues = leaf.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
+            var leafIdLoader = idLoader.leaf(storedFieldLoader.getLoader(leaf, null), leaf.reader(), null);
             int docId;
             while ((docId = seqNoDocValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 assertTrue(seqNoDocValues.advanceExact(docId));
@@ -1519,8 +1344,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(seqNo, greaterThanOrEqualTo(0L));
                 if (primaryTermDocValues.advanceExact(docId)) {
                     if (seqNos.add(seqNo) == false) {
-                        IdStoredFieldLoader idLoader = new IdStoredFieldLoader(leaf.reader());
-                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idLoader.id(docId));
+                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + leafIdLoader.getId(docId));
                     }
                 }
             }

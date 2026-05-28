@@ -564,6 +564,8 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
 
         DenseVectorFieldMapper.FilterHeuristic heuristic = context.getIndexSettings().getHnswFilterHeuristic();
         boolean hnswEarlyTermination = context.getIndexSettings().getHnswEarlyTermination();
+        boolean sliceEnabled = context.getIndexSettings().isSliceEnabled();
+        String sliceRouting = sliceEnabled ? context.getSliceRouting() : null;
         Float oversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
         if (filterQuery != null && (vectorFieldType.getIndexOptions() == null || vectorFieldType.getIndexOptions().isFlat() == false)) {
             // Force the filter to be cacheable because it will be eagerly transformed into a bitset.
@@ -583,7 +585,9 @@ public class KnnVectorQueryBuilder extends LeafQueryBuilder<KnnVectorQueryBuilde
             vectorSimilarity,
             parentBitSet,
             heuristic,
-            hnswEarlyTermination
+            hnswEarlyTermination,
+            sliceEnabled,
+            sliceRouting
         );
     }
 

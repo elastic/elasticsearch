@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.ShardBatchIndexer;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -404,6 +405,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SniffConnectionStrategySettings.REMOTE_CONNECTIONS_PER_CLUSTER,
         SniffConnectionStrategySettings.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
+        TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
         SnapshotShutdownProgressTracker.SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING,
         NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING,
@@ -572,6 +574,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED,
         SearchService.FETCH_PHASE_CHUNKED_ENABLED,
         SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS,
+        SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES,
         SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE,
         ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
         ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING,

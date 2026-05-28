@@ -196,6 +196,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -301,7 +302,6 @@ import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportQueryUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
-import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;

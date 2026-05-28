@@ -378,7 +378,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP);
     }
 
-    LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext, AuditLogCustomizer customizer) {
+    LoggingAuditTrail(
+        Settings settings,
+        ClusterService clusterService,
+        Logger logger,
+        ThreadContext threadContext,
+        AuditLogCustomizer customizer
+    ) {
         this.customizer = customizer;
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));

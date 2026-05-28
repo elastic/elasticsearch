@@ -534,6 +534,33 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testNonColumnarSourceModesRejectedInColumnarIndex() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // DISABLED and STORED are rejected on columnar index modes (SYNTHETIC is allowed)
+        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+            for (var unsupportedMode : new SourceFieldMapper.Mode[] { SourceFieldMapper.Mode.DISABLED, SourceFieldMapper.Mode.STORED }) {
+                Settings settings = Settings.builder()
+                    .put(IndexSettings.MODE.getKey(), columnarMode.toString())
+                    .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), unsupportedMode.toString())
+                    .build();
+                IllegalArgumentException exc = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> createMapperService(settings, topMapping(b -> {}))
+                );
+                assertThat(
+                    exc.getMessage(),
+                    containsString(
+                        "unsupported source mode ["
+                            + unsupportedMode
+                            + "] for index mode ["
+                            + columnarMode
+                            + "]; supported values: [SYNTHETIC, COLUMNAR_STORED]"
+                    )
+                );
+            }
+        }
+    }
+
     public void testRecoverySourceWithSyntheticSource() throws IOException {
         {
             Settings settings = Settings.builder()

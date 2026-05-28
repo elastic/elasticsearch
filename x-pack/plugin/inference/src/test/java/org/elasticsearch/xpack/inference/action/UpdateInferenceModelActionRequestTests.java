@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -36,6 +37,7 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
     private static final String TEST_URL = "https://example.com";
     private static final int TEST_MAX_INPUT_TOKENS = 256;
     private static final int TEST_REQUESTS_PER_MINUTE = 100;
+    private static final int TEST_MAX_CHUNK_SIZE = 250;
     private static final int TEST_INVALID_TASK_TYPE_VALUE = 42;
     private static final String TEST_NON_MAP_SETTINGS_VALUE = "not_a_map";
     private static final String TEST_UNRECOGNIZED_FIELD = "unrecognized_top_level_field";
@@ -90,19 +92,27 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
                 },
                 "task_settings": {
                     "max_input_tokens": %d
+                },
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": %d
                 }
-            }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS));
+            }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS, TEST_MAX_CHUNK_SIZE));
 
         var firstServiceSettings = request.getServiceSettings();
         var secondServiceSettings = request.getServiceSettings();
         var firstTaskSettings = request.getTaskSettings();
         var secondTaskSettings = request.getTaskSettings();
+        var firstChunkingSettings = request.getChunkingSettings();
+        var secondChunkingSettings = request.getChunkingSettings();
 
         assertThat(firstServiceSettings, not(sameInstance(secondServiceSettings)));
         assertThat(firstTaskSettings, not(sameInstance(secondTaskSettings)));
+        assertThat(firstChunkingSettings, not(sameInstance(secondChunkingSettings)));
 
         assertThat(firstServiceSettings, equalTo(secondServiceSettings));
         assertThat(firstTaskSettings, equalTo(secondTaskSettings));
+        assertThat(firstChunkingSettings, equalTo(secondChunkingSettings));
         assertThat(request.getBodyTaskType(), is(nullValue()));
     }
 
@@ -136,8 +146,12 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
                 },
                 "task_settings": {
                     "max_input_tokens": %d
+                },
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": %d
                 }
-            }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS));
+            }""", TEST_URL, TEST_REQUESTS_PER_MINUTE, TEST_MAX_INPUT_TOKENS, TEST_MAX_CHUNK_SIZE));
 
         var firstServiceSettings = request.getServiceSettings();
         firstServiceSettings.remove(ServiceFields.URL);
@@ -145,6 +159,7 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         var firstRateLimit = (Map<String, Object>) firstServiceSettings.get(RateLimitSettings.FIELD_NAME);
         firstRateLimit.remove(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD);
         request.getTaskSettings().remove(ServiceFields.MAX_INPUT_TOKENS);
+        request.getChunkingSettings().remove(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString());
 
         var secondServiceSettings = request.getServiceSettings();
         assertThat(secondServiceSettings.get(ServiceFields.URL), is(TEST_URL));
@@ -152,6 +167,7 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         var secondRateLimit = (Map<String, Object>) secondServiceSettings.get(RateLimitSettings.FIELD_NAME);
         assertThat(secondRateLimit.get(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD), is(TEST_REQUESTS_PER_MINUTE));
         assertThat(request.getTaskSettings().get(ServiceFields.MAX_INPUT_TOKENS), is(TEST_MAX_INPUT_TOKENS));
+        assertThat(request.getChunkingSettings().get(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString()), is(TEST_MAX_CHUNK_SIZE));
     }
 
     public void testParseContent_OmittedSectionsRemainNullAcrossCalls() {
@@ -162,10 +178,30 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
 
         assertThat(request.getServiceSettings(), is(nullValue()));
         assertThat(request.getTaskSettings(), is(nullValue()));
+        assertThat(request.getChunkingSettings(), is(nullValue()));
         assertThat(request.getBodyTaskType(), is(TaskType.TEXT_EMBEDDING));
         assertThat(request.getServiceSettings(), is(nullValue()));
         assertThat(request.getTaskSettings(), is(nullValue()));
+        assertThat(request.getChunkingSettings(), is(nullValue()));
         assertThat(request.getBodyTaskType(), is(TaskType.TEXT_EMBEDDING));
+    }
+
+    public void testParseContent_ChunkingSettingsParsedIntoModifiableMap() {
+        var request = requestWithBody(Strings.format("""
+            {
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": %d
+                }
+            }""", TEST_MAX_CHUNK_SIZE));
+
+        var chunkingSettings = request.getChunkingSettings();
+        assertThat(chunkingSettings, equalTo(Map.of("strategy", "sentence", "max_chunk_size", TEST_MAX_CHUNK_SIZE)));
+
+        // The returned map is modifiable; callers (the chunking-settings builder) may freely
+        // mutate it without affecting the cached state.
+        chunkingSettings.clear();
+        assertThat(request.getChunkingSettings(), equalTo(Map.of("strategy", "sentence", "max_chunk_size", TEST_MAX_CHUNK_SIZE)));
     }
 
     public void testParseContent_EmptyBody_ThrowsBadRequest() {
@@ -215,6 +251,20 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         assertThat(
             exception.getMessage(),
             is(Strings.format("Unable to parse [task_settings] in the request [{task_settings=%s}]", TEST_NON_MAP_SETTINGS_VALUE))
+        );
+    }
+
+    public void testParseContent_ChunkingSettingsAreNotMap_ThrowsBadRequest() {
+        var request = requestWithBody(Strings.format("""
+            {
+                "chunking_settings": "%s"
+            }""", TEST_NON_MAP_SETTINGS_VALUE));
+
+        var exception = expectThrows(ElasticsearchStatusException.class, request::getChunkingSettings);
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("Unable to parse [chunking_settings] in the request [{chunking_settings=%s}]", TEST_NON_MAP_SETTINGS_VALUE))
         );
     }
 

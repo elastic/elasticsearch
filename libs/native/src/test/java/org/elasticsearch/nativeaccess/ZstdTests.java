@@ -570,6 +570,84 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
+    // ---------- One-shot heap byte[] overloads (Phase 2) ----------
+    // The block API critical(true) downcalls used by PanamaZstd.decompressHeap / compressHeap.
+    // Coverage here pins the contract that JdkZstdLibrary's heap overloads accept heap segments
+    // directly without an off-heap staging copy (the JDK-8318645 limitation that constrains the
+    // streaming path does not apply — these are flat downcalls).
+
+    public void testHeapRoundTripSmall() {
+        doTestHeapRoundTrip("the quick brown fox jumps over the lazy dog".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    public void testHeapRoundTripEmpty() {
+        doTestHeapRoundTrip(new byte[0]);
+    }
+
+    public void testHeapRoundTripVariousSizes() {
+        for (int size : new int[] { 1, 100, 1024, 64 * 1024, 1024 * 1024 }) {
+            byte[] data = new byte[size];
+            for (int i = 0; i < size; i++) {
+                data[i] = (byte) ((i * 31) ^ (i >>> 8));
+            }
+            doTestHeapRoundTrip(data);
+        }
+    }
+
+    public void testHeapDecompressRejectsCorruption() {
+        byte[] junk = new byte[64];
+        for (int i = 0; i < junk.length; i++) {
+            junk[i] = (byte) randomInt(255);
+        }
+        byte[] dst = new byte[256];
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> zstd.decompress(dst, 0, dst.length, junk, 0, junk.length)
+        );
+        assertNotNull(e.getMessage());
+    }
+
+    public void testHeapDecompressRejectsOutOfBounds() {
+        byte[] dst = new byte[16];
+        byte[] src = new byte[16];
+        // The facade validates ranges Java-side before calling into libzstd.
+        expectThrows(IllegalArgumentException.class, () -> zstd.decompress(dst, -1, 16, src, 0, 16));
+        expectThrows(IllegalArgumentException.class, () -> zstd.decompress(dst, 0, 17, src, 0, 16));
+        expectThrows(IllegalArgumentException.class, () -> zstd.decompress(dst, 0, 16, src, 0, 17));
+        expectThrows(NullPointerException.class, () -> zstd.decompress(null, 0, 0, src, 0, 0));
+        expectThrows(NullPointerException.class, () -> zstd.decompress(dst, 0, 0, null, 0, 0));
+    }
+
+    public void testHeapCompressRejectsTooSmallDst() {
+        byte[] src = new byte[1024];
+        for (int i = 0; i < src.length; i++) {
+            src[i] = (byte) i;
+        }
+        // Way below compressBound — libzstd returns the "Destination buffer is too small" error
+        // which the facade translates to IllegalArgumentException.
+        byte[] dst = new byte[2];
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> zstd.compress(dst, 0, dst.length, src, 0, src.length, 3)
+        );
+        assertNotNull(e.getMessage());
+    }
+
+    /**
+     * Heap-overload round-trip via the Panama critical(true) downcall. Compresses through the
+     * libzstd heap binding and decompresses back through the same binding — proving the two
+     * heap method handles round-trip with the same library that powers the direct-buffer overload.
+     */
+    private void doTestHeapRoundTrip(byte[] data) {
+        byte[] compressed = new byte[zstd.compressBound(data.length)];
+        int compressedLen = zstd.compress(compressed, 0, compressed.length, data, 0, data.length, 3);
+        assertThat("compress returned non-positive for non-empty input", compressedLen, Matchers.greaterThan(0));
+        byte[] decompressed = new byte[data.length];
+        int decompressedLen = zstd.decompress(decompressed, 0, decompressed.length, compressed, 0, compressedLen);
+        assertThat(decompressedLen, equalTo(data.length));
+        assertArrayEquals(data, decompressed);
+    }
+
     /**
      * Round-trip via the streaming API mirroring the production wrapper's algorithm: feed the
      * compressed input in {@code dStreamInSize} chunks and let the lib refill the caller's

@@ -238,7 +238,7 @@ public final class AllFirstExponentialHistogramByIntGroupingAggregatorFunction i
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+        AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -355,7 +355,7 @@ public final class AllFirstExponentialHistogramByIntGroupingAggregatorFunction i
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+        AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -452,7 +452,7 @@ public final class AllFirstExponentialHistogramByIntGroupingAggregatorFunction i
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+      AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, groupId, sortKeys.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
     }
   }
 

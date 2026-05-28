@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -19,7 +20,7 @@ import org.elasticsearch.compute.operator.DriverContext;
     processNulls = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG"),
-        @IntermediateState(name = "values", type = "TDIGEST"),
+        @IntermediateState(name = "values", type = "TDIGEST_BLOCK"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator
@@ -38,8 +39,9 @@ public class FirstTDigestByTimestampAggregator {
         }
     }
 
-    public static void combineIntermediate(TDigestStates.WithLongSingleState current, long timestamp, TDigestHolder tdigest, boolean seen) {
-        if (seen) {
+    public static void combineIntermediate(TDigestStates.WithLongSingleState current, long timestamp, TDigestBlock values, boolean seen) {
+        if (seen && values.isNull(0) == false) {
+            TDigestHolder tdigest = values.getTDigestHolder(values.getFirstValueIndex(0), new TDigestHolder());
             if (current.isSeen()) {
                 combine(current, tdigest, timestamp);
             } else {
@@ -66,10 +68,12 @@ public class FirstTDigestByTimestampAggregator {
         TDigestStates.WithLongGroupingState current,
         int groupId,
         long timestamp,
-        TDigestHolder tdigest,
-        boolean seen
+        TDigestBlock values,
+        boolean seen,
+        int otherPosition
     ) {
-        if (seen) {
+        if (seen && values.isNull(otherPosition) == false) {
+            TDigestHolder tdigest = values.getTDigestHolder(values.getFirstValueIndex(otherPosition), new TDigestHolder());
             combine(current, groupId, tdigest, timestamp);
         }
     }

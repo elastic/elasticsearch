@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.TDigestBlock;
 import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -22,7 +23,7 @@ import org.elasticsearch.compute.operator.DriverContext;
     processNulls = true,
     value = {
         @IntermediateState(name = "sortKeys", type = "LONG"),
-        @IntermediateState(name = "values", type = "TDIGEST"),
+        @IntermediateState(name = "values", type = "TDIGEST_BLOCK"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator()
@@ -41,8 +42,9 @@ public class AllFirstTDigestByIntAggregator {
         }
     }
 
-    public static void combineIntermediate(TDigestStates.WithLongSingleState current, long sortKey, TDigestHolder value, boolean seen) {
-        if (seen) {
+    public static void combineIntermediate(TDigestStates.WithLongSingleState current, long sortKey, TDigestBlock values, boolean seen) {
+        if (seen && values.isNull(0) == false) {
+            TDigestHolder value = values.getTDigestHolder(values.getFirstValueIndex(0), new TDigestHolder());
             if (current.isSeen()) {
                 combine(current, value, (int) sortKey);
             } else {
@@ -69,10 +71,12 @@ public class AllFirstTDigestByIntAggregator {
         TDigestStates.WithLongGroupingState current,
         int groupId,
         long sortKey,
-        TDigestHolder value,
-        boolean seen
+        TDigestBlock values,
+        boolean seen,
+        int otherPosition
     ) {
-        if (seen) {
+        if (seen && values.isNull(otherPosition) == false) {
+            TDigestHolder value = values.getTDigestHolder(values.getFirstValueIndex(otherPosition), new TDigestHolder());
             combine(current, groupId, value, (int) sortKey);
         }
     }

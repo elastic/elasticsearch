@@ -237,7 +237,7 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+        FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -354,7 +354,7 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+        FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -451,7 +451,7 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values.getExponentialHistogram(values.getFirstValueIndex(valuesPosition), valuesScratch), seen.getBoolean(valuesPosition));
+      FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, groupId, timestamps.getLong(valuesPosition), values, seen.getBoolean(valuesPosition), valuesPosition);
     }
   }
 

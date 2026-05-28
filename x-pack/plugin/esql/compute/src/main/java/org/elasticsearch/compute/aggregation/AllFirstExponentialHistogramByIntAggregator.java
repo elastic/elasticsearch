@@ -11,6 +11,8 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -22,7 +24,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
     processNulls = true,
     value = {
         @IntermediateState(name = "sortKeys", type = "LONG"),
-        @IntermediateState(name = "values", type = "EXPONENTIAL_HISTOGRAM"),
+        @IntermediateState(name = "values", type = "EXPONENTIAL_HISTOGRAM_BLOCK"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator()
@@ -44,10 +46,11 @@ public class AllFirstExponentialHistogramByIntAggregator {
     public static void combineIntermediate(
         ExponentialHistogramStates.WithLongSingleState current,
         long sortKey,
-        ExponentialHistogram value,
+        ExponentialHistogramBlock values,
         boolean seen
     ) {
-        if (seen) {
+        if (seen && values.isNull(0) == false) {
+            ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(0), new ExponentialHistogramScratch());
             if (current.isSeen()) {
                 combine(current, value, (int) sortKey);
             } else {
@@ -79,10 +82,12 @@ public class AllFirstExponentialHistogramByIntAggregator {
         ExponentialHistogramStates.WithLongGroupingState current,
         int groupId,
         long sortKey,
-        ExponentialHistogram value,
-        boolean seen
+        ExponentialHistogramBlock values,
+        boolean seen,
+        int otherPosition
     ) {
-        if (seen) {
+        if (seen && values.isNull(otherPosition) == false) {
+            ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(otherPosition), new ExponentialHistogramScratch());
             combine(current, groupId, value, (int) sortKey);
         }
     }

@@ -180,7 +180,7 @@ public final class FirstExponentialHistogramByTimestampAggregatorFunction implem
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     ExponentialHistogramScratch valuesScratch = new ExponentialHistogramScratch();
-    FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getExponentialHistogram(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
+    FirstExponentialHistogramByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values, seen.getBoolean(0));
   }
 
   @Override

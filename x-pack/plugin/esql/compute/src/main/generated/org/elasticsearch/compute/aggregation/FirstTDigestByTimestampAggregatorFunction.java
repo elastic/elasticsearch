@@ -178,7 +178,7 @@ public final class FirstTDigestByTimestampAggregatorFunction implements Aggregat
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     TDigestHolder valuesScratch = new TDigestHolder();
-    FirstTDigestByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getTDigestHolder(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
+    FirstTDigestByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values, seen.getBoolean(0));
   }
 
   @Override

@@ -144,7 +144,7 @@ public final class AllFirstExponentialHistogramByIntAggregatorFunction implement
     BooleanBlock seen = (BooleanBlock) seenUncast;
     assert seen.getPositionCount() == 1;
     ExponentialHistogramScratch valuesScratch = new ExponentialHistogramScratch();
-    AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, sortKeys.getLong(0), values.getExponentialHistogram(values.getFirstValueIndex(0), valuesScratch), seen.getBoolean(0));
+    AllFirstExponentialHistogramByIntAggregator.combineIntermediate(state, sortKeys.getLong(0), values, seen.getBoolean(0));
   }
 
   @Override

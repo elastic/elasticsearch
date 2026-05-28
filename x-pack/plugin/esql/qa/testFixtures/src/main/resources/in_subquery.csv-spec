@@ -1219,7 +1219,7 @@ required_capability: match_function
 
 FROM books
 | WHERE MATCH(author, "Faulkner")
-| WHERE book_no IN (FROM books | WHERE book_no >= "4000" | KEEP book_no)
+  AND book_no IN (FROM books | WHERE book_no >= "4000" | KEEP book_no)
 | SORT book_no
 | KEEP book_no, author
 | LIMIT 3

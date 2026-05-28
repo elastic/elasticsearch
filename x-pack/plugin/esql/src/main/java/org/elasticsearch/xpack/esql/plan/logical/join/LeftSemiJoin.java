@@ -71,6 +71,7 @@ public class LeftSemiJoin extends SemiJoin {
 
     public LeftSemiJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, Attribute markAttribute) {
         super(source, left, right, config);
+        assert config.type() == JoinTypes.LEFT_SEMI : "LeftSemiJoin requires join type LEFT_SEMI, got [" + config.type() + "]";
         this.markAttribute = markAttribute;
     }
 

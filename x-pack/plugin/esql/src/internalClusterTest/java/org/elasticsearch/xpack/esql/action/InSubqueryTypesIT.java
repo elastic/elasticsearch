@@ -408,6 +408,19 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
             }
         }
 
+        // Sanity check: every DataType must be covered either by SUPPORTED or by Join.UNSUPPORTED_TYPES, so any newly added DataType
+        // either gets exercised as supported here or is automatically picked up in the UNSUPPORTED derivation. Mirrors the equivalent
+        // assertion in LookupJoinTypesIT.
+        List<DataType> missing = new ArrayList<>();
+        for (DataType type : DataType.values()) {
+            boolean isSupported = Arrays.asList(SUPPORTED).contains(type);
+            boolean isUnsupported = Arrays.asList(Join.UNSUPPORTED_TYPES).contains(type);
+            if (isSupported == false && isUnsupported == false) {
+                missing.add(type);
+            }
+        }
+        assertThat(missing + " are not in the SUPPORTED or Join.UNSUPPORTED_TYPES list", missing.size(), is(0));
+
         // Sanity check: no two configurations claim the same (mainType, subType) pair (which would silently drop a test).
         Set<String> knownPairs = new HashSet<>();
         for (TestConfigs configs : testConfigurations.values()) {

@@ -67,6 +67,8 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
 
     public SemiJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config);
+        assert getClass() != SemiJoin.class || config.type() == JoinTypes.SEMI
+            : "SemiJoin requires join type SEMI, got [" + config.type() + "]";
     }
 
     public SemiJoin(

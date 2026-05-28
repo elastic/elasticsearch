@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
@@ -261,7 +262,10 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            LogicalPlan parsedPlan = statement.plan();
+            // Mirror EsqlSession#execute: rewrite IN subqueries into SemiJoin/AntiJoin/LeftSemiJoin before
+            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier
+            // checks (e.g. unbounded SORT inside an IN subquery) fire.
+            LogicalPlan parsedPlan = InSubqueryResolver.resolve(statement.plan());
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);

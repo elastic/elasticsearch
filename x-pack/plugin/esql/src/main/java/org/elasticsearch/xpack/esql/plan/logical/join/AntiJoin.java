@@ -28,6 +28,7 @@ public class AntiJoin extends SemiJoin {
 
     public AntiJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
         super(source, left, right, config);
+        assert config.type() == JoinTypes.ANTI : "AntiJoin requires join type ANTI, got [" + config.type() + "]";
     }
 
     public AntiJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> leftFields, List<Attribute> rightFields) {

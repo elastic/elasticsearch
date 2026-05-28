@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -42,6 +44,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -221,9 +224,9 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String name = parser.currentName();
-                    parser.nextToken();
+                    parser.nextToken(); // advance to the value token
                     if (name.equals(key)) {
-                        builder.appendBytesRef(new BytesRef(parser.text()));
+                        appendValueAtCurrentToken(builder, parser, key);
                         return;
                     }
                     parser.skipChildren();
@@ -232,6 +235,86 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             throw new IllegalArgumentException("path [" + key + "] does not exist");
         } catch (IOException | XContentParseException e) {
             throw new IllegalArgumentException("invalid JSON input");
+        }
+    }
+
+    /**
+     * Emits the JSON value at the parser's current token to {@code builder}. Mirrors the
+     * keyed sub-field block-loader's per-cell shape so the parse-path output is interchangeable
+     * with the pushdown path's output for the same source: scalars produce a single-value
+     * position, JSON arrays produce a multi-value position (one keyword per element), and
+     * nested JSON objects (and any objects/arrays inside an outer array) are serialised to
+     * a JSON string per the function's {@code detailedDescription} contract. {@code VALUE_NULL}
+     * appends a null position.
+     */
+    private static void appendValueAtCurrentToken(BytesRefBlock.Builder builder, XContentParser parser, String key) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        switch (token) {
+            case VALUE_STRING, VALUE_NUMBER -> builder.appendBytesRef(new BytesRef(parser.text()));
+            case VALUE_BOOLEAN -> builder.appendBytesRef(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
+            case VALUE_NULL -> builder.appendNull();
+            case START_OBJECT -> builder.appendBytesRef(serializeCurrentStructure(parser));
+            case START_ARRAY -> appendArrayAsMultiValue(builder, parser, key);
+            default -> throw new IllegalArgumentException("unexpected token [" + token + "] at path [" + key + "]");
+        }
+    }
+
+    /**
+     * Walks the current JSON array and emits each element as a keyword. Buffers the rendered
+     * elements first so the choice between scalar position, multi-value position, and null
+     * can be made once the array is exhausted: an empty array (or an array consisting only of
+     * JSON nulls) maps to null, mirroring how the function treats a missing key. A
+     * single-element array collapses to a scalar position so the resulting block is shaped
+     * identically to a doc whose source already held a single value (the single-element
+     * collapse that {@code CsvTestsDataLoader.parseDocument} performs on the way in is the
+     * symmetric version of this on the input side). Multi-element arrays use a
+     * begin/end position-entry pair on the block builder.
+     * <p>
+     * JSON null elements are dropped: a {@code BytesRefBlock} multi-value position cannot
+     * represent {@code null} as one of its elements, and dropping nulls is the only
+     * representable option that does not silently substitute an empty {@link BytesRef} for a
+     * missing value. An array of all nulls therefore reduces to the empty case and produces
+     * a null position.
+     */
+    private static void appendArrayAsMultiValue(BytesRefBlock.Builder builder, XContentParser parser, String key) throws IOException {
+        List<BytesRef> elements = new ArrayList<>();
+        XContentParser.Token elem;
+        while ((elem = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            switch (elem) {
+                case VALUE_STRING, VALUE_NUMBER -> elements.add(new BytesRef(parser.text()));
+                case VALUE_BOOLEAN -> elements.add(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
+                case VALUE_NULL -> {
+                    // see method-level Javadoc: drop nulls inside multi-value keyword positions.
+                }
+                case START_OBJECT, START_ARRAY -> elements.add(serializeCurrentStructure(parser));
+                default -> throw new IllegalArgumentException("unexpected token [" + elem + "] inside array at path [" + key + "]");
+            }
+        }
+        if (elements.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+        if (elements.size() == 1) {
+            builder.appendBytesRef(elements.get(0));
+            return;
+        }
+        builder.beginPositionEntry();
+        for (BytesRef e : elements) {
+            builder.appendBytesRef(e);
+        }
+        builder.endPositionEntry();
+    }
+
+    /**
+     * Re-serialises the JSON sub-tree starting at the parser's current token to a UTF-8
+     * {@link BytesRef}. Used to render nested objects (and objects/arrays nested inside an
+     * outer array) as a JSON string, since the function's return type is {@code keyword} and
+     * the block builder cannot represent structured values directly.
+     */
+    private static BytesRef serializeCurrentStructure(XContentParser parser) throws IOException {
+        try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+            jsonBuilder.copyCurrentStructure(parser);
+            return BytesReference.bytes(jsonBuilder).toBytesRef();
         }
     }
 

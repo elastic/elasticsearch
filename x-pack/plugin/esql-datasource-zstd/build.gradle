@@ -31,13 +31,10 @@ dependencies {
   // surface the symbols at compile time.
   compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
-  // zstd-jni provided by esql-datasource-compression-libs parent plugin at runtime;
-  // compileOnly for compilation, testImplementation for test-time resolution. Compression-side
-  // fixtures (ZstdOutputStream) still use zstd-jni — full removal of zstd-jni from this plugin
-  // is out of scope for issue #811 and will happen once the Parquet cold byte[] path is also off it.
-  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
-
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  // Compression-side test fixtures (ZstdOutputStream) and byte-for-byte cross-checks against
+  // ZstdInputStream still use zstd-jni. With Phase 2 it is no longer on the production runtime
+  // classpath of any ESQL data source plugin — testImplementation only.
   testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
 }

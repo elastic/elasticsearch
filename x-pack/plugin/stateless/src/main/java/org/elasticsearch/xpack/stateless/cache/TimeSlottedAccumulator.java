@@ -57,10 +57,6 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
 
     private final long granularityMillis;
 
-    /**
-     * Per-slot counts use {@code long} so callers need not guard individual slots against overflow, and so
-     * {@link #sum} can saturate a range total without narrowing to {@code int}.
-     */
     private final AtomicLongArray counts;
 
     /** Start of the oldest retained slot (i.e., the tail at index 0), in epoch milliseconds. Fixed at construction,

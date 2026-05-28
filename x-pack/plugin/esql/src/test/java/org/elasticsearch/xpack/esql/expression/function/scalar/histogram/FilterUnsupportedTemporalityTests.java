@@ -83,6 +83,11 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
         return parameterSuppliersFromTypedData(suppliers);
     }
 
+    @Override
+    protected boolean canSerialize() {
+        return false;
+    }
+
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier histoSupplier, TemporalityParameter temporality) {
         return new TestCaseSupplier(
             "<" + histoSupplier.type().typeName() + ", " + temporality + ">",

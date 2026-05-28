@@ -857,19 +857,37 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testTsvFindNextRecordBoundaryTwoRecordsStateMachineReset() throws IOException {
-        // After the first record-boundary returns, asking for the next must reset state correctly:
-        // the second [..] cell with an embedded newline should also be honored as a single record.
-        // Guards against a state-machine reset bug in the bracket-aware scanner.
+        // Cross-call statelessness: the same reader invoked on two separate streams must scan each
+        // independently — no carry-over of bracket-depth / quoted-state from a prior call.
         CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
             Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
         );
         byte[] data = "a\t[x\ny]\tb\nc\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
         long firstBoundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a\t[x\ny]\tb\n".length(), firstBoundary);
-        // Now scan the second record from its own buffer; ensures the scanner is stateless across calls.
         byte[] tail = "c\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
         long secondBoundary = reader.findNextRecordBoundary(new ByteArrayInputStream(tail));
         assertEquals(tail.length, secondBoundary);
+    }
+
+    public void testTsvFindNextRecordBoundaryInPlaceAdvanceFindsSecondRecord() throws IOException {
+        // In-place advance: drain the first record's bytes from the original stream, then call
+        // findNextRecordBoundary again on the same underlying buffer. Catches bugs where the
+        // scanner caches the stream's mark position, byte offset, or read-ahead buffer across
+        // calls — distinct from the stateless-across-calls case where each call gets a fresh stream.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
+        );
+        byte[] data = "a\t[x\ny]\tb\nc\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
+        ByteArrayInputStream stream = new ByteArrayInputStream(data);
+        long firstBoundary = reader.findNextRecordBoundary(stream);
+        assertEquals("a\t[x\ny]\tb\n".length(), firstBoundary);
+        // Reset stream to the byte after the first boundary, then re-scan.
+        stream.reset();
+        long skipped = stream.skip(firstBoundary);
+        assertEquals(firstBoundary, skipped);
+        long secondBoundary = reader.findNextRecordBoundary(stream);
+        assertEquals("c\t[m\nn]\td\n".length(), secondBoundary);
     }
 
     public void testTsvFusedPathWithNestedBrackets() throws IOException {

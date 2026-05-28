@@ -14,6 +14,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -487,6 +488,19 @@ public class TopNOperator implements Operator, Accountable {
         // Aggressively null these so they can be GCed more quickly.
         inputQueue = null;
         output = null;
+    }
+
+    /**
+     * Releases the {@link org.elasticsearch.compute.data.LocalCircuitBreaker} backing this
+     * operator's block factory, returning its reserved bytes to the parent breaker. Must only
+     * be called by {@link ParallelTopNOperator} on background worker instances after
+     * {@link #close()} — never on the merge-target instance whose block factory belongs to
+     * the driver's own context.
+     */
+    void releaseBreaker() {
+        if (blockFactory.breaker() instanceof LocalCircuitBreaker localBreaker) {
+            localBreaker.close();
+        }
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator

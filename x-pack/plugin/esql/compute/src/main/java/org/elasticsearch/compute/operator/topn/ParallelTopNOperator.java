@@ -219,6 +219,11 @@ public class ParallelTopNOperator implements Operator, Accountable {
             worker.close();
         } catch (Exception e) {
             failureCollector.unwrapAndCollect(e);
+        }
+        try {
+            worker.releaseBreaker();
+        } catch (Exception e) {
+            failureCollector.unwrapAndCollect(e);
         } finally {
             if (runningWorkerTasks.decrementAndGet() == 0) {
                 allWorkersDone.onResponse(null);

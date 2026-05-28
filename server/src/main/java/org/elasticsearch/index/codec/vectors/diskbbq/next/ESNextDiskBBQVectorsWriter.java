@@ -88,7 +88,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     // field for slicing, null for no slicing
     private final String sliceField;
     private final IvfFlushConfigSource flushConfigSource;
-    private final IvfMergeConfigResolver mergeConfigResolver;;
+    private final IvfMergeConfigResolver mergeConfigResolver;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,

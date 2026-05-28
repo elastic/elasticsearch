@@ -52,6 +52,19 @@ public final class ESNextRescoreOversampleTestFixture {
 
     private ESNextRescoreOversampleTestFixture() {}
 
+    /**
+     * Merge resolver matching {@link org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper} when
+     * {@code auto_calibrate} is enabled.
+     */
+    public static IvfMergeConfigResolver productionMergeResolver(int vectorsPerCluster) {
+        return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> new ManifoldErrorCalibrationSelector(vectorsPerCluster).select(
+            fieldInfo,
+            floatVectorValues,
+            null,
+            mergeState
+        );
+    }
+
     /** Shared codec helpers for IVF writer + merge replay. */
     public static Codec createDiskBbqCodec(IvfFlushConfigSource flushConfig, IvfMergeConfigResolver mergeResolver) {
         int vpc = 128;

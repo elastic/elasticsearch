@@ -40,6 +40,10 @@ import java.util.Objects;
  * <strong>merge</strong> by reusing persisted segment metadata when possible, otherwise running fast or full
  * calibration on merged vectors. {@link #select} requires a non-null {@link MergeState}; flush-time calibration is not
  * supported here (flush uses codec defaults when auto_calibrate is enabled).
+ * <p>
+ * Segments with fewer than {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get
+ * {@link AutoCalibrationSelector#DEFAULT_CALIBRATED_OVERSAMPLE}. Recall-quality calibration on large corpora is
+ * exercised via {@code qa/vector} ({@code auto_calibrate: true}).
  */
 public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector {
 

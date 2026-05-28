@@ -15,9 +15,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,8 +29,14 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
- * Ensures IVF shard merge retains {@code ceil(k * max(segment rescore oversample))} approximate neighbors
- * when segments disagree on calibrated oversampling (Disk BBQ).
+ * Query-time tests for IVF shard merge when leaves disagree on persisted rescore oversample.
+ * <p>
+ * Indexes are built with {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource}
+ * injecting per-segment oversample values and {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver#useCodecDefault()}
+ * (no {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector} on merge).
+ * For codec merge calibration, see
+ * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelectorTests} and
+ * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextMergeCalibrationTests}.
  */
 public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 

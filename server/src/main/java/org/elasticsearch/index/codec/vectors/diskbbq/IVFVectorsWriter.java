@@ -657,9 +657,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     ) throws IOException {
         try (
             IndexInput vectors = mergeState.segmentInfo.dir.openInput(vectorsFileName, IOContext.DEFAULT);
-            IndexInput docs = docsFileName == null
-                ? null
-                : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT)
+            IndexInput docs = docsFileName == null ? null : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT)
         ) {
             final KMeansFloatVectorValues stored = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
             final FloatVectorValues preconditioned = preconditionVectors(preconditioner, stored, ivfSegmentConfig);

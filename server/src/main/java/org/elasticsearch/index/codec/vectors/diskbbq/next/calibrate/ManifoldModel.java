@@ -16,15 +16,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Locale;
 import java.util.PriorityQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 /**
  * Manifold model for distance/similarity as a function of rank and corpus size.

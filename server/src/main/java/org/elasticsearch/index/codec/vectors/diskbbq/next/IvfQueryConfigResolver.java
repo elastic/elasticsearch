@@ -53,13 +53,7 @@ public class IvfQueryConfigResolver {
         float mappingRescoreOversample,
         @Nullable Float queryOversample
     ) {
-        return new IvfQueryConfigResolver(
-            autoCalibrate,
-            mappingUsePrecondition,
-            quantBits,
-            mappingRescoreOversample,
-            queryOversample
-        );
+        return new IvfQueryConfigResolver(autoCalibrate, mappingUsePrecondition, quantBits, mappingRescoreOversample, queryOversample);
     }
 
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, LeafReader leafReader) throws IOException {

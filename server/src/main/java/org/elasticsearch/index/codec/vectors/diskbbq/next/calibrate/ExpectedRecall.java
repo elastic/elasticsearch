@@ -27,6 +27,13 @@ public final class ExpectedRecall {
 
     private static final double SQRT_2_PI = Math.sqrt(2.0 * Math.PI);
 
+    /**
+     * 5-point Gauss-Legendre quadrature rule on the canonical interval [-1, 1].
+     * The nodes are the roots of the degree-5 Legendre polynomial {@code P5(x)}, and the
+     * weights are the corresponding coefficients from the standard Gauss-Legendre
+     * table. Together they integrate polynomials up to degree 9 exactly before the
+     * affine mapping in {@link #quadrature} moves the rule onto each subinterval.
+     */
     private static final double[] QUADRATURE_NODES = {
         -0.906179845938664,
         -0.5384693101056831,
@@ -104,6 +111,16 @@ public final class ExpectedRecall {
         return Math.min(integral, 1.0);
     }
 
+    /**
+     * Computes the probability that a rank, drawn from a distribution of ranks with added noise,
+     * is less than the specified rank threshold n given a set of rank distances and an error standard deviation.
+     *
+     * @param rankDistances an array of rank distances representing the distribution of possible ranks
+     * @param errorStd the standard deviation of the error or noise added to the rank distances
+     * @param n the rank threshold to compare against
+     * @param x the value at which to calculate the cumulative distribution function for individual ranks
+     * @return the cumulative probability that the rank is less than n
+     */
     static double probabilityRankLessThanN(double[] rankDistances, double errorStd, int n, double x) {
         double mu = 0, stddevSq = 0;
         int limit = Math.min(20 * n, rankDistances.length);
@@ -116,14 +133,43 @@ public final class ExpectedRecall {
         return normalCdf(n, mu, stddev);
     }
 
+    /**
+     * Computes the probability density function (PDF) of a normal (Gaussian) distribution
+     * with the specified mean and standard deviation at a given point.
+     *
+     * @param x the point at which to evaluate the normal distribution
+     * @param mean the mean (expected value) of the normal distribution
+     * @param stddev the standard deviation (spread) of the normal distribution
+     * @return the value of the normal distribution PDF at the given point
+     */
     static double normalPdf(double x, double mean, double stddev) {
         return Math.exp(-0.5 * Math.pow((x - mean) / stddev, 2)) / (stddev * SQRT_2_PI);
     }
 
+    /**
+     * Computes the cumulative distribution function (CDF) of a normal (Gaussian)
+     * distribution with the specified mean and standard deviation at a given point.
+     *
+     * @param x the point at which to evaluate the normal distribution
+     * @param mean the mean (expected value) of the normal distribution
+     * @param stddev the standard deviation (spread) of the normal distribution
+     * @return the cumulative probability corresponding to the input point, representing
+     *         the area under the normal distribution curve to the left of the input point
+     */
     static double normalCdf(double x, double mean, double stddev) {
         return 0.5 * (1.0 + erf((x - mean) / (stddev * Math.sqrt(2.0))));
     }
 
+    /**
+     * Returns an approximation of the Gauss error function {@code erf(z)}.
+     * The error function is defined as:
+     * {@code erf(z) = 2 / sqrt(pi) * integral(exp(-x * x), x = 0..z)}.
+     * This implementation uses a polynomial approximation evaluated with
+     * Horner's method and preserves the odd symmetry {@code erf(-z) = -erf(z)}.
+     *
+     * @param z the input value
+     * @return an approximate value of {@code erf(z)}
+     */
     static double erf(double z) {
         double t = 1.0 / (1.0 + 0.5 * Math.abs(z));
         double ans = 1 - t * Math.exp(
@@ -133,6 +179,16 @@ public final class ExpectedRecall {
         return z >= 0 ? ans : -ans;
     }
 
+    /**
+     * Approximates the definite integral of a given function over the interval [a, b]
+     * using numerical quadrature with a specified number of subintervals.
+     *
+     * @param f the mathematical function to be integrated, represented as a DoubleUnaryOperator
+     * @param a the lower bound of the integration interval
+     * @param b the upper bound of the integration interval
+     * @param n the number of subintervals to divide the integration interval into
+     * @return an approximation of the integral of the function f over the interval [a, b]
+     */
     static double quadrature(DoubleUnaryOperator f, double a, double b, int n) {
         double intervalLength = (b - a) / n;
         double result = 0;

@@ -1180,3 +1180,33 @@ PROMQL index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
 result:double | step:datetime
 62.0          | 2024-05-10T01:00:00.000Z
 ;
+
+scalar_float_div_half
+required_capability: promql_command_v0
+required_capability: promql_scalar
+required_capability: fix_promql_scalar_float_div
+PROMQL index=k8s step=1h result=(round(vector(1/2), 0.001));
+
+result:double | step:datetime
+0.5           | 2024-05-10T00:00:00.000Z
+;
+
+scalar_float_div_fraction
+required_capability: promql_command_v0
+required_capability: promql_scalar
+required_capability: fix_promql_scalar_float_div
+PROMQL index=k8s step=1h result=(round(vector(4/6), 0.001));
+
+result:double | step:datetime
+0.667         | 2024-05-10T00:00:00.000Z
+;
+
+scalar_float_div_compound
+required_capability: promql_command_v0
+required_capability: promql_scalar
+required_capability: fix_promql_scalar_float_div
+PROMQL index=k8s step=1h result=(round(vector(1*2 + 4/6 - (10%7)^2), 0.001));
+
+result:double | step:datetime
+-6.333        | 2024-05-10T00:00:00.000Z
+;

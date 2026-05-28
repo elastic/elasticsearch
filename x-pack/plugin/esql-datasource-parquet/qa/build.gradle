@@ -80,6 +80,7 @@ csvToParquetFixtures.each { baseName ->
     inputs.file(csvInput)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateParquetTasks.add(tasks.named(taskName))
 }
@@ -96,6 +97,7 @@ tasks.register('generateMultifileParquet_employees', JavaExec) {
   inputs.file(multifileEmployeesCsv)
   outputs.dir(multifileDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateParquetTasks.add(tasks.named('generateMultifileParquet_employees'))
 
@@ -117,6 +119,7 @@ def multifileUbnDir = file("${parquetFixtureOutputDir}/multifile_ubn")
     inputs.file(csvInput)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateParquetTasks.add(tasks.named(taskName))
 }
@@ -135,6 +138,7 @@ tasks.register('generateMultifileSplitParquet_employees', JavaExec) {
   inputs.file(multifileSplitEmployeesCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateParquetTasks.add(tasks.named('generateMultifileSplitParquet_employees'))
 
@@ -155,6 +159,7 @@ tasks.register('generateHivePartitionedParquet_employees', JavaExec) {
   inputs.file(hivePartitionedEmployeesCsv)
   outputs.dir(hivePartitionedDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateParquetTasks.add(tasks.named('generateHivePartitionedParquet_employees'))
 

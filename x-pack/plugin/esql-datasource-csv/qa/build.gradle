@@ -154,6 +154,8 @@ csvBasenamesForTsv.each { baseName ->
     args = [csvSynced.path, tsvOut.path]
     inputs.file(csvSynced)
     outputs.file(tsvOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateStandaloneTsvTasks.add(tasks.named(taskName))
 }
@@ -171,6 +173,8 @@ tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
   args = [tsvMultifileSplitCsv.path, tsvMultifileSplitDir.path, '3']
   inputs.file(tsvMultifileSplitCsv)
   outputs.dir(tsvMultifileSplitDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'))
 

@@ -171,7 +171,7 @@ public class HashAggregationOperator implements Operator {
      * is allowed. Below this ratio the operator keeps accumulating regardless of key count, avoiding
      * unnecessary hash-table rebuilds when the circuit breaker has ample headroom.
      */
-    public static final double DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO = 0.3;
+    public static final double DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO = 0.5;
 
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},

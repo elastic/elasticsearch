@@ -25,6 +25,14 @@ import java.util.List;
 
 public class CsvRecordSplitterMaxRecordSizeTests extends ESTestCase {
 
+    public void testConstructorRejectsNonPositiveMaxRecordBytes() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CsvRecordSplitter(CsvFormatOptions.DEFAULT, 0)
+        );
+        assertEquals("maxRecordBytes must be positive, got: 0", ex.getMessage());
+    }
+
     public void testQuotedFieldsOnlyReturnsRecordTooLargeForUnclosedQuote() throws IOException {
         int maxRecordBytes = 32;
         RecordSplitter splitter = new CsvRecordSplitter(CsvFormatOptions.TSV, maxRecordBytes);

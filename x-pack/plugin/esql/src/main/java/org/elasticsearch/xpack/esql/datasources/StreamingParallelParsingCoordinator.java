@@ -192,6 +192,8 @@ public final class StreamingParallelParsingCoordinator {
          */
         private final int maxRecordBytes;
         private final ArrayBlockingQueue<Page>[] pageQueues;
+        private volatile SegmentableFormatReader recordSplitterReader;
+        private volatile RecordSplitter recordSplitter;
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
         /**
@@ -285,16 +287,30 @@ public final class StreamingParallelParsingCoordinator {
         }
 
         private RecordSplitter recordSplitter() {
-            return reader.recordSplitter(maxRecordBytes);
+            SegmentableFormatReader currentReader = reader;
+            RecordSplitter currentSplitter = recordSplitter;
+            if (currentSplitter == null || recordSplitterReader != currentReader) {
+                currentSplitter = currentReader.recordSplitter(maxRecordBytes);
+                recordSplitterReader = currentReader;
+                recordSplitter = currentSplitter;
+            }
+            return currentSplitter;
         }
 
-        private IOException recordTooLargeException() {
+        private IOException recordTooLargeException(int scannedBytes) {
             String hint = switch (reader.formatName()) {
                 case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
                 default -> "";
             };
             return new IOException(
-                "record exceeded max_record_size [" + maxRecordBytes + "] for format [" + reader.formatName() + "]" + hint
+                "record exceeded max_record_size ["
+                    + maxRecordBytes
+                    + "] after scanning ["
+                    + scannedBytes
+                    + "] bytes for format ["
+                    + reader.formatName()
+                    + "]"
+                    + hint
             );
         }
 
@@ -332,7 +348,7 @@ public final class StreamingParallelParsingCoordinator {
 
                     int lastNewline = recordSplitter().findLastRecordBoundary(buf, 0, totalBytes);
                     if (lastNewline == RecordSplitter.RECORD_TOO_LARGE) {
-                        throw recordTooLargeException();
+                        throw recordTooLargeException(totalBytes);
                     }
 
                     if (lastNewline < 0) {
@@ -635,7 +651,7 @@ public final class StreamingParallelParsingCoordinator {
             // (a format/quoting mismatch), so fail rather than read the input without bound.
             while (true) {
                 if (len + growBy > maxRecordBytes) {
-                    throw recordTooLargeException();
+                    throw recordTooLargeException(len);
                 }
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
@@ -644,7 +660,7 @@ public final class StreamingParallelParsingCoordinator {
                 // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
                 int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
                 if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
-                    throw recordTooLargeException();
+                    throw recordTooLargeException(grown.length);
                 }
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);

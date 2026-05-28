@@ -969,7 +969,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return new CsvRecordSplitter(options, maxRecordBytes);
     }
 
-    private static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
+    static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
         return ib == ' ' || ib == '\t' || ib == '\f';
     }
 

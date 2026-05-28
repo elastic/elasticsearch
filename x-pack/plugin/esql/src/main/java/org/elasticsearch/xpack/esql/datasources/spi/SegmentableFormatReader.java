@@ -40,7 +40,9 @@ public interface SegmentableFormatReader extends FormatReader {
 
     /**
      * Returns the record-boundary splitter with a caller-supplied record-size cap.
-     * Implementations that cannot enforce a dynamic cap may keep the default splitter.
+     * Implementations that support the cap report {@link RecordSplitter#RECORD_TOO_LARGE}
+     * when a record exceeds {@code maxRecordBytes}; implementations that cannot enforce a
+     * dynamic cap may keep the default splitter.
      */
     default RecordSplitter recordSplitter(int maxRecordBytes) {
         return recordSplitter();

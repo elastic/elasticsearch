@@ -25,6 +25,9 @@ final class CsvRecordSplitter implements RecordSplitter {
 
     CsvRecordSplitter(CsvFormatOptions options, int maxRecordBytes) {
         this.options = Objects.requireNonNull(options);
+        if (maxRecordBytes <= 0) {
+            throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
+        }
         this.maxRecordBytes = maxRecordBytes;
     }
 
@@ -123,7 +126,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = false;
             } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
-            } else if (isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
+            } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
                 fieldHasNonWhitespace = true;
             }
         }
@@ -167,10 +170,6 @@ final class CsvRecordSplitter implements RecordSplitter {
             }
         }
         return bytes;
-    }
-
-    private static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
-        return ib == ' ' || ib == '\t' || ib == '\f';
     }
 
     /**
@@ -255,7 +254,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = true;
                 continue;
             }
-            if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
+            if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
                 fieldHasNonWhitespace = true;
             }
         }
@@ -321,7 +320,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = false;
             } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
                 inQuotes = true;
-            } else if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
+            } else if (CsvFormatReader.isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
                 fieldHasNonWhitespace = true;
             }
         }

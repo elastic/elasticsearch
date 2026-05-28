@@ -120,8 +120,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
      * Even though we didn't manage to reproduce the problem in real conditions, we decided
      * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     * <p>
+     * With JDK 26 on Linux, ANTLR stack overflow was observed at 398 nested function calls, so the limit
+     * was reduced to 300 to provide a safety margin across JVM versions and platforms.
      */
-    public static final int MAX_EXPRESSION_DEPTH = 400;
+    public static final int MAX_EXPRESSION_DEPTH = 300;
 
     protected final ParsingContext context;
 

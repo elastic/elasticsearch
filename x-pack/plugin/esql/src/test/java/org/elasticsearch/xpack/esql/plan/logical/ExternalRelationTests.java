@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -219,6 +221,65 @@ public class ExternalRelationTests extends ESTestCase {
         assertEquals(exec1, exec2);
         assertEquals(exec1.hashCode(), exec2.hashCode());
         assertNotEquals(exec1, exec3);
+    }
+
+    // ===== Secret redaction in nodeProperties() / toString() =====
+
+    public void testNodePropertiesOmitsSecretsSecureStringPath() {
+        // Dataset path: SecureString values in config.
+        var config = Map.<String, Object>of(
+            "access_key",
+            "AKID",
+            "secret_key",
+            new SecureString("S3CR3T_DO_NOT_LEAK_SecureString".toCharArray())
+        );
+        SimpleSourceMetadata secretMetadata = new SimpleSourceMetadata(
+            createAttributes(),
+            "parquet",
+            "s3://bucket/data.parquet",
+            null,
+            null,
+            null,
+            config
+        );
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            secretMetadata,
+            createAttributes(),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        assertFalse("nodeProperties() must not contain the metadata object", relation.nodeProperties().contains(secretMetadata));
+        String rendered = relation.nodeString() + " " + relation.toString();
+        assertFalse("EXPLAIN output must not contain the secret value", rendered.contains("S3CR3T_DO_NOT_LEAK_SecureString"));
+    }
+
+    public void testNodePropertiesOmitsSecretsPlainStringPath() {
+        // Inline EXTERNAL path: plain String values in config (foldOptionLiterals produces plain strings).
+        var config = Map.<String, Object>of("secret_key", "PLAINTEXT_DO_NOT_LEAK_String");
+        SimpleSourceMetadata secretMetadata = new SimpleSourceMetadata(
+            createAttributes(),
+            "parquet",
+            "s3://bucket/data.parquet",
+            null,
+            null,
+            null,
+            config
+        );
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            secretMetadata,
+            createAttributes(),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        assertFalse("nodeProperties() must not contain the metadata object", relation.nodeProperties().contains(secretMetadata));
+        String rendered = relation.nodeString() + " " + relation.toString();
+        assertFalse("EXPLAIN output must not contain the secret value", rendered.contains("PLAINTEXT_DO_NOT_LEAK_String"));
     }
 
     // ===== Partition-column strip in toPhysicalExec → withUnifiedSchema =====

@@ -164,7 +164,10 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         if (map.containsKey("pages_processed")) {
             matcher = matcher.entry("pages_processed", greaterThanOrEqualTo(0));
         } else {
-            matcher = matcher.entry("pages_received", lessThanOrEqualTo(input.size())).entry("pages_emitted", output.size());
+            // pages_received on the merge-target counts both pre-promotion input pages and
+            // the worker output pages fed in during the merge phase, so the total can exceed
+            // input.size() and is not useful to assert here.
+            matcher = matcher.entry("pages_emitted", output.size());
         }
         matcher = matcher.entry("rows_received", lessThanOrEqualTo(totalInputRows)).entry("rows_emitted", totalOutputRows);
         org.elasticsearch.test.MapMatcher.assertMap(map, matcher);

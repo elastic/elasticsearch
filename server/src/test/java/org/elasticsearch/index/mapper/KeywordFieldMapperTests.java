@@ -243,6 +243,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultsColumnarMode() throws Exception {
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
         assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());

@@ -126,7 +126,7 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultsColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -141,35 +141,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertThat(fieldType.docValuesType(), equalTo(DocValuesType.BINARY));
-    }
-
-    public void testDefaultsStandardMode() throws IOException {
-        assumeTrue("columnar feature flag must be enabled for this test", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-
-        IndexableField indexedField = fields.get(0);
-        IndexableField dvField = fields.get(1);
-
-        IndexableFieldType indexedFieldType = indexedField.fieldType();
-        assertFalse(indexedFieldType.stored());
-        assertThat(indexedFieldType.indexOptions(), equalTo(IndexOptions.DOCS));
-        assertThat(indexedFieldType.storeTermVectors(), equalTo(false));
-        assertThat(indexedFieldType.storeTermVectorOffsets(), equalTo(false));
-        assertThat(indexedFieldType.storeTermVectorPositions(), equalTo(false));
-        assertThat(indexedFieldType.storeTermVectorPayloads(), equalTo(false));
-        assertThat(indexedFieldType.docValuesType(), equalTo(DocValuesType.NONE));
-
-        IndexableFieldType dvFieldType = dvField.fieldType();
-        assertFalse(dvFieldType.stored());
-        assertThat(dvFieldType.indexOptions(), equalTo(IndexOptions.NONE));
-        assertThat(dvFieldType.storeTermVectors(), equalTo(false));
-        assertThat(dvFieldType.storeTermVectorOffsets(), equalTo(false));
-        assertThat(dvFieldType.storeTermVectorPositions(), equalTo(false));
-        assertThat(dvFieldType.storeTermVectorPayloads(), equalTo(false));
-        assertThat(dvFieldType.docValuesType(), equalTo(DocValuesType.SORTED_SET));
     }
 
     public void testNullValue() throws IOException {

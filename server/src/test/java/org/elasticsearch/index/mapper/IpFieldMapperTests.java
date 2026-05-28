@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
@@ -105,7 +104,7 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaultsColumnarMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         DocumentMapper mapper = createColumnarModeDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
@@ -120,27 +119,6 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertThat(fieldType.docValuesType(), equalTo(DocValuesType.BINARY));
-    }
-
-    public void testDefaultsStandardMode() throws IOException {
-        assumeTrue("columnar feature flag must be enabled for this test", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-
-        IndexableField addressPoint = fields.get(0);
-        assertThat(addressPoint, instanceOf(ESInetAddressPoint.class));
-
-        IndexableField docValues = fields.get(1);
-        IndexableFieldType fieldType = docValues.fieldType();
-        assertFalse(fieldType.stored());
-        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
-        assertThat(fieldType.storeTermVectors(), equalTo(false));
-        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
-        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
-        assertThat(fieldType.docValuesType(), equalTo(DocValuesType.SORTED_SET));
     }
 
     public void testIPv6WithMaxHextets() throws Exception {

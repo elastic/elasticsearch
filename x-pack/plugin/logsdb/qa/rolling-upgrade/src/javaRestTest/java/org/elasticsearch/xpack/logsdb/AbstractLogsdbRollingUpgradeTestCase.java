@@ -142,4 +142,10 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
         putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$TEMPLATE", template).replace("$DATASTREAM", dataStreamName));
         assertOK(client().performRequest(putIndexTemplateRequest));
     }
+
+    @Override
+    protected final boolean resetFeatureStates() {
+        // /_features/_reset can fail on recently-upgraded clusters
+        return false;
+    }
 }

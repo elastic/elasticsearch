@@ -629,18 +629,15 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                         scoresNative,
                         count
                     );
-                    // TODO: align the Java scorers with Lucene 104 (PR #15411) and drop this skip.
-                    // The native bulk corrections kernels (bbq_apply_corrections_euclidean_* and
-                    // bbq_apply_corrections_dot_product_*) follow Lucene 104 input-clamp semantics:
-                    // EUCLIDEAN -> `1 / (1 + max(score, 0))`
-                    // DOT_PRODUCT -> `(1 + clamp(score, -1, 1)) / 2`
-                    // The Java scorers still use the older output-clamp form:
-                    // EUCLIDEAN -> `max(1 / (1 + score), 0)`
-                    // DOT_PRODUCT -> `max((1 + score) / 2, 0)`
-                    // The two forms disagree whenever the raw score falls outside the input-clamp
-                    // domain (negative for Euclidean, |score| > 1 for Dot Product). MAXIMUM_INNER_PRODUCT
-                    // is unaffected: its piecewise formula is naturally monotone and non-negative, so
-                    // Camp A and Camp B coincide. The native bulk path is still exercised above.
+                    // TODO: align the Java scorers with Lucene 10.4 (PR #15411) and drop this skip.
+                    // The native bulk corrections kernels for EUCLIDEAN and DOT_PRODUCT
+                    // (bbq_apply_corrections_euclidean_* and bbq_apply_corrections_dot_product_*) follow
+                    // the new corrected Lucene 10.4 semantics.
+                    // The default and panama scorers instead still implement the older corrections.
+                    // The two forms are usually equivalent, but may diverge for extreme raw scores, so
+                    // until all the scorers are updated to use the same formula we cannot compare them,
+                    // or the test will be flaky.
+                    // The native bulk path is still exercised above.
                     boolean skipCrossScorerCheck = similarityFunction == VectorSimilarityFunction.EUCLIDEAN
                         || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT;
                     if (skipCrossScorerCheck == false) {
@@ -748,19 +745,15 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                     scoresNative
                 );
 
-                // TODO: align the Java scorers with Lucene 104 (PR #15411) and drop this skip.
-                // The native bulk corrections kernels (bbq_apply_corrections_euclidean_* and
-                // bbq_apply_corrections_dot_product_*) follow Lucene 104 input-clamp semantics:
-                // EUCLIDEAN -> `1 / (1 + max(score, 0))`
-                // DOT_PRODUCT -> `(1 + clamp(score, -1, 1)) / 2`
-                // The Java scorers still use the older output-clamp form:
-                // EUCLIDEAN -> `max(1 / (1 + score), 0)`
-                // DOT_PRODUCT -> `max((1 + score) / 2, 0)`
-                // With queryAdditionalCorrection = -Infinity the raw EUCLIDEAN score is -Infinity:
-                // Camp A normalizes it to 1.0 while Camp B normalizes it to 0.0. DOT_PRODUCT can
-                // analogously diverge for raw scores outside [-1, 1]. MAXIMUM_INNER_PRODUCT is
-                // unaffected (monotone piecewise formula). Skip the cross-scorer equality
-                // assertions for the affected similarities; the bulk path is still exercised above.
+                // TODO: align the Java scorers with Lucene 10.4 (PR #15411) and drop this skip.
+                // The native bulk corrections kernels for EUCLIDEAN and DOT_PRODUCT
+                // (bbq_apply_corrections_euclidean_* and bbq_apply_corrections_dot_product_*) follow
+                // the new corrected Lucene 10.4 semantics.
+                // The default and panama scorers instead still implement the older corrections.
+                // The two forms are usually equivalent, but may diverge for extreme raw scores, so
+                // until all the scorers are updated to use the same formula we cannot compare them,
+                // or the test will be flaky.
+                // The native bulk path is still exercised above.
                 boolean skipCrossScorerCheck = similarityFunction == VectorSimilarityFunction.EUCLIDEAN
                     || similarityFunction == VectorSimilarityFunction.DOT_PRODUCT;
                 if (skipCrossScorerCheck == false) {

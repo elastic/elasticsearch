@@ -1184,6 +1184,7 @@ result:double | step:datetime
 scalar_float_div_half
 required_capability: promql_command_v0
 required_capability: promql_scalar
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_promql_scalar_float_div
 PROMQL index=k8s step=1h result=(round(vector(1/2), 0.001));
 

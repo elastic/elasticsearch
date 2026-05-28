@@ -1491,6 +1491,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodeIds.size());
         for (final var nodeId : nodeIds) {
             final var routingNode = nodesToShards.get(nodeId);
+            // defensive: assertions may be disabled
             if (routingNode != null) {
                 final var shards = routingNode.copyShards();
                 if (shards.length > 0) {

@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 150044
+summary: Introduce transport action for direct shard recovery cancellation
+type: feature

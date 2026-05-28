@@ -103,7 +103,18 @@ public class CacheFileReader {
         LongSupplier relativeTimeInMillisSupplier,
         boolean hasSearchRole
     ) {
-        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, 0, SharedBytes.MADV_NORMAL, 0, 0, hasSearchRole);
+        this(
+            cacheFile,
+            cacheBlobReader,
+            blobFileRanges,
+            blobCacheMetrics,
+            relativeTimeInMillisSupplier,
+            0,
+            SharedBytes.MADV_NORMAL,
+            0,
+            0,
+            hasSearchRole
+        );
     }
 
     /**

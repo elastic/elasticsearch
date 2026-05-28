@@ -165,10 +165,9 @@ public final class TinyLongLongHash implements Releasable {
     }
 
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED
-            + RamUsageEstimator.sizeOf(keys)
-            + RamUsageEstimator.sizeOf(ids)
-            + RamUsageEstimator.sizeOf(slotByOrderedId);
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(keys) + RamUsageEstimator.sizeOf(ids) + RamUsageEstimator.sizeOf(
+            slotByOrderedId
+        );
     }
 
     @Override

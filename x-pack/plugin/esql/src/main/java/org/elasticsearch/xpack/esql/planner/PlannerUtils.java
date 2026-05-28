@@ -171,8 +171,8 @@ public class PlannerUtils {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> (org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.currentPragmas().skipFinalAggregation()
                 || Boolean.getBoolean("esql.skip_final_agg"))
-                ? SimplePlanReduction.NO_REDUCTION
-                : getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+                    ? SimplePlanReduction.NO_REDUCTION
+                    : getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
                 new MetricsInfoExec(

@@ -110,7 +110,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
     }
 
-    public void testApproximationPlan_withGoodAndBadSubqueries() {
+    public void testApproximationPlan_withNonApproximableSubqueries() {
         LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
             "FROM (FROM test | LIMIT 1 | STATS bad = COUNT(*)), (FROM test | STATS good = COUNT(*))"
         );

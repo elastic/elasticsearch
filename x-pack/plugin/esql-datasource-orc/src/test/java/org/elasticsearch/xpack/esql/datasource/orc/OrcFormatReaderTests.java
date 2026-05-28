@@ -1344,17 +1344,13 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
-        Exception ex = expectThrows(Exception.class, () -> {
+        expectThrows(IllegalArgumentException.class, () -> {
             try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
                 while (iterator.hasNext()) {
                     iterator.next().releaseBlocks();
                 }
             }
         });
-        assertFalse(
-            "Corrupt ORC data should not produce ElasticsearchException (HTTP 500)",
-            ex instanceof org.elasticsearch.ElasticsearchException
-        );
     }
 
     // --- ORC file creation helpers ---

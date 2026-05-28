@@ -80,7 +80,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             "inference_rerank_moved_from_inference_action"
         );
         /**
-         * A set of the {@link TaskType} values which can use {@link InferenceAction}. For {@link TaskType} no included here, please use
+         * A set of the {@link TaskType} values which can use {@link InferenceAction}. For {@link TaskType} not included here, please use
          * {@link UnifiedCompletionAction}, {@link EmbeddingAction} or {@link RerankAction} as appropriate
          */
         public static final EnumSet<TaskType> SUPPORTED_INFERENCE_ACTION_TASK_TYPES = EnumSet.of(
@@ -212,7 +212,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public ActionRequestValidationException validate() {
             if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(taskType) == false) {
                 var e = new ActionRequestValidationException();
-                e.addValidationError(Strings.format("Task type [%s] cannot be used with InferenceAction.Request", taskType));
+                e.addValidationError(
+                    Strings.format(
+                        "Task type [%s] cannot be used with InferenceAction.Request. Supported task types are %s",
+                        taskType,
+                        SUPPORTED_INFERENCE_ACTION_TASK_TYPES
+                    )
+                );
                 return e;
             }
 

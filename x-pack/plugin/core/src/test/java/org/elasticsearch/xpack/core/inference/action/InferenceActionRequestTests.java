@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+import static org.elasticsearch.xpack.core.inference.action.InferenceAction.Request.SUPPORTED_INFERENCE_ACTION_TASK_TYPES;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -158,13 +159,19 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     public void testValidation_UnsupportedTaskTypes() {
-        EnumSet.complementOf(InferenceAction.Request.SUPPORTED_INFERENCE_ACTION_TASK_TYPES).forEach(unsupportedTaskType -> {
+        EnumSet.complementOf(SUPPORTED_INFERENCE_ACTION_TASK_TYPES).forEach(unsupportedTaskType -> {
             var unsupportedTaskTypeRequest = new InferenceAction.Request(unsupportedTaskType, "model", TEST_INPUT, null, null, null, false);
             var unsupportedTaskTypeError = unsupportedTaskTypeRequest.validate();
             assertNotNull(unsupportedTaskTypeError);
             assertThat(
                 unsupportedTaskTypeError.getMessage(),
-                is(Strings.format("Validation Failed: 1: Task type [%s] cannot be used with InferenceAction.Request;", unsupportedTaskType))
+                is(
+                    Strings.format(
+                        "Validation Failed: 1: Task type [%s] cannot be used with InferenceAction.Request. Supported task types are %s;",
+                        unsupportedTaskType,
+                        SUPPORTED_INFERENCE_ACTION_TASK_TYPES
+                    )
+                )
             );
         });
     }

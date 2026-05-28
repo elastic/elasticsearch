@@ -97,6 +97,7 @@ csvToOrcFixtures.each { baseName ->
     inputs.file(csvFile)
     outputs.file(orcFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateOrcTasks.add(tasks.named(taskName))
 }
@@ -115,6 +116,7 @@ tasks.register('generateMultifileSplitOrc_employees', JavaExec) {
   inputs.file(multifileSplitCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateOrcTasks.add(tasks.named('generateMultifileSplitOrc_employees'))
 

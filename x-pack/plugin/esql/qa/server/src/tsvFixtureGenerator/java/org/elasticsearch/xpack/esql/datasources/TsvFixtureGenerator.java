@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
@@ -36,6 +39,7 @@ import java.util.Locale;
  */
 public final class TsvFixtureGenerator {
 
+    private static final Logger logger = LoggerFactory.getLogger(TsvFixtureGenerator.class);
     private static final char TAB = '\t';
 
     private TsvFixtureGenerator() {}
@@ -51,7 +55,7 @@ public final class TsvFixtureGenerator {
             byte[] tsv = generateFromCsv(sourcePath);
             Files.createDirectories(outputPath.getParent());
             Files.write(outputPath, tsv);
-            System.out.println("Generated TSV fixture: " + outputPath);
+            logger.info("Generated TSV fixture: {}", outputPath);
         } else if (args.length == 3) {
             Path sourcePath = Path.of(args[0]);
             Path outputDir = Path.of(args[1]);
@@ -72,7 +76,7 @@ public final class TsvFixtureGenerator {
                 Path outputPath = outputDir.resolve(fileName);
                 byte[] tsv = generateFromRows(parsed, range.from(), range.to());
                 Files.write(outputPath, tsv);
-                System.out.println("Generated TSV split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
+                logger.info("Generated TSV split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
             }
         } else {
             System.err.println("Usage: TsvFixtureGenerator <source-csv-path> <output-tsv-path>");

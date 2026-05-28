@@ -646,3 +646,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_fraction}
   issue: https://github.com/elastic/elasticsearch/issues/150098
+- class: org.elasticsearch.index.query.IntervalQueryBuilderTests
+  method: testCacheability
+  issue: https://github.com/elastic/elasticsearch/issues/150117
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testOutageBuffersToDiskAndDrainsOnRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150120
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testVirtualBatchedCompoundCommitChunksPressure
+  issue: https://github.com/elastic/elasticsearch/issues/150123
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
+  method: testMixedOperationsDuringSplitWithDisruption
+  issue: https://github.com/elastic/elasticsearch/issues/147842
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicesSparseWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/150126

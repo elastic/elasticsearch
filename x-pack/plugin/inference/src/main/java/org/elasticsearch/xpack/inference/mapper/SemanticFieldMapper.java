@@ -916,7 +916,12 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
          */
         protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
-            return new OriginalValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
+            return new OriginalValuesSemanticFieldValueFetcher(
+                this,
+                getChunksField().bitsetProducer(),
+                context.searcher(),
+                context.sourcePath(name())
+            );
         }
 
         /**

@@ -103,53 +103,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportWriteActionTests extends ESTestCase {
-
     private static ThreadPool threadPool;
     private static ThreadPool writeThreadPool;
 
     private final ProjectId projectId = randomProjectIdOrDefault();
     private ClusterService clusterService;
     private IndexShard indexShard;
-    private static EsThreadPoolExecutor testExecutor;
-    private static AtomicInteger taskSubmitted;
-    private static AtomicInteger taskExecuted;
-    private static AtomicBoolean testPostSubmissionCancellation;
-    private static CountDownLatch waitForCancellation;
 
     @BeforeClass
     public static void beforeClass() {
         threadPool = new TestThreadPool("ShardReplicationTests");
         writeThreadPool = new TestThreadPool("CancellableTransportWriteAction");
-        taskSubmitted = new AtomicInteger(0);
-        taskExecuted = new AtomicInteger(0);
-        testPostSubmissionCancellation = new AtomicBoolean(false);
-        waitForCancellation = new CountDownLatch(1);
-        testExecutor = new PrioritizedEsThreadPoolExecutor(
-            "CancellableTransportWriteActionTest",
-            1,
-            1,
-            0L,
-            TimeUnit.MILLISECONDS,
-            daemonThreadFactory(Settings.EMPTY, "write_thread"),
-            writeThreadPool.getThreadContext(),
-            writeThreadPool.scheduler()
-        ) {
-            @Override
-            protected void beforeExecute(Thread t, Runnable r) {
-                taskSubmitted.incrementAndGet();
-                if (testPostSubmissionCancellation.get()) {
-                    try {
-                        if (waitForCancellation.await(2, TimeUnit.SECONDS) == false) {
-                            fail("task not cancelled.");
-                        }
-                    } catch (InterruptedException e) {
-                        fail(e);
-                    }
-                }
-                super.beforeExecute(t, r);
-            }
-
-        };
     }
 
     @Before
@@ -171,7 +135,6 @@ public class TransportWriteActionTests extends ESTestCase {
 
     @AfterClass
     public static void afterClass() {
-        testExecutor.shutdown();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         ThreadPool.terminate(writeThreadPool, 10, TimeUnit.SECONDS);
         threadPool = null;
@@ -452,6 +415,37 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     public void testCancelTransportWriteAction() {
+        AtomicInteger taskSubmitted = new AtomicInteger(0);
+        AtomicInteger taskExecuted = new AtomicInteger(0);
+        AtomicBoolean testPostSubmissionCancellation = new AtomicBoolean(false);
+        CountDownLatch waitForCancellation = new CountDownLatch(1);
+        EsThreadPoolExecutor testExecutor = new PrioritizedEsThreadPoolExecutor(
+            "CancellableTransportWriteActionTest",
+            1,
+            1,
+            0L,
+            TimeUnit.MILLISECONDS,
+            daemonThreadFactory(Settings.EMPTY, "write_thread"),
+            writeThreadPool.getThreadContext(),
+            writeThreadPool.scheduler()
+        ) {
+            @Override
+            protected void beforeExecute(Thread t, Runnable r) {
+                taskSubmitted.incrementAndGet();
+                if (testPostSubmissionCancellation.get()) {
+                    try {
+                        if (waitForCancellation.await(2, TimeUnit.SECONDS) == false) {
+                            fail("task not cancelled.");
+                        }
+                    } catch (InterruptedException e) {
+                        fail(e);
+                    }
+                }
+                super.beforeExecute(t, r);
+            }
+
+        };
+
         var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
         TestRequest request = new TestRequest();
         CancellableTask task = (CancellableTask) taskManager.register(randomIdentifier(), randomIdentifier(), request);
@@ -470,7 +464,8 @@ public class TransportWriteActionTests extends ESTestCase {
             TransportWriteActionTests.this.clusterService,
             null,
             TransportWriteActionTests.threadPool,
-            (service, ignore) -> testExecutor
+            (service, ignore) -> testExecutor,
+            taskExecuted
         );
         final PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future = new PlainActionFuture<>();
         taskManager.cancel(task, "test", () -> {});
@@ -526,6 +521,8 @@ public class TransportWriteActionTests extends ESTestCase {
             // Task is cancelled.
             assertThat(taskExecuted.get(), is(0));
         }
+
+        testExecutor.shutdown();
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
@@ -646,6 +643,8 @@ public class TransportWriteActionTests extends ESTestCase {
     }
 
     private class TestCancellableAction extends TestAction {
+        private AtomicInteger taskExecuted;
+
         protected TestCancellableAction(
             Settings settings,
             String actionName,
@@ -653,9 +652,11 @@ public class TransportWriteActionTests extends ESTestCase {
             ClusterService clusterService,
             ShardStateAction shardStateAction,
             ThreadPool threadPool,
-            BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction
+            BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+            AtomicInteger taskExecuted
         ) {
             super(settings, actionName, transportService, clusterService, shardStateAction, threadPool, executorFunction);
+            this.taskExecuted = taskExecuted;
         }
 
         @Override

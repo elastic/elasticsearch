@@ -209,8 +209,12 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * {@code [tailSlotMillis, headSlotMillis]}, then returns the offset from the tail (whose index is 0).
      */
     private int slotForTimestamp(long timestampMillis) {
-        long slot = Math.clamp(toSlotStartMillis(Math.max(0, timestampMillis)), tailSlotStartMillis, headSlotStartMillis);
-        return (int) Math.floorDiv(slot - tailSlotStartMillis, granularityMillis);
+        long normalizedTimestampMillis = Math.clamp(
+            toSlotStartMillis(Math.max(0, timestampMillis)),
+            tailSlotStartMillis,
+            headSlotStartMillis
+        );
+        return (int) Math.floorDiv(normalizedTimestampMillis - tailSlotStartMillis, granularityMillis);
     }
 
     /**

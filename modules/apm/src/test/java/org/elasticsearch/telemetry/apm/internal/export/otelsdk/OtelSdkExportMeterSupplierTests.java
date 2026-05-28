@@ -77,6 +77,21 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.close();
     }
 
+    /**
+     * Verifies that getMeterProvider() initializes resources when an endpoint is configured, even before get()
+     * is called. This ensures BatchSpanProcessor instruments are registered against the real MeterProvider
+     * on the first span rather than being permanently bound to noop.
+     */
+    public void testGetMeterProviderWithEndpointInitializesEagerlyBeforeGet() {
+        String bogusUrl = "http://127.0.0.1:9/v1/metrics";
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
+        MeterProvider provider = supplier.getMeterProvider();
+        assertNotSame(MeterProvider.noop(), provider);
+        assertThat(provider, org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
+        supplier.close();
+    }
+
     public void testCloseWithoutGetDoesNotThrow() {
         new OtelSdkExportMeterSupplier(Settings.EMPTY, null).close();
     }

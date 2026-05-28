@@ -185,12 +185,20 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
     /**
      * Returns the system {@link MeterProvider} for wiring SDK self-monitoring into other exporters
-     * (e.g. the span exporter). Returns {@link MeterProvider#noop()} when resources have not yet
-     * been initialized (i.e. before the first {@link #get()} call).
+     * (e.g. the span exporter). If resources have not yet been initialized but a metrics endpoint is
+     * configured, initializes them eagerly so that span-processor instruments (e.g.
+     * {@code otel.sdk.processor.span.queue.capacity}) are registered against the real provider rather
+     * than a permanent noop. Returns {@link MeterProvider#noop()} only when no endpoint is set.
      */
     @Override
     public MeterProvider getMeterProvider() {
         synchronized (mutex) {
+            if (resources == null) {
+                String endpoint = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
+                if (endpoint != null && endpoint.isEmpty() == false) {
+                    resources = createMeteringResources();
+                }
+            }
             return resources != null ? resources.systemMeterProvider() : MeterProvider.noop();
         }
     }

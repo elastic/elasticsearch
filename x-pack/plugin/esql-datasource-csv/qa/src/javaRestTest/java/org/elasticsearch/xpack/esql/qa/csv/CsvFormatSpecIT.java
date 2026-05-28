@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Parameterized integration tests for standalone CSV files.
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
+ * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {

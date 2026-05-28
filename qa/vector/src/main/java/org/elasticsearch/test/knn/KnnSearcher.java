@@ -66,6 +66,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQuery;
 import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
@@ -106,12 +107,15 @@ import static org.elasticsearch.test.knn.KnnIndexer.VECTOR_FIELD;
 
 public class KnnSearcher {
 
+    private static final String NN_CACHE_DIR = "target/nn_cache/";
+
     private final List<Path> docPath;
     private final Path indexPath;
     private final Path queryPath;
     private final int numDocs;
     private final int numQueryVectors;
     private final KnnIndexTester.IndexType indexType;
+    private final boolean sliced;
     private int dim;
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
@@ -132,6 +136,7 @@ public class KnnSearcher {
             throw new IllegalArgumentException("numQueryVectors must be > 0");
         }
         this.indexType = testConfiguration.indexType();
+        this.sliced = testConfiguration.datasetConfig().isSliced();
         this.doPrecondition = testConfiguration.doPrecondition();
     }
 
@@ -173,10 +178,13 @@ public class KnnSearcher {
         int searchCount();
 
         /** The filter query for the i-th search operation, may be null */
-        Query filter(int searchIndex);
+        Query filter(int searchIndex, boolean sliced);
 
         /** Maps a search operation index to a query vector array index */
         int queryIndex(int searchIndex);
+
+        /** returns the partition or null if there is no partition */
+        BytesRef partition(int searchIndex);
     }
 
     /** Consumes search result IDs and computes recall metrics. */
@@ -202,15 +210,23 @@ public class KnnSearcher {
         }
 
         @Override
-        public Query filter(int searchIndex) {
-            int p = searchIndex / numQueryVectors;
-            Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, new BytesRef(sampledPartitions.get(p)));
+        public Query filter(int searchIndex, boolean sliced) {
+            if (sliced) {
+                return selectivityFilter;
+            }
+            Query partitionFilter = SortedDocValuesField.newSlowExactQuery(PARTITION_ID_FIELD, partition(searchIndex));
             return combineFilters(partitionFilter, selectivityFilter);
         }
 
         @Override
         public int queryIndex(int searchIndex) {
             return searchIndex % numQueryVectors;
+        }
+
+        @Override
+        public BytesRef partition(int searchIndex) {
+            int p = searchIndex / numQueryVectors;
+            return new BytesRef(sampledPartitions.get(p));
         }
 
         List<String> sampledPartitions() {
@@ -234,13 +250,18 @@ public class KnnSearcher {
         }
 
         @Override
-        public Query filter(int searchIndex) {
+        public Query filter(int searchIndex, boolean sliced) {
             return selectivityFilter;
         }
 
         @Override
         public int queryIndex(int searchIndex) {
             return searchIndex;
+        }
+
+        @Override
+        public BytesRef partition(int searchIndex) {
+            return null;
         }
     }
 
@@ -347,6 +368,9 @@ public class KnnSearcher {
         FilterQueryProvider filterProvider,
         ResultsConsumer resultsConsumer
     ) throws IOException {
+        if (sliced && indexType != KnnIndexTester.IndexType.IVF) {
+            logger.info("Data configurartion is sliced but this setting has no effect for index type \"{}\"", indexType);
+        }
         int totalSearches = filterProvider.searchCount();
         TopDocs[] results = new TopDocs[totalSearches];
         int[][] resultIds = new int[totalSearches][];
@@ -388,25 +412,29 @@ public class KnnSearcher {
                     ? new IndexSearcher(reader, executorService)
                     : new IndexSearcher(reader);
 
+                boolean sliced = indexType == KnnIndexTester.IndexType.IVF && this.sliced;
+
                 // warm up
                 for (int i = 0; i < totalSearches; i++) {
                     int qIdx = filterProvider.queryIndex(i);
-                    Query filter = filterProvider.filter(i);
+                    Query filter = filterProvider.filter(i, sliced);
+                    BytesRef partition = filterProvider.partition(i);
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                         doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                     } else {
-                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters);
+                        doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
                     }
                 }
 
                 IntConsumer queryConsumer = searchIdx -> {
                     int qIdx = filterProvider.queryIndex(searchIdx);
-                    Query filter = filterProvider.filter(searchIdx);
+                    Query filter = filterProvider.filter(searchIdx, sliced);
+                    BytesRef partition = filterProvider.partition(searchIdx);
                     try {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                         } else {
-                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters);
+                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition);
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -582,12 +610,13 @@ public class KnnSearcher {
                 params.topK(),
                 similarityFunction.ordinal(),
                 normalizeVectors,
-                params.filterSelectivity()
+                params.filterSelectivity(),
+                sliced
             ),
             36
         );
         String nnFileName = "nn-partitioned-" + hash + ".bin";
-        Path nnPath = PathUtils.get("target/" + nnFileName);
+        Path nnPath = PathUtils.get(NN_CACHE_DIR + nnFileName);
 
         if (Files.exists(nnPath)) {
             logger.info("read pre-cached exact partitioned NN from cache file \"{}\"", nnPath);
@@ -610,7 +639,7 @@ public class KnnSearcher {
                             new ComputeNNByteTask(
                                 idx,
                                 params.topK(),
-                                queries.nextByteVector(),
+                                queries.nextByteVector().vector(),
                                 nn,
                                 reader,
                                 combinedFilter,
@@ -622,7 +651,7 @@ public class KnnSearcher {
                             new ComputeNNFloatTask(
                                 idx,
                                 params.topK(),
-                                queries.nextFloatVector(),
+                                queries.nextFloatVector().vector(),
                                 nn,
                                 reader,
                                 combinedFilter,
@@ -643,10 +672,10 @@ public class KnnSearcher {
     private int[][] getOrCalculateExactNN(DataGenerator dataGenerator, SearchParameters searchParameters, Query filterQuery)
         throws IOException {
         // look in working directory for cached nn file
+        // The exact NN ground truth depends only on the document/query vectors, not the index format
         String hash = Integer.toString(
             Objects.hash(
                 docPath,
-                indexPath,
                 queryPath,
                 numDocs,
                 numQueryVectors,
@@ -658,8 +687,8 @@ public class KnnSearcher {
             36
         );
         String nnFileName = "nn-" + hash + ".bin";
-        Path nnPath = PathUtils.get("target/" + nnFileName);
-        if (Files.exists(nnPath) && isNewer(nnPath, docPath, indexPath, queryPath)) {
+        Path nnPath = PathUtils.get(NN_CACHE_DIR + nnFileName);
+        if (Files.exists(nnPath) && isNewer(nnPath, docPath, queryPath)) {
             logger.info("read pre-cached exact match vectors from cache file \"" + nnPath + "\"");
             return readExactNN(nnPath, searchParameters.topK());
         } else {
@@ -719,7 +748,8 @@ public class KnnSearcher {
         return new TopDocs(new TotalHits(profiler.getVectorOpsCount(), docs.totalHits.relation()), docs.scoreDocs);
     }
 
-    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters) throws IOException {
+    TopDocs doVectorQuery(float[] vector, IndexSearcher searcher, Query filterQuery, SearchParameters searchParameters, BytesRef partition)
+        throws IOException {
         Query knnQuery;
         int overSampledTopK = searchParameters.topK();
         if (searchParameters.overSamplingFactor() > 1f) {
@@ -729,7 +759,29 @@ public class KnnSearcher {
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
-            knnQuery = new IVFKnnFloatVectorQuery(VECTOR_FIELD, vector, overSampledTopK, efSearch, filterQuery, visitRatio, doPrecondition);
+            if (sliced) {
+                knnQuery = new IVFKnnFloatSlicedVectorQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    overSampledTopK,
+                    efSearch,
+                    filterQuery,
+                    visitRatio,
+                    doPrecondition,
+                    PARTITION_ID_FIELD,
+                    partition
+                );
+            } else {
+                knnQuery = new IVFKnnFloatVectorQuery(
+                    VECTOR_FIELD,
+                    vector,
+                    overSampledTopK,
+                    efSearch,
+                    filterQuery,
+                    visitRatio,
+                    doPrecondition
+                );
+            }
         } else {
             knnQuery = new ESKnnFloatVectorQuery(
                 VECTOR_FIELD,
@@ -804,6 +856,7 @@ public class KnnSearcher {
 
     static void writeNN(int[][] nn, Path nnPath) throws IOException {
         logger.info("writing true nearest neighbors to cache file \"{}\"", nnPath);
+        Files.createDirectories(nnPath.getParent());
         ByteBuffer tmp = ByteBuffer.allocate(nn[0].length * Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         try (OutputStream out = Files.newOutputStream(nnPath)) {
             for (int[] entry : nn) {
@@ -819,7 +872,7 @@ public class KnnSearcher {
             List<Callable<Void>> tasks = new ArrayList<>();
             IndexVectorReader queryReader = dataGenerator.queries();
             for (int i = 0; i < numQueryVectors; i++) {
-                float[] queryVector = queryReader.nextFloatVector();
+                float[] queryVector = queryReader.nextFloatVector().vector();
                 tasks.add(new ComputeNNFloatTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
             ForkJoinPool.commonPool().invokeAll(tasks);
@@ -833,7 +886,7 @@ public class KnnSearcher {
             List<Callable<Void>> tasks = new ArrayList<>();
             IndexVectorReader queryReader = dataGenerator.queries();
             for (int i = 0; i < numQueryVectors; i++) {
-                byte[] queryVector = queryReader.nextByteVector();
+                byte[] queryVector = queryReader.nextByteVector().vector();
                 tasks.add(new ComputeNNByteTask(i, topK, queryVector, result, reader, filterQuery, similarityFunction));
             }
             ForkJoinPool.commonPool().invokeAll(tasks);

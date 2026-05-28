@@ -11,18 +11,24 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class FilterEvaluationOrderEstimatorTests extends ESTestCase {
 
@@ -208,6 +214,44 @@ public class FilterEvaluationOrderEstimatorTests extends ESTestCase {
 
         double sel = FilterEvaluationOrderEstimator.estimateSelectivity(eq("const_col", 99), stats, 10000L);
         assertEquals(0.0, sel, 0.001);
+    }
+
+    public void testCostTierOrdering_comparisonBeforeLike() {
+        // When all conjuncts have UNKNOWN_SELECTIVITY (no stats for the columns),
+        // the cost tiebreaker should place comparisons before LIKE.
+        SplitStats stats = new SplitStats.Builder().rowCount(10000).build();
+
+        FieldAttribute keywordField = new FieldAttribute(
+            SRC,
+            "title",
+            new EsField("title", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        Expression like = new WildcardLike(SRC, keywordField, new WildcardPattern("*google*"), false);
+        Expression notLike = new Not(SRC, new WildcardLike(SRC, keywordField, new WildcardPattern("*.example.*"), false));
+        Expression notEquals = new NotEquals(SRC, fieldAttr("status"), intLiteral(0), null);
+
+        // Input: LIKE first, NotEquals last — worst order for short-circuiting
+        List<Expression> input = List.of(like, notLike, notEquals);
+        List<Expression> result = FilterEvaluationOrderEstimator.orderByEstimatedCost(input, stats);
+
+        // NotEquals (cost 0.1) should come before LIKE (cost 0.9) and NOT LIKE (cost 0.91)
+        assertSame("cheap comparison should be first", notEquals, result.get(0));
+        assertSame("LIKE before NOT LIKE", like, result.get(1));
+        assertSame("NOT LIKE last", notLike, result.get(2));
+    }
+
+    public void testEstimateEvaluationCost_tiers() {
+        assertThat(FilterEvaluationOrderEstimator.estimateEvaluationCost(new IsNull(SRC, fieldAttr("a"))), equalTo(0.0));
+        assertThat(FilterEvaluationOrderEstimator.estimateEvaluationCost(eq("a", 1)), equalTo(0.1));
+        FieldAttribute kw = new FieldAttribute(
+            SRC,
+            "t",
+            new EsField("t", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+        );
+        assertThat(
+            FilterEvaluationOrderEstimator.estimateEvaluationCost(new WildcardLike(SRC, kw, new WildcardPattern("*x*"), false)),
+            equalTo(0.9)
+        );
     }
 
     // -- helpers --

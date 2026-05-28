@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -68,6 +69,7 @@ import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 import org.mockito.Mockito;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -78,6 +80,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 
@@ -679,6 +682,138 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
         }
     }
 
+    public void testWarmByteRangeIsThrottled() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        // pick small cache geometry so a single vbcc spans many regions, producing many populate tasks for the throttle to coordinate
+        final long regionSizeInBytes = SharedBytes.PAGE_SIZE;
+        final long rangeSizeInBytes = regionSizeInBytes;
+
+        final AtomicInteger inFlightReads = new AtomicInteger();
+        final AtomicInteger maxConcurrentReads = new AtomicInteger();
+        final AtomicInteger totalReads = new AtomicInteger();
+        final SetOnce<String> trackedBlobName = new SetOnce<>();
+
+        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                    .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
+                    // ratio 0.0 → throttle limit clamped to 1, so at most one populate task can read at a time
+                    .put(SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING.getKey(), 0.0)
+                    .put(
+                        SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                        ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                    )
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                        if (blobName.equals(trackedBlobName.get()) == false) {
+                            return super.readBlob(purpose, blobName, position, length);
+                        }
+                        int n = inFlightReads.incrementAndGet();
+                        maxConcurrentReads.accumulateAndGet(n, Math::max);
+                        totalReads.incrementAndGet();
+                        // brief delay so concurrent reads, if allowed, can overlap and be observed
+                        safeSleep(20);
+                        InputStream delegate;
+                        try {
+                            delegate = super.readBlob(purpose, blobName, position, length);
+                        } catch (RuntimeException | IOException e) {
+                            inFlightReads.decrementAndGet();
+                            throw e;
+                        }
+                        return new FilterInputStream(delegate) {
+                            private final AtomicBoolean closed = new AtomicBoolean();
+
+                            @Override
+                            public void close() throws IOException {
+                                if (closed.compareAndSet(false, true)) {
+                                    try {
+                                        super.close();
+                                    } finally {
+                                        inFlightReads.decrementAndGet();
+                                    }
+                                }
+                            }
+                        };
+                    }
+                };
+            }
+        }) {
+            // build a vbcc that spans many regions so the byte-range fetch produces multiple populate tasks
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(8, 16), false);
+            VirtualBatchedCompoundCommit vbcc = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "fake-node-id",
+                primaryTerm,
+                indexCommits.get(0).getGeneration(),
+                fileName -> uploadedBlobLocations.get(fileName),
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+            do {
+                appendCommitsToVbcc(vbcc, fakeNode.searchDirectory, indexCommits);
+                if (vbcc.getTotalSizeInBytes() > regionSizeInBytes * 8L) {
+                    break;
+                }
+                indexCommits = fakeNode.generateIndexCommits(randomIntBetween(8, 16), false);
+            } while (true);
+            vbcc.freeze();
+
+            // upload the vbcc to the blob store so warming reads from it
+            var indexBlobContainer = fakeNode.getShardContainer();
+            try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                indexBlobContainer.writeBlobAtomic(
+                    OperationPurpose.INDICES,
+                    vbcc.getBlobName(),
+                    vbccInputStream,
+                    vbcc.getTotalSizeInBytes(),
+                    true
+                );
+            }
+            BlobStoreCacheDirectoryTestUtils.updateLatestUploadedBcc(fakeNode.searchDirectory, vbcc.primaryTermAndGeneration());
+            BlobStoreCacheDirectoryTestUtils.updateLatestCommitInfo(
+                fakeNode.searchDirectory,
+                vbcc.lastCompoundCommit().primaryTermAndGeneration(),
+                fakeNode.clusterService.localNode().getId()
+            );
+            uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+
+            // start counting reads only for the vbcc blob, after upload, to avoid noise from setup
+            trackedBlobName.set(vbcc.getBlobName());
+
+            var indexShard = mock(IndexShard.class);
+            when(indexShard.store()).thenReturn(fakeNode.searchStore);
+            when(indexShard.shardId()).thenReturn(fakeNode.shardId);
+
+            BlobFile blobFile = new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration());
+            PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
+            fakeNode.warmingService.warmBlobOffsets(indexShard, Map.of(blobFile, vbcc.getTotalSizeInBytes()), warmListener);
+            safeGet(warmListener);
+
+            // throttle limit is clamped to 1, so we should never see more than one fetch from the blob store at a time
+            assertThat(maxConcurrentReads.get(), lessThanOrEqualTo(1));
+            // sanity: the warming actually exercised the path enough to make the upper bound meaningful
+            assertThat(totalReads.get(), greaterThan(1));
+            assertThat(inFlightReads.get(), equalTo(0));
+        }
+    }
+
     public void testPopulateCacheWithSharedSourceInputStreamFactory() throws Exception {
 
         var actualRangeInputStreamPosition = new SetOnce<Long>();
@@ -1142,10 +1277,13 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             cacheFile.tryRead(ByteBuffer.allocate(Math.toIntExact(readEnd - readStart)), readStart)
                         );
                     }
-                    // The region immediately after the header should NOT be cached, but we must skip the footer region.
+                    // The region immediately after the header should NOT be cached, but we must skip
+                    // any region covered by the footer (which may start one region before the file's last region
+                    // when the 16-byte Lucene footer straddles a region boundary).
                     int firstUncachedRegion = lastHeaderRegion + 1;
-                    int footerRegion = node.sharedCacheService.getEndingRegion(loc.offset() + loc.fileLength());
-                    if (firstUncachedRegion < footerRegion) {
+                    // footer occupies [fileLength - footerLength, fileLength); use its start region as the guard
+                    int footerStartRegion = node.sharedCacheService.getRegion(loc.offset() + loc.fileLength() - CodecUtil.footerLength());
+                    if (firstUncachedRegion < footerStartRegion) {
                         long uncachedRegionStart = (long) firstUncachedRegion * regionSize;
                         assertFalse(
                             fileName + " region " + firstUncachedRegion + " (after header) should NOT be cached",

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateUnitCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Chicken;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
@@ -89,6 +91,7 @@ public class ScalarFunctionWritables {
         entries.add(Contains.ENTRY);
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
+        entries.add(FieldExtract.ENTRY);
         entries.add(FromAggregateMetricDouble.ENTRY);
         entries.add(Greatest.ENTRY);
         entries.add(CopySign.ENTRY);
@@ -104,6 +107,7 @@ public class ScalarFunctionWritables {
         entries.add(DateTrunc.ENTRY);
         entries.add(DateUnitCount.ENTRY);
         entries.add(DayName.ENTRY);
+        entries.add(RangeIntersects.ENTRY);
         entries.add(RangeWithin.ENTRY);
         entries.add(MonthName.ENTRY);
         entries.add(RangeMax.ENTRY);

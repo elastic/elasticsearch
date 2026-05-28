@@ -81,12 +81,12 @@ public class BooleanFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -570,7 +570,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override

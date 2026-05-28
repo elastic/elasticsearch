@@ -17,9 +17,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTaskStatusTests;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.BulkByScrollTaskStatusTests;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
@@ -31,7 +31,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.reindex.resumeinfo.PitWorkerResumeInfoWireSerializingTests.pitWorkerResumeInfoContentEquals;
@@ -53,7 +55,13 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByPaginatedSearchTask.Status.NAME,
+                BulkByPaginatedSearchTask.Status::new
+            )
+        );
         entries.add(new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new));
         entries.add(new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, PitWorkerResumeInfo.NAME, PitWorkerResumeInfo::new));
         return new NamedWriteableRegistry(entries);
@@ -75,7 +83,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return null;
     }
 
-    static boolean workerResumeInfoContentEquals(WorkerResumeInfo a, WorkerResumeInfo b) {
+    public static boolean workerResumeInfoContentEquals(WorkerResumeInfo a, WorkerResumeInfo b) {
         if (Objects.equals(a, b)) return true;
         if (a == null || b == null) return false;
         if (a instanceof PitWorkerResumeInfo pa && b instanceof PitWorkerResumeInfo pb) {
@@ -84,7 +92,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return a.equals(b);
     }
 
-    static int workerResumeInfoContentHashCode(WorkerResumeInfo info) {
+    public static int workerResumeInfoContentHashCode(WorkerResumeInfo info) {
         if (info == null) return 0;
         if (info instanceof PitWorkerResumeInfo pit) {
             return pitWorkerResumeInfoContentHashCode(pit);
@@ -92,7 +100,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return info.hashCode();
     }
 
-    static boolean sliceStatusContentEquals(SliceStatus a, SliceStatus b) {
+    public static boolean sliceStatusContentEquals(SliceStatus a, SliceStatus b) {
         if (a.sliceId() != b.sliceId()) {
             return false;
         }
@@ -106,7 +114,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
         return workerResultContentEquals(a.result(), b.result());
     }
 
-    static int sliceStatusContentHashCode(SliceStatus status) {
+    public static int sliceStatusContentHashCode(SliceStatus status) {
         int result = Integer.hashCode(status.sliceId());
         result = 31 * result + workerResumeInfoContentHashCode(status.resumeInfo());
         if (status.result() != null) {
@@ -248,6 +256,36 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     }
 
     /**
+     * Compares slice maps (e.g. {@link org.elasticsearch.index.reindex.ResumeInfo#slices()}) for wire-test equality.
+     */
+    public static boolean sliceMapsContentEqual(Map<Integer, SliceStatus> first, Map<Integer, SliceStatus> second) {
+        if (first.size() != second.size()) {
+            return false;
+        }
+        for (Map.Entry<Integer, SliceStatus> entry : first.entrySet()) {
+            SliceStatus otherSlice = second.get(entry.getKey());
+            if (otherSlice == null || sliceStatusContentEquals(entry.getValue(), otherSlice) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Hash code consistent with {@link #sliceMapsContentEqual(Map, Map)} for wire-test wrappers.
+     */
+    public static int sliceMapContentHashCode(Map<Integer, SliceStatus> slices) {
+        List<Integer> keys = new ArrayList<>(slices.keySet());
+        Collections.sort(keys);
+        int result = 1;
+        for (Integer key : keys) {
+            result = 31 * result + key;
+            result = 31 * result + sliceStatusContentHashCode(slices.get(key));
+        }
+        return result;
+    }
+
+    /**
      * Wrapper around {@link SliceStatus} that implements content-based equals/hashCode so that
      * round-trip serialization tests pass when the slice contains {@link BulkByScrollResponse} or {@link Exception}.
      */
@@ -303,7 +341,7 @@ public class SliceStatusWireSerializingTests extends AbstractWireSerializingTest
     static BulkByScrollResponse randomBulkByScrollResponse() {
         return new BulkByScrollResponse(
             TimeValue.timeValueMillis(randomNonNegativeLong()),
-            BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+            BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException(),
             randomBulkFailuresList(),
             randomSearchFailuresList(),
             randomBoolean()

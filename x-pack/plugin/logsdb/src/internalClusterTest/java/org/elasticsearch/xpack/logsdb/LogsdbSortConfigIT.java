@@ -31,7 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -273,10 +275,22 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         var featureService = getInstanceFromNode(FeatureService.class);
         if (featureService.getNodeFeatures().containsKey("mapper.provide_index_sort_setting_defaults")) {
             assertSettings(backingIndex, settings -> {
-                assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("@timestamp")));
-                assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.DESC)));
-                assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MAX)));
-                assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last")));
+                if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB_COLUMNAR) {
+                    // logsdb_columnar defaults to [subobjects:false], allowing [host.name] injection when [host] is a mapped field
+                    assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("host.name", "@timestamp")));
+                    assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.ASC, SortOrder.DESC)));
+                    assertThat(
+                        IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings),
+                        equalTo(List.of(MultiValueMode.MIN, MultiValueMode.MAX))
+                    );
+                    assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last", "_last")));
+                } else {
+                    // logsdb defaults to [subobjects:true], so [host.name] can't be injected when [host] is a mapped field
+                    assertThat(IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings), equalTo(List.of("@timestamp")));
+                    assertThat(IndexSortConfig.INDEX_SORT_ORDER_SETTING.get(settings), equalTo(List.of(SortOrder.DESC)));
+                    assertThat(IndexSortConfig.INDEX_SORT_MODE_SETTING.get(settings), equalTo(List.of(MultiValueMode.MAX)));
+                    assertThat(IndexSortConfig.INDEX_SORT_MISSING_SETTING.get(settings), equalTo(List.of("_last")));
+                }
             });
         }
 
@@ -427,12 +441,13 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
     private void createDataStream(String dataStreamName, String mapping, UnaryOperator<Settings.Builder> settings) throws IOException {
         var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
+        String indexMode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? "logsdb_columnar" : "logsdb";
         putTemplateRequest.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
-                        settings.apply(indexSettings(1, 0)).put("index.mode", "logsdb").build(),
+                        settings.apply(indexSettings(1, 0)).put("index.mode", indexMode).build(),
                         new CompressedXContent(mapping),
                         null
                     )

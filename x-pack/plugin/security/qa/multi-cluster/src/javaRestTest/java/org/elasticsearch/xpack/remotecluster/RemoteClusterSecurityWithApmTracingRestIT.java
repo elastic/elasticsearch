@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -110,6 +111,7 @@ public class RemoteClusterSecurityWithApmTracingRestIT extends AbstractRemoteClu
      */
     @SuppressWarnings("unchecked")
     public void testTracingCrossCluster() throws Exception {
+        assumeTrue("requires test-apm-integration which is only loaded in snapshot builds", Build.current().isSnapshot());
         configureRemoteCluster();
         Set<Predicate<Map<String, Object>>> assertions = new HashSet<>(
             Set.of(

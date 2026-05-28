@@ -454,7 +454,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+        if (TransformMetadata.isUpgradeMode(clusterService.state())) {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }

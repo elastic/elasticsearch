@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.XContentTestUtils;
@@ -2135,6 +2136,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         // no warnings expected here, since match_pattern=simple was explicitly set
     }
 
+    /**
+     * Exercises a dynamic template that maps matching names as runtime fields: {@code twothing} becomes a runtime {@code keyword},
+     * while {@code one_xyz} is excluded by {@code unmatch} and falls through to default dynamic mapping
+     * ({@code text} with {@code .keyword}).
+     */
     public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields() throws IOException {
         String mapping = """
             {
@@ -2197,6 +2203,47 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             String diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(actualDynamicMappings, expectedDynamicMappings);
             assertNull("difference between expected and actual Mappings", diff);
         }
+    }
+
+    /**
+     * Same dynamic-template scenario as {@link #testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFields()}, but with
+     * {@code index.mapping.dynamic_strings.auto_keyword} disabled so the concrete string ({@code one_xyz}) maps as {@code text} only.
+     */
+    public void testMatchAndUnmatchWithArrayOfFieldNamesAsRuntimeFieldsWithoutAutoTextSubfield() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        String mapping = """
+            {
+              "_doc": {
+                "dynamic_templates": [
+                  {
+                    "test": {
+                      "match": ["*one*", "two*"],
+                      "unmatch": ["*_xyz", "*foo"],
+                      "runtime": {}
+                    }
+                  }
+                ]
+              }
+            }
+            """;
+        String docJson = """
+            {
+                "twothing": "ipsum",
+                "one_xyz": "13"
+            }
+            """;
+
+        Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
+        MapperService mapperService = createMapperService(settings, mapping);
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+        mergeDynamicUpdate(mapperService, parsedDoc.dynamicMappingsUpdate());
+
+        Mapping update = parseDynamicUpdate(parsedDoc.dynamicMappingsUpdate());
+        assertNotNull(update.getRoot().getRuntimeField("twothing"));
+        Mapper oneXyz = update.getRoot().getMapper("one_xyz");
+        assertThat(oneXyz, instanceOf(KeywordFieldMapper.class));
+        assertFalse(((KeywordFieldMapper) oneXyz).multiFields().iterator().hasNext());
+        assertTrue(((KeywordFieldMapper) oneXyz).fieldType().usesBinaryDocValues());
     }
 
     public void testMatchAndUnmatchWithArrayOfFieldNamesWithMatchMappingType() throws IOException {

@@ -14,9 +14,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
@@ -464,6 +468,145 @@ public class TopNBlockHashTests extends BlockHashTestCase {
                     }
                 }
             }, builder);
+        }
+    }
+
+    public void testBytesRefOrdinalsHash() {
+        // Same logical input as testBytesRefHash ("b","a","d","b","d","a","c","d") but fed via an
+        // OrdinalBytesRefVector. The TopN groupings (which keys survive, which rows hit which group) match the
+        // plain path; the only observable difference is that group ids follow the *dictionary* order rather than
+        // the per-row first-encountered order — which is the same convention {@link BytesRefBlockHash} uses for
+        // its ordinal fast path (see {@code BlockHashTests.testBasicOrdinals}).
+        String[] dictionary = { "a", "b", "c", "d" };
+        int[] ordinals = { 1, 0, 3, 1, 3, 0, 2, 3 };
+
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                // TODO: Not tested yet
+            } else {
+                assertThat(
+                    ordsAndKeys.description(),
+                    equalTo("BytesRefTopNBlockHash{channel=0, " + topNParametersString(4, 0) + ", hasNull=false}")
+                );
+                if (limit == LIMIT_HIGH) {
+                    // Dictionary order: a=1, b=2, c=3, d=4
+                    assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "a", "b", "c", "d" });
+                    assertOrds(ordsAndKeys.ords(), 2, 1, 4, 2, 4, 1, 3, 4);
+                    assertThat(ordsAndKeys.nonEmpty(), equalTo(intRange(1, 5)));
+                } else {
+                    if (asc) {
+                        // Top 2 ascending: a, b. Dictionary order assigns a=1, b=2.
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "a", "b" });
+                        assertOrds(ordsAndKeys.ords(), 2, 1, null, 2, null, 1, null, null);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    } else {
+                        // Top 2 descending: c, d. Dictionary order assigns c=1, d=2.
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "c", "d" });
+                        assertOrds(ordsAndKeys.ords(), null, null, 2, null, 2, null, 1, 2);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                    }
+                }
+            }
+        }, ordinalVector(ordinals, dictionary).asBlock());
+    }
+
+    public void testBytesRefOrdinalsBlockWithNulls() {
+        // Mirrors testBytesRefHashWithNulls but the input is an OrdinalBytesRefBlock with nulls in the
+        // ordinals IntBlock (the dictionary itself is null-free and shared).
+        String[] dictionary = { "a", "c" };
+        // null positions are encoded as nulls in the ordinals IntBlock; non-null positions reference the dictionary.
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(4);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionary.length)
+        ) {
+            ords.appendInt(0);
+            ords.appendNull();
+            ords.appendInt(1);
+            ords.appendNull();
+            for (String v : dictionary) {
+                bytes.appendBytesRef(new BytesRef(v));
+            }
+            OrdinalBytesRefBlock block = new OrdinalBytesRefBlock(ords.build(), bytes.build());
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    // TODO: Not tested yet
+                } else {
+                    boolean hasTwoNonNullValues = nullsFirst == false || limit == LIMIT_HIGH;
+                    boolean hasNull = nullsFirst || limit == LIMIT_HIGH;
+                    assertThat(
+                        ordsAndKeys.description(),
+                        equalTo(
+                            "BytesRefTopNBlockHash{channel=0, "
+                                + topNParametersString(hasTwoNonNullValues ? 2 : 1, 0)
+                                + ", hasNull="
+                                + hasNull
+                                + "}"
+                        )
+                    );
+                    if (limit == LIMIT_HIGH) {
+                        assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "a", "c" });
+                        assertOrds(ordsAndKeys.ords(), 1, 0, 2, 0);
+                        assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1, 2)));
+                    } else {
+                        if (nullsFirst) {
+                            if (asc) {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "a" });
+                                assertOrds(ordsAndKeys.ords(), 1, 0, null, 0);
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            } else {
+                                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { null, "c" });
+                                assertOrds(ordsAndKeys.ords(), null, 0, 1, 0);
+                                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(0, 1)));
+                            }
+                        } else {
+                            assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "a", "c" });
+                            assertOrds(ordsAndKeys.ords(), 1, null, 2, null);
+                            assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1, 2)));
+                        }
+                    }
+                }
+            }, block);
+        }
+    }
+
+    /**
+     * The dictionary contains entries that the ordinals never reference. A naive ordinal fast path that ranks the
+     * full dictionary would let those phantom values into the TopN and silently corrupt the result. We feed
+     * {@code "a", "a"} (the only referenced entry), keeping {@code "z"} in the dictionary as bait — the assertions
+     * are identical to feeding the same logical values through the plain path.
+     */
+    public void testBytesRefOrdinalsHashUnreferencedDictEntries() {
+        String[] dictionary = { "a", "z" };
+        int[] ordinals = { 0, 0 };
+
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                // TODO: Not tested yet
+            } else {
+                assertThat(
+                    ordsAndKeys.description(),
+                    equalTo("BytesRefTopNBlockHash{channel=0, " + topNParametersString(1, 0) + ", hasNull=false}")
+                );
+                assertKeys(ordsAndKeys.keys(), (Object[]) new String[] { "a" });
+                assertOrds(ordsAndKeys.ords(), 1, 1);
+                assertThat(ordsAndKeys.nonEmpty(), equalTo(intVector(1)));
+            }
+        }, ordinalVector(ordinals, dictionary).asBlock());
+    }
+
+    private OrdinalBytesRefVector ordinalVector(int[] ordinals, String[] dictionary) {
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(ordinals.length);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(dictionary.length)
+        ) {
+            for (int o : ordinals) {
+                ords.appendInt(o);
+            }
+            for (String v : dictionary) {
+                bytes.appendBytesRef(new BytesRef(v));
+            }
+            return new OrdinalBytesRefVector(ords.build(), bytes.build());
         }
     }
 

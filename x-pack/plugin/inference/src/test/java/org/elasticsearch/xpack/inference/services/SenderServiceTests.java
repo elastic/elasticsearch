@@ -102,13 +102,13 @@ public class SenderServiceTests extends ESTestCase {
         try (var service = new TestSenderService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             verify(factory, times(1)).createSender();
 
-            var listener = new TestPlainActionFuture<Boolean>();
+            var listener = new TestPlainActionFuture<Void>();
             service.start(mock(Model.class), null, listener);
-            assertTrue(listener.actionGet(TIMEOUT));
+            assertNull(listener.actionGet(TIMEOUT));
 
-            var listener2 = new TestPlainActionFuture<Boolean>();
+            var listener2 = new TestPlainActionFuture<Void>();
             service.start(mock(Model.class), null, listener2);
-            assertTrue(listener2.actionGet(TIMEOUT));
+            assertNull(listener2.actionGet(TIMEOUT));
         }
 
         verify(sender, times(1)).close();
@@ -234,8 +234,8 @@ public class SenderServiceTests extends ESTestCase {
                 ActionListener<InferenceServiceResults> listener
             ) {
                 var queryDocs = inputs.castTo(QueryAndDocsInputs.class);
-                assertThat(queryDocs.getQuery(), is(queryString));
-                assertThat(queryDocs.getChunks(), is(List.of(testInput)));
+                assertThat(queryDocs.getQueryAsString(), is(queryString));
+                assertThat(queryDocs.getDocsAsStrings(), is(List.of(testInput)));
                 doInferCalled.set(true);
                 listener.onResponse(mock(InferenceServiceResults.class));
             }

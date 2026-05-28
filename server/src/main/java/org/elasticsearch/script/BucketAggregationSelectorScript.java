@@ -36,6 +36,16 @@ public abstract class BucketAggregationSelectorScript {  // TODO move to the agg
         return params;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     public abstract boolean execute();
 
     public interface Factory {

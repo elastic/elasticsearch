@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.sort.BytesRefTopNSet;
 import org.elasticsearch.compute.operator.mvdedupe.TopNMultivalueDedupeBytesRef;
@@ -175,14 +177,18 @@ final class BytesRefTopNBlockHash extends BlockHash {
     /**
      * Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
      * <p>
-     *     TODO: when an {@code OrdinalBytesRefVector} reaches this method (e.g. once a Parquet reader emits
-     *     dictionary-encoded blocks), short-circuit by running the two-pass logic over the dictionary entries
-     *     and looking up rows via the ordinal index, mirroring {@code BytesRefBlockHash#addOrdinalsVector}.
-     *     The current implementation correctly resolves ordinals to bytes per row, but loses the dictionary
-     *     speed-up that the upstream block already paid for.
+     *     For {@link OrdinalBytesRefVector} inputs we short-circuit and run the two-pass logic over the
+     *     {@code k} dictionary entries instead of the {@code N} row positions, mirroring
+     *     {@code BytesRefBlockHash#addOrdinalsVector}. Non-competitive dictionary entries are rejected via a
+     *     simple {@code int[]} lookup at row time, so the dictionary speed-up that the upstream block already
+     *     paid for composes with the TopN pruning instead of being undone by per-row string resolution.
      * </p>
      */
     IntBlock add(BytesRefVector vector) {
+        OrdinalBytesRefVector ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return addOrdinalsVector(ordinals);
+        }
         int positions = vector.getPositionCount();
         BytesRef scratch = new BytesRef();
 
@@ -206,12 +212,75 @@ final class BytesRefTopNBlockHash extends BlockHash {
     }
 
     /**
+     * Ordinal fast path for {@link #add(BytesRefVector)}. Walks the dictionary instead of every row, so the
+     * TopN comparator and the hash table only see each distinct value once per page. Unreferenced dictionary
+     * entries (which can appear after {@link OrdinalBytesRefVector#filter}) are skipped to avoid corrupting
+     * the TopN with values that don't actually appear in this page.
+     */
+    private IntBlock addOrdinalsVector(OrdinalBytesRefVector ordinals) {
+        IntVector ordinalIndices = ordinals.getOrdinalsVector();
+        BytesRefVector dict = ordinals.getDictionaryVector();
+        int positions = ordinalIndices.getPositionCount();
+        int dictSize = dict.getPositionCount();
+
+        // Mark dictionary entries actually referenced by this page; only those participate in the TopN.
+        boolean[] referenced = new boolean[dictSize];
+        for (int p = 0; p < positions; p++) {
+            referenced[ordinalIndices.getInt(p)] = true;
+        }
+
+        // Pass 1: feed each referenced dictionary entry to the TopN set. Pass 2 (below) hashes only
+        // the survivors, so transient winners that get evicted later in this loop never reach the hash.
+        BytesRef scratch = new BytesRef();
+        for (int d = 0; d < dictSize; d++) {
+            if (referenced[d]) {
+                acceptValue(dict.getBytesRef(d, scratch));
+            }
+        }
+
+        // Per-dictionary-entry mapping to the final group id; -1 means non-competitive (or not referenced).
+        // Built once and reused for every row, so the row-time work shrinks to two int loads + a branch.
+        int[] groupIds = new int[dictSize];
+        for (int d = 0; d < dictSize; d++) {
+            if (referenced[d]) {
+                BytesRef value = dict.getBytesRef(d, scratch);
+                groupIds[d] = isAcceptable(value) ? Math.toIntExact(hashOrdToGroupNullReserved(hash.add(value))) : -1;
+            } else {
+                groupIds[d] = -1;
+            }
+        }
+
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                int g = groupIds[ordinalIndices.getInt(p)];
+                if (g < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(g);
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
      * Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
      * <p>
      *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
      * </p>
+     * <p>
+     *     {@link OrdinalBytesRefBlock} inputs without multivalues take the same dictionary fast path as
+     *     {@link #addOrdinalsVector(OrdinalBytesRefVector)}; multivalue ordinal blocks fall through to the
+     *     general path because the cross-row dedupe in {@link TopNMultivalueDedupeBytesRef} would have to be
+     *     re-implemented over ordinals, which is not worth the complexity for the parquet workloads we care
+     *     about today (single-valued KEYWORD columns).
+     * </p>
      */
     IntBlock add(BytesRefBlock block) {
+        OrdinalBytesRefBlock ordinals = block.asOrdinals();
+        if (ordinals != null && ordinals.mayHaveMultivaluedFields() == false) {
+            return addOrdinalsBlock(ordinals);
+        }
         BytesRef scratch = new BytesRef();
         // Add all the values to the top set first, so we don't end up sending invalid values later.
         for (int p = 0; p < block.getPositionCount(); p++) {
@@ -231,6 +300,77 @@ final class BytesRefTopNBlockHash extends BlockHash {
         return new TopNMultivalueDedupeBytesRef(block, hasNull, this::isAcceptable).hashAdd(blockFactory, hash).ords();
     }
 
+    /**
+     * Ordinal fast path for {@link #add(BytesRefBlock)} on single-valued blocks (with optional nulls). Mirrors
+     * {@link #addOrdinalsVector(OrdinalBytesRefVector)} but processes the per-position null markers from the
+     * ordinals {@link IntBlock}. Multivalue positions are not supported here — see the precondition in
+     * {@link #add(BytesRefBlock)}.
+     */
+    private IntBlock addOrdinalsBlock(OrdinalBytesRefBlock ordinals) {
+        IntBlock ordinalIndices = ordinals.getOrdinalsBlock();
+        BytesRefVector dict = ordinals.getDictionaryVector();
+        int positions = ordinalIndices.getPositionCount();
+        int dictSize = dict.getPositionCount();
+
+        // Single pass in row order: feed null positions into the TopN's null accounting (matching the
+        // interleaving the non-ordinal {@link #add(BytesRefBlock)} does) and mark which dictionary entries
+        // this page actually references so the dictionary sweep below ignores phantom entries.
+        boolean[] referenced = new boolean[dictSize];
+        for (int p = 0; p < positions; p++) {
+            if (ordinalIndices.isNull(p)) {
+                acceptNull();
+            } else {
+                // Single-valued precondition (mayHaveMultivaluedFields() == false) means each non-null
+                // position has exactly one value; we read it via getFirstValueIndex to be safe across
+                // block layouts where the value array is not 1:1 with positions (e.g. compacted nullable
+                // IntArrayBlock).
+                referenced[ordinalIndices.getInt(ordinalIndices.getFirstValueIndex(p))] = true;
+            }
+        }
+
+        // Pass over the dictionary: feed referenced entries to the TopN. As with the vector path, hashing is
+        // deferred so transient winners that get evicted later never enter the hash table.
+        BytesRef scratch = new BytesRef();
+        for (int d = 0; d < dictSize; d++) {
+            if (referenced[d]) {
+                acceptValue(dict.getBytesRef(d, scratch));
+            }
+        }
+
+        // Final mapping from dictionary ord to group id (or -1 for non-competitive / unreferenced).
+        int[] groupIds = new int[dictSize];
+        for (int d = 0; d < dictSize; d++) {
+            if (referenced[d]) {
+                BytesRef value = dict.getBytesRef(d, scratch);
+                groupIds[d] = isAcceptable(value) ? Math.toIntExact(hashOrdToGroupNullReserved(hash.add(value))) : -1;
+            } else {
+                groupIds[d] = -1;
+            }
+        }
+
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                if (ordinalIndices.isNull(p)) {
+                    // Mirrors the non-ordinal block path: nulls land on group id 0 only when the TopN has
+                    // accepted at least one null; otherwise the position is excluded entirely.
+                    if (hasNull) {
+                        builder.appendInt(0);
+                    } else {
+                        builder.appendNull();
+                    }
+                } else {
+                    int g = groupIds[ordinalIndices.getInt(ordinalIndices.getFirstValueIndex(p))];
+                    if (g < 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendInt(g);
+                    }
+                }
+            }
+            return builder.build();
+        }
+    }
+
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
         var block = page.getBlock(channel);
@@ -248,6 +388,10 @@ final class BytesRefTopNBlockHash extends BlockHash {
     }
 
     private IntBlock lookup(BytesRefVector vector) {
+        OrdinalBytesRefVector ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return lookupOrdinalsVector(ordinals);
+        }
         int positions = vector.getPositionCount();
         BytesRef scratch = new BytesRef();
         try (var builder = blockFactory.newIntBlockBuilder(positions)) {
@@ -258,6 +402,44 @@ final class BytesRefTopNBlockHash extends BlockHash {
                     builder.appendNull();
                 } else {
                     builder.appendInt(Math.toIntExact(hashOrdToGroupNullReserved(found)));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Ordinal fast path for {@link #lookup(BytesRefVector)}. Resolves the dictionary entries to group ids
+     * once per page and then services every row with two int loads. We do not build a {@code referenced[]}
+     * mask here: phantom dictionary entries are never actually used as a row index, so the at-most-extra
+     * {@code hash.find} per unreferenced entry is wasted work but cannot produce a wrong result for any
+     * row in this page.
+     */
+    private IntBlock lookupOrdinalsVector(OrdinalBytesRefVector ordinals) {
+        IntVector ordinalIndices = ordinals.getOrdinalsVector();
+        BytesRefVector dict = ordinals.getDictionaryVector();
+        int positions = ordinalIndices.getPositionCount();
+        int dictSize = dict.getPositionCount();
+
+        BytesRef scratch = new BytesRef();
+        int[] groupIds = new int[dictSize];
+        for (int d = 0; d < dictSize; d++) {
+            BytesRef v = dict.getBytesRef(d, scratch);
+            long found = hash.find(v);
+            if (found < 0 || isAcceptable(v) == false) {
+                groupIds[d] = -1;
+            } else {
+                groupIds[d] = Math.toIntExact(hashOrdToGroupNullReserved(found));
+            }
+        }
+
+        try (var builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int p = 0; p < positions; p++) {
+                int g = groupIds[ordinalIndices.getInt(p)];
+                if (g < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(g);
                 }
             }
             return builder.build();

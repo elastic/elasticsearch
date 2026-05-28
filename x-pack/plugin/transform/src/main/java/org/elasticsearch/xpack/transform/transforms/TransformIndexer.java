@@ -334,6 +334,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                     // get progress information
                     SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
+                    if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                        request.setProjectRouting(transformConfig.getSource().getProjectRouting());
+                    }
                     SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().runtimeMappings(
                         transformConfig.getSource().getRuntimeMappings()
                     );
@@ -817,7 +820,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
         // we might need to call the save state listeners, but do not want to stop rolling
-        persistStateWithAutoStop(state, ActionListener.wrap(r -> {
+        persistStateWithAutoStop(state, ActionListener.runAfter(ActionListener.wrap(r -> {
             try {
                 if (saveStateListenersAtTheMomentOfCalling != null) {
                     ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
@@ -827,7 +830,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 logger.warn(msg, onResponseException);
             } finally {
                 lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
-                next.run();
             }
         }, e -> {
             try {
@@ -837,10 +839,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             } catch (Exception onFailureException) {
                 String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
                 logger.warn(msg, onFailureException);
-            } finally {
-                next.run();
             }
-        }));
+        }), next));
     }
 
     private void persistStateWithAutoStop(TransformState state, ActionListener<Void> listener) {
@@ -1152,6 +1152,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
              */
             getConfig().getSource().getIndex()
         );
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            request.setProjectRouting(getConfig().getSource().getProjectRouting());
+        }
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
             .indicesOptions(getConfig().getSource().indicesOptions());
@@ -1180,6 +1183,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, context.getPageSize());
 
         SearchRequest request = new SearchRequest();
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            request.setProjectRouting(config.getSource().getProjectRouting());
+        }
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {

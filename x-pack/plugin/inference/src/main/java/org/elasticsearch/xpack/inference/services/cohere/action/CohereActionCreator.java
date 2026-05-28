@@ -80,7 +80,7 @@ public class CohereActionCreator implements CohereActionVisitor {
                 ? inferenceInputs.getInputType()
                 : overriddenModel.getTaskSettings().getInputType();
 
-            return switch (overriddenModel.getServiceSettings().getCommonSettings().apiVersion()) {
+            return switch (overriddenModel.getServiceSettings().commonSettings().apiVersion()) {
                 case V1 -> new CohereV1EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
                 case V2 -> new CohereV2EmbeddingsRequest(inferenceInputs.getTextInputs(), requestInputType, overriddenModel);
             };
@@ -104,15 +104,15 @@ public class CohereActionCreator implements CohereActionVisitor {
         Function<QueryAndDocsInputs, OutboundRequest> requestCreator = inferenceInputs -> switch (overriddenModel.getServiceSettings()
             .apiVersion()) {
             case V1 -> new CohereV1RerankRequest(
-                inferenceInputs.getQuery(),
-                inferenceInputs.getChunks(),
+                inferenceInputs.getQueryAsString(),
+                inferenceInputs.getDocsAsStrings(),
                 inferenceInputs.getReturnDocuments(),
                 inferenceInputs.getTopN(),
                 overriddenModel
             );
             case V2 -> new CohereV2RerankRequest(
-                inferenceInputs.getQuery(),
-                inferenceInputs.getChunks(),
+                inferenceInputs.getQueryAsString(),
+                inferenceInputs.getDocsAsStrings(),
                 inferenceInputs.getReturnDocuments(),
                 inferenceInputs.getTopN(),
                 overriddenModel

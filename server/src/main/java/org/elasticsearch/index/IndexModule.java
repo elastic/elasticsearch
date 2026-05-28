@@ -46,7 +46,6 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -136,7 +135,16 @@ public final class IndexModule {
     // whether to use the query cache
     public static final Setting<Boolean> INDEX_QUERY_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "index.queries.cache.enabled",
-        true,
+        settings -> {
+            if (settings == null) {
+                return Boolean.TRUE.toString();
+            }
+            // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
+            // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
+            // a circular static initialization that results in a NullPointerException at boot time.
+            String mode = settings.get("index.mode");
+            return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
+        },
         Property.IndexScope
     );
 
@@ -496,7 +504,7 @@ public final class IndexModule {
         MapperRegistry mapperRegistry,
         IndicesFieldDataCache indicesFieldDataCache,
         NamedWriteableRegistry namedWriteableRegistry,
-        IdFieldMapper idFieldMapper,
+        BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
         Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
@@ -554,7 +562,7 @@ public final class IndexModule {
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
-                idFieldMapper,
+                idFieldDataEnabled,
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,
@@ -676,11 +684,9 @@ public final class IndexModule {
             () -> {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
+            () -> false,
             scriptService,
-            query -> {
-                throw new UnsupportedOperationException("no index query shard context available");
-            },
+            query -> { throw new UnsupportedOperationException("no index query shard context available"); },
             mapperMetrics,
             documentMapper,
             null

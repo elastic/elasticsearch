@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -39,7 +40,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -285,5 +288,22 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
                     .anyMatch(gte -> gte.right() instanceof Literal lit && lit.value() instanceof Long ms && ms == extendedStartMs)
             );
         assertTrue("expected a filter lower bound of start - window = " + Instant.ofEpochMilli(extendedStartMs), found);
+    }
+
+    public void testRangeQueryStepBucketUsesUpperRoundingConfiguration() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z"
+                rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
+            """);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
+        assertThat(tsAggregate.outputTimeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
+
+        Rounding timeBucketUnprepared = tsAggregate.timeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
+        Rounding outputTimeBucketUnprepared = tsAggregate.outputTimeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
+        assertThat(timeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
+        assertThat(outputTimeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
+        assertThat(Rounding.ToUpperRounding.createRounding(timeBucketUnprepared), sameInstance(timeBucketUnprepared));
+        assertThat(Rounding.ToUpperRounding.createRounding(outputTimeBucketUnprepared), sameInstance(outputTimeBucketUnprepared));
     }
 }

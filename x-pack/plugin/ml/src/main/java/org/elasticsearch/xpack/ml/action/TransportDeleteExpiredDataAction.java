@@ -18,7 +18,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -174,7 +174,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
             // 1 million documents over 5000 seconds ~= 83 minutes.
             // If we have > 5 data nodes, we don't set our throttling.
             requestsPerSec = numberOfDatanodes < 5
-                ? (float) (AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes
+                ? (float) (AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE / 5) * numberOfDatanodes
                 : Float.POSITIVE_INFINITY;
         }
         deleteExpiredData(request, dataRemoversIterator, requestsPerSec, listener, isTimedOutSupplier, true);

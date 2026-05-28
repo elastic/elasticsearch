@@ -20,6 +20,8 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -145,6 +147,76 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
                     assertEquals("extractor id matches file index", fileIdx, SourceExtractors.decodeExtractorId(encodedValue));
                     assertEquals("local position is the file-local row index", row, SourceExtractors.decodeLocalPosition(encodedValue));
                 }
+            }
+        } finally {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            operator.close();
+        }
+    }
+
+    public void testEmptyDataProjectionWithDeferredExtractionAndNonIdentityMapping() throws Exception {
+        // All data columns deferred (e.g. SORT _file.size | LIMIT n over a wide file): the source
+        // projects only _rowPosition (empty queryDataSchema) while the per-file mapping stays at full,
+        // non-identity width. Pre-fix this tripped the width guard; the factory must pass the
+        // _rowPosition page through and still run the deferred-extraction encoding handshake.
+        AtomicInteger extractorsCreated = new AtomicInteger();
+        RowPositionOnlyReader reader = new RowPositionOnlyReader(extractorsCreated, /* rows = */ 3);
+
+        StoragePath path = StoragePath.of("s3://bucket/data/f1.parquet");
+        List<StorageEntry> entries = List.of(new StorageEntry(path, 100, Instant.EPOCH));
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/*.parquet");
+
+        // Non-identity, full-width (3) per-file mapping, as carried for a multi-file reconciliation.
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap = Map.of(
+            path,
+            new SchemaReconciliation.FileSchemaInfo(
+                new ExternalSchema(List.of(field("a", DataType.INTEGER), field("b", DataType.INTEGER), field("c", DataType.INTEGER))),
+                new ColumnMapping(new int[] { 2, 1, 0 }, null),
+                null
+            )
+        );
+
+        // Only _rowPosition is projected — a MetadataAttribute, so queryDataSchema is empty.
+        List<Attribute> attributes = List.of(rowPositionAttribute());
+
+        DriverContext driverContext = mock(DriverContext.class);
+        when(driverContext.blockFactory()).thenReturn(BLOCK_FACTORY);
+        doAnswer(inv -> null).when(driverContext).addAsyncAction();
+        doAnswer(inv -> null).when(driverContext).removeAsyncAction();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            new StubStorageProvider(),
+            reader,
+            path,
+            attributes,
+            100,
+            10,
+            (Runnable r) -> r.run()
+        ).fileList(fileList).schemaMap(schemaMap).deferredExtraction(true).build();
+
+        SourceOperator operator = factory.get(driverContext);
+        List<Page> pages = new ArrayList<>();
+        try {
+            while (operator.isFinished() == false) {
+                Page p = operator.getOutput();
+                if (p != null) {
+                    pages.add(p);
+                }
+            }
+            assertEquals("one page", 1, pages.size());
+            Page page = pages.get(0);
+            // Passed through untouched: the reader's single _rowPosition block, NOT reshaped to the
+            // mapping's width 3.
+            assertEquals("only the _rowPosition block survives", 1, page.getBlockCount());
+            assertEquals(3, page.getPositionCount());
+            // Deferred-extraction handshake still ran: one extractor registered, _rowPosition encoded.
+            assertEquals("one extractor registered", 1, extractorsCreated.get());
+            LongBlock encoded = (LongBlock) page.getBlock(0);
+            for (int row = 0; row < 3; row++) {
+                assertEquals(0, SourceExtractors.decodeExtractorId(encoded.getLong(row)));
+                assertEquals(row, SourceExtractors.decodeLocalPosition(encoded.getLong(row)));
             }
         } finally {
             for (Page p : pages) {
@@ -476,6 +548,101 @@ public class AsyncExternalSourceOperatorFactoryDeferredExtractionTests extends E
 
     private static FieldAttribute field(String name, DataType type) {
         return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), false, EsField.TimeSeriesFieldType.NONE));
+    }
+
+    /** The synthetic deferred-extraction column as the optimizer injects it: a MetadataAttribute. */
+    private static MetadataAttribute rowPositionAttribute() {
+        return new MetadataAttribute(
+            Source.EMPTY,
+            ColumnExtractor.ROW_POSITION_COLUMN,
+            DataType.LONG,
+            Nullability.FALSE,
+            null,
+            true,
+            false
+        );
+    }
+
+    /**
+     * {@link ColumnExtractorAware} reader that emits a single _rowPosition block and no data columns
+     * — the shape a reader produces when every data column has been moved to deferred extraction.
+     */
+    private static final class RowPositionOnlyReader implements NoConfigFormatReader, ColumnExtractorAware {
+        private final AtomicInteger extractorsCreated;
+        private final int rows;
+
+        RowPositionOnlyReader(AtomicInteger extractorsCreated, int rows) {
+            this.extractorsCreated = extractorsCreated;
+            this.rows = rows;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new RowPositionOnlyProducerIterator(extractorsCreated, rows);
+        }
+
+        @Override
+        public String formatName() {
+            return "rp-only-stub";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".parquet");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /** Single-block (_rowPosition only) producer iterator; OR-s in the assigned extractor id. */
+    private static final class RowPositionOnlyProducerIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
+        private final AtomicInteger extractorsCreated;
+        private final int rows;
+        private boolean emitted = false;
+        private long highBits = -1L;
+
+        RowPositionOnlyProducerIterator(AtomicInteger extractorsCreated, int rows) {
+            this.extractorsCreated = extractorsCreated;
+            this.rows = rows;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return emitted == false;
+        }
+
+        @Override
+        public Page next() {
+            if (emitted) {
+                throw new java.util.NoSuchElementException();
+            }
+            emitted = true;
+            long[] rowPositions = new long[rows];
+            for (int i = 0; i < rows; i++) {
+                rowPositions[i] = highBits == -1L ? i : (highBits | i);
+            }
+            return new Page(rows, BLOCK_FACTORY.newLongArrayVector(rowPositions, rows).asBlock());
+        }
+
+        @Override
+        public ColumnExtractor createColumnExtractor() {
+            extractorsCreated.incrementAndGet();
+            return new InMemoryColumnExtractor(rows);
+        }
+
+        @Override
+        public void setExtractorId(int id) {
+            highBits = ((long) id) << ColumnExtractor.LOCAL_POSITION_BITS;
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**

@@ -189,7 +189,7 @@ public class FireworksAiServiceTests extends InferenceServiceTestCase {
 
             var requestBody = webServer.requests().getFirst().getBody();
 
-            String expectedJson = stripWhitespace(String.format("""
+            String expectedJson = stripWhitespace(Strings.format("""
                 {
                     "messages":[
                         {

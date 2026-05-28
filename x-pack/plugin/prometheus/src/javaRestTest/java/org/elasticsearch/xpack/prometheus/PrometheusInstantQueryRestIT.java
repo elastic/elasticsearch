@@ -113,11 +113,7 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
     private ObjectPath executeInstantQuery(String query, String time, String index) throws Exception {
         String path = index == null ? "/_prometheus/api/v1/query" : "/_prometheus/" + index + "/api/v1/query";
-        Request request = prometheusReadRequest(
-            path,
-            new BasicNameValuePair("query", query),
-            new BasicNameValuePair("time", time)
-        );
+        Request request = prometheusReadRequest(path, new BasicNameValuePair("query", query), new BasicNameValuePair("time", time));
 
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

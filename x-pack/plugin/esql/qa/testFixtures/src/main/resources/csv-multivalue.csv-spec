@@ -82,6 +82,11 @@ id:integer | cnt:integer
 // own contract — no harness magic. Runs under datasource-csv ITs (CSV/TSV) and the general
 // EsqlSpecTestCase family (single-node, mixed-cluster, multi-cluster, multi-node) — all of
 // which read the local bracket-MV employees.csv when {{employees}} is resolved.
+//
+// SISTER FILE: external-multivalue.csv-spec at esql:qa:testFixtures carries the identical
+// 9 query shapes WITHOUT the multi_value_syntax opt-in, for the non-CSV format ITs (Parquet,
+// ORC, NDJSON, Parquet-rs, ExternalDistributedSpecIT) which decode arrays natively. When
+// adding / changing a query here, mirror it there (or vice versa).
 
 mvExpandFromSplit
 required_capability: external_command

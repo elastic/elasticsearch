@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -19,13 +20,16 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -130,6 +134,28 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             ).isReadOnly(),
             is(false)
         );
+    }
+
+    public void testInvalidDataAccessTierFailsAtConstruction() {
+        RepositoryException ex = expectThrows(
+            RepositoryException.class,
+            () -> azureRepository(Settings.builder().put(AzureRepository.Repository.DATA_ACCESS_TIER_SETTING.getKey(), "whatever").build())
+        );
+        assertThat(ex.getMessage(), containsString(AzureRepository.Repository.DATA_ACCESS_TIER_SETTING.getKey()));
+        assertThat(ex.getCause(), instanceOf(BlobStoreException.class));
+        assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not an allowed Azure Access Tier."));
+    }
+
+    public void testInvalidMetadataAccessTierFailsAtConstruction() {
+        RepositoryException ex = expectThrows(
+            RepositoryException.class,
+            () -> azureRepository(
+                Settings.builder().put(AzureRepository.Repository.METADATA_ACCESS_TIER_SETTING.getKey(), "whatever").build()
+            )
+        );
+        assertThat(ex.getMessage(), containsString(AzureRepository.Repository.METADATA_ACCESS_TIER_SETTING.getKey()));
+        assertThat(ex.getCause(), instanceOf(BlobStoreException.class));
+        assertThat(ex.getCause().getMessage(), equalTo("`whatever` is not an allowed Azure Access Tier."));
     }
 
     public void testChunkSize() {

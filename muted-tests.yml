@@ -274,9 +274,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.autoscaling.search.AutoscalingReplicaIT
   method: testSearchSizeAffectsReplicasSPBetween100And250
   issue: https://github.com/elastic/elasticsearch-serverless/issues/5731
-- class: "org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/147842"
-  method: "testMixedOperationsDuringSplitWithDisruption"
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/147844
@@ -616,3 +613,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
   issue: https://github.com/elastic/elasticsearch/issues/150099
+- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
+  method: testMultiTermVectorsApiRealtimeGet
+  issue: https://github.com/elastic/elasticsearch/issues/150101

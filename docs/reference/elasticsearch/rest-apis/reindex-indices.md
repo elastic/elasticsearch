@@ -88,7 +88,7 @@ POST _reindex
 
 ## Reindex asynchronously [docs-reindex-task-api]
 
-If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns an ID you can use to [monitor](#monitor-reindex-tasks) the operation.
+If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a task ID you can use to [monitor](#monitor-reindex-tasks) the operation.
 
 For long-running reindexes, prefer async reindexes. Synchronous reindex keeps a client waiting on the node that received the request, and this will time out.
 

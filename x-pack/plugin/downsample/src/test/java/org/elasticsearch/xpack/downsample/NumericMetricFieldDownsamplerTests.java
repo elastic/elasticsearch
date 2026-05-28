@@ -26,6 +26,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 5.5, 12.2, 55);
         aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
         assertEquals(5.5, aggregateMetricFieldProducer.min, 0);
+        assertFalse(aggregateMetricFieldProducer.isDone());
         aggregateMetricFieldProducer.reset();
         assertEquals(Double.MAX_VALUE, aggregateMetricFieldProducer.min, 0);
 
@@ -34,9 +35,11 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         docIdBuffer = IntArrayList.from(0, 1, 2, 3);
         var values = createNumericValuesInstance(docIdBuffer, 40D, 5.5, 12.2, 55D);
         lastValueProducer.collect(values, docIdBuffer);
+        assertTrue(lastValueProducer.isDone());
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(40.0, lastValueProducer.lastValue(), 0);
         lastValueProducer.reset();
+        assertFalse(lastValueProducer.isDone());
         assertNull(lastValueProducer.lastValue());
     }
 
@@ -47,6 +50,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
         aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
         assertEquals(55d, aggregateMetricFieldProducer.max, 0);
+        assertFalse(aggregateMetricFieldProducer.isDone());
         aggregateMetricFieldProducer.reset();
         assertEquals(-Double.MAX_VALUE, aggregateMetricFieldProducer.max, 0);
 
@@ -57,7 +61,9 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         lastValueProducer.collect(values, docIdBuffer);
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(5.5, lastValueProducer.lastValue(), 0);
+        assertTrue(lastValueProducer.isDone());
         lastValueProducer.reset();
+        assertFalse(lastValueProducer.isDone());
         assertNull(lastValueProducer.lastValue());
     }
 
@@ -68,6 +74,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         var numericValues = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55);
         aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
         assertEquals(72.7, aggregateMetricFieldProducer.sum.value(), 0);
+        assertFalse(aggregateMetricFieldProducer.isDone());
         aggregateMetricFieldProducer.reset();
         assertEquals(0, aggregateMetricFieldProducer.sum.value(), 0);
 
@@ -76,9 +83,11 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         docIdBuffer = IntArrayList.from(0, 1, 2);
         var values = createNumericValuesInstance(docIdBuffer, 5.5, 12.2, 55D);
         lastValueProducer.collect(values, docIdBuffer);
+        assertTrue(lastValueProducer.isDone());
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(5.5, lastValueProducer.lastValue(), 0);
         lastValueProducer.reset();
+        assertFalse(lastValueProducer.isDone());
         assertNull(lastValueProducer.lastValue());
     }
 
@@ -165,6 +174,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         var numericValues = createNumericValuesInstance(docIdBuffer, 40, 30, 20);
         aggregateMetricFieldProducer.collect(numericValues, docIdBuffer);
         assertEquals(3L, aggregateMetricFieldProducer.count);
+        assertFalse(aggregateMetricFieldProducer.isDone());
         aggregateMetricFieldProducer.reset();
         assertEquals(0, aggregateMetricFieldProducer.count);
 
@@ -174,11 +184,13 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         lastValueProducer.collect(values, docIdBuffer);
         assertNotNull(lastValueProducer.lastValue());
         assertEquals(40, lastValueProducer.lastValue().intValue(), 0);
+        assertTrue(lastValueProducer.isDone());
         lastValueProducer.reset();
+        assertFalse(lastValueProducer.isDone());
         assertNull(lastValueProducer.lastValue());
     }
 
-    public void testCounterMetricFieldProducer() throws IOException {
+    public void testLastMetricFieldProducer() throws IOException {
         final String field = "field";
         var producer = new NumericMetricFieldDownsampler.LastValue(field, null);
         assertTrue(producer.isEmpty());
@@ -190,6 +202,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
         assertFalse(producer.isEmpty());
         assertNotNull(producer.lastValue());
         assertEquals(55.0, producer.lastValue(), 0);
+        assertTrue(producer.isDone());
         assertEquals("field", producer.name());
 
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();

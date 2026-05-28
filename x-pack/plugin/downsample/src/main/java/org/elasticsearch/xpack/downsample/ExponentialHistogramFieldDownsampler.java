@@ -112,6 +112,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         @Override
         public void reset() {
             isEmpty = true;
+            isDone = false;
             lastValue = null;
         }
 

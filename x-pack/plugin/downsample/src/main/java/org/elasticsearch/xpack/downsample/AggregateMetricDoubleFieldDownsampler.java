@@ -120,6 +120,7 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
         @Override
         public void reset() {
             isEmpty = true;
+            isDone = false;
             lastValue = null;
         }
 

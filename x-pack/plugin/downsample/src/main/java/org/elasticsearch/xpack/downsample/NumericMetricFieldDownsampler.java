@@ -147,6 +147,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         @Override
         public void reset() {
             isEmpty = true;
+            isDone = false;
             lastValue = Double.NaN;
         }
 

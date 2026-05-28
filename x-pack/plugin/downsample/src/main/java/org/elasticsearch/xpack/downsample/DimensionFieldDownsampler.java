@@ -45,6 +45,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
 
     public void tsidReset() {
         isEmpty = true;
+        isDone = false;
         dimensionValue = null;
     }
 

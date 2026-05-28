@@ -57,6 +57,7 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     @Override
     public void reset() {
         isEmpty = true;
+        isDone = false;
         lastValue = null;
     }
 

@@ -82,7 +82,7 @@ abstract class AbstractFieldDownsampler<T extends DocValues> implements Downsamp
         if (isDone()) {
             return;
         }
-        for (int i = 0; i < docIdBuffer.size(); i++) {
+        for (int i = 0; i < docIdBuffer.size() && isDone() == false; i++) {
             int docId = docIdBuffer.get(i);
             if (docValues.advanceExact(docId) == false) {
                 continue;

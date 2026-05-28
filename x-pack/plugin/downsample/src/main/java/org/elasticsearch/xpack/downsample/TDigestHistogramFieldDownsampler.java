@@ -153,6 +153,7 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
         @Override
         public void reset() {
             isEmpty = true;
+            isDone = false;
             lastValue = null;
         }
 

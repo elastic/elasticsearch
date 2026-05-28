@@ -21,6 +21,7 @@ import org.reactivestreams.Subscription;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An {@link AsyncResponseTransformer} that accumulates the response body into a single, pre-sized
@@ -65,6 +66,9 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     private volatile R response;
     private volatile CompletableFuture<DirectReadBuffer> resultFuture;
+    // Kept so exceptionOccurred() can release the ArrowBuf even if the subscriber's onError
+    // is never delivered (e.g. SDK abandons the publisher after a transport error).
+    private volatile ChunkCopyingSubscriber currentSubscriber;
 
     /**
      * @param expectedLength exact length of the response body in bytes
@@ -111,11 +115,20 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void onStream(SdkPublisher<ByteBuffer> publisher) {
-        publisher.subscribe(new ChunkCopyingSubscriber(resultFuture, expectedLength, allocator));
+        ChunkCopyingSubscriber subscriber = new ChunkCopyingSubscriber(resultFuture, expectedLength, allocator);
+        this.currentSubscriber = subscriber;
+        publisher.subscribe(subscriber);
     }
 
     @Override
     public void exceptionOccurred(Throwable error) {
+        // Release the ArrowBuf if it was allocated in onSubscribe but onError was never
+        // delivered to the subscriber (e.g. SDK abandons the publisher after a transport
+        // error). releaseOnFailure() is idempotent — if onError already fired it is a no-op.
+        ChunkCopyingSubscriber subscriber = currentSubscriber;
+        if (subscriber != null) {
+            subscriber.releaseOnFailure();
+        }
         CompletableFuture<DirectReadBuffer> f = resultFuture;
         if (f != null) {
             f.completeExceptionally(error);
@@ -135,7 +148,9 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
-        private volatile ArrowBuf destinationBuf;
+        // destinationBuf uses AtomicReference so releaseOnFailure() is safe when called
+        // concurrently from exceptionOccurred() on the transformer and onError() on the subscriber.
+        private final AtomicReference<ArrowBuf> destinationBuf = new AtomicReference<>();
         private volatile ByteBuffer destination;
         private int offset;
         private volatile Subscription subscription;
@@ -159,14 +174,12 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             // routed through the result future instead of escaping publisher.subscribe(...) as
             // an Error.
             try {
-                this.destinationBuf = allocator.buffer(expectedLength);
-                this.destination = destinationBuf.nioBuffer(0, expectedLength);
+                ArrowBuf newBuf = allocator.buffer(expectedLength);
+                this.destinationBuf.set(newBuf);
+                this.destination = newBuf.nioBuffer(0, expectedLength);
             } catch (OutOfMemoryError | RuntimeException e) {
                 failed = true;
-                if (destinationBuf != null) {
-                    destinationBuf.close();
-                    destinationBuf = null;
-                }
+                releaseOnFailure();
                 s.cancel();
                 resultFuture.completeExceptionally(
                     new IOException("failed to allocate " + expectedLength + " bytes from allocator " + allocator.getName(), e)
@@ -226,17 +239,16 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             destination.position(0).limit(offset);
-            // Transfer ownership of the ArrowBuf to the caller; null out the field so any
-            // subsequent releaseOnFailure (e.g. an SDK-internal late onError) does not double-close.
-            ArrowBuf transferred = destinationBuf;
-            destinationBuf = null;
+            // Transfer ownership of the ArrowBuf to the caller; getAndSet(null) ensures any
+            // concurrent releaseOnFailure (e.g. exceptionOccurred) sees null and does not
+            // double-close.
+            ArrowBuf transferred = destinationBuf.getAndSet(null);
             resultFuture.complete(new DirectReadBuffer(destination, transferred::close));
         }
 
-        private void releaseOnFailure() {
-            ArrowBuf buf = destinationBuf;
+        void releaseOnFailure() {
+            ArrowBuf buf = destinationBuf.getAndSet(null);
             if (buf != null) {
-                destinationBuf = null;
                 buf.close();
             }
         }

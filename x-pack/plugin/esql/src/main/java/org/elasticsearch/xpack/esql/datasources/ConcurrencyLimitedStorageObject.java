@@ -143,7 +143,15 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         try {
             delegate.readBytesAsync(position, length, allocator, executor, ActionListener.wrap(result -> {
                 limiter.release();
-                listener.onResponse(result);
+                boolean success = false;
+                try {
+                    listener.onResponse(result);
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        result.close();
+                    }
+                }
             }, e -> {
                 limiter.release();
                 listener.onFailure(e);

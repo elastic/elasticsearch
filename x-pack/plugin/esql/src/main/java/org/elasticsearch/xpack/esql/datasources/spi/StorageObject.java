@@ -113,6 +113,12 @@ public interface StorageObject {
      * alone is not enough — Arrow treats outstanding {@code ArrowBuf}s as a leak (see
      * esql-planning#851).
      *
+     * <p>
+     * <b>Implementation contract:</b> if the read fails, implementations must close the backing
+     * {@code ArrowBuf} before calling {@code listener.onFailure()}. Callers that fan out reads
+     * across multiple merged ranges rely on this invariant to avoid double-releasing buffers from
+     * the successfully-completed sibling ranges on the failure path.
+     *
      * @param position the starting byte position
      * @param length the number of bytes to read
      * @param allocator allocator used to back the returned direct buffer; the storage object

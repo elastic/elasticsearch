@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.util.Check;
@@ -100,7 +101,10 @@ class RangeStorageObject implements StorageObject {
         ActionListener<DirectReadBuffer> listener
     ) {
         if (position >= this.length) {
-            listener.onResponse(new DirectReadBuffer(ByteBuffer.allocate(0), () -> {}));
+            // Allocate a zero-length ArrowBuf so the returned DirectReadBuffer is direct and
+            // allocator-owned, consistent with the StorageObject.readBytesAsync contract.
+            ArrowBuf emptyBuf = allocator.buffer(0);
+            listener.onResponse(new DirectReadBuffer(emptyBuf.nioBuffer(0, 0), emptyBuf::close));
             return;
         }
         long cappedLength = Math.min(length, this.length - position);

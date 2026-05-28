@@ -63,7 +63,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
             assertEquals("text_embedding_test_service", modelMap.get("service"));
         }
 
-        var input = List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)));
+        var input = List.of(InferenceString.ofText(randomAlphaOfLength(10)));
         var inference = embedding(inferenceEntityId, input);
         assertNonEmptyInferenceResults(inference, 1, TaskType.EMBEDDING);
         // Same input should return the same result
@@ -71,10 +71,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         // Different input values should not
         assertNotEquals(
             inference,
-            embedding(
-                inferenceEntityId,
-                randomValueOtherThan(input, () -> List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10))))
-            )
+            embedding(inferenceEntityId, randomValueOtherThan(input, () -> List.of(InferenceString.ofText(randomAlphaOfLength(10)))))
         );
     }
 
@@ -90,8 +87,8 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
                     DataType.IMAGE,
                     "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(randomByteArrayOfLength(5))
                 ),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
+                InferenceString.ofText(randomAlphaOfLength(10)),
+                InferenceString.ofText(randomAlphaOfLength(15))
             )
         );
 

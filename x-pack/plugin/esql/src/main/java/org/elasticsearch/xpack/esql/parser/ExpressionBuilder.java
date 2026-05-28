@@ -801,8 +801,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             String typeName = visitIdentifier(toDataType.identifier()).toLowerCase(Locale.ROOT);
             if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
                 return new ToCounter(source, expression(parseTree));
-            }
-            if (DataType.GAUGE_CAST_NAME.equals(typeName)) {
+            } else if (DataType.GAUGE_CAST_NAME.equals(typeName)) {
                 return new ToGauge(source, expression(parseTree));
             }
         }

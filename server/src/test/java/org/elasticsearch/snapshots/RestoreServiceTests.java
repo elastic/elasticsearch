@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -61,7 +59,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -427,154 +424,6 @@ public class RestoreServiceTests extends ESTestCase {
         );
 
         assertSame("fully compatible index should not be modified", indexMetadata, result);
-    }
-
-    /**
-     * Tests that {@link RestoreService#verifyReadOnlyRestoreSafety} skips indices that won't be auto-marked: those
-     * already verified, fully supported on this version, or legacy. Such indices should not trigger any repository
-     * inspection.
-     */
-    public void testVerifyReadOnlyRestoreSafetySkipsIndicesNotNeedingAutoMarking() {
-        var snapshot = new Snapshot(randomProjectIdOrDefault(), "repo", new SnapshotId("snap", "uuid"));
-        var indexId = new IndexId("idx", UUIDs.randomBase64UUID(random()));
-        var repository = mock(Repository.class);
-
-        // already verified read-only — skipped before any repository access
-        var verifiedReadOnly = IndexMetadata.builder("idx")
-            .settings(
-                indexSettings(
-                    IndexVersionUtils.randomVersionBetween(
-                        IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-                        IndexVersionUtils.getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
-                    ),
-                    1,
-                    0
-                ).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-                    .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
-                    .put("index.verified_read_only", true)
-            )
-            .build();
-        RestoreService.verifyReadOnlyRestoreSafety(
-            repository,
-            snapshot,
-            indexId,
-            verifiedReadOnly,
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE
-        );
-
-        // fully supported — skipped before any repository access
-        var fullySupported = IndexMetadata.builder("idx")
-            .settings(
-                indexSettings(IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current()), 1, 0).put(
-                    IndexMetadata.SETTING_INDEX_UUID,
-                    UUIDs.randomBase64UUID(random())
-                )
-            )
-            .build();
-        RestoreService.verifyReadOnlyRestoreSafety(
-            repository,
-            snapshot,
-            indexId,
-            fullySupported,
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE
-        );
-
-        verifyNoMoreInteractions(repository);
-    }
-
-    /**
-     * Tests that {@link RestoreService#verifyReadOnlyRestoreSafety} refuses to verify a snapshot served by a non-blob-store
-     * repository, since commit userdata can only be inspected on blob-store repositories.
-     */
-    public void testVerifyReadOnlyRestoreSafetyRefusesNonBlobStoreRepository() {
-        var snapshot = new Snapshot(randomProjectIdOrDefault(), "repo", new SnapshotId("snap", "uuid"));
-        var indexId = new IndexId("idx", UUIDs.randomBase64UUID(random()));
-        var indexCreated = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
-        );
-        var indexMetadata = IndexMetadata.builder("idx")
-            .settings(indexSettings(indexCreated, 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
-            .build();
-
-        var ex = expectThrows(
-            SnapshotRestoreException.class,
-            () -> RestoreService.verifyReadOnlyRestoreSafety(
-                mock(Repository.class),
-                snapshot,
-                indexId,
-                indexMetadata,
-                IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE
-            )
-        );
-        assertThat(ex.getMessage(), containsString("snapshot commit userdata can only be inspected on blob-store repositories"));
-    }
-
-    /**
-     * Tests that {@link RestoreService#verifyReadOnlyRestoreSafety} accepts a quiesced shard
-     * ({@code local_checkpoint == max_seq_no}), and rejects a non-quiesced shard with a clear error.
-     */
-    public void testVerifyReadOnlyRestoreSafetyChecksShardQuiescence() throws Exception {
-        var snapshot = new Snapshot(randomProjectIdOrDefault(), "repo", new SnapshotId("snap", "uuid"));
-        var indexId = new IndexId("idx", UUIDs.randomBase64UUID(random()));
-        var indexCreated = IndexVersionUtils.randomVersionBetween(
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
-            IndexVersionUtils.getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
-        );
-        int numberOfShards = randomIntBetween(1, 4);
-        var indexMetadata = IndexMetadata.builder("idx")
-            .settings(
-                indexSettings(indexCreated, numberOfShards, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            )
-            .build();
-
-        // every shard quiesced — should pass silently
-        var quiescedShardSnapshot = buildShardSnapshot(snapshot.getSnapshotId().getUUID(), 42L, 42L);
-        var quiescedContainer = mock(BlobContainer.class);
-        var quiescedRepo = mock(BlobStoreRepository.class);
-        when(quiescedRepo.shardContainer(eq(indexId), anyInt())).thenReturn(quiescedContainer);
-        when(quiescedRepo.loadShardSnapshot(eq(quiescedContainer), eq(snapshot.getSnapshotId()))).thenReturn(quiescedShardSnapshot);
-        RestoreService.verifyReadOnlyRestoreSafety(
-            quiescedRepo,
-            snapshot,
-            indexId,
-            indexMetadata,
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersions.MINIMUM_READONLY_COMPATIBLE
-        );
-
-        // one shard with lcp < max_seq_no — should throw
-        var badShard = randomIntBetween(0, numberOfShards - 1);
-        var tornShardSnapshot = buildShardSnapshot(snapshot.getSnapshotId().getUUID(), 49L, 50L);
-        var safeShardSnapshot = buildShardSnapshot(snapshot.getSnapshotId().getUUID(), 42L, 42L);
-        var containers = new ArrayList<BlobContainer>(numberOfShards);
-        for (int i = 0; i < numberOfShards; i++) {
-            containers.add(mock(BlobContainer.class));
-        }
-        var tornRepo = mock(BlobStoreRepository.class);
-        when(tornRepo.shardContainer(eq(indexId), anyInt())).thenAnswer(invocation -> containers.get(invocation.<Integer>getArgument(1)));
-        for (int i = 0; i < numberOfShards; i++) {
-            final var shardSnap = (i == badShard) ? tornShardSnapshot : safeShardSnapshot;
-            when(tornRepo.loadShardSnapshot(eq(containers.get(i)), eq(snapshot.getSnapshotId()))).thenReturn(shardSnap);
-        }
-        var ex = expectThrows(
-            SnapshotRestoreException.class,
-            () -> RestoreService.verifyReadOnlyRestoreSafety(
-                tornRepo,
-                snapshot,
-                indexId,
-                indexMetadata,
-                IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersions.MINIMUM_READONLY_COMPATIBLE
-            )
-        );
-        assertThat(ex.getMessage(), containsString("was not quiesced"));
-        assertThat(ex.getMessage(), containsString("shard [" + badShard + "]"));
-        assertThat(ex.getMessage(), containsString("local_checkpoint=[49]"));
-        assertThat(ex.getMessage(), containsString("max_seq_no=[50]"));
     }
 
     /**

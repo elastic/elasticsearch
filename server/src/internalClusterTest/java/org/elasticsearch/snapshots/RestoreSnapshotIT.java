@@ -1199,8 +1199,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * Round-trip test for {@link RestoreService#readShardSnapshotCommitInfo}: index a known number of docs,
      * snapshot, then read the per-shard commit userdata directly from the repository and assert the exact
-     * {@code local_checkpoint} and {@code max_seq_no} values. Pins down that the helper used by
-     * {@link RestoreService#verifyReadOnlyRestoreSafety} reflects reality, not just the surrounding logic.
+     * {@code local_checkpoint} and {@code max_seq_no} values.
      */
     public void testLoadShardSnapshotCommitInfoReturnsExpectedSeqNos() throws Exception {
         final String indexName = "test-commit-info-index";

@@ -1831,68 +1831,6 @@ public final class RestoreService implements ClusterStateApplier {
     }
 
     /**
-     * Verifies that a read-only compatible index in a snapshot was quiesced when the snapshot was taken — i.e. every shard's
-     * Lucene commit has {@code local_checkpoint == max_seq_no}. This is the same invariant the add-block API enforces during
-     * a normal N-1 upgrade, and is required to safely auto-mark the restored index as {@code verified_read_only}.
-     * <p>
-     * Skipped for indices that don't need auto-marking; see {@link #needsReadOnlyRestorePreparation}. Throws
-     * {@link SnapshotRestoreException} on any violation, including when the repository can't be inspected
-     * (non-blob-store) or when shard userdata can't be read.
-     * <p>
-     * No longer called from the main restore path; retained for informational and future reference.
-     */
-    static void verifyReadOnlyRestoreSafety(
-        Repository repository,
-        Snapshot snapshot,
-        IndexId indexId,
-        IndexMetadata indexMetadata,
-        IndexVersion minIndexCompatibilityVersion,
-        IndexVersion minReadOnlyIndexCompatibilityVersion
-    ) {
-        if (needsReadOnlyRestorePreparation(indexMetadata, minIndexCompatibilityVersion, minReadOnlyIndexCompatibilityVersion) == false) {
-            return;
-        }
-        if (repository instanceof BlobStoreRepository == false) {
-            throw new SnapshotRestoreException(
-                snapshot,
-                "cannot verify read-only restore safety for index ["
-                    + indexId.getName()
-                    + "]: snapshot commit userdata can only be inspected on blob-store repositories"
-            );
-        }
-        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        final int numberOfShards = indexMetadata.getNumberOfShards();
-        for (int shardId = 0; shardId < numberOfShards; shardId++) {
-            final SequenceNumbers.CommitInfo commitInfo;
-            try {
-                commitInfo = readShardSnapshotCommitInfo(blobStoreRepository, indexId, shardId, snapshot.getSnapshotId());
-            } catch (Exception e) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "failed to read commit userdata for shard [" + shardId + "] of index [" + indexId.getName() + "]",
-                    e
-                );
-            }
-            if (commitInfo.localCheckpoint() != commitInfo.maxSeqNo()) {
-                throw new SnapshotRestoreException(
-                    snapshot,
-                    "cannot restore index ["
-                        + indexId.getName()
-                        + "] read-only: shard ["
-                        + shardId
-                        + "] was not quiesced when the snapshot was taken (local_checkpoint=["
-                        + commitInfo.localCheckpoint()
-                        + "], max_seq_no=["
-                        + commitInfo.maxSeqNo()
-                        + "]). To restore from this snapshot, restore it on a cluster running a version that fully supports "
-                        + "the source index, mark the index read-only via the add-index-block API, take a new snapshot, and "
-                        + "then restore that on this cluster."
-                );
-            }
-        }
-    }
-
-    /**
      * Reads the {@link SequenceNumbers#LOCAL_CHECKPOINT_KEY} and {@link SequenceNumbers#MAX_SEQ_NO} values from the
      * Lucene commit captured by a shard snapshot. No segment data files are downloaded — the small files Lucene needs
      * to construct {@code SegmentInfos} ({@code segments_N} and per-segment {@code .si} files) are already inlined in

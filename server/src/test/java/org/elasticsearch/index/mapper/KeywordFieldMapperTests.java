@@ -1776,6 +1776,23 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
+    public void testHighCardinalityRejectedForIndexSortField() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("cardinality: high"));
+        assertThat(e.getMessage(), containsString("host.name"));
+        assertThat(e.getMessage(), containsString("index sort field"));
+    }
+
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
         DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))

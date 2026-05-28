@@ -490,6 +490,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public KeywordFieldMapper build(MapperBuilderContext context) {
+            enforceIndexSortCompatibility(context.buildFullName(leafName()));
             FieldType fieldtype = resolveFieldType(forceDocValuesSkipper, context.buildFullName(leafName()));
             super.hasScript = script.get() != null;
             super.onScriptError = onScriptError.getValue();
@@ -551,6 +552,42 @@ public final class KeywordFieldMapper extends FieldMapper {
                 fieldtype = Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES;
             }
             return fieldtype;
+        }
+
+        /**
+         * Ensures that index sort fields don't use binary (non-sortable) doc values.
+         * If the default for a columnar index is HIGH cardinality, it is silently overridden to LOW.
+         * If the user explicitly configured HIGH cardinality, a {@link MapperParsingException} is thrown.
+         */
+        private void enforceIndexSortCompatibility(String fullFieldName) {
+            if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                return;
+            }
+            IndexSortConfig sortConfig = indexSettings.getIndexSortConfig();
+            if (sortConfig == null || sortConfig.hasIndexSort() == false || sortConfig.hasSortOnField(fullFieldName) == false) {
+                return;
+            }
+            DocValuesParameter.Values currentValues = docValuesParameters.getValue();
+            if (currentValues.cardinality() != DocValuesParameter.Values.Cardinality.HIGH) {
+                return;
+            }
+            boolean cardinalityExplicitlySet = docValuesParameters.cardinalityParameter.map(FieldMapper.Parameter::isSet).orElse(false);
+            if (cardinalityExplicitlySet) {
+                throw new MapperParsingException(
+                    "field ["
+                        + fullFieldName
+                        + "] cannot use [cardinality: high] because it is configured as an index sort field,"
+                        + " which requires sortable doc values"
+                );
+            }
+            // Default was HIGH (columnar mode) — override to LOW since sort fields require sortable doc values.
+            docValuesParameters.setValue(
+                new DocValuesParameter.Values(
+                    currentValues.enabled(),
+                    DocValuesParameter.Values.Cardinality.LOW,
+                    currentValues.multiValue()
+                )
+            );
         }
 
         private boolean shouldUseTimeSeriesSkipper() {

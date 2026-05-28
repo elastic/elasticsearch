@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.index.fielddata.DocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -27,10 +28,11 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITIO
 /**
  * Base class that reads fields from the source index and produces their downsampled values
  */
-abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer {
+abstract class AbstractFieldDownsampler<T extends DocValues> implements DownsampleFieldSerializer {
 
     private final String name;
     protected boolean isEmpty;
+    protected boolean isDone;
     protected final IndexFieldData<?> fieldData;
 
     AbstractFieldDownsampler(String name, IndexFieldData<?> fieldData) {
@@ -59,6 +61,13 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
     }
 
     /**
+     * @return true if the downsampled value for this field is already computed.
+     */
+    public boolean isDone() {
+        return isDone;
+    }
+
+    /**
      * @return the leaf reader that will retrieve the doc values for this field.
      */
     public abstract T getLeaf(LeafReaderContext context) throws IOException;
@@ -69,7 +78,26 @@ abstract class AbstractFieldDownsampler<T> implements DownsampleFieldSerializer 
      * @param docIdBuffer the doc ids for which we need to retrieve the field values
      * @throws IOException
      */
-    public abstract void collect(T docValues, IntArrayList docIdBuffer) throws IOException;
+    public void collect(T docValues, IntArrayList docIdBuffer) throws IOException {
+        if (isDone()) {
+            return;
+        }
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            isEmpty = false;
+            collectCurrentValues(docValues);
+        }
+    }
+
+    /**
+     * Collects the values for this field at the current doc id..
+     * @param docValues the doc values for this field
+     * @throws IOException
+     */
+    public abstract void collectCurrentValues(T docValues) throws IOException;
 
     /**
      * Create field downsamplers for the provided list of fields.

@@ -86,21 +86,14 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                int docValuesCount = docValues.docValueCount();
-                for (int j = 0; j < docValuesCount; j++) {
-                    double value = docValues.nextValue();
-                    this.max = Math.max(value, max);
-                    this.min = Math.min(value, min);
-                    sum.add(value);
-                    count++;
-                }
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                double value = docValues.nextValue();
+                this.max = Math.max(value, max);
+                this.min = Math.min(value, min);
+                sum.add(value);
+                count++;
             }
         }
 
@@ -139,19 +132,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
-        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId)) {
-                    isEmpty = false;
-                    lastValue = docValues.nextValue();
-                    return;
-                }
-            }
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+            lastValue = docValues.nextValue();
+            isDone = true;
         }
 
         public Double lastValue() {
@@ -208,43 +191,46 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 int docValuesCount = counterDocValues.docValueCount();
                 assert docValuesCount > 0;
                 isEmpty = false;
+                collectCurrentValues(counterDocValues, currentTimestamp);
+            }
+        }
 
-                var currentCounterValue = counterDocValues.nextValue();
-                // If this the first time we encounter a value for this tsid
-                if (Double.isNaN(previousValue)) {
-                    downsampledValue = currentCounterValue;
-                    previousValue = currentCounterValue;
-                    lastTimestamp = currentTimestamp;
-                    continue;
-                }
-
-                // when we detect a reset, (remember that field values are collected and sorted by descending order by time)
-                if (currentCounterValue > previousValue) {
-                    // We check if we need to persist the previous value too
-                    // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
-                    if (lastTimestamp > 0) {
-                        // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture the
-                        // reset or not.
-                        double lastPersisted = Double.NaN;
-                        if (resetStack.isEmpty() == false) {
-                            lastPersisted = resetStack.peek().value();
-                        } else if (Double.isNaN(previousBucketValue) == false) {
-                            lastPersisted = previousBucketValue;
-                        }
-                        // If there is no known last persisted value or the last persisted is larger than the current value,
-                        // we need to store the previous document to capture the reset.
-                        if (Double.isNaN(lastPersisted) || Double.compare(currentCounterValue, lastPersisted) < 0) {
-                            resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
-                        }
-                    }
-                    // This is the last value before reset, which we always need to persist
-                    resetStack.push(new CounterResetDataPoints.ResetPoint(currentTimestamp, currentCounterValue));
-                }
+        public void collectCurrentValues(SortedNumericDoubleValues counterDocValues, long timestamp) throws IOException {
+            var currentCounterValue = counterDocValues.nextValue();
+            // If this the first time we encounter a value for this tsid
+            if (Double.isNaN(previousValue)) {
                 downsampledValue = currentCounterValue;
                 previousValue = currentCounterValue;
-                assert lastTimestamp == -1 || currentTimestamp < lastTimestamp;
-                lastTimestamp = currentTimestamp;
+                lastTimestamp = timestamp;
+                return;
             }
+
+            // when we detect a reset, (remember that field values are collected and sorted by descending order by time)
+            if (currentCounterValue > previousValue) {
+                // We check if we need to persist the previous value too
+                // If timestamp -1 means that the previous value is already persisted by a previous bucket, nothing extra to persist
+                if (lastTimestamp > 0) {
+                    // If we have a previous value in this bucket, we need to see if the last persisted value is enough to capture the
+                    // reset or not.
+                    double lastPersisted = Double.NaN;
+                    if (resetStack.isEmpty() == false) {
+                        lastPersisted = resetStack.peek().value();
+                    } else if (Double.isNaN(previousBucketValue) == false) {
+                        lastPersisted = previousBucketValue;
+                    }
+                    // If there is no known last persisted value or the last persisted is larger than the current value,
+                    // we need to store the previous document to capture the reset.
+                    if (Double.isNaN(lastPersisted) || Double.compare(currentCounterValue, lastPersisted) < 0) {
+                        resetStack.push(new CounterResetDataPoints.ResetPoint(lastTimestamp, previousValue));
+                    }
+                }
+                // This is the last value before reset, which we always need to persist
+                resetStack.push(new CounterResetDataPoints.ResetPoint(timestamp, currentCounterValue));
+            }
+            downsampledValue = currentCounterValue;
+            previousValue = currentCounterValue;
+            assert lastTimestamp == -1 || timestamp < lastTimestamp;
+            lastTimestamp = timestamp;
         }
 
         public void reset() {
@@ -270,6 +256,11 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+            throw new UnsupportedOperationException("This producer should never be called without timestamps");
+        }
+
+        @Override
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
 

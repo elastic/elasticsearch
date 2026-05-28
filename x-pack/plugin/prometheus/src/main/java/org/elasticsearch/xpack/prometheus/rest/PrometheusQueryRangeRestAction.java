@@ -19,15 +19,13 @@ import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
- * REST handler for the Prometheus {@code GET /api/v1/query_range} endpoint.
+ * REST handler for the Prometheus {@code GET} and {@code POST /api/v1/query_range} endpoint.
  * Translates Prometheus query_range parameters into an ES|QL PromqlCommand logical plan,
  * executes it, and converts the result into the Prometheus matrix JSON format.
- * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
- * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
- * {@code RestController#isContentTypeDisallowed}.
  *
  * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#range-queries">Prometheus Range Queries API</a>
  */
@@ -48,7 +46,17 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/query_range"), new Route(GET, "/_prometheus/{index}/api/v1/query_range"));
+        return List.of(
+            new Route(GET, "/_prometheus/api/v1/query_range"),
+            new Route(POST, "/_prometheus/api/v1/query_range"),
+            new Route(GET, "/_prometheus/{index}/api/v1/query_range"),
+            new Route(POST, "/_prometheus/{index}/api/v1/query_range")
+        );
+    }
+
+    @Override
+    public boolean supportsReadOnlyFormEncodedPostBody() {
+        return true;
     }
 
     @Override

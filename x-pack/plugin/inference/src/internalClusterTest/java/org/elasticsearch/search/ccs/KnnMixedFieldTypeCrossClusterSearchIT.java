@@ -204,7 +204,7 @@ public class KnnMixedFieldTypeCrossClusterSearchIT extends AbstractSemanticCross
             case 0 -> new InferenceStringGroup(randomAlphaOfLength(10));
             case 1 -> new InferenceStringGroup(new InferenceString(DataType.IMAGE, base64Image));
             case 2 -> new InferenceStringGroup(
-                List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(5)), new InferenceString(DataType.IMAGE, base64Image))
+                List.of(InferenceString.ofText(randomAlphaOfLength(5)), new InferenceString(DataType.IMAGE, base64Image))
             );
             default -> throw new IllegalStateException("unexpected random value");
         };

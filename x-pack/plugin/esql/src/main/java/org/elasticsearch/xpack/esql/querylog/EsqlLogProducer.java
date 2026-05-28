@@ -19,6 +19,7 @@ import java.util.Optional;
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
+    public static final String FILTER_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.filter";
 
     @Override
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
@@ -35,6 +36,8 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
+        context.getFilter().ifPresent(filter -> msg.field(FILTER_FIELD, filter));
+
         // Query-level rollup counters from the response root, surfaced unconditionally so the slow
         // log carries the same I/O / row / CPU cost signal that {@code profile=true} would show
         // under the top-level {@code profile.*} keys. Field names mirror the JSON profile so log

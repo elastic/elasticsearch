@@ -82,7 +82,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
 import static org.elasticsearch.inference.DataType.PDF;
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
@@ -932,13 +931,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.rerankInfer(
                 model,
-                new RerankRequest(
-                    fromStringList(List.of("candidate1", "candidate2")),
-                    new InferenceString(TEXT, "query"),
-                    null,
-                    null,
-                    null
-                ),
+                new RerankRequest(fromStringList(List.of("candidate1", "candidate2")), InferenceString.ofText("query"), null, null, null),
                 null,
                 listener
             );
@@ -1070,7 +1063,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1149,7 +1142,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3", "candidate4")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1240,7 +1233,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null
@@ -1317,7 +1310,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var request = new RerankRequest(
                 fromStringList(List.of("candidate1", "candidate2", "candidate3", "candidate4")),
-                new InferenceString(TEXT, "query"),
+                InferenceString.ofText("query"),
                 null,
                 null,
                 null

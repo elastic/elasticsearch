@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,6 +51,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 public class Contains extends EsqlScalarFunction implements OptionalArgument, TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Contains", Contains::new);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Contains.class).binary(Contains::new).name("contains");
+
+    /**
+     * Gate for rewriting {@code LIKE "*literal*"} into {@link Contains} (see {@code ReplaceRegexMatch}). Only safe when every node
+     * in the query — including remote clusters — both knows the {@code Contains} {@link #ENTRY} and implements
+     * {@link TranslationAware} on it. Older nodes either lack {@code Contains} entirely (8.19) or carry a non-{@code TranslationAware}
+     * {@code Contains} (9.3/9.4) that silently drops the {@code _index} pushdown semantics, so the rewrite must stay version-gated.
+     */
+    public static final TransportVersion LIKE_TO_CONTAINS_VERSION = TransportVersion.fromName("esql_like_to_contains");
 
     private final Expression str;
     private final Expression substr;

@@ -1025,12 +1025,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     );
 
     private static final Pattern LIMIT_BY_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*LIMIT\\s+\\S+\\s+BY\\b");
+    private static final Pattern DEDUP_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*DEDUP\\b");
 
     /**
      * See https://github.com/elastic/elasticsearch/issues/148513
      * <p>
      * The same root cause manifests as either {@code LimitBy[...]} (no upstream SORT) or {@code TopNBy[...]}
-     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy).
+     * (when an upstream SORT gets combined with the LIMIT BY into a TopNBy). DEDUP uses the same LimitBy
+     * plan internally, so it has the same missing-reference failure after MV_EXPAND.
      */
     static boolean isLimitByMvExpandBug(String errorMessage, String query) {
         if (errorMessage == null || query == null) {
@@ -1039,7 +1041,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (OPTIMIZED_INCORRECTLY_LIMITBY_PATTERN.matcher(errorMessage).matches() == false) {
             return false;
         }
-        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find() && LIMIT_BY_COMMAND_PATTERN.matcher(query).find();
+        return MV_EXPAND_COMMAND_PATTERN.matcher(query).find()
+            && (LIMIT_BY_COMMAND_PATTERN.matcher(query).find() || DEDUP_COMMAND_PATTERN.matcher(query).find());
     }
 
     private static final Pattern INLINE_STATS_COMMAND_PATTERN = Pattern.compile("(?i)\\|\\s*INLINE\\s+STATS\\b");

@@ -228,7 +228,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
     }
 
     @Override
-    public B filter(boolean mayContainDuplicates, int... positions) {
+    public B filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         var allocator = blockFactory.arrowAllocator();
         int size = byteSize();
 
@@ -240,9 +240,9 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             ArrowBuf newValidity = null;
             boolean success = false;
             try {
-                newValues = allocator.buffer((long) positions.length * size);
+                newValues = allocator.buffer((long) length * size);
                 if (validityBuffer != null) {
-                    newValidity = allocator.buffer(validityBufferLength(positions.length));
+                    newValidity = allocator.buffer(validityBufferLength(length));
                     newValidity.setZero(0, newValidity.capacity());
                 }
                 success = true;
@@ -253,21 +253,21 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
             }
 
             // Copy values
-            for (int i = 0; i < positions.length; i++) {
-                int pos = positions[i];
+            for (int i = 0; i < length; i++) {
+                int pos = positions[offset + i];
                 newValues.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
                 if (newValidity != null && isNull(pos) == false) {
                     setValidityBit(newValidity, i);
                 }
             }
 
-            return blockConstructor().create(newValues, newValidity, null, positions.length, 0, blockFactory);
+            return blockConstructor().create(newValues, newValidity, null, length, 0, blockFactory);
         }
 
         // ----- Multivalued block
         int totalValues = 0;
-        for (int pos : positions) {
-            totalValues += getValueCount(pos);
+        for (int i = offset, end = offset + length; i < end; i++) {
+            totalValues += getValueCount(positions[i]);
         }
 
         // Allocate buffers
@@ -283,7 +283,7 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
                 newValidity.setZero(0, newValidity.capacity());
             }
             // 32-bit offsets
-            newOffsets = allocator.buffer((long) (positions.length + 1) * Integer.BYTES);
+            newOffsets = allocator.buffer((long) (length + 1) * Integer.BYTES);
             success = true;
         } finally {
             if (success == false) {
@@ -292,8 +292,8 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
         }
 
         int valueIdx = 0;
-        for (int i = 0; i < positions.length; i++) {
-            int pos = positions[i];
+        for (int i = 0; i < length; i++) {
+            int pos = positions[offset + i];
             newOffsets.setInt((long) i * Integer.BYTES, valueIdx);
             if (isNull(pos) == false) {
                 if (newValidity != null) {
@@ -307,9 +307,9 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
                 }
             }
         }
-        newOffsets.setInt((long) positions.length * Integer.BYTES, valueIdx);
+        newOffsets.setInt((long) length * Integer.BYTES, valueIdx);
 
-        return blockConstructor().create(newValues, newValidity, newOffsets, positions.length, positions.length + 1, blockFactory);
+        return blockConstructor().create(newValues, newValidity, newOffsets, length, length + 1, blockFactory);
     }
 
     @SuppressWarnings("unchecked")

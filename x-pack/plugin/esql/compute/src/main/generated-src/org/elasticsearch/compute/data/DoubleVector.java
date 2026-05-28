@@ -38,7 +38,12 @@ public sealed interface DoubleVector extends Vector permits ConstantDoubleVector
     DoubleBlock asBlock();
 
     @Override
-    DoubleVector filter(boolean mayContainDuplicates, int... positions);
+    DoubleVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default DoubleVector filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     @Override
     DoubleBlock keepMask(BooleanVector mask);

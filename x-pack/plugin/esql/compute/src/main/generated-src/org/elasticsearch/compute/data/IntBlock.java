@@ -102,7 +102,12 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     }
 
     @Override
-    IntBlock filter(boolean mayContainDuplicates, int... positions);
+    IntBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length);
+
+    @Override
+    default IntBlock filter(boolean mayContainDuplicates, int... positions) {
+        return filter(mayContainDuplicates, positions, 0, positions.length);
+    }
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

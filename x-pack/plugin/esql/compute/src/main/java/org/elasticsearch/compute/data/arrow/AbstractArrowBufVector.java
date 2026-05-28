@@ -122,15 +122,15 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     }
 
     @Override
-    public V filter(boolean mayContainDuplicates, int... positions) {
+    public V filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
         final var allocator = blockFactory.arrowAllocator();
         final int size = byteSize();
-        final var buffer = allocator.buffer((long) positions.length * size);
-        for (int i = 0; i < positions.length; i++) {
-            int pos = positions[i];
+        final var buffer = allocator.buffer((long) length * size);
+        for (int i = 0; i < length; i++) {
+            int pos = positions[offset + i];
             buffer.setBytes((long) i * size, valueBuffer, (long) pos * size, size);
         }
-        return vectorConstructor().create(buffer, positions.length, blockFactory);
+        return vectorConstructor().create(buffer, length, blockFactory);
     }
 
     // TODO

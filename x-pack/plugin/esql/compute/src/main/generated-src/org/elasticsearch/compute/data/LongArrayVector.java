@@ -98,9 +98,10 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     }
 
     @Override
-    public LongVector filter(boolean mayContainDuplicates, int... positions) {
-        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public LongVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (LongVector.Builder builder = blockFactory().newLongVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendLong(values[pos]);
             }
             return builder.build();

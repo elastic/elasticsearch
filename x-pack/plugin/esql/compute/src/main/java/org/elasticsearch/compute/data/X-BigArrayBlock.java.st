@@ -120,9 +120,10 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
-        try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public $Type$Block filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().new$Type$BlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

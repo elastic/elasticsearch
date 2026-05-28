@@ -120,9 +120,10 @@ public final class BooleanArrayBlock extends AbstractArrayBlock implements Boole
     }
 
     @Override
-    public BooleanBlock filter(boolean mayContainDuplicates, int... positions) {
-        try (var builder = blockFactory().newBooleanBlockBuilder(positions.length)) {
-            for (int pos : positions) {
+    public BooleanBlock filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (var builder = blockFactory().newBooleanBlockBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 if (isNull(pos)) {
                     builder.appendNull();
                     continue;

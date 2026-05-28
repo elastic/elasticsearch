@@ -99,9 +99,10 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
-    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
-        try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(positions.length)) {
-            for (int pos : positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(length)) {
+            for (int i = offset, end = offset + length; i < end; i++) {
+                int pos = positions[i];
                 builder.appendBoolean(values[pos]);
             }
             return builder.build();

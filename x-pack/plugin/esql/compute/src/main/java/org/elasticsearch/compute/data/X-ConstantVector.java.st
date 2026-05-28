@@ -90,8 +90,8 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
-        return blockFactory().newConstant$Type$Vector(value, positions.length);
+    public $Type$Vector filter(boolean mayContainDuplicates, int[] positions, int offset, int length) {
+        return blockFactory().newConstant$Type$Vector(value, length);
     }
 
     @Override

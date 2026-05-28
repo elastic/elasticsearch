@@ -132,7 +132,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             }
 
         }, e -> {
-            logger.warn("Failed to create audit index [{}] after retries, will retry on next audit message", auditIndexWriteAlias, e);
+            logger.atWarn()
+                .withThrowable(e)
+                .log("Failed to create audit index [{}] after retries, will retry on next audit message", auditIndexWriteAlias);
             indexAndAliasCreationInProgress.set(false);
         });
 

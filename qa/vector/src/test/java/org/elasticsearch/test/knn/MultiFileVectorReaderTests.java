@@ -72,12 +72,8 @@ public class MultiFileVectorReaderTests extends ESTestCase {
         ) {
             assertEquals(3, reader.dim());
             assertEquals(2, reader.totalDocs());
-            var ov0 = reader.nextFloatVector();
-            var ov1 = reader.nextFloatVector();
-            assertEquals(0, ov0.ordinal());
-            assertEquals(1, ov1.ordinal());
-            assertArrayEquals(vectors[0], ov0.vector(), 0f);
-            assertArrayEquals(vectors[1], ov1.vector(), 0f);
+            assertArrayEquals(vectors[0], reader.nextFloatVector().vector(), 0f);
+            assertArrayEquals(vectors[1], reader.nextFloatVector().vector(), 0f);
         }
     }
 

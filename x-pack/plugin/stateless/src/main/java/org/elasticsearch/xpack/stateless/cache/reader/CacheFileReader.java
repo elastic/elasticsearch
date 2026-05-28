@@ -13,6 +13,7 @@ import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheMetrics.PrefetchResult;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
@@ -55,7 +56,10 @@ import static org.elasticsearch.xpack.stateless.StatelessPlugin.GET_VIRTUAL_BATC
  */
 public class CacheFileReader {
 
+    public static final FeatureFlag OBJECT_STORE_PREFETCH_FEATURE_FLAG = new FeatureFlag("stateless_object_store_prefetch");
+
     private static final Logger logger = LogManager.getLogger(CacheFileReader.class);
+
     private static final Map<String, Object> BLOB_POPULATION_SOURCE_ATTRIBUTES = Map.of(
         CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
         CachePopulationSource.BlobStore.name()
@@ -89,15 +93,17 @@ public class CacheFileReader {
     // region-aligned range, excluding boundary regions shared with adjacent files.
     private final long exclusiveStart;
     private final long exclusiveEnd;
+    private final boolean hasSearchRole;
 
     public CacheFileReader(
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier
+        LongSupplier relativeTimeInMillisSupplier,
+        boolean hasSearchRole
     ) {
-        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, 0, SharedBytes.MADV_NORMAL, 0, 0);
+        this(cacheFile, cacheBlobReader, blobFileRanges, blobCacheMetrics, relativeTimeInMillisSupplier, 0, SharedBytes.MADV_NORMAL, 0, 0, hasSearchRole);
     }
 
     /**
@@ -113,7 +119,8 @@ public class CacheFileReader {
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInMillisSupplier,
         int regionSize,
-        IOContext context
+        IOContext context,
+        boolean hasSearchRole
     ) {
         this(
             cacheFile,
@@ -124,7 +131,8 @@ public class CacheFileReader {
             regionSize,
             contextToAdvice(context),
             0,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            hasSearchRole
         );
     }
 
@@ -137,7 +145,8 @@ public class CacheFileReader {
         int regionSize,
         int desiredAdvice,
         long exclusiveStart,
-        long exclusiveEnd
+        long exclusiveEnd,
+        boolean hasSearchRole
     ) {
         this.cacheFile = Objects.requireNonNull(cacheFile);
         this.cacheBlobReader = Objects.requireNonNull(cacheBlobReader);
@@ -148,6 +157,7 @@ public class CacheFileReader {
         this.desiredMAdvice = desiredAdvice;
         this.exclusiveStart = exclusiveStart;
         this.exclusiveEnd = exclusiveEnd;
+        this.hasSearchRole = hasSearchRole;
     }
 
     /**
@@ -163,7 +173,8 @@ public class CacheFileReader {
             regionSize,
             desiredMAdvice,
             exclusiveStart,
-            exclusiveEnd
+            exclusiveEnd,
+            hasSearchRole
         );
     }
 
@@ -197,7 +208,8 @@ public class CacheFileReader {
             regionSize,
             advice,
             exclStart,
-            exclEnd
+            exclEnd,
+            hasSearchRole
         );
     }
 
@@ -255,19 +267,64 @@ public class CacheFileReader {
     /**
      * Attempts to prefetch byte(s) from the local cache using the fast path.
      *
-     * <p>This method is best-effort and non-blocking. It only attempts to
-     * prefetch data that is already present in the local cache and may
-     * bring it into memory. If the fast path cannot be used, this method
-     * returns {@code false} and no prefetching is performed.</p>
+     * <p>If the data is not in the cache and {@link #OBJECT_STORE_PREFETCH_FEATURE_FLAG} is enabled,
+     * schedules an asynchronous download from the object store so that subsequent reads may find the
+     * data already cached. Otherwise this method is best-effort and non-blocking, only succeeding
+     * when the data is already present in the local cache.</p>
      *
      * @param offset the starting offset to prefetch from
      * @param length the number of bytes to prefetch
      * @return {@code true} if the fast-path prefetch succeeded,
-     *         {@code false} otherwise
+     *         {@code false} otherwise (async download may have been scheduled)
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryPrefetch(long offset, long length) throws IOException {
-        return cacheFile.tryPrefetch(offset, length);
+        if (OBJECT_STORE_PREFETCH_FEATURE_FLAG.isEnabled() == false) {
+            return cacheFile.tryPrefetch(offset, length);
+        }
+        final long blobLength = cacheFile.getLength();
+        // return when there is nothing to prefetch
+        if (offset < 0 || offset >= blobLength || length <= 0) {
+            return false;
+        }
+        final long remainingFileLength = blobLength - offset;
+        final long clampedLength = Math.min(length, remainingFileLength);
+        if (cacheFile.tryPrefetch(offset, clampedLength)) {
+            blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
+            return true;
+        }
+        if (hasSearchRole) {
+            final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
+            // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
+            // however read range must stay within file length
+            final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+            final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
+            cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
+                channel.prefetch(channelPos, len);
+                return len;
+            },
+                new SequentialRangeMissingHandler(
+                    "lucene-prefetch",
+                    cacheFile.getCacheKey().fileName(),
+                    rangeToWrite,
+                    cacheBlobReader,
+                    () -> writeBuffer.get().clear(),
+                    bytesCopied -> {},
+                    // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
+                    // it issues a transport call and completes the listener on a different pool.
+                    cacheBlobReader.executorName(),
+                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                ),
+                "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
+                ActionListener.wrap(v -> {
+                    blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+                }, e -> {
+                    blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+                    logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+                })
+            );
+        }
+        return false;
     }
 
     /**

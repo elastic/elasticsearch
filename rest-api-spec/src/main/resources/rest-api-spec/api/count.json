@@ -116,6 +116,10 @@
       "terminate_after": {
         "type": "long",
         "description": "The maximum count for each shard, upon reaching which the query execution will terminate early"
+      },
+      "stats": {
+        "type": "list",
+        "description": "Specific 'tag' of the request for logging and statistical purposes"
       }
     },
     "body": {

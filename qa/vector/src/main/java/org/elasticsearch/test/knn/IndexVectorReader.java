@@ -34,7 +34,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.knn.KnnIndexTester.logger;
 
@@ -69,7 +68,8 @@ public interface IndexVectorReader extends Closeable {
         private final int totalDocs;
         private final int dim;
         private final boolean normalizeVectors;
-        private final AtomicInteger ordinalCounter = new AtomicInteger();
+        // guarded by synchronized nextFloatVector/nextByteVector
+        private int nextOrdinal;
         private int currentReaderIdx;
         private int docsReadFromCurrent;
 
@@ -171,10 +171,7 @@ public interface IndexVectorReader extends Closeable {
 
         @Override
         public synchronized OrdinalVector<float[]> nextFloatVector() throws IOException {
-            int ordinal = ordinalCounter.getAndIncrement();
-            if (ordinal >= totalDocs) {
-                return new OrdinalVector<>(ordinal, new float[dim]);
-            }
+            int ordinal = nextOrdinal++;
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             float[] dest = new float[dim];
@@ -187,10 +184,7 @@ public interface IndexVectorReader extends Closeable {
 
         @Override
         public synchronized OrdinalVector<byte[]> nextByteVector() throws IOException {
-            int ordinal = ordinalCounter.getAndIncrement();
-            if (ordinal >= totalDocs) {
-                return new OrdinalVector<>(ordinal, new byte[dim]);
-            }
+            int ordinal = nextOrdinal++;
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             byte[] dest = new byte[dim];
@@ -275,7 +269,8 @@ public interface IndexVectorReader extends Closeable {
         private final Random random;
         private final int dimensions;
         private final boolean normalizeVectors;
-        private final AtomicInteger ordinalCounter = new AtomicInteger();
+        // guarded by synchronized nextFloatVector/nextByteVector
+        private int nextOrdinal;
 
         public RandomVectorReader(long seed, int dimensions, boolean normalizeVectors) {
             this.random = new Random(seed);
@@ -285,7 +280,7 @@ public interface IndexVectorReader extends Closeable {
 
         @Override
         public synchronized OrdinalVector<float[]> nextFloatVector() {
-            int ordinal = ordinalCounter.getAndIncrement();
+            int ordinal = nextOrdinal++;
             float[] vector = new float[dimensions];
             for (int i = 0; i < dimensions; i++) {
                 vector[i] = random.nextFloat() * 2 - 1; // uniform in [-1, 1]
@@ -298,7 +293,7 @@ public interface IndexVectorReader extends Closeable {
 
         @Override
         public synchronized OrdinalVector<byte[]> nextByteVector() {
-            int ordinal = ordinalCounter.getAndIncrement();
+            int ordinal = nextOrdinal++;
             byte[] vector = new byte[dimensions];
             random.nextBytes(vector);
             return new OrdinalVector<>(ordinal, vector);

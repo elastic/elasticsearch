@@ -1,5 +1,0 @@
-area: Snapshot/Restore
-issues: []
-pr: 142468
-summary: Reduce memory usage of `TransportGetSnapshotsAction`
-type: enhancement

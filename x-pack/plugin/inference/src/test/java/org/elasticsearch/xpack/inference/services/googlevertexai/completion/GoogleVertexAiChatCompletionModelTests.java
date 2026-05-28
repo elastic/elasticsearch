@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -270,6 +271,29 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static GoogleVertexAiChatCompletionModel createCompletionModel(
+        String projectId,
+        String location,
+        String modelId,
+        String apiKey,
+        RateLimitSettings rateLimitSettings,
+        ThinkingConfig thinkingConfig,
+        GoogleModelGardenProvider provider,
+        URI uri,
+        Integer maxTokens,
+        String authHeaderValue
+    ) {
+        return new GoogleVertexAiChatCompletionModel(
+            "google-vertex-ai-chat-test-id",
+            TaskType.CHAT_COMPLETION,
+            "google_vertex_ai",
+            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
+            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
+            new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 

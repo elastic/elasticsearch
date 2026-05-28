@@ -113,8 +113,8 @@ record ModelStrategyFactory(ServiceComponents serviceComponents) {
                 model,
                 RERANK_HANDLER,
                 (rerankInput) -> new ElasticInferenceServiceRerankRequest(
-                    rerankInput.getQuery(),
-                    rerankInput.getChunks(),
+                    rerankInput.getQueryAsString(),
+                    rerankInput.getDocsAsStrings(),
                     rerankInput.getTopN(),
                     model,
                     traceContext,

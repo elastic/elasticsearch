@@ -959,6 +959,30 @@ public class BasicBlockTests extends ESTestCase {
         }
     }
 
+    public void testDirectBytesRefVector() {
+        byte[] bytes = new byte[10 * 1024];
+        int positionCount = between(100, 500);
+        int[] offsets = new int[positionCount + 1];
+        int offset = 0;
+        try (var builder = blockFactory.newBytesRefVectorBuilder(positionCount)) {
+            offsets[0] = offset;
+            for (int p = 0; p < positionCount; p++) {
+                byte[] values = randomByteArrayOfLength(between(5, 10));
+                System.arraycopy(values, 0, bytes, offset, values.length);
+                builder.appendBytesRef(new BytesRef(values));
+                offset += values.length;
+                offsets[p + 1] = offset;
+            }
+            try (var vector1 = builder.build(); var vector2 = blockFactory.newDirectBytesRefVector(bytes, offsets, positionCount)) {
+                BytesRef scratch1 = new BytesRef();
+                BytesRef scratch2 = new BytesRef();
+                for (int p = 0; p < positionCount; p++) {
+                    assertThat(vector1.getBytesRef(p, scratch1), equalTo(vector2.getBytesRef(p, scratch2)));
+                }
+            }
+        }
+    }
+
     public void testBooleanBlock() {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);

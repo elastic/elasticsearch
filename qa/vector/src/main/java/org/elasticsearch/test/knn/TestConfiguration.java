@@ -65,6 +65,7 @@ public record TestConfiguration(
     VectorSimilarityFunction vectorSpace,
     boolean normalizeVectors,
     Integer quantizeBits,
+    Integer queryQuantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
     KnnIndexTester.MergePolicyType mergePolicy,
@@ -79,8 +80,7 @@ public record TestConfiguration(
     int flatVectorThreshold,
     int secondaryClusterSize,
     String directoryType,
-    DatasetConfig datasetConfig,
-    boolean skipRecall
+    DatasetConfig datasetConfig
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -106,6 +106,7 @@ public record TestConfiguration(
     static final ParseField FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD = new ParseField("force_merge_max_num_segments");
     static final ParseField VECTOR_SPACE_FIELD = new ParseField("vector_space");
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
+    static final ParseField QUERY_QUANTIZE_BITS_FIELD = new ParseField("query_quantize_bits");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
@@ -122,8 +123,6 @@ public record TestConfiguration(
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
-    static final ParseField SKIP_RECALL_FIELD = new ParseField("skip_recall");
-
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
      * We configure the Java heap size for this tool in {@code build.gradle}; currently we default to 16GB, so in that case
@@ -165,6 +164,12 @@ public record TestConfiguration(
             QUANTIZE_BITS_FIELD,
             ObjectParser.ValueType.INT_OR_NULL
         );
+        PARSER.declareField(
+            Builder::setQueryQuantizeBits,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            QUERY_QUANTIZE_BITS_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
         PARSER.declareFieldArray(
@@ -188,7 +193,6 @@ public record TestConfiguration(
         PARSER.declareInt(Builder::setFlatVectorThreshold, FLAT_VECTOR_THRESHOLD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
         PARSER.declareString(Builder::setDirectoryType, DIRECTORY_TYPE_FIELD);
-        PARSER.declareBoolean(Builder::setSkipRecall, SKIP_RECALL_FIELD);
     }
 
     public int numberOfSearchRuns() {
@@ -235,6 +239,12 @@ public record TestConfiguration(
                     + "If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
             ),
             new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
+            new ParameterHelp(
+                "query_quantize_bits",
+                "int",
+                "Optional IVF query quantization bits. For quantize_bits=1, use 1 for symmetric 1-bit query "
+                    + "(default when omitted is 4-bit asymmetric query)."
+            ),
             new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
             new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
             new ParameterHelp("merge_policy", "string", "Merge policy: tiered, log_byte, log_doc, or no."),
@@ -263,8 +273,7 @@ public record TestConfiguration(
                 "directory_type",
                 "string",
                 "Directory type: default (mmap), frozen (searchable snapshot), or custom types registered by external wrappers."
-            ),
-            new ParameterHelp("skip_recall", "boolean", "Skip brute-force exact NN computation and recall checking; useful for QPS-only runs.")
+            )
         );
 
         int[] lengths = new int[] { "parameter".length(), "type".length(), "description".length() };
@@ -392,6 +401,7 @@ public record TestConfiguration(
         private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace;
         private Integer quantizeBits = null;
+        private Integer queryQuantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
@@ -409,8 +419,6 @@ public record TestConfiguration(
         private int secondaryClusterSize = -1;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
-        private boolean skipRecall = false;
-
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
          * disabled by default (writer flushes by RAM usage).
@@ -545,6 +553,11 @@ public record TestConfiguration(
             return this;
         }
 
+        public Builder setQueryQuantizeBits(Integer queryQuantizeBits) {
+            this.queryQuantizeBits = queryQuantizeBits;
+            return this;
+        }
+
         public Builder setVectorEncoding(String vectorEncoding) {
             this.vectorEncoding = KnnIndexTester.VectorEncoding.valueOf(vectorEncoding.toUpperCase(Locale.ROOT));
             return this;
@@ -622,11 +635,6 @@ public record TestConfiguration(
 
         public Builder setDirectoryType(String directoryType) {
             this.directoryType = directoryType.toLowerCase(Locale.ROOT);
-            return this;
-        }
-
-        public Builder setSkipRecall(boolean skipRecall) {
-            this.skipRecall = skipRecall;
             return this;
         }
 
@@ -891,6 +899,7 @@ public record TestConfiguration(
                 vectorSpace,
                 normalizeVectors,
                 quantizeBits,
+                queryQuantizeBits,
                 vectorEncoding,
                 dimensions,
                 mergePolicy,
@@ -905,8 +914,7 @@ public record TestConfiguration(
                 flatVectorThreshold,
                 secondaryClusterSize,
                 directoryType,
-                datasetConfig,
-                skipRecall
+                datasetConfig
             );
         }
 
@@ -947,6 +955,9 @@ public record TestConfiguration(
             if (quantizeBits != null) {
                 builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
             }
+            if (queryQuantizeBits != null) {
+                builder.field(QUERY_QUANTIZE_BITS_FIELD.getPreferredName(), queryQuantizeBits);
+            }
             builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
             builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
             builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
@@ -965,9 +976,6 @@ public record TestConfiguration(
             }
             builder.field(FLAT_VECTOR_THRESHOLD.getPreferredName(), flatVectorThreshold);
             builder.field(DIRECTORY_TYPE_FIELD.getPreferredName(), directoryType);
-            if (skipRecall) {
-                builder.field(SKIP_RECALL_FIELD.getPreferredName(), true);
-            }
             return builder.endObject();
         }
 

@@ -64,6 +64,6 @@ public class RestXPackUsageAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Sets.union(super.supportedCapabilities(), Set.of("global_retention_telemetry"));
+        return Sets.union(super.supportedCapabilities(), Set.of("global_retention_telemetry", "logging_usage"));
     }
 }

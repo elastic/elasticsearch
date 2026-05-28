@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -17,9 +18,9 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -270,25 +271,8 @@ public class FlattenedFieldSyntheticWriterHelper {
         void writeValue(XContentBuilder b, KeyValueWithOffset value, KeyValueWithOffset next) throws IOException;
     }
 
-    public enum OutputStructure {
-        /** Writes each key using its full dotted path as a single field name with no nested objects. */
-        FLATTENED(FlatFlattenedPathXContentWriter::new),
-        /** Reconstructs nested objects by splitting keys on {@code .} and tracking open object scopes. */
-        NESTED(NestedFlattenedPathXContentWriter::new);
-
-        private final Supplier<FlattenedPathXContentWriter> writerSupplier;
-
-        OutputStructure(Supplier<FlattenedPathXContentWriter> writerSupplier) {
-            this.writerSupplier = writerSupplier;
-        }
-
-        private FlattenedPathXContentWriter getWriter() {
-            return writerSupplier.get();
-        }
-    }
-
     /**
-     * {@link FlattenedPathXContentWriter} implementation for {@link OutputStructure#NESTED} that splits each key on
+     * {@link FlattenedPathXContentWriter} implementation that splits each key on
      * {@code .} and opens {@link XContentBuilder} object scopes to reconstruct nested structure from sorted path segments.
      * <p>
      * It keeps track of which object levels are open and how far into the current path each field belongs, and uses
@@ -332,8 +316,8 @@ public class FlattenedFieldSyntheticWriterHelper {
     }
 
     /**
-     * {@link FlattenedPathXContentWriter} implementation for {@link OutputStructure#FLATTENED} that writes each
-     * key with its full dotted path as a single top-level field name, without opening nested objects.
+     * {@link FlattenedPathXContentWriter} implementation that writes each key with its full dotted path as a single
+     * top-level field name, without opening nested objects.
      * <p>
      * Unlike {@link NestedFlattenedPathXContentWriter}, it does not split paths on {@code .} or track open object
      * scopes; {@code next} is ignored because flattening is stateless.
@@ -359,10 +343,16 @@ public class FlattenedFieldSyntheticWriterHelper {
 
     private final SortedKeyedValues sortedKeyedValues;
     private final SortedOffsetValues sortedOffsetValues;
+    private final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFields;
 
-    public FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues, final SortedOffsetValues sortedOffsetValues) {
+    public FlattenedFieldSyntheticWriterHelper(
+        final SortedKeyedValues sortedKeyedValues,
+        final SortedOffsetValues sortedOffsetValues,
+        final List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFields
+    ) {
         this.sortedKeyedValues = sortedKeyedValues;
         this.sortedOffsetValues = sortedOffsetValues;
+        this.sortedSubFields = sortedSubFields;
     }
 
     private static String concatPath(Prefix prefix, String leaf) {
@@ -374,16 +364,49 @@ public class FlattenedFieldSyntheticWriterHelper {
         return builder.toString();
     }
 
-    public void write(final XContentBuilder b, OutputStructure output) throws IOException {
-        var producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
-        var writer = output.getWriter();
+    /**
+     * Writes all key-value pairs from doc values using a flat output structure, merging in
+     * the sub-field loaders supplied at construction time in alphabetical order.
+     * <p>
+     * Both the doc-values key stream and the sub-field list are in ascending lexicographic order;
+     * the two streams are merged in a single pass so all keys appear in sorted order. The flat
+     * writer is stateless (no object-scope tracking), making interleaving safe at any point.
+     */
+    public void writeFlattened(final XContentBuilder b) throws IOException {
+        KeyValueProducer producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
+        FlatFlattenedPathXContentWriter flatWriter = new FlatFlattenedPathXContentWriter();
+        int subIdx = 0;
+        KeyValueWithOffset curr = producer.next();
+        while (curr != null || subIdx < sortedSubFields.size()) {
+            String currKey = curr != null ? curr.key.fullPath() : null;
+            String nextSubKey = subIdx < sortedSubFields.size() ? sortedSubFields.get(subIdx).getKey() : null;
+            if (currKey == null || (nextSubKey != null && nextSubKey.compareTo(currKey) <= 0)) {
+                sortedSubFields.get(subIdx).getValue().write(b);
+                subIdx++;
+            } else {
+                flatWriter.writeValue(b, curr, null);
+                curr = producer.next();
+            }
+        }
+    }
 
-        var curr = producer.next();
-        var next = producer.next();
+    /**
+     * Writes all key-value pairs from doc values by reconstructing nested objects, then appends
+     * the sub-field loaders supplied at construction time at the top level after all objects have
+     * been closed.
+     */
+    public void writeNested(final XContentBuilder b) throws IOException {
+        KeyValueProducer producer = new KeyValueProducer(sortedKeyedValues, sortedOffsetValues);
+        NestedFlattenedPathXContentWriter writer = new NestedFlattenedPathXContentWriter();
+        KeyValueWithOffset curr = producer.next();
+        KeyValueWithOffset next = producer.next();
         while (curr != null) {
             writer.writeValue(b, curr, next);
             curr = next;
             next = producer.next();
+        }
+        for (Map.Entry<String, SourceLoader.SyntheticFieldLoader> entry : sortedSubFields) {
+            entry.getValue().write(b);
         }
     }
 

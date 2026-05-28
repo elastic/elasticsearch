@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -530,6 +531,14 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[routing] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
+            SearchRequest searchRequest = new SearchRequest().searchSlice("slice-1")
+                .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("[_slice] cannot be used with point in time", validationErrors.validationErrors().get(0));
+        }
         {
             SearchRequest searchRequest = new SearchRequest().preference("pref1")
                 .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
@@ -538,6 +547,33 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[preference] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
+    }
+
+    public void testSearchSliceDerivesRoutingAndProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest();
+        request.routing("manual");
+        request.searchSlice("s1,s2");
+        assertEquals("s1,s2", request.searchSlice());
+        assertEquals("s1,s2", request.routing());
+        assertTrue(request.isRoutingFromSlice());
+
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
+        assertNull(request.routing());
+        assertTrue(request.isRoutingFromSlice());
+    }
+
+    public void testClearingSearchSliceClearsDerivedRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest().searchSlice("s1");
+        request.searchSlice(null);
+        assertNull(request.searchSlice());
+        assertFalse(request.isRoutingFromSlice());
+        assertNull(request.routing());
+
+        request.routing("manual");
+        assertEquals("manual", request.routing());
     }
 
     public void testCopyConstructor() throws IOException {

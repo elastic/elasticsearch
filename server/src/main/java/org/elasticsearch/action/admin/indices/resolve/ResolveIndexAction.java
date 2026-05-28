@@ -50,6 +50,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -100,6 +101,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         private EnumSet<IndexMode> indexModes = EnumSet.noneOf(IndexMode.class);
         private ResolvedIndexExpressions resolvedIndexExpressions = null;
+        @Nullable
+        private transient TargetProjects resolvedTargetProjects = null;
         private String projectRouting;
 
         public Request(String[] names) {
@@ -202,6 +205,17 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         public ResolvedIndexExpressions getResolvedIndexExpressions() {
             return resolvedIndexExpressions;
+        }
+
+        @Override
+        public void setResolvedTargetProjects(TargetProjects targetProjects) {
+            this.resolvedTargetProjects = targetProjects;
+        }
+
+        @Override
+        @Nullable
+        public TargetProjects getResolvedTargetProjects() {
+            return resolvedTargetProjects;
         }
 
         @Override

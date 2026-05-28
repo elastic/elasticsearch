@@ -181,15 +181,13 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
     ) {
-        var listener = ActionListener.releaseBefore(
-            indexingPressure.trackPrimaryOperationExpansion(
-                primaryOperationCount(request),
-                getMaxOperationMemoryOverhead(request),
-                force(request)
-            ),
-            outerListener
+        var pressureExpansionTracker = indexingPressure.trackPrimaryOperationExpansion(
+            primaryOperationCount(request),
+            getMaxOperationMemoryOverhead(request),
+            force(request)
         );
-        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+        var listener = ActionListener.releaseBefore(pressureExpansionTracker, outerListener);
+        final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary, pressureExpansionTracker);
         long startBatchTime = System.nanoTime();
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
@@ -779,7 +777,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         });
     }
 
-    private static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
+    // visible for testing
+    public static long getMaxOperationMemoryOverhead(BulkShardRequest request) {
         return request.maxOperationSizeInBytes() * MAX_EXPANDED_OPERATION_MEMORY_OVERHEAD_FACTOR;
     }
 

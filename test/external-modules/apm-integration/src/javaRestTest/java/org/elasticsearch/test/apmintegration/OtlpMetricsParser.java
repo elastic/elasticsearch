@@ -56,6 +56,7 @@ public final class OtlpMetricsParser {
                                 : metric.getGauge().getDataPointsList();
                             for (NumberDataPoint dp : dataPoints) {
                                 var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                                builder.field("time_unix_nano", dp.getTimeUnixNano());
                                 writeTags(builder, scopeName, dp.getAttributesList());
                                 builder.startObject("samples").startObject(metric.getName());
                                 switch (dp.getValueCase()) {
@@ -70,6 +71,7 @@ public final class OtlpMetricsParser {
                         case HISTOGRAM -> {
                             for (HistogramDataPoint dp : metric.getHistogram().getDataPointsList()) {
                                 var builder = XContentFactory.jsonBuilder().startObject().startObject("metricset");
+                                builder.field("time_unix_nano", dp.getTimeUnixNano());
                                 writeTags(builder, scopeName, dp.getAttributesList());
                                 builder.startObject("samples").startObject(metric.getName());
                                 builder.field("counts", dp.getBucketCountsList());

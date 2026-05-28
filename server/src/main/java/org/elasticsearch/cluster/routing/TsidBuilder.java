@@ -57,6 +57,15 @@ public class TsidBuilder {
         this.dimensions = new ArrayList<>(size);
     }
 
+    /**
+     * Clears all accumulated dimensions so this builder can be reused for another tsid.
+     * The underlying dimensions list retains its capacity.
+     */
+    public void reset() {
+        murmur3Hasher.reset();
+        dimensions.clear();
+    }
+
     public static TsidBuilder newBuilder() {
         return new TsidBuilder();
     }

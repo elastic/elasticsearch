@@ -55,6 +55,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -158,7 +159,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             );
 
             throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
+            if (usesParserForServiceSettings() == false) {
+                throwIfNotEmptyMap(serviceSettingsMap, name());
+            }
             if (usesParserForTaskSettings() == false) {
                 throwIfNotEmptyMap(taskSettingsMap, name());
             }
@@ -167,16 +170,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
-    }
-
-    /**
-     * Override as needed. Services that create the task settings using a parser do not remove entries from the task settings map, which
-     * causes the existing validation that there are no unknown values left in the map to fail. Rather than explicitly checking that the
-     * task settings map is empty, these services will throw an exception from the parser.
-     * @return whether this service implements a parser for task settings
-     */
-    public boolean usesParserForTaskSettings() {
-        return false;
     }
 
     public M parsePersistedConfig(UnparsedModel unparsedModel) {
@@ -251,7 +244,13 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 }
 
                 validationException.throwIfValidationErrorsExist();
-                yield new QueryAndDocsInputs(query, input, returnDocuments, topN, stream);
+                yield new QueryAndDocsInputs(
+                    InferenceString.ofText(query),
+                    InferenceString.fromStringList(input),
+                    returnDocuments,
+                    topN,
+                    stream
+                );
             }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
@@ -292,7 +291,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     public void embeddingInfer(Model model, EmbeddingRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, request.inputType(), clusterService, model.getTaskType());
-            if (supportsImageEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
+            if (supportsNonTextEmbeddingContent() == false && containsNonTextEntry(request.inputs())) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         Strings.format("The %s service does not support embedding with non-text inputs", name()),
@@ -336,26 +335,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
         return false;
     }
 
-    /**
-     * Override as necessary for services which support images in embedding inputs
-     * @return true if the service supports images in embedding inputs
-     */
-    protected boolean supportsImageEmbeddingContent() {
-        return false;
-    }
-
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
-            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             if (supportsMultimodalRerank() == false
                 && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        Strings.format("The %s service does not support rerank with non-text inputs or queries", name()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
+                listener.onFailure(createUnsupportedMultimodalRerankException(name()));
                 return;
             }
 
@@ -363,6 +348,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
             validationException.throwIfValidationErrorsExist();
 
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             doRerankInfer(model, request, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -396,17 +382,12 @@ public abstract class SenderService<M extends Model> implements InferenceService
                 if (input.isEmpty()) {
                     listener.onResponse(List.of());
                 } else {
-                    if (supportsImageEmbeddingContent() == false
-                        && containsNonTextEntry(input.stream().map(ChunkInferenceInput::input).toList())) {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                Strings.format("The %s service does not support embedding with non-text inputs", name()),
-                                RestStatus.BAD_REQUEST
-                            )
-                        );
+                    try {
+                        InferenceService.validateChunkedInferInputs(this, input);
+                    } catch (Exception e) {
+                        listener.onFailure(e);
                         return;
                     }
-                    // a non-null query is not supported and is dropped by all providers
                     doChunkedInfer(model, input, taskSettings, inputType, resolvedInferenceTimeout, listener);
                 }
             } else {
@@ -460,13 +441,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
         ActionListener<List<ChunkedInference>> listener
     );
 
-    protected boolean supportsChunkedInfer() {
-        return true;
-    }
-
     @Override
-    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(Boolean.TRUE);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

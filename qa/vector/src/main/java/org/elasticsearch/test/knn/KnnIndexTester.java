@@ -15,9 +15,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
-import org.apache.lucene.codecs.hnsw.HnswGraphProvider;
 import org.apache.lucene.codecs.lucene104.Lucene104Codec;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
@@ -30,7 +28,6 @@ import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NamedThreadFactory;
-import org.apache.lucene.util.hnsw.HnswGraph;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -91,8 +88,6 @@ public class KnnIndexTester {
     public static final Logger logger;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-
         // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
         ProcessInfo pinfo = ProcessInfo.fromSystem();
         Map<String, String> sysprops = pinfo.sysprops();
@@ -188,6 +183,9 @@ public class KnnIndexTester {
                     )
                 );
                 suffix.add(Integer.toString(args.quantizeBits()));
+                if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
+                    suffix.add("q" + args.queryQuantizeBits());
+                }
             }
             case HNSW -> {
                 suffix.add(Integer.toString(args.hnswM()));
@@ -209,7 +207,7 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 yield new ESNextDiskBBQVectorsFormat(
@@ -225,7 +223,7 @@ public class KnnIndexTester {
                     args.doPrecondition(),
                     args.preconditioningBlockDims(),
                     flatVectorThreshold,
-                    null
+                    args.datasetConfig().isSliced() ? KnnIndexer.PARTITION_ID_FIELD : null
                 );
             }
             case GPU_HNSW -> switch (quantizeBits) {
@@ -559,25 +557,8 @@ public class KnnIndexTester {
         }
     }
 
-    private static final String DISKSTATS_DEVICE = System.getProperty("bench.device", "nvme1n1");
-
     private static void logDiagnostics(DirectoryTypeConfig dirConfig, Directory dir, String label) {
         dirConfig.diagnosticLogger().accept(dir, label);
-        logDiskStats(label);
-    }
-
-    private static void logDiskStats(String label) {
-        try {
-            for (String line : Files.readAllLines(Path.of("/proc/diskstats"))) {
-                String[] fields = line.trim().split("\\s+");
-                if (fields.length >= 6 && fields[2].equals(DISKSTATS_DEVICE)) {
-                    logger.info("DISKSTATS[{}] device={} reads={} sectors_read={}", label, DISKSTATS_DEVICE, fields[3], fields[5]);
-                    return;
-                }
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to read /proc/diskstats: {}", e.getMessage());
-        }
     }
 
     static void numSegments(Path indexPath, Results indexResults, Directory sharedDir) throws IOException {
@@ -606,29 +587,30 @@ public class KnnIndexTester {
                 var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
                 KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
                 var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-                if (testConfiguration.skipRecall()) {
-                    setup = skipRecallSetup(setup);
-                }
                 knnSearcher.search(ignoreResults, testConfiguration.searchParams().get(i), dir, setup);
             }
         }
         for (int i = 0; i < results.length; i++) {
             KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
             var setup = dataGenerator.createSearchSetup(knnSearcher, testConfiguration.searchParams().get(i));
-            if (testConfiguration.skipRecall()) {
-                setup = skipRecallSetup(setup);
-            }
             knnSearcher.search(results[i], testConfiguration.searchParams().get(i), dir, setup);
         }
     }
 
-    private static KnnSearcher.SearchSetup skipRecallSetup(KnnSearcher.SearchSetup setup) {
-        return new KnnSearcher.SearchSetup(
-            setup.floatQueries(),
-            setup.byteQueries(),
-            setup.provider(),
-            (resultIds, r, p) -> logger.info("skipping recall (skip_recall=true)")
-        );
+    private static int defaultQueryQuantizeBits(int docQuantizeBits) {
+        return switch (docQuantizeBits) {
+            case 1, 2 -> 4;
+            case 4 -> 4;
+            case 7 -> 7;
+            default -> throw new IllegalArgumentException("Unsupported document quantize bits: " + docQuantizeBits);
+        };
+    }
+
+    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+        if (queryQuantizeBits == null) {
+            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+        }
+        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
     }
 
     private static void checkQuantizeBits(TestConfiguration args) {
@@ -638,6 +620,32 @@ public class KnnIndexTester {
                     throw new IllegalArgumentException(
                         "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
+                }
+                if (args.queryQuantizeBits() != null) {
+                    int docBits = args.quantizeBits();
+                    int queryBits = args.queryQuantizeBits();
+                    if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
+                        throw new IllegalArgumentException(
+                            "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
+                        );
+                    }
+                    if (docBits == 2 && queryBits != 4) {
+                        throw new IllegalArgumentException(
+                            "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
+                        );
+                    }
+                    if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
+                        throw new IllegalArgumentException(
+                            "IVF with "
+                                + docBits
+                                + "-bit document quantization requires query_quantize_bits "
+                                + docBits
+                                + ", but got: "
+                                + queryBits
+                        );
+                    }
+                    // validate the combination is supported by the codec
+                    resolveQuantEncoding(docBits, queryBits);
                 }
                 break;
             case GPU_HNSW: {
@@ -663,7 +671,6 @@ public class KnnIndexTester {
     static void numSegments(Path indexPath, Results result) throws IOException {
         try (Directory dir = KnnIndexer.getDirectory(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
-            logGraphStats(reader);
         } catch (IOException e) {
             throw new IOException("Failed to get segment count for index at " + indexPath, e);
         }
@@ -672,60 +679,8 @@ public class KnnIndexTester {
     static void numSegments(Directory dir, Results result) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
-            logGraphStats(reader);
         } catch (IOException e) {
             throw new IOException("Failed to get segment count for dir: " + dir, e);
-        }
-    }
-
-    private static void logGraphStats(IndexReader reader) throws IOException {
-        for (var leaf : reader.leaves()) {
-            if (leaf.reader() instanceof CodecReader codecReader) {
-                KnnVectorsReader vectorReader = codecReader.getVectorReader();
-                if (vectorReader instanceof org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
-                    vectorReader = perFieldReader.getFieldReader(KnnIndexer.VECTOR_FIELD);
-                }
-                if (vectorReader instanceof HnswGraphProvider graphProvider) {
-                    HnswGraph graph = graphProvider.getGraph(KnnIndexer.VECTOR_FIELD);
-                    if (graph == null) {
-                        continue;
-                    }
-                    int graphSize = graph.size();
-                    int maxConn = graph.maxConn();
-                    int numLevels = graph.numLevels();
-                    int entryNode = graph.entryNode();
-
-                    int minNeighbors = Integer.MAX_VALUE;
-                    int maxNeighbors = 0;
-                    long totalNeighbors = 0;
-                    int sampled = 0;
-                    var nodesOnLevel0 = graph.getNodesOnLevel(0);
-                    while (nodesOnLevel0.hasNext() && sampled < 1000) {
-                        int node = nodesOnLevel0.next();
-                        graph.seek(0, node);
-                        int count = graph.neighborCount();
-                        minNeighbors = Math.min(minNeighbors, count);
-                        maxNeighbors = Math.max(maxNeighbors, count);
-                        totalNeighbors += count;
-                        sampled++;
-                    }
-                    double avgNeighbors = sampled > 0 ? (double) totalNeighbors / sampled : 0;
-                    logger.info(
-                        "HNSW graph stats: size={}, maxConn={}, numLevels={}, entryNode={}",
-                        graphSize,
-                        maxConn,
-                        numLevels,
-                        entryNode
-                    );
-                    logger.info(
-                        "Level 0 neighbor counts (sampled {} nodes): min={}, max={}, avg={}",
-                        sampled,
-                        minNeighbors,
-                        maxNeighbors,
-                        String.format(Locale.ROOT, "%.1f", avgNeighbors)
-                    );
-                }
-            }
         }
     }
 
@@ -1035,6 +990,7 @@ public class KnnIndexTester {
         "num_docs",
         "num_segments",
         "quantize_bits",
+        "query_quantize_bits",
         "vector_encoding",
         "vector_space",
         "hnsw_m",
@@ -1145,6 +1101,7 @@ public class KnnIndexTester {
                             Integer.toString(qr.numDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
+                            config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",
                             config.vectorEncoding().name().toLowerCase(Locale.ROOT),
                             config.vectorSpace() != null ? config.vectorSpace().name().toLowerCase(Locale.ROOT) : "",
                             Integer.toString(config.hnswM()),

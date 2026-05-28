@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.security.QueryRoleIT.assertQuery;
 import static org.elasticsearch.xpack.security.QueryRoleIT.waitForMigrationCompletion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
@@ -286,6 +287,10 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
     }
 
     private void closeSecurityIndex() throws Exception {
+        // Wait for green: closing while shards are still recovering races with TransportVerifyShardBeforeCloseAction
+        // and silently no-ops — the API returns HTTP 200 with acknowledged=false and state stays OPEN.
+        ensureGreen(adminClient(), INTERNAL_SECURITY_MAIN_INDEX_7);
+
         Request request = new Request("POST", "/" + TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_close");
         request.setOptions(
             expectWarnings(
@@ -295,6 +300,10 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
         );
         Response response = adminClient().performRequest(request);
         assertOK(response);
+
+        final Map<String, Object> closeResponse = responseAsMap(response);
+        assertThat(closeResponse, hasEntry("acknowledged", true));
+        assertThat(closeResponse, hasEntry("shards_acknowledged", true));
     }
 
     private void openSecurityIndex() throws Exception {

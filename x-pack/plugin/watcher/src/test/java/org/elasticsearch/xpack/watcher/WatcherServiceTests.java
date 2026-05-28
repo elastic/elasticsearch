@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -58,22 +59,33 @@ import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
+import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -282,6 +294,7 @@ public class WatcherServiceTests extends ESTestCase {
         String engineType = "foo";
         TriggerEngine<?, ?> triggerEngine = mock(TriggerEngine.class);
         when(triggerEngine.type()).thenReturn(engineType);
+        when(triggerEngine.add(any(Watch.class))).thenReturn(true);
         TriggerService triggerService = new TriggerService(Collections.singleton(triggerEngine));
 
         Trigger trigger = mock(Trigger.class);
@@ -370,6 +383,296 @@ public class WatcherServiceTests extends ESTestCase {
         service.reload(csBuilder.metadata(metadata).build(), "whatever", exception -> {});
         verify(triggerService).pauseExecution();
         verify(triggerService, never()).start(any());
+    }
+
+    public void testOnWatchAddedSchedulesInRunningEngine() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.start(List.of());
+
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+
+        assertThat(engine.getWatches(), hasKey(watchId));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(triggerService.count(), is(1L));
+    }
+
+    public void testOnWatchAddedQueuedWhilePaused() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.pauseExecution();
+
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+
+        // engine refused the add (paused), so the watch must be retained in pending only
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), hasEntry(equalTo(watchId), is(watch)));
+        // stats are gated on the engine accepting the watch
+        assertThat(triggerService.count(), is(0L));
+    }
+
+    public void testOnWatchRemovedClearsScheduledWatchInRunningEngine() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.start(List.of());
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+        assertThat(engine.getWatches(), hasKey(watchId));
+
+        service.onWatchRemoved(watchId);
+
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(triggerService.count(), is(0L));
+    }
+
+    public void testOnWatchRemovedClearsPendingWatchWhilePaused() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.pauseExecution();
+        final Watch watch = createScheduleWatch(watchId);
+        service.onWatchAdded(watch);
+        assertThat(service.pendingWatches(), hasKey(watchId));
+
+        service.onWatchRemoved(watchId);
+
+        // both views must be empty: a delete that landed during the pause window must not be
+        // resurrected by a subsequent reload merging stale pending entries
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    public void testOnWatchRemovedIsIdempotentForUnknownId() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        triggerService.start(List.of());
+
+        // removing a watch that was never added must not throw and must leave both views untouched
+        service.onWatchRemoved("never-existed");
+
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testOnWatchAddedReplacesPreviousVersionInRunningEngine() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+        final var watchId = randomAlphaOfLengthBetween(3, 12);
+
+        triggerService.start(List.of());
+        final Watch first = createScheduleWatch(watchId);
+        final Watch second = createScheduleWatch(watchId);
+        service.onWatchAdded(first);
+        service.onWatchAdded(second);
+
+        // the second add replaces the first under the same id; pending must remain empty
+        assertThat(engine.getWatches().get(watchId), is(second));
+        assertThat(engine.getWatches().get(watchId), is(not(first)));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesSchedulesLocalActiveWatch() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        // Use a 1-shard index so any watch id is "local"
+        final ClusterState state = singleShardLocalState();
+        triggerService.pauseExecution();
+        final Watch watch = createScheduleWatch(randomAlphaOfLength(10));
+        service.onWatchAdded(watch);
+        assertThat(service.pendingWatches(), hasKey(watch.id()));
+
+        triggerService.start(List.of());
+        service.addPendingWatches(state);
+
+        assertThat(engine.getWatches(), hasKey(watch.id()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesDropsInactiveWatch() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        triggerService.pauseExecution();
+        final Watch inactive = createScheduleWatch(randomAlphaOfLength(10), false);
+        service.onWatchAdded(inactive);
+
+        triggerService.start(List.of());
+        service.addPendingWatches(singleShardLocalState());
+
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesFiltersForeignWatch() {
+        // 2-shard index; only shard 0 is local — a watch hashing to shard 1 must be dropped
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        final ClusterState state = twoShardStateLocalShardOnly(0);
+        final String localId = idHashingToShard(0, 2);
+        final String foreignId = idHashingToShard(1, 2);
+
+        triggerService.pauseExecution();
+        service.onWatchAdded(createScheduleWatch(localId));
+        service.onWatchAdded(createScheduleWatch(foreignId));
+
+        triggerService.start(List.of());
+        service.addPendingWatches(state);
+
+        assertThat(engine.getWatches(), hasKey(localId));
+        assertThat(engine.getWatches(), not(hasKey(foreignId)));
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesClearsPendingWhenIndexMissing() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        triggerService.pauseExecution();
+        service.onWatchAdded(createScheduleWatch(randomAlphaOfLength(8)));
+        assertThat(service.pendingWatches(), aMapWithSize(1));
+
+        // cluster state with no .watches index
+        triggerService.start(List.of());
+        service.addPendingWatches(new ClusterState.Builder(new ClusterName("_name")).build());
+
+        assertThat(service.pendingWatches(), is(anEmptyMap()));
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    public void testAddPendingWatchesKeepsPendingWhenRoutingNotRecovered() {
+        final ScheduleTriggerEngineMock engine = newEngineMock();
+        final TriggerService triggerService = new TriggerService(Set.of(engine));
+        final WatcherService service = createWatcherService(triggerService);
+
+        // cluster state has the .watches index metadata but no routing nodes (state not recovered)
+        final ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings(IndexVersion.current(), 1, 0)));
+        csBuilder.putProjectMetadata(metadataBuilder);
+        final ClusterState noRoutingState = csBuilder.build();
+
+        triggerService.pauseExecution();
+        service.onWatchAdded(createScheduleWatch(randomAlphaOfLength(8)));
+        assertThat(service.pendingWatches(), aMapWithSize(1));
+
+        triggerService.start(List.of());
+        service.addPendingWatches(noRoutingState);
+
+        // watch must survive until the next reload when routing is available
+        assertThat(service.pendingWatches(), aMapWithSize(1));
+        assertThat(engine.getWatches(), is(anEmptyMap()));
+    }
+
+    private WatcherService createWatcherService(TriggerService triggerService) {
+        return new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class),
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
+            @Override
+            void stopExecutor() {}
+        };
+    }
+
+    private static ScheduleTriggerEngineMock newEngineMock() {
+        return new ScheduleTriggerEngineMock(new ScheduleRegistry(Collections.emptySet()), Clock.systemUTC());
+    }
+
+    private ClusterState singleShardLocalState() {
+        return buildLocalShardState(1, 0);
+    }
+
+    private ClusterState twoShardStateLocalShardOnly(int localShardNum) {
+        return buildLocalShardState(2, localShardNum);
+    }
+
+    private ClusterState buildLocalShardState(int numShards, int localShardNum) {
+        final ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
+        final ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings(IndexVersion.current(), numShards, 0)));
+        csBuilder.putProjectMetadata(metadataBuilder);
+        final Index watchIndex = new Index(Watch.INDEX, "uuid");
+        final IndexRoutingTable.Builder routingBuilder = IndexRoutingTable.builder(watchIndex);
+        for (int i = 0; i < numShards; i++) {
+            final ShardId shardId = new ShardId(watchIndex, i);
+            // local shard is on "node"; remote shards are on "other-node"
+            final String nodeId = (i == localShardNum) ? "node" : "other-node";
+            routingBuilder.addIndexShard(
+                IndexShardRoutingTable.builder(shardId)
+                    .addShard(TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.STARTED))
+            );
+        }
+        csBuilder.putRoutingTable(projectId, RoutingTable.builder().add(routingBuilder).build());
+        csBuilder.nodes(new DiscoveryNodes.Builder().masterNodeId("node").localNodeId("node").add(newNode()));
+        return csBuilder.build();
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Watch createScheduleWatch(String id) {
+        return createScheduleWatch(id, true);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Watch createScheduleWatch(String id, boolean active) {
+        final Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn(id);
+        // TriggerService.addToStats reads trigger().getSchedule().type() for schedule-typed watches
+
+        final Schedule schedule = mock(Schedule.class);
+        when(schedule.type()).thenReturn("interval");
+
+        final ScheduleTrigger trigger = mock(ScheduleTrigger.class);
+        when(trigger.type()).thenReturn(ScheduleTrigger.TYPE);
+        when(trigger.getSchedule()).thenReturn(schedule);
+        when(watch.trigger()).thenReturn(trigger);
+
+        final ExecutableInput noneInput = new ExecutableNoneInput();
+        when(watch.input()).thenReturn(noneInput);
+        when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
+        when(watch.actions()).thenReturn(Collections.emptyList());
+
+        final WatchStatus status = mock(WatchStatus.class);
+        final WatchStatus.State state = new WatchStatus.State(active, ZonedDateTime.now(ZoneOffset.UTC));
+        when(status.state()).thenReturn(state);
+        when(watch.status()).thenReturn(status);
+        return watch;
+    }
+
+    /** Brute-forces an id whose Murmur3 hash maps to {@code targetShard} out of {@code numShards}. */
+    private static String idHashingToShard(int targetShard, int numShards) {
+        for (int i = 0;; i++) {
+            String id = "watch-" + i;
+            if (Math.floorMod(Murmur3HashFunction.hash(id), numShards) == targetShard) {
+                return id;
+            }
+        }
     }
 
     private static DiscoveryNode newNode() {

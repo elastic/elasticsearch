@@ -45,6 +45,7 @@ import java.util.Locale;
 public sealed interface DatasetConfig extends ToXContentFragment permits DatasetConfig.GcpDataset, DatasetConfig.FileDataset,
     DatasetConfig.RandomGenerated {
 
+    ParseField SLICE_FIELD = new ParseField("slices");
     ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
     ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
 
@@ -60,6 +61,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
 
     abstract class PartitionBuilder {
         protected int numPartitions = 0;
+        protected boolean slices = false;
         protected PartitionDistribution partitionDistribution = PartitionDistribution.UNIFORM;
 
         void setNumPartitions(int numPartitions) {
@@ -69,6 +71,10 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
         void setPartitionDistribution(String partitionDistribution) {
             this.partitionDistribution = PartitionDistribution.fromString(partitionDistribution);
         }
+
+        void setSlices(boolean slices) {
+            this.slices = slices;
+        }
     }
 
     /**
@@ -76,8 +82,15 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
      */
     DataGenerator createDataGenerator(TestConfiguration config) throws IOException;
 
+    /**
+     * Returns true if this dataset is sliced and the number of partitions is greater than 0.
+     */
+    boolean isSliced();
+
     /** A dataset that is downloaded from a Google Cloud Storage bucket. */
-    record GcpDataset(String name, int numPartitions, PartitionDistribution partitionDistribution) implements DatasetConfig {
+    record GcpDataset(String name, int numPartitions, PartitionDistribution partitionDistribution, boolean slices)
+        implements
+            DatasetConfig {
 
         static final ParseField DATASET_NAME = new ParseField("name");
 
@@ -87,6 +100,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             PARSER.declareString(Builder::setDatasetName, DATASET_NAME);
             PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
             PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
+            PARSER.declareBoolean(Builder::setSlices, SLICE_FIELD);
         }
 
         static GcpDataset fromXContent(XContentParser parser) {
@@ -94,7 +108,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             if (builder.datasetName == null) {
                 throw new IllegalArgumentException("gcp dataset config requires a 'name' field");
             }
-            return new GcpDataset(builder.datasetName, builder.numPartitions, builder.partitionDistribution);
+            return new GcpDataset(builder.datasetName, builder.numPartitions, builder.partitionDistribution, builder.slices);
         }
 
         @Override
@@ -125,6 +139,11 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
         }
 
         @Override
+        public boolean isSliced() {
+            return numPartitions > 0 && slices;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dataset");
             builder.startObject("gcp");
@@ -147,9 +166,13 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
     }
 
     /** A dataset specified via local file paths for doc vectors and (optionally) query vectors. */
-    record FileDataset(List<String> docVectors, String queryVectors, int numPartitions, PartitionDistribution partitionDistribution)
-        implements
-            DatasetConfig {
+    record FileDataset(
+        List<String> docVectors,
+        String queryVectors,
+        int numPartitions,
+        PartitionDistribution partitionDistribution,
+        boolean slices
+    ) implements DatasetConfig {
 
         static final ParseField DOC_VECTORS = new ParseField("doc_vectors");
         static final ParseField QUERY_VECTORS = new ParseField("query_vectors");
@@ -161,6 +184,7 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS);
             PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
             PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
+            PARSER.declareBoolean(Builder::setSlices, SLICE_FIELD);
         }
 
         static FileDataset fromXContent(XContentParser parser) {
@@ -168,7 +192,13 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             if (builder.docVectors == null || builder.docVectors.isEmpty()) {
                 throw new IllegalArgumentException("file dataset config requires 'doc_vectors'");
             }
-            return new FileDataset(builder.docVectors, builder.queryVectors, builder.numPartitions, builder.partitionDistribution);
+            return new FileDataset(
+                builder.docVectors,
+                builder.queryVectors,
+                builder.numPartitions,
+                builder.partitionDistribution,
+                builder.slices
+            );
         }
 
         @Override
@@ -196,6 +226,11 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
                 partitionDistribution
             );
             return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+        }
+
+        @Override
+        public boolean isSliced() {
+            return numPartitions > 0 && slices;
         }
 
         @Override
@@ -229,7 +264,9 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
     }
 
     /** A synthetically generated partitioned dataset. */
-    record RandomGenerated(long generatorSeed, int numPartitions, PartitionDistribution partitionDistribution) implements DatasetConfig {
+    record RandomGenerated(long generatorSeed, int numPartitions, PartitionDistribution partitionDistribution, boolean slices)
+        implements
+            DatasetConfig {
 
         static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
 
@@ -252,11 +289,12 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
             PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
             PARSER.declareLong(Builder::setGeneratorSeed, GENERATOR_SEED_FIELD);
+            PARSER.declareBoolean(Builder::setSlices, SLICE_FIELD);
         }
 
         static RandomGenerated fromXContent(XContentParser parser) {
             Builder builder = PARSER.apply(parser, null);
-            return new RandomGenerated(builder.generatorSeed, builder.numPartitions, builder.partitionDistribution);
+            return new RandomGenerated(builder.generatorSeed, builder.numPartitions, builder.partitionDistribution, builder.slices);
         }
 
         @Override
@@ -283,18 +321,13 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
 
         }
 
-        private static class Builder {
-            private int numPartitions = 100;
-            private PartitionDistribution partitionDistribution = PartitionDistribution.UNIFORM;
+        @Override
+        public boolean isSliced() {
+            return numPartitions > 0 && slices;
+        }
+
+        private static class Builder extends PartitionBuilder {
             private long generatorSeed = 42L;
-
-            void setNumPartitions(int numPartitions) {
-                this.numPartitions = numPartitions;
-            }
-
-            void setPartitionDistribution(String partitionDistribution) {
-                this.partitionDistribution = PartitionDistribution.fromString(partitionDistribution);
-            }
 
             void setGeneratorSeed(long generatorSeed) {
                 this.generatorSeed = generatorSeed;

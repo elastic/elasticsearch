@@ -10,6 +10,7 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
@@ -29,7 +30,9 @@ import org.elasticsearch.compute.operator.Warnings;
 public final class IrateIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.INT)  );
+      new IntermediateStateDesc("values", ElementType.INT),
+      new IntermediateStateDesc("isCumulative", ElementType.BOOLEAN),
+      new IntermediateStateDesc("failed", ElementType.BOOLEAN)  );
 
   private final IrateIntAggregator.IntIrateGroupingState state;
 
@@ -46,7 +49,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     this.isDateNanos = isDateNanos;
     this.warnings = warnings;
     this.channels = channels;
-    this.state = IrateIntAggregator.initGrouping(driverContext, isDateNanos, warnings);
+    this.state = IrateIntAggregator.initGrouping(driverContext, isDateNanos);
     this.driverContext = driverContext;
   }
 
@@ -170,6 +173,9 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -178,7 +184,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+            try {
+              IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+            } catch (InvalidTemporalityException e) {
+              warnings.registerException(e);
+              state.setFailed(groupId);
+            }
           }
         }
       }
@@ -196,9 +207,17 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         int valueValue = valueVector.getInt(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+        try {
+          IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+        } catch (InvalidTemporalityException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -211,7 +230,11 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
     IntBlock values = (IntBlock) valuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount();
+    Block isCumulativeUncast = page.getBlock(channels.get(2));
+    BooleanBlock isCumulative = (BooleanBlock) isCumulativeUncast;
+    Block failedUncast = page.getBlock(channels.get(3));
+    BooleanBlock failed = (BooleanBlock) failedUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == isCumulative.getPositionCount() && timestamps.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -221,7 +244,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -243,6 +266,9 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
         int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
         for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -251,7 +277,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+            try {
+              IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+            } catch (InvalidTemporalityException e) {
+              warnings.registerException(e);
+              state.setFailed(groupId);
+            }
           }
         }
       }
@@ -269,9 +300,17 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
+        if (state.hasFailed(groupId)) {
+          continue;
+        }
         int valueValue = valueVector.getInt(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+        try {
+          IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+        } catch (InvalidTemporalityException e) {
+          warnings.registerException(e);
+          state.setFailed(groupId);
+        }
       }
     }
   }
@@ -284,7 +323,11 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
     IntBlock values = (IntBlock) valuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount();
+    Block isCumulativeUncast = page.getBlock(channels.get(2));
+    BooleanBlock isCumulative = (BooleanBlock) isCumulativeUncast;
+    Block failedUncast = page.getBlock(channels.get(3));
+    BooleanBlock failed = (BooleanBlock) failedUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == isCumulative.getPositionCount() && timestamps.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -294,7 +337,7 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
       }
     }
   }
@@ -310,6 +353,9 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
         continue;
       }
       int groupId = groups.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
       int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
       int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
       for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
@@ -318,7 +364,12 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+          try {
+            IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+          } catch (InvalidTemporalityException e) {
+            warnings.registerException(e);
+            state.setFailed(groupId);
+          }
         }
       }
     }
@@ -329,9 +380,17 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
+      if (state.hasFailed(groupId)) {
+        continue;
+      }
       int valueValue = valueVector.getInt(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+      try {
+        IrateIntAggregator.combine(state, groupId, valueValue, timestampValue, valuesPosition, temporalityBlock);
+      } catch (InvalidTemporalityException e) {
+        warnings.registerException(e);
+        state.setFailed(groupId);
+      }
     }
   }
 
@@ -343,11 +402,15 @@ public final class IrateIntGroupingAggregatorFunction implements GroupingAggrega
     LongBlock timestamps = (LongBlock) timestampsUncast;
     Block valuesUncast = page.getBlock(channels.get(1));
     IntBlock values = (IntBlock) valuesUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount();
+    Block isCumulativeUncast = page.getBlock(channels.get(2));
+    BooleanBlock isCumulative = (BooleanBlock) isCumulativeUncast;
+    Block failedUncast = page.getBlock(channels.get(3));
+    BooleanBlock failed = (BooleanBlock) failedUncast;
+    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == isCumulative.getPositionCount() && timestamps.getPositionCount() == failed.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+      IrateIntAggregator.combineIntermediate(state, groupId, timestamps, values, isCumulative.getBoolean(valuesPosition), failed.getBoolean(valuesPosition), valuesPosition);
     }
   }
 

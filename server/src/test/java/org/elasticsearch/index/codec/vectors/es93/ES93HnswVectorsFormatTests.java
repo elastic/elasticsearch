@@ -21,6 +21,9 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 
 import static java.lang.String.format;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -33,17 +36,38 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
 
     @Override
     protected KnnVectorsFormat createFormat() {
-        return new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
+        return new ES93HnswVectorsFormat(
+            DEFAULT_MAX_CONN,
+            DEFAULT_BEAM_WIDTH,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            random().nextInt(1, 20)
+        );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            DEFAULT_NUM_MERGE_WORKER,
+            null,
+            random().nextInt(1, 20)
+        );
     }
 
     @Override
     protected KnnVectorsFormat createFormat(int maxConn, int beamWidth, int numMergeWorkers, ExecutorService service) {
-        return new ES93HnswVectorsFormat(maxConn, beamWidth, DenseVectorFieldMapper.ElementType.FLOAT, numMergeWorkers, service);
+        return new ES93HnswVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            numMergeWorkers,
+            service,
+            random().nextInt(1, 20)
+        );
     }
 
     protected KnnVectorsFormat createFormat(
@@ -64,33 +88,37 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     }
 
     public void testDefaultHnswGraphThreshold() {
-        KnnVectorsFormat format = createFormat(16, 100);
+        KnnVectorsFormat format = new ES93HnswVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
         assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testHnswGraphThresholdWithCustomValue() {
         int customThreshold = random().nextInt(1, 1001);
-        KnnVectorsFormat format = createFormat(16, 100, 1, null, customThreshold);
+        KnnVectorsFormat format = createFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, customThreshold);
         assertThat(format, hasToString(containsString("hnswGraphThreshold=" + customThreshold)));
     }
 
     public void testHnswGraphThresholdWithZeroValue() {
         // When threshold is 0, hnswGraphThreshold is omitted from toString (always build graph)
-        KnnVectorsFormat format = createFormat(16, 100, 1, null, 0);
+        KnnVectorsFormat format = createFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, 0);
         assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
     }
 
     public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
-        KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
+        KnnVectorsFormat format = createFormat(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, -1);
         assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testToString() {
         int hnswGraphThreshold = random().nextInt(1, 1001);
-        String expected = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold="
-            + hnswGraphThreshold
-            + ", flatVectorFormat=%s)";
-        expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
+        String expected =
+            "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, hnswGraphThreshold=%s, flatVectorFormat=%s)";
+        expected = format(
+            Locale.ROOT,
+            expected,
+            hnswGraphThreshold,
+            "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)"
+        );
         expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorScorer(delegate=%s)");
         String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer()");

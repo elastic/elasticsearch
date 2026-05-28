@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
@@ -76,13 +75,7 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
         // We need to return a real RerankRequest to prevent NPEs in the doInference() call for services that do not support the new rerank
         // code path. Once all services have been converted, this mocking can be removed.
         when(mock.getRerankRequest()).thenReturn(
-            new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, "input")),
-                new InferenceString(DataType.TEXT, "input"),
-                null,
-                null,
-                Map.of()
-            )
+            new RerankRequest(List.of(InferenceString.ofText("input")), InferenceString.ofText("input"), null, null, Map.of())
         );
         return mock;
     }
@@ -109,7 +102,7 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
@@ -133,7 +126,7 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
             );
             assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
@@ -148,7 +141,7 @@ public class TransportRerankActionTests extends BaseTransportInferenceActionTest
         var listener = doExecute(TaskType.ANY);
 
         verify(listener).onResponse(any());
-        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+        verify(mockInferenceDurationHistogram).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("status_code"), is(200));

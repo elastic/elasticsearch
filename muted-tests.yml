@@ -604,3 +604,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
   method: testRandomSchema
   issue: https://github.com/elastic/elasticsearch/issues/150077
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_half}
+  issue: https://github.com/elastic/elasticsearch/issues/150094

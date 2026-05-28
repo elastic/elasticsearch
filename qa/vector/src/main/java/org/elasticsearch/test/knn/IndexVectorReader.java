@@ -166,6 +166,11 @@ public interface IndexVectorReader extends Closeable {
                 currentReaderIdx++;
                 docsReadFromCurrent = 0;
             }
+            if (currentReaderIdx >= readers.size()) {
+                throw new IllegalStateException(
+                    "MultiFileVectorReader exhausted after " + totalDocs + " docs; no more vectors available (ordinal " + nextOrdinal + ")"
+                );
+            }
             return readers.get(currentReaderIdx);
         }
 

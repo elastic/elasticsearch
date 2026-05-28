@@ -18,7 +18,11 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
         LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator));
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(
+            2,
+            1000,
+            new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator, null)
+        );
         long competitiveScore = NeighborQueue.encodeRaw(1, 0.9f);
 
         collector.updateMinCompetitiveDocScore(competitiveScore);
@@ -46,7 +50,11 @@ public class MaxScoreTopKnnCollectorTests extends ESTestCase {
 
     public void testUpdateMinCompetitiveDocScoreIgnoresPartialQueue() {
         LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator));
+        MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(
+            2,
+            1000,
+            new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator, null)
+        );
         collector.collect(2, 2.0f);
 
         long globalCompetitiveScore = NeighborQueue.encodeRaw(10, 0.2f);

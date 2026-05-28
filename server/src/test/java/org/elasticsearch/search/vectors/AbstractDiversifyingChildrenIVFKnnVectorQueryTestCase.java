@@ -349,7 +349,7 @@ abstract class AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase extends Luc
     void assertScorerResults(IndexSearcher searcher, Query query, float[] possibleScores, String[] possibleIds, int count)
         throws IOException {
         IndexReader reader = searcher.getIndexReader();
-        Query rewritten = query.rewrite(searcher);
+        Query rewritten = searcher.rewrite(query);
         Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1);
         Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
         // prior to advancing, score is undefined

@@ -125,7 +125,9 @@ public class DiversifyingParentBlockQueryTests extends MapperServiceTestCase {
                     null,
                     bitSetproducer,
                     DenseVectorFieldMapper.FilterHeuristic.ACORN,
-                    randomBoolean()
+                    randomBoolean(),
+                    PostFilterKnnQuery.DEFAULT_POST_FILTERING_THRESHOLD,
+                    false
                 );
                 assertThat(knnQuery, instanceOf(DiversifyingParentBlockQuery.class));
                 var nestedQuery = new ToParentBlockJoinQuery(knnQuery, bitSetproducer, ScoreMode.Total);

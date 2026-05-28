@@ -192,7 +192,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                 centroids.seek(offset + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, centroidOrdinal, score);
             }
         };
     }
@@ -267,7 +267,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * 2 * centroidOrdinal);
                 long postingListOffset = centroids.readLong();
                 long postingListLength = centroids.readLong();
-                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, score);
+                return new PostingMetadata(postingListOffset, postingListLength, centroidOrdinal, centroidOrdinal, score);
             }
 
             private long nextCentroid() throws IOException {

@@ -12,13 +12,16 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
@@ -29,6 +32,7 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
@@ -144,6 +148,49 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     protected int getNumberOfVectors(E entry, FloatVectorValues values, IndexInput centroidSlice, ESAcceptDocs esAcceptDocs)
         throws IOException {
         return values.size();
+    }
+
+    /**
+     * Returns the number of vectors for the given field and slice ordinal.
+     * When sliceOrd is -1 (non-sliced), returns the total vector count.
+     * When sliceOrd >= 0, returns the vector count for that specific slice.
+     * <p>
+     * Note: the returned count is based on stored metadata and does not account for deleted docs.
+     * This is consistent with the non-sliced path ({@code FloatVectorValues.size()}) and is
+     * used for selectivity approximation, not for exact counts.
+     */
+    public int getTotalVectorsForSlice(String field, int sliceOrd) throws IOException {
+        final FieldInfo fi = fieldInfos.fieldInfo(field);
+        if (fi == null) {
+            return 0;
+        }
+        final E entry = fields.get(fi.number);
+        if (entry == null) {
+            return 0;
+        }
+        final FloatVectorValues values = getFloatVectorValues(field);
+        if (values == null) {
+            return 0;
+        }
+        ESAcceptDocs esAcceptDocs = sliceOrd >= 0 ? new ESAcceptDocs.ESAcceptDocsAll(sliceOrd, null) : null;
+        return getNumberOfVectors(entry, values, entry.centroidSlice(ivfCentroids), esAcceptDocs);
+    }
+
+    /**
+     * Unwraps the {@link IVFVectorsReader} for the given field from a leaf reader, or returns null
+     * if the reader is not an IVF reader.
+     */
+    public static IVFVectorsReader<?> getIVFReader(LeafReader reader, String field) {
+        SegmentReader sr = Lucene.tryUnwrapSegmentReader(reader);
+        if (sr == null) {
+            return null;
+        }
+        KnnVectorsReader vr = sr.getVectorReader();
+        if (vr instanceof PerFieldKnnVectorsFormat.FieldsReader pfr) {
+            KnnVectorsReader fieldReader = pfr.getFieldReader(field);
+            return fieldReader instanceof IVFVectorsReader<?> ivf ? ivf : null;
+        }
+        return null;
     }
 
     protected static IndexInput openDataInput(
@@ -338,7 +385,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         } else {
             approximateCost = esAcceptDocs == null ? acceptDocs.cost() : esAcceptDocs.approximateCost();
         }
-        float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
+        float percentFiltered = Math.clamp(approximateCost / numVectors, 0f, 1f);
         int k = knnCollector.k();
         int numCands = k;
         float visitRatio = dynamicVisitRatio;
@@ -348,7 +395,8 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             numCands = ivfSearchStrategy.getNumCands();
             k = ivfSearchStrategy.getK();
         }
-
+        // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
+        // per-segment using the Two-Signal model with segment-size awareness.
         if (visitRatio == dynamicVisitRatio) {
             visitRatio = Math.min(computeDynamicVisitRatio(numCands, k), computeSegmentSizeCap(numVectors));
         }
@@ -378,6 +426,13 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         );
         long expectedDocs = 0;
         long actualDocs = 0;
+        final IVFKnnSearchStrategy ivfStrategy;
+        if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfKnnSearchStrategy) {
+            ivfStrategy = ivfKnnSearchStrategy;
+            ivfStrategy.initVisitedCentroids(entry.numCentroids);
+        } else {
+            ivfStrategy = null;
+        }
         // initially we visit only the "centroids to search"
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
@@ -385,8 +440,22 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         while (centroidPrefetchingIterator.hasNext()
             && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+            // Skip centroids that were both visited AND non-competitive in a previous retry round
+            // (i.e., none of their docs reached the collector heap). Visited+competitive centroids
+            // still get re-visited because docs from them may have been evicted and may be
+            // recoverable; doc-level exclusion (acceptDocs from ExcludeDocsQuery) prevents
+            // re-collection of docs already returned to the caller.
+            if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
+                continue;
+            }
+            if (ivfStrategy != null) {
+                ivfStrategy.beforeCentroidVisit();
+            }
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
+            if (ivfStrategy != null) {
+                ivfStrategy.afterCentroidVisit(postingMetadata.centroidOrdinal());
+            }
             if (knnCollector.getSearchStrategy() != null) {
                 knnCollector.getSearchStrategy().nextVectorsBlock();
             }
@@ -398,8 +467,17 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
             while (centroidPrefetchingIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
                 PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
+                if (ivfStrategy != null && ivfStrategy.shouldSkipCentroid(postingMetadata.centroidOrdinal())) {
+                    continue;
+                }
+                if (ivfStrategy != null) {
+                    ivfStrategy.beforeCentroidVisit();
+                }
                 scorer.resetPostingsScorer(postingMetadata);
                 actualDocs += scorer.visit(knnCollector);
+                if (ivfStrategy != null) {
+                    ivfStrategy.afterCentroidVisit(postingMetadata.centroidOrdinal());
+                }
                 if (knnCollector.getSearchStrategy() != null) {
                     knnCollector.getSearchStrategy().nextVectorsBlock();
                 }
@@ -424,7 +502,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     private static double logScale(double value, double log1pMax) {
-        return Math.max(0.0, Math.min(1.0, Math.log1p(value) / log1pMax));
+        return Math.clamp(Math.log1p(value) / log1pMax, 0.0, 1.0);
     }
 
     /**

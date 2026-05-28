@@ -14,15 +14,11 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
@@ -44,8 +40,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.LongAccumulator;
 
 import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
+import static org.elasticsearch.search.vectors.KnnQueryUtils.createFilterWeight;
 
-abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
+abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider, PostFilterableKnnQuery {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
@@ -103,39 +100,34 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     public Query rewrite(IndexSearcher indexSearcher) throws IOException {
         vectorOpsCount = 0;
         IndexReader reader = indexSearcher.getIndexReader();
+        List<LeafReaderContext> leaves = reader.leaves();
 
-        final Weight filterWeight;
-        if (filter != null) {
-            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(filter, BooleanClause.Occur.FILTER)
-                .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
-                .build();
-            Query rewritten = indexSearcher.rewrite(booleanQuery);
-            if (rewritten.getClass() == MatchNoDocsQuery.class) {
-                return rewritten;
-            }
-            filterWeight = indexSearcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
-        } else {
-            filterWeight = null;
+        final Weight filterWeight = createFilterWeight(indexSearcher, filter, field);
+        if (filter != null && filterWeight == null) {
+            return MatchNoDocsQuery.INSTANCE;
         }
-
         // we request numCands as we are using it as an approximation measure
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
         // 2k to the collector.
-        IVFCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
+        IVFCollectorManager collectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
+        return executeSearch(indexSearcher, leaves, filterWeight, collectorManager, providedVisitRatio);
+    }
+
+    private Query executeSearch(
+        IndexSearcher indexSearcher,
+        List<LeafReaderContext> leaves,
+        Weight filterWeight,
+        IVFCollectorManager collectorManager,
+        float visitRatio
+    ) throws IOException {
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
-        List<LeafReaderContext> leafReaderContexts = reader.leaves();
-
-        // When providedVisitRatio is 0.0f (dynamic), the codec computes the visit ratio
-        // per-segment using the Two-Signal model with segment-size awareness.
-        final float visitRatio = providedVisitRatio;
-
-        List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
-        for (LeafReaderContext context : leafReaderContexts) {
+        List<Callable<TopDocs>> tasks = new ArrayList<>(leaves.size());
+        for (LeafReaderContext context : leaves) {
             if (doPrecondition) {
                 preconditionQuery(context);
             }
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
+            tasks.add(() -> searchLeaf(context, filterWeight, collectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
@@ -144,7 +136,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
         }
-        return new KnnScoreDocQuery(topK.scoreDocs, reader);
+        return new KnnScoreDocQuery(topK.scoreDocs, indexSearcher.getIndexReader());
     }
 
     private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
@@ -244,6 +236,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);
+    }
+
+    @Override
+    public int numCands() {
+        return numCands;
     }
 
     @Override

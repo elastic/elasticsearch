@@ -78,10 +78,14 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
         abstract Decision canRebalance(ShardRouting shardRouting);
     }
 
+    /**
+     * This decider is only added when the stateless plugin is enabled, so it's OK to disable
+     * balancing in the index tier by default.
+     */
     public static final Setting<RebalancingEnabled> SIMULATION_REBALANCING_ENABLED = Setting.enumSetting(
         RebalancingEnabled.class,
         "stateless.cluster.routing.allocation.balance.balancing_enabled",
-        RebalancingEnabled.ALWAYS,
+        RebalancingEnabled.SEARCH_TIER_ONLY,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

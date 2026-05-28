@@ -166,17 +166,15 @@ public class ParquetTestingIT extends ESRestTestCase {
      */
     private static final Set<String> SKIP_TIMESTAMP_VALUE_CHECK = Set.of("data/int96_from_spark.parquet");
 
-    // TODO: https://github.com/elastic/esql-planning/issues/820
     /**
-     * Bad data files that return HTTP 500 instead of a clean 4xx error.
+     * Bad data files that still return HTTP 500 instead of 4xx. The corruption is only
+     * detected during data page decoding (not at metadata/open time), so the fix in
+     * {@code ParquetFormatReader#newInvalidParquetFileException} does not cover these.
      */
     private static final Set<String> BAD_DATA_RETURNS_500 = Set.of(
-        "bad_data/ARROW-GH-41317.parquet",
-        "bad_data/ARROW-GH-41321.parquet",
-        "bad_data/PARQUET-1481.parquet"
+        "bad_data/ARROW-GH-41321.parquet" // 500: Dictionary index bit width must be <= 32, got [254]
     );
 
-    // TODO: https://github.com/elastic/esql-planning/issues/821
     /**
      * Bad data files that ESQL reads successfully (200 OK) -- the corruption is not
      * detectable by or relevant to ESQL's reader.
@@ -347,13 +345,13 @@ public class ParquetTestingIT extends ESRestTestCase {
         }
 
         if (BAD_DATA_RETURNS_500.contains(parquetFile)) {
-            ResponseException ex = expectThrows(
+            ResponseException rex = expectThrows(
                 ResponseException.class,
                 () -> runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null)
             );
-            int status = ex.getResponse().getStatusLine().getStatusCode();
-            assertEquals("Known-buggy file " + parquetFile + " expected 500 but got " + status, 500, status);
-            logger.warn("KNOWN BUG: {} returns HTTP 500 instead of 4xx", parquetFile);
+            int s = rex.getResponse().getStatusLine().getStatusCode();
+            assertEquals("Known-buggy file " + parquetFile + " expected 500 but got " + s, 500, s);
+            logger.warn("KNOWN BUG: {} returns HTTP 500 instead of 4xx (page-level decoding error)", parquetFile);
             return;
         }
 

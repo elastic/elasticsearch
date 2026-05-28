@@ -361,6 +361,63 @@ public class LuceneSliceQueueTests extends ESTestCase {
         assertThat(slices, hasSize(sliceOffset));
     }
 
+    public void testBalancedBinPackOneBigManySmall() {
+        // 1 big segment + 100 small segments, target = 2 slices.
+        // Worst-fit-decreasing should produce two roughly-equal slices: big alone vs all the smalls.
+        LeafReaderContext big = new MockLeafReader(10_000_000).getContext();
+        List<LeafReaderContext> all = new ArrayList<>();
+        all.add(big);
+        for (int i = 0; i < 100; i++) {
+            all.add(new MockLeafReader(100_000).getContext());
+        }
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(all, Set.of(), 2);
+        assertThat(slices, hasSize(2));
+        // Each slice's leaf-doc-sum should be approximately 10M.
+        long sliceADocs = slices.get(0).stream().mapToLong(p -> p.leafReaderContext().reader().maxDoc()).sum();
+        long sliceBDocs = slices.get(1).stream().mapToLong(p -> p.leafReaderContext().reader().maxDoc()).sum();
+        assertThat(sliceADocs + sliceBDocs, equalTo(20_000_000L));
+        assertThat(Math.abs(sliceADocs - sliceBDocs), Matchers.lessThanOrEqualTo(100_000L));
+    }
+
+    public void testBalancedBinPackKeepsGuardedLeavesIsolated() {
+        LeafReaderContext guarded = new MockLeafReader(500_000).getContext();
+        LeafReaderContext a = new MockLeafReader(200_000).getContext();
+        LeafReaderContext b = new MockLeafReader(200_000).getContext();
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(
+            List.of(guarded, a, b),
+            Set.of(guarded),
+            2
+        );
+        // guarded becomes its own slice; the remaining two are bin-packed into the remaining bin.
+        assertThat(slices, hasSize(2));
+        assertThat(slices.get(0), hasSize(1));
+        assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(guarded));
+        assertThat(slices.get(1), hasSize(2));
+    }
+
+    public void testDocPartitioningKeepWhole() {
+        LeafReaderContext small = new MockLeafReader(400).getContext();
+        LeafReaderContext mediumGuarded = new MockLeafReader(800_000).getContext();
+        LeafReaderContext largeSplit = new MockLeafReader(1_400_990).getContext();
+        var adaptivePartitioner = new LuceneSliceQueue.AdaptivePartitioner(250_000, 5);
+        List<List<PartialLeafReaderContext>> slices = adaptivePartitioner.partition(
+            List.of(small, mediumGuarded, largeSplit),
+            Set.of(mediumGuarded)
+        );
+        // The guarded leaf is emitted as a single full-leaf slice before any large-segment slices.
+        assertThat(slices.get(0), hasSize(1));
+        assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(mediumGuarded));
+        assertThat(slices.get(0).getFirst().minDoc(), equalTo(0));
+        // Full-leaf bound (not Integer.MAX_VALUE) — matches the convention used by SHARD.
+        assertThat(slices.get(0).getFirst().maxDoc(), equalTo(mediumGuarded.reader().maxDoc()));
+        // Large unguarded leaf gets split into multiple sub-segment slices.
+        long largeSplitSliceCount = slices.stream().filter(s -> s.size() == 1 && s.getFirst().leafReaderContext() == largeSplit).count();
+        assertThat(largeSplitSliceCount, greaterThan(1L));
+        // Small leaf is grouped via IndexSearcher.slices (its own one-slice group).
+        long smallSliceCount = slices.stream().filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == small)).count();
+        assertThat(smallSliceCount, equalTo(1L));
+    }
+
     public void testCreateSlice() throws IOException {
         try (var directory = newDirectory()) {
             try (var reader = simpleReader(directory, 1, 1)) {

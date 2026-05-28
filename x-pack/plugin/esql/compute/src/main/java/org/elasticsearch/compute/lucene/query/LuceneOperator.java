@@ -145,6 +145,32 @@ public abstract class LuceneOperator extends SourceOperator {
             boolean needsScore,
             Function<ShardContext, ScoreMode> scoreModeFunction
         ) {
+            this(
+                contextsByShardId,
+                queryFunction,
+                dataPartitioning,
+                autoStrategy,
+                docThresholdForAutoStrategy,
+                taskConcurrency,
+                limit,
+                needsScore,
+                scoreModeFunction,
+                LuceneSliceQueue.LeafSplitGuard.NEVER
+            );
+        }
+
+        protected Factory(
+            IndexedByShardId<? extends ShardContext> contextsByShardId,
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
+            DataPartitioning dataPartitioning,
+            Function<Query, LuceneSliceQueue.PartitioningStrategy> autoStrategy,
+            int docThresholdForAutoStrategy,
+            int taskConcurrency,
+            int limit,
+            boolean needsScore,
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LuceneSliceQueue.LeafSplitGuard leafSplitGuard
+        ) {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -154,7 +180,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 autoStrategy,
                 docThresholdForAutoStrategy,
                 taskConcurrency,
-                scoreModeFunction
+                scoreModeFunction,
+                leafSplitGuard
             );
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
             this.needsScore = needsScore;

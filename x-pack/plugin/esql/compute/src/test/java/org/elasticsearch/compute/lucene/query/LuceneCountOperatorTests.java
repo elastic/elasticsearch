@@ -133,7 +133,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                return LuceneSliceQueue.PartitioningStrategy.DOC;
             }
         },
         MATCH_0_AND_1 {
@@ -165,7 +165,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                return LuceneSliceQueue.PartitioningStrategy.DOC;
             }
         },
         LTE_100_GT_100 {
@@ -214,7 +214,7 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
 
             @Override
             LuceneSliceQueue.PartitioningStrategy expectedPartitioning() {
-                return LuceneSliceQueue.PartitioningStrategy.SEGMENT;
+                return LuceneSliceQueue.PartitioningStrategy.DOC;
             }
         };
 

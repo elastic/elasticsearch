@@ -493,6 +493,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     private static DataPartitioning.AutoStrategy topNAutoStrategy() {
+        // TopN keeps SEGMENT under AUTO. Routing it to DOC via the source-operator's high-speed
+        // heuristic helps scan-dominant TopN (e.g. WHERE URL LIKE … | SORT … | LIMIT 10) but
+        // regresses sort-dominant TopN (cheap or no WHERE) — sub-segment slicing breaks Lucene's
+        // sorted-segment short-circuit. Users who want DOC for a scan-dominant TopN can opt in
+        // via the data_partitioning pragma.
         return unusedLimit -> query -> LuceneSliceQueue.PartitioningStrategy.SEGMENT;
     }
 

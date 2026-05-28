@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Extension of {@link LuceneSourceOperator} for time-series aggregation that inserts metadata blocks,
@@ -38,7 +39,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
             int docThresholdForAutoStrategy,
             int taskConcurrency,
             int maxPageSize,
-            int limit
+            int limit,
+            LongSupplier directoryBytesRead
         ) {
             super(
                 contexts,
@@ -49,13 +51,22 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 taskConcurrency,
                 maxPageSize,
                 limit,
-                false
+                false,
+                directoryBytesRead
             );
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new TimeSeriesSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter);
+            return new TimeSeriesSourceOperator(
+                refCounteds,
+                driverContext.blockFactory(),
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                directoryBytesRead
+            );
         }
 
         @Override
@@ -70,9 +81,10 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
         int limit,
-        Limiter limiter
+        Limiter limiter,
+        LongSupplier directoryBytesRead
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false);
+        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false, directoryBytesRead);
     }
 
     @Override

@@ -42,6 +42,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 import static org.apache.lucene.search.ScoreMode.COMPLETE;
 import static org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
@@ -78,7 +79,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            LongSupplier directoryBytesRead
         ) {
             super(
                 shardContexts,
@@ -91,7 +93,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES,
+                directoryBytesRead
             );
             this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
@@ -101,7 +104,16 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(
+                refCounteds,
+                driverContext.blockFactory(),
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                needsScore,
+                directoryBytesRead
+            );
         }
 
         public int maxPageSize() {
@@ -223,9 +235,10 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        LongSupplier directoryBytesRead
     ) {
-        super(refCounteds, blockFactory, maxPageSize, sliceQueue);
+        super(refCounteds, blockFactory, maxPageSize, sliceQueue, directoryBytesRead);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;

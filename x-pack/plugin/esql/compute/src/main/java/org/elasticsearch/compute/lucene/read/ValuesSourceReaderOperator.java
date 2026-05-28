@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DirectoryBytesRead;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -42,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * Loads values from Lucene.
@@ -160,7 +160,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         boolean reuseColumnLoaders,
         int docChannel,
         double sourceReservationFactor,
-        int docSequenceBytesRefFieldThreshold
+        int docSequenceBytesRefFieldThreshold,
+        LongSupplier directoryBytesRead
     ) implements OperatorFactory {
         public Factory
 
@@ -179,9 +180,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             IndexedByShardId<ShardContext> shardContexts,
             boolean reuseColumnLoaders,
             int docChannel,
-            double sourceReservationFactor
+            double sourceReservationFactor,
+            LongSupplier directoryBytesRead
         ) {
-            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500);
+            this(jumboSize, fields, shardContexts, reuseColumnLoaders, docChannel, sourceReservationFactor, 500, directoryBytesRead);
         }
 
         @Override
@@ -194,7 +196,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
                 reuseColumnLoaders,
                 docChannel,
                 sourceReservationFactor,
-                docSequenceBytesRefFieldThreshold
+                docSequenceBytesRefFieldThreshold,
+                directoryBytesRead
             );
         }
 
@@ -304,6 +307,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
     long bytesRead;
+    private final LongSupplier directoryBytesRead;
 
     private int lastShard = -1;
     private int lastSegment = -1;
@@ -338,11 +342,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         boolean reuseColumnLoaders,
         int docChannel,
         double sourceReservationFactor,
-        int docSequenceBytesRefFieldThreshold
+        int docSequenceBytesRefFieldThreshold,
+        LongSupplier directoryBytesRead
     ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
+        this.directoryBytesRead = directoryBytesRead;
         this.driverContext = driverContext;
         this.jumboBytes = jumboBytes;
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
@@ -360,7 +366,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        long bytesSnapshot = DirectoryBytesRead.currentBytesRead();
+        long bytesSnapshot = directoryBytesRead.getAsLong();
         ReleasableIterator<Page> pages = appendBlockArrays(page, valuesReader(docVector));
         recordBytesRead(bytesSnapshot);
         return trackBytesRead(pages);
@@ -375,7 +381,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
             @Override
             public Page next() {
-                long bytesSnapshot = DirectoryBytesRead.currentBytesRead();
+                long bytesSnapshot = directoryBytesRead.getAsLong();
                 Page page = inner.next();
                 recordBytesRead(bytesSnapshot);
                 return page;
@@ -389,7 +395,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     }
 
     private void recordBytesRead(long bytesSnapshot) {
-        long current = DirectoryBytesRead.currentBytesRead();
+        long current = directoryBytesRead.getAsLong();
         if (current >= bytesSnapshot) {
             bytesRead += current - bytesSnapshot;
         }

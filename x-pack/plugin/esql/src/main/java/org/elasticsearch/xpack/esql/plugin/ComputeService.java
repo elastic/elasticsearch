@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DirectoryBytesRead;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -1134,15 +1133,17 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
+        var directoryBytesRead = searchService.getIndicesService()::currentStoreBytesRead;
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
-        long bytesBefore = DirectoryBytesRead.currentBytesRead();
+        long bytesBefore = directoryBytesRead.getAsLong();
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             shardContexts,
             searchService.getIndicesService().getAnalysis(),
-            plannerSettings
+            plannerSettings,
+            directoryBytesRead
         );
 
         try {
@@ -1240,7 +1241,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            long planningBytesRead = Math.max(0L, DirectoryBytesRead.currentBytesRead() - bytesBefore);
+            long planningBytesRead = Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(
                 listener,

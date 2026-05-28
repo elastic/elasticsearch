@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.LongSupplier;
 
 /**
  * Context of each shard we're operating against.
@@ -76,10 +77,15 @@ public interface ShardContext extends RefCounted {
     ShardSearchStats stats();
 
     /**
-     * Cumulative bytes read from Lucene directory I/O on the current thread, as tracked by the
+     * Supplier for cumulative bytes read from Lucene directory I/O on the current thread, as tracked by the
      * store metrics layer. Operators compute deltas by snapshotting before and after their work.
      */
+    default LongSupplier directoryBytesRead() {
+        return () -> 0L;
+    }
+
+    /** @see #directoryBytesRead() */
     default long currentBytesRead() {
-        return DirectoryBytesRead.currentBytesRead();
+        return directoryBytesRead().getAsLong();
     }
 }

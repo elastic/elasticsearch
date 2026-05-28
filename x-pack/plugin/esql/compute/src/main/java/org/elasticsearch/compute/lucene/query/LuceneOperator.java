@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DirectoryBytesRead;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -47,6 +46,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -112,12 +112,16 @@ public abstract class LuceneOperator extends SourceOperator {
 
     private IsBlockedResult blocked = Operator.NOT_BLOCKED;
 
+    private final LongSupplier directoryBytesRead;
+
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
         int maxPageSize,
-        LuceneSliceQueue sliceQueue
+        LuceneSliceQueue sliceQueue,
+        LongSupplier directoryBytesRead
     ) {
+        this.directoryBytesRead = directoryBytesRead;
         this.refCounteds = refCounteds;
         refCounteds.iterable().forEach(RefCounted::mustIncRef);
         this.blockFactory = blockFactory;
@@ -134,6 +138,7 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final boolean needsScore;
         protected final LuceneSliceQueue sliceQueue;
+        protected final LongSupplier directoryBytesRead;
 
         /**
          * Build the factory.
@@ -149,8 +154,10 @@ public abstract class LuceneOperator extends SourceOperator {
             int taskConcurrency,
             int limit,
             boolean needsScore,
-            Function<ShardContext, ScoreMode> scoreModeFunction
+            Function<ShardContext, ScoreMode> scoreModeFunction,
+            LongSupplier directoryBytesRead
         ) {
+            this.directoryBytesRead = directoryBytesRead;
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
             this.sliceQueue = LuceneSliceQueue.create(
@@ -177,7 +184,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
     @Override
     public final Page getOutput() {
-        long bytesSnapshot = DirectoryBytesRead.currentBytesRead();
+        long bytesSnapshot = directoryBytesRead.getAsLong();
         try {
             Page page = getCheckedOutput();
             if (page != null) {
@@ -194,7 +201,7 @@ public abstract class LuceneOperator extends SourceOperator {
     }
 
     private void recordBytesRead(long bytesSnapshot) {
-        long current = DirectoryBytesRead.currentBytesRead();
+        long current = directoryBytesRead.getAsLong();
         if (current >= bytesSnapshot) {
             totalBytesRead += current - bytesSnapshot;
         }

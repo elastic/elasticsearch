@@ -38,6 +38,9 @@ count:long | gender:keyword
 // ---- File-metadata projections under multi-file glob (relocated from external-multifile.csv-spec) ----
 // CSV-side coverage of the _file.* metadata columns under a glob read. brackets opt-in carries from
 // the same fixture having bracket-MV columns; only scalar/metadata columns are projected.
+// The 3-file count below mirrors `multifileSplitParts = 3` in
+// x-pack/plugin/esql-datasource-csv/qa/build.gradle (generateMultifileCsvSplit_employees split).
+// If that constant changes, update the names:long expectation here.
 
 multiFileDistinctFileCount
 required_capability: external_command

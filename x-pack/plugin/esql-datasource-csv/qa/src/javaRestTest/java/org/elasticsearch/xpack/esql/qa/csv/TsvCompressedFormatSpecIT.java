@@ -58,7 +58,8 @@ public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
             COMPRESSED_FORMATS,
             "/csv-basic.csv-spec",
             "/external-multifile.csv-spec",
-            "/external-multifile-resolution.csv-spec"
+            "/external-multifile-resolution.csv-spec",
+            "/tsv-multivalue.csv-spec"
         );
     }
 }

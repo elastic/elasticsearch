@@ -56,20 +56,24 @@ c:long
 
 // Silent-drift case: a quoted bracket cell ("[a,b,c]") under multi_value_syntax: none does NOT
 // misalign columns (the quotes contain the commas), so the row parses cleanly — but the cell is
-// a literal string [a,b,c], not an array. No warning fires. This is the failure mode users will
-// hit if they upgrade and assumed brackets parsing was on by default.
+// a literal string [a,b,c], not an array. The MV_COUNT == 1 assertion is what makes the silent-
+// drift invariant testable: a 3-element array would yield MV_COUNT == 3. tags itself is not
+// projected — the csv-spec harness treats expected cells starting with '[' as multi-value
+// literals (CsvTestUtils.loadPageFromCsv), so projecting tags would require an unsafe
+// stringification of the literal; the MV_COUNT proxy is the supported pattern (matches the TSV
+// peer tsvNoneOnMultiValueDataReadsLiteralNoFailure). No warningRegex == no warning fires.
 csvNoneOnQuotedBracketIsLiteralNoWarning
 required_capability: external_command
 
 EXTERNAL "{{mv_sample_quoted}}" WITH {"multi_value_syntax": "none"}
 | EVAL cnt = MV_COUNT(tags)
-| KEEP id, tags, cnt
+| KEEP id, cnt
 | SORT id
 ;
 
-id:integer | tags:keyword         | cnt:integer
-1          | [alpha,beta,gamma]   | 1
-2          | solo                 | 1
+id:integer | cnt:integer
+1          | 1
+2          | 1
 ;
 
 // ---- Relocated from external-basic.csv-spec ----

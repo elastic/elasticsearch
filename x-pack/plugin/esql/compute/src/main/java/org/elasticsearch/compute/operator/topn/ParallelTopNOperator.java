@@ -22,8 +22,6 @@ import org.elasticsearch.compute.operator.exchange.ExchangeBuffer;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -40,10 +38,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       {@code in} and background workers drain that buffer concurrently.</li>
  *   <li><b>Finishing</b> – {@link #finish()} marks the buffer as complete; workers drain
  *       the remaining pages, build their local top-K results, and transfer the resulting
- *       pages to {@link #mergePages}.</li>
+ *       pages to their per-worker output list.</li>
  *   <li><b>Merging</b> – once all workers have signalled completion via
- *       {@link #allWorkersDone}, the driver thread feeds {@code mergePages} into
- *       {@code workers.get(0)} (the initial pre-promotion operator that holds the rows
+ *       {@link #allWorkersDone}, the driver thread feeds all per-worker output pages into
+ *       {@code mergeTarget} (the initial pre-promotion operator that holds the rows
  *       accumulated before promotion), calls {@link TopNOperator#finish()} on it, and
  *       delegates subsequent {@link #getOutput()} calls to it.</li>
  * </ol>
@@ -52,8 +50,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Each background worker is created with a separate {@link org.elasticsearch.compute.data.LocalCircuitBreaker}
  * via {@link DriverContext#workerBlockFactory()}. Workers call
  * {@link Page#allowPassingToDifferentDriver()} on their output pages before adding them to
- * {@code mergePages}, which transfers block memory from the worker's local breaker to the
- * global breaker so the driver thread can release it safely.
+ * their per-worker output list, which transfers block memory from the worker's local breaker
+ * to the global breaker so the driver thread can release it safely. Input pages have
+ * {@link Page#allowPassingToDifferentDriver()} called on the driver thread in
+ * {@link #addInput} before being enqueued, for the same reason.
  */
 public class ParallelTopNOperator implements Operator, Accountable {
 
@@ -63,12 +63,21 @@ public class ParallelTopNOperator implements Operator, Accountable {
     private final ExchangeBuffer in;
 
     /**
-     * Workers list. {@code workers.get(0)} is the initial {@link TopNOperator} that was
-     * promoted and already holds rows accumulated before promotion. It is never dispatched
-     * to a background thread. {@code workers.get(1..n)} are fresh workers running on
-     * {@code esql_worker} threads.
+     * The initial {@link TopNOperator} that was promoted and already holds rows accumulated
+     * before promotion. Never dispatched to a background thread; used as the sole merge
+     * target in {@link #getOutput()} and closed on the driver thread in {@link #close()}.
      */
+    private final TopNOperator mergeTarget;
+
+    /** Background worker operators, one per {@code esql_worker} thread. */
     private final List<TopNOperator> workers;
+
+    /**
+     * Per-worker output page lists. Each background worker writes exclusively to its own
+     * list; by the time the driver reads from these lists {@link #allWorkersDone} has fired,
+     * so reads and writes never overlap and no concurrent data structure is needed.
+     */
+    private final List<List<Page>> workerOutputs;
 
     private final DriverContext driverContext;
     private final Executor executor;
@@ -79,22 +88,15 @@ public class ParallelTopNOperator implements Operator, Accountable {
     /** Completes when all background workers have finished (or there were none). */
     private final SubscribableListener<Void> allWorkersDone = new SubscribableListener<>();
 
-    /**
-     * Pages produced by background workers after they finish processing the {@link #in}
-     * buffer. These pages have had {@link Page#allowPassingToDifferentDriver()} called and
-     * are safe to consume on the driver thread during the merge phase.
-     */
-    private final Queue<Page> mergePages = new ConcurrentLinkedQueue<>();
-
     /** True once {@link #finish()} has been called. */
-    private volatile boolean finishCalled = false;
+    private boolean finishCalled = false;
 
     /** True once {@link #close()} has been called; signals workers to stop. */
     private volatile boolean closed = false;
 
     /**
-     * True once the merge phase (feeding {@link #mergePages} into {@code workers.get(0)})
-     * has completed and {@link TopNOperator#finish()} has been called on {@code workers.get(0)}.
+     * True once the merge phase (feeding per-worker output pages into {@link #mergeTarget})
+     * has completed and {@link TopNOperator#finish()} has been called on {@link #mergeTarget}.
      */
     private boolean mergeDone = false;
 
@@ -103,7 +105,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
      * @param driverContext   driver context for block-factory and async-action tracking
      * @param factory         factory used to create fresh background worker operators
      * @param initialWorker   the promoted {@link TopNOperator} that holds pre-promotion rows;
-     *                        becomes {@code workers.get(0)} and is never sent to a background thread
+     *                        becomes {@link #mergeTarget} and is never sent to a background thread
      */
     public ParallelTopNOperator(
         TopNOperator.ParallelWorkerConfig config,
@@ -114,30 +116,32 @@ public class ParallelTopNOperator implements Operator, Accountable {
         this.in = new ExchangeBuffer(config.maxInFlightPages());
         this.driverContext = driverContext;
         this.executor = config.executor();
+        this.mergeTarget = initialWorker;
 
         int backgroundWorkerCount = config.workerCount();
-        this.workers = new ArrayList<>(backgroundWorkerCount + 1);
-        this.workers.add(initialWorker);
+        this.workers = new ArrayList<>(backgroundWorkerCount);
+        this.workerOutputs = new ArrayList<>(backgroundWorkerCount);
         for (int i = 0; i < backgroundWorkerCount; i++) {
             workers.add(factory.getWorkerOperator(driverContext));
+            workerOutputs.add(new ArrayList<>());
         }
 
         this.runningWorkerTasks = new AtomicInteger(backgroundWorkerCount);
         if (backgroundWorkerCount == 0) {
             allWorkersDone.onResponse(null);
         } else {
-            for (int i = 1; i < workers.size(); i++) {
+            for (int i = 0; i < workers.size(); i++) {
                 driverContext.addAsyncAction();
-                scheduleWorker(workers.get(i));
+                scheduleWorker(workers.get(i), workerOutputs.get(i));
             }
         }
     }
 
-    private void scheduleWorker(TopNOperator worker) {
+    private void scheduleWorker(TopNOperator worker, List<Page> workerOutput) {
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
-                runWorker(worker);
+                runWorker(worker, workerOutput);
             }
 
             @Override
@@ -146,21 +150,13 @@ public class ParallelTopNOperator implements Operator, Accountable {
                 in.finish(true);
                 workerPermanentlyExited(worker, true);
             }
-
-            @Override
-            public void onRejection(Exception e) {
-                failureCollector.unwrapAndCollect(e);
-                in.finish(true);
-                workerPermanentlyExited(worker, true);
-            }
         });
     }
 
-    private void runWorker(TopNOperator worker) {
+    private void runWorker(TopNOperator worker, List<Page> workerOutput) {
         try {
             Page page;
             while (closed == false && (page = in.pollPage()) != null) {
-                page.allowPassingToDifferentDriver();
                 worker.addInput(page);
             }
         } catch (Exception e) {
@@ -178,11 +174,16 @@ public class ParallelTopNOperator implements Operator, Accountable {
                     worker.finish();
                     Page outputPage;
                     while ((outputPage = worker.getOutput()) != null) {
-                        outputPage.allowPassingToDifferentDriver();
+                        try {
+                            outputPage.allowPassingToDifferentDriver();
+                        } catch (Exception e) {
+                            outputPage.releaseBlocks();
+                            throw e;
+                        }
                         if (closed) {
                             outputPage.releaseBlocks();
                         } else {
-                            mergePages.add(outputPage);
+                            workerOutput.add(outputPage);
                         }
                     }
                 } catch (Exception e) {
@@ -193,7 +194,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
             workerPermanentlyExited(worker, abort);
         } else {
             // Buffer temporarily empty; reschedule when more pages arrive or buffer finishes.
-            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker)));
+            in.waitForReading().listener().addListener(ActionListener.running(() -> scheduleWorker(worker, workerOutput)));
         }
     }
 
@@ -233,6 +234,7 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
+        page.allowPassingToDifferentDriver();
         in.addPage(page);
     }
 
@@ -246,12 +248,12 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
     @Override
     public boolean isFinished() {
-        return mergeDone && workers.get(0).isFinished();
+        return mergeDone && mergeTarget.isFinished();
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return mergeDone && workers.get(0).canProduceMoreDataWithoutExtraInput();
+        return mergeDone && mergeTarget.canProduceMoreDataWithoutExtraInput();
     }
 
     @Override
@@ -269,9 +271,11 @@ public class ParallelTopNOperator implements Operator, Accountable {
     public Page getOutput() {
         if (failureCollector.hasFailure()) {
             // Release any pages accumulated for merge before throwing.
-            Page p;
-            while ((p = mergePages.poll()) != null) {
-                p.releaseBlocks();
+            for (List<Page> pages : workerOutputs) {
+                for (Page p : pages) {
+                    p.releaseBlocks();
+                }
+                pages.clear();
             }
             throw ExceptionsHelper.convertToRuntime(failureCollector.getFailure());
         }
@@ -279,15 +283,16 @@ public class ParallelTopNOperator implements Operator, Accountable {
             return null;
         }
         if (mergeDone == false) {
-            // Feed all pages produced by background workers into workers[0] for merge.
-            Page p;
-            while ((p = mergePages.poll()) != null) {
-                workers.get(0).addInput(p);
+            // Feed all pages produced by background workers into mergeTarget.
+            for (List<Page> pages : workerOutputs) {
+                for (Page p : pages) {
+                    mergeTarget.addInput(p);
+                }
             }
-            workers.get(0).finish();
+            mergeTarget.finish();
             mergeDone = true;
         }
-        return workers.get(0).getOutput();
+        return mergeTarget.getOutput();
     }
 
     @Override
@@ -295,17 +300,20 @@ public class ParallelTopNOperator implements Operator, Accountable {
         closed = true;
         in.finish(true);
         // Release any merge pages already queued; workers still running will release their own.
-        Page p;
-        while ((p = mergePages.poll()) != null) {
-            p.releaseBlocks();
+        for (List<Page> pages : workerOutputs) {
+            for (Page p : pages) {
+                p.releaseBlocks();
+            }
+            pages.clear();
         }
-        // Close workers[0] here (driver thread). Background workers close themselves.
-        workers.get(0).close();
+        // Close mergeTarget here (driver thread). Background workers close themselves.
+        mergeTarget.close();
     }
 
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
+        size += mergeTarget.ramBytesUsed();
         for (TopNOperator worker : workers) {
             size += worker.ramBytesUsed();
         }
@@ -314,6 +322,6 @@ public class ParallelTopNOperator implements Operator, Accountable {
 
     @Override
     public String toString() {
-        return "ParallelTopNOperator[workers=" + workers.size() + "]";
+        return "ParallelTopNOperator[workers=" + (workers.size() + 1) + "]";
     }
 }

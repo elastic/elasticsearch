@@ -2704,7 +2704,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         doPrecondition,
                         ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
                         flatIndexThreshold,
-                        null,
+                        sliceField,
                         IvfFlushConfigSource.empty(),
                         (fieldInfo, floatVectorValues, mergeState, codecDefault) -> {
                             ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(clusterSize);

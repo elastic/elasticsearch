@@ -34,15 +34,6 @@ public final class RepErrorStdModel {
     }
 
     /**
-     * Predicted error std for centroid representation at given cluster/sample sizes.
-     */
-    public double centroidRepErrorStd(int nDocsPerCluster, int sampleSize) {
-        double x = Math.log(nDocsPerCluster) - Math.log(sampleSize);
-        Regression.Prediction p = Regression.predictOls(cparams, x);
-        return Math.exp(p.mean() + 3.0 * p.std());
-    }
-
-    /**
      * Predicted error std for quantized representation; used in the expected recall formula.
      */
     public double quantizeRepErrorStd(int nDocsPerCluster, int sampleSize) {

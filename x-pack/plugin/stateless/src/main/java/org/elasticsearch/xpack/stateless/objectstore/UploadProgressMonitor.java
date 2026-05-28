@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,6 +56,8 @@ final class UploadProgressMonitor implements Scheduler.Cancellable {
     private final PrimaryTermAndGeneration primaryTermAndGeneration;
 
     private final String blobPath;
+
+    private volatile long uploadRunStartMillis;
 
     private final long totalSizeInBytes;
 
@@ -117,12 +120,24 @@ final class UploadProgressMonitor implements Scheduler.Cancellable {
     }
 
     private void startMonitoring(TimeValue logInterval) {
-        long uploadRunStartNanos = threadPool.relativeTimeInNanos();
-        loggingTask = threadPool.scheduleWithFixedDelay(() -> logProgressLine(uploadRunStartNanos), logInterval, threadPool.generic());
+        uploadRunStartMillis = threadPool.relativeTimeInMillis();
+        loggingTask = threadPool.scheduleWithFixedDelay(this::logProgressLine, logInterval, threadPool.generic());
     }
 
     @Override
     public boolean cancel() {
+        if (isCancelled() == false && progressTracker.bytesUploaded() == totalSizeInBytes) {
+            long elapsedMs = threadPool.relativeTimeInMillis() - uploadRunStartMillis;
+            final var message = new ESLogMessage(
+                "{} batched compound commit [{}] upload took [{}] for [{}] bytes: blob [{}]",
+                shardId,
+                primaryTermAndGeneration,
+                elapsedMs,
+                totalSizeInBytes,
+                blobPath).field("elasticsearch.primary.bcc_upload_time", elapsedMs)
+                    .field("elasticsearch.primary.bcc_uploaded_bytes", totalSizeInBytes);
+            logger.info(message);
+        }
         return loggingTask == null || loggingTask.cancel();
     }
 
@@ -131,11 +146,11 @@ final class UploadProgressMonitor implements Scheduler.Cancellable {
         return loggingTask == null || loggingTask.isCancelled();
     }
 
-    private void logProgressLine(long uploadRunStartNanos) {
+    private void logProgressLine() {
         // We read the uploaded bytes before the read ones to avoid races that could make the log message confusing (uploaded > read)
         long uploaded = progressTracker.bytesUploaded();
         long read = progressTracker.bytesRead();
-        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadRunStartNanos);
+        long elapsedMs = threadPool.relativeTimeInMillis() - uploadRunStartMillis;
         HotThreads.logLocalHotThreads(logger, Level.INFO, shardId + " bcc upload ", ReferenceDocs.LOGGING);
         logger.info(
             () -> format(

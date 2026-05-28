@@ -1628,7 +1628,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             UploadProgressMonitor progressMonitor = null;
             try {
                 progressMonitor = UploadProgressMonitor.newInstance(
-                    logger,
+                    org.apache.logging.log4j.LogManager.getLogger(ObjectStoreService.class),
                     threadPool,
                     blobContainer,
                     virtualBatchedCompoundCommit,

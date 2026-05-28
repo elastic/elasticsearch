@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.Message;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +27,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,12 +114,12 @@ public class UploadProgressMonitorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testNewInstanceSchedulesProgressLoggingWithElapsedTime() {
+    public void testNewInstanceSchedulesProgressLoggingWithElapsedTime() throws IOException {
         Logger logger = mock(Logger.class);
         Scheduler.Cancellable loggingTask = mock(Scheduler.Cancellable.class);
         ExecutorService generic = mock(ExecutorService.class);
         when(threadPool.generic()).thenReturn(generic);
-        when(threadPool.relativeTimeInNanos()).thenReturn(1_000_000L, 6_000_000_000L);
+        when(threadPool.relativeTimeInMillis()).thenReturn(1_000L, 6_000L, 10_000L);
         ArgumentCaptor<Runnable> progressLogging = ArgumentCaptor.forClass(Runnable.class);
         when(threadPool.scheduleWithFixedDelay(progressLogging.capture(), any(TimeValue.class), eq(generic))).thenReturn(loggingTask);
         when(loggingTask.cancel()).thenReturn(true);
@@ -133,9 +135,17 @@ public class UploadProgressMonitorTests extends ESTestCase {
         assertThat(message, containsString("blob [commits/commit.dat]"));
         assertThat(message, containsString("bytesRead=0/1000"));
         assertThat(message, containsString("bytesUploaded=0/1000"));
-        assertThat(message, containsString("elapsed=5999ms"));
+        assertThat(message, containsString("elapsed=5000ms"));
+
+        byte[] data = new byte[1_000];
+        try (InputStream in = monitor.monitor(new ByteArrayInputStream(data))) {
+            byte[] buffer = new byte[data.length];
+            assertThat(in.read(buffer), equalTo(data.length));
+        }
 
         assertTrue(monitor.cancel());
+        ArgumentCaptor<Message> esLogMessage = ArgumentCaptor.forClass(Message.class);
+        verify(logger).info(esLogMessage.capture());
         verify(loggingTask).cancel();
     }
 

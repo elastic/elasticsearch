@@ -112,8 +112,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
             throw new TranslogCorruptedException(
                 path.toString(),
-                "operation's term is newer than translog header term; "
-                    + "operation term["
+                "records's term is newer than translog header term; "
+                    + "record term["
                     + op.primaryTerm()
                     + "], translog header term ["
                     + getPrimaryTerm()
@@ -121,6 +121,27 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
             );
         }
         return op;
+    }
+
+    /**
+     * Reads either an {@link Translog.Operation} or an {@link Translog.IndexBatch} from the stream
+     * (consuming the size prefix and verifying the checksum) and verifies the record's primary
+     * term against the translog header.
+     */
+    protected Translog.Record readRecord(BufferedChecksumStreamInput inStream) throws IOException {
+        final Translog.Record record = Translog.readRecord(inStream);
+        if (record.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            throw new TranslogCorruptedException(
+                path.toString(),
+                "operation's term is newer than translog header term; "
+                    + "operation term["
+                    + record.primaryTerm()
+                    + "], translog header term ["
+                    + getPrimaryTerm()
+                    + "]"
+            );
+        }
+        return record;
     }
 
     /**
@@ -147,7 +168,10 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     /**
-     * Reads a single operation from the given location.
+     * Reads a single operation from the given location. Throws if the record at that location is
+     * an {@link Translog.IndexBatch} — batch records cover N documents but this method can only
+     * return a single {@link Translog.Operation}. Iterate the snapshot instead, which explodes
+     * batches into individual {@link Translog.Index} ops.
      */
     Translog.Operation read(Translog.Location location) throws IOException {
         assert location.generation() == this.generation : "generation mismatch expected: " + generation + " got: " + location.generation();

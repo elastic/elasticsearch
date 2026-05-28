@@ -243,6 +243,10 @@ public class SearchEngine extends Engine {
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
+            // SearchEngine has a single reader manager, so internal refresh listeners must also be wired onto it.
+            for (ReferenceManager.RefreshListener refreshListener : config.getInternalRefreshListener()) {
+                readerManager.addListener(refreshListener);
+            }
             this.prefetcherDynamicSettings = prefetcherDynamicSettings;
             this.commitPrefetcher = new SearchCommitPrefetcher(
                 searchDirectory.getShardId(),

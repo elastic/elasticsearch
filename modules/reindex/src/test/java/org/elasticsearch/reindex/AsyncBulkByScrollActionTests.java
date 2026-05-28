@@ -60,6 +60,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
@@ -1400,6 +1401,28 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(h2.releases.get(), equalTo(1));
         // Terminal path must release hits without submitting bulk; without requestFinishing prepare reaches sendBulkRequest.
         assertThat(sendBulkInvocations.get(), equalTo(0));
+    }
+
+    public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        testRequest.getSearchRequest().searchSlice("slice-1");
+
+        IndexRequest indexRequest = new IndexRequest().index("test").id("1");
+        DeleteRequest deleteRequest = new DeleteRequest("test", "1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(deleteRequest), "slice-1");
+
+        assertThat(indexRequest.routing(), equalTo("slice-1"));
+        assertTrue(indexRequest.isRoutingFromSlice());
+        assertThat(deleteRequest.routing(), equalTo("slice-1"));
+        assertTrue(deleteRequest.isRoutingFromSlice());
+
+        testRequest.getSearchRequest().searchSlice(null);
+        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        assertThat(routingRequest.routing(), equalTo("routing-value"));
+        assertFalse(routingRequest.isRoutingFromSlice());
     }
 
     /**

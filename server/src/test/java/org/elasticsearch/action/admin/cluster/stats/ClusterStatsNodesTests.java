@@ -115,7 +115,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );
-        long[] expectedStats = new long[14];
+        long[] expectedStats = new long[15];
         for (NodeStats nodeStat : nodeStats) {
             IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
             if (indexingPressureStats != null) {
@@ -134,8 +134,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 expectedStats[10] += indexingPressureStats.getReplicaRejections();
                 expectedStats[11] += indexingPressureStats.getPrimaryDocumentRejections();
                 expectedStats[12] += indexingPressureStats.getLargeOpsRejections();
+                expectedStats[13] += indexingPressureStats.getTotalCancelledOps();
 
-                expectedStats[13] += indexingPressureStats.getMemoryLimit();
+                expectedStats[14] += indexingPressureStats.getMemoryLimit();
             }
         }
 
@@ -191,9 +192,12 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"large_operation_rejections\":"
                     + expectedStats[12]
+                    + ","
+                    + "\"total_cancelled_operations\":"
+                    + expectedStats[13]
                     + "},"
                     + "\"limit_in_bytes\":"
-                    + expectedStats[13]
+                    + expectedStats[14]
                     + "}"
                     + "}}"
             )

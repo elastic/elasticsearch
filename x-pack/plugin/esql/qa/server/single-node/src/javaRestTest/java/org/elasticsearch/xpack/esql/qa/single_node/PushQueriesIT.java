@@ -326,6 +326,24 @@ public class PushQueriesIT extends ESRestTestCase {
         testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
     }
 
+    public void testMvContainsOnStrings() throws IOException {
+        String value = "v".repeat(between(1, 256));
+        String esqlQuery = """
+            FROM test
+            | WHERE mv_contains(test, ["%value"])
+            """;
+        String luceneQuery = switch (type) {
+            case CONSTANT_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, AUTO, TEXT_WITH_KEYWORD -> "*:*";
+            case SEMANTIC_TEXT_WITH_KEYWORD -> "FieldExistsQuery [field=_primary_term]";
+            case KEYWORD -> "test:" + value;
+        };
+        ComputeSignature dataNodeSignature = switch (type) {
+            case CONSTANT_KEYWORD, KEYWORD -> ComputeSignature.FILTER_IN_QUERY;
+            case AUTO, TEXT_WITH_KEYWORD, MATCH_ONLY_TEXT_WITH_KEYWORD, SEMANTIC_TEXT_WITH_KEYWORD -> ComputeSignature.FILTER_IN_COMPUTE;
+        };
+        testPushQuery(value, esqlQuery, List.of(luceneQuery), dataNodeSignature, true);
+    }
+
     enum ComputeSignature {
         FILTER_IN_COMPUTE(
             matchesList().item("LuceneSourceOperator")

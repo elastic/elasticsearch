@@ -17,9 +17,12 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
 public abstract class Foldables {
     /**
@@ -87,13 +90,6 @@ public abstract class Foldables {
             return literal.value();
         }
         throw new QlIllegalArgumentException("Expected literal, but got {}", e);
-    }
-
-    public static Object extractLiteralOrReturnSelf(Expression e) {
-        if (e instanceof Literal literal) {
-            return literal.value();
-        }
-        return e;
     }
 
     public static Integer limitValue(Expression limitField, String sourceText) {
@@ -167,11 +163,38 @@ public abstract class Foldables {
 
     public static Object queryAsObject(Expression queryField, String sourceText) {
         if (queryField instanceof Literal literal) {
-            return literal.value();
+            return literalValueAsLuceneQueryObject(literal.value(), literal.dataType());
         }
         throw new EsqlIllegalArgumentException(
             format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
         );
+    }
+
+    /**
+     * Converts a literal value to an Object suitable to be passed as a query term in a Lucene query.
+     * Handles common conversions for BytesRef, UNSIGNED_LONG, DATETIME, and DATE_NANOS.
+     */
+    public static Object literalValueAsLuceneQueryObject(Object queryAsObject, DataType dataType) {
+        // Convert BytesRef to string for string-based values
+        if (queryAsObject instanceof BytesRef bytesRef) {
+            return switch (dataType) {
+                case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
+                case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
+                default -> bytesRef.utf8ToString();
+            };
+        }
+
+        // Converts specific types to the correct type for the query
+        if (dataType == DataType.UNSIGNED_LONG) {
+            return org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
+        } else if (dataType == DataType.DATETIME && queryAsObject instanceof Long) {
+            // When casting to date and datetime, we get a long back. But most QueryBuilders need a date string
+            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
+        } else if (dataType == DATE_NANOS && queryAsObject instanceof Long) {
+            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
+        }
+
+        return queryAsObject;
     }
 
     public static String queryAsString(Expression queryField, String sourceText) {

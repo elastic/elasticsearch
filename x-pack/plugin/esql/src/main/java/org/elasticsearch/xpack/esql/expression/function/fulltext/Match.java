@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -393,8 +394,9 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
         String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        Object queryAsObject = Foldables.queryAsObject(query(), sourceText());
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+        return new MatchQuery(source(), fieldName, queryAsObject, matchQueryOptions());
     }
 
     @Override
@@ -416,7 +418,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (isRuntimeSearch()) {
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryAsObject().toString(), new StandardAnalyzer());
+            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), Foldables.queryAsString(query(), sourceText()), new StandardAnalyzer());
         }
 
         return super.toEvaluator(toEvaluator);

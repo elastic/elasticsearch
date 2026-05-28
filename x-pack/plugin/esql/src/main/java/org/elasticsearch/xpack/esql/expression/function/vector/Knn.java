@@ -204,7 +204,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
     }
 
-    public List<Number> queryAsObject() {
+    private List<Number> queryAsObject() {
         // we need to check that we got a list and every element in the list is a number
         Expression query = query();
         if (query instanceof Literal literal) {

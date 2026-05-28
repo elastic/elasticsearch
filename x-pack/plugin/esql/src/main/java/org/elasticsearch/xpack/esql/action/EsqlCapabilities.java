@@ -2969,6 +2969,13 @@ public class EsqlCapabilities {
          */
         FIX_PROMQL_SCALAR_FLOAT_DIV,
 
+        /**
+         * Temporary gate for PromQL scalar float-division specs that still have a one-hour
+         * step timestamp mismatch in mixed/version-skew clusters.
+         * https://github.com/elastic/elasticsearch-serverless/issues/6817
+         */
+        FIX_PROMQL_SCALAR_FLOAT_DIV_STEP_TIMESTAMP(false),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

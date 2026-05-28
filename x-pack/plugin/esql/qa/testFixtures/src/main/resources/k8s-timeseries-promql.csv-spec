@@ -1187,6 +1187,7 @@ required_capability: promql_scalar
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_promql_scalar_float_div
+required_capability: fix_promql_scalar_float_div_step_timestamp
 PROMQL index=k8s step=1h result=(round(vector(1/2), 0.001));
 
 result:double | step:datetime
@@ -1199,6 +1200,7 @@ required_capability: promql_scalar
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_promql_scalar_float_div
+required_capability: fix_promql_scalar_float_div_step_timestamp
 PROMQL index=k8s step=1h result=(round(vector(4/6), 0.001));
 
 result:double | step:datetime
@@ -1211,6 +1213,7 @@ required_capability: promql_scalar
 required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 required_capability: fix_promql_scalar_float_div
+required_capability: fix_promql_scalar_float_div_step_timestamp
 PROMQL index=k8s step=1h result=(round(vector(1*2 + 4/6 - (10%7)^2), 0.001));
 
 result:double | step:datetime

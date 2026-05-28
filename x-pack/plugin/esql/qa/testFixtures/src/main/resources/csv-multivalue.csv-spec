@@ -134,12 +134,12 @@ required_capability: external_command
 
 EXTERNAL "{{employees}}" WITH {"multi_value_syntax": "brackets"}
 | WHERE emp_no == 10004
-| EVAL deduped = MV_DEDUPE(salary_change)
+| EVAL deduped = MV_SORT(MV_DEDUPE(salary_change))
 | KEEP emp_no, deduped, first_name
 ;
 
 emp_no:integer | deduped:double          | first_name:keyword
-10004          | [3.65,-0.35,1.13,13.48] | Chirstian
+10004          | [-0.35,1.13,3.65,13.48] | Chirstian
 ;
 
 filterFirstRowAllColumns

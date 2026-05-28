@@ -53,7 +53,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile}}" WITH {"header_row": false, "schema_resolution": "first_file_wins", "multi_value_syntax": "brackets"}
+EXTERNAL "{{employees_multifile}}" WITH {"header_row": false, "schema_resolution": "first_file_wins"}
 | SORT col0 ASC
 | LIMIT 10
 ;

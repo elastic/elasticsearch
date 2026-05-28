@@ -140,7 +140,7 @@ tasks.register('generateMultifileCsvSplit_employees') {
 }
 
 // Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
-def csvBasenamesForTsv = ['employees', 'web_logs', 'books', 'mv_sample', 'mv_sample_quoted', 'employees_no_mv']
+def csvBasenamesForTsv = ['employees', 'web_logs', 'books', 'mv_sample', 'employees_no_mv']
 
 def generateStandaloneTsvTasks = []
 csvBasenamesForTsv.each { baseName ->

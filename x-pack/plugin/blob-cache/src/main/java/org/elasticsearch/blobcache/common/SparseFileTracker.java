@@ -346,9 +346,11 @@ public class SparseFileTracker {
                 completionListenerA.addListener(pal.listener(), threshold);
             } else {
                 final ActionListener<Long> original = pal.listener();
-                try (var bothFiredRef = new RefCountingListener(
-                    ActionListener.wrap(v -> original.onResponse(threshold), original::onFailure)
-                )) {
+                try (
+                    var bothFiredRef = new RefCountingListener(
+                        ActionListener.wrap(v -> original.onResponse(threshold), original::onFailure)
+                    )
+                ) {
                     completionListenerA.addListener(bothFiredRef.acquire(v -> {}), splitPoint);
                     completionListenerB.addListener(bothFiredRef.acquire(v -> {}), threshold);
                 }

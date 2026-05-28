@@ -255,6 +255,15 @@ public class LogConfigurator {
                 }
                 return FileVisitResult.CONTINUE;
             }
+
+            @Override
+            public FileVisitResult visitFileFailed(final Path file, final IOException exc) throws IOException {
+                // ignore failures unrelated to log4j config files
+                if (file.getFileName().toString().equals("log4j2.properties")) {
+                    throw exc;
+                }
+                return FileVisitResult.CONTINUE;
+            }
         });
         assert configurations.isEmpty() == false;
 

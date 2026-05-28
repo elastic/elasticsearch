@@ -73,7 +73,7 @@ import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestU
  *   ./gradlew :benchmarks:run --args 'org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmark\.controlScore'
  *   # all, exclude control
  *   ./gradlew :benchmarks:run --args 'org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmark -e controlScore'
- *   # D1Q1 only, single dimension
+ *   # only a few selected parameters; e.g. D1Q1 quantization, 128 dimension
  *   ./gradlew :benchmarks:run --args 'org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmark -pquantConfig=D1Q1 -pdims=128'
  * </pre>
  */
@@ -186,29 +186,20 @@ public class VectorScorerOSQBenchmark {
     ) {}
 
     private static int docPackedLength(int dims, QuantConfig quantConfig) {
-        byte indexBits = quantConfig.indexBits();
-        ES940OSQVectorsScorer.BitEncoding bitEncoding = quantConfig.bitEncoding();
-        if (indexBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
-            int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).discretizedDimensions(dims);
-            return 4 * ((discretized + 7) / 8);
-        }
-        return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getDocPackedLength(dims);
+        return switch (quantConfig) {
+            case D4Q4_STRIPED -> {
+                int discretized = ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).discretizedDimensions(dims);
+                yield 4 * ((discretized + 7) / 8);
+            }
+            default -> ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).getDocPackedLength(dims);
+        };
     }
 
     private static int queryPackedLength(int dims, QuantConfig quantConfig) {
-        byte indexBits = quantConfig.indexBits();
-        byte queryBits = quantConfig.queryBits();
-        ES940OSQVectorsScorer.BitEncoding bitEncoding = quantConfig.bitEncoding();
-        if (indexBits == 1 && queryBits == 1) {
-            return docPackedLength(dims, quantConfig);
-        }
-        if (indexBits == 4 && queryBits == 4 && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
-            return docPackedLength(dims, quantConfig);
-        }
-        if (indexBits == 7 && queryBits == 7) {
-            return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getQueryPackedLength(dims);
-        }
-        return ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getQueryPackedLength(dims);
+        return switch (quantConfig) {
+            case D1Q1, D4Q4_STRIPED -> docPackedLength(dims, quantConfig);
+            default -> ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).getQueryPackedLength(dims);
+        };
     }
 
     static VectorData generateRandomVectorData(

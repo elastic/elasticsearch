@@ -81,11 +81,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     // Set when the list is passed to ReducedQueryPhase so doClose() does not release it
     private volatile boolean topHitsOwnershipTransferred;
 
-    // True for coordinator-side consumers that own DirectoryMetrics aggregation for the query phase. False on the
-    // data-node-side consumer in QueryPerNodeState: there, per-shard DirectoryMetrics ride back inside each
-    // QuerySearchResult and are accumulated on the coordinator via the coordinator-side QueryPhaseResultConsumer.
-    private final boolean accumulateDirectoryMetrics;
-
     private final Consumer<Exception> onPartialMergeFailure;
 
     private final int batchReduceSize;
@@ -108,8 +103,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private volatile int numReducePhases;
 
     /**
-     * Creates a coordinator-side {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
-     * as shard results are consumed and accumulates {@link DirectoryMetrics} from each shard response.
+     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
+     * <p>
+     * Per-shard {@link DirectoryMetrics} are forwarded to whatever sink the owning action has installed via
+     * {@link SearchPhaseResults#setDirectoryMetricsSink}. The default is a no-op, which is also the right behavior for
+     * data-node-side consumers: there the per-shard {@link DirectoryMetrics} ride back inside each query search result
+     * and are accumulated on the coordinator via the coordinator-side consumer to avoid double counting.
+     * </p>
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,
@@ -121,35 +121,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int expectedResultSize,
         Consumer<Exception> onPartialMergeFailure
     ) {
-        this(request, executor, circuitBreaker, controller, isCanceled, progressListener, expectedResultSize, onPartialMergeFailure, true);
-    }
-
-    /**
-     * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
-     *
-     * @param accumulateDirectoryMetrics when {@code true}, this consumer accumulates the {@link DirectoryMetrics} carried by each
-     *                                   shard response into a merged value drained at search response time. Coordinator-side consumers
-     *                                   set this to {@code true}. Data-node-side consumers (see
-     *                                   {@code SearchQueryThenFetchAsyncAction.QueryPerNodeState}) must set this to {@code false}: the
-     *                                   per-shard {@link DirectoryMetrics} are shipped back inside each {@code QuerySearchResult} and
-     *                                   accumulated on the coordinator via {@code AbstractSearchAsyncAction#onShardResult}.
-     */
-    public QueryPhaseResultConsumer(
-        SearchRequest request,
-        Executor executor,
-        CircuitBreaker circuitBreaker,
-        SearchPhaseController controller,
-        Supplier<Boolean> isCanceled,
-        SearchProgressListener progressListener,
-        int expectedResultSize,
-        Consumer<Exception> onPartialMergeFailure,
-        boolean accumulateDirectoryMetrics
-    ) {
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
         this.progressListener = progressListener;
-        this.accumulateDirectoryMetrics = accumulateDirectoryMetrics;
         this.topNSize = getTopDocsSize(request);
         this.performFinalReduce = request.isFinalReduce();
         this.onPartialMergeFailure = onPartialMergeFailure;
@@ -203,18 +178,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         QuerySearchResult querySearchResult = result.queryResult();
         progressListener.notifyQueryResult(querySearchResult.getShardIndex(), querySearchResult);
         consume(querySearchResult, next);
-    }
-
-    /**
-     * Overridden so that data-node-side consumers (constructed with {@code accumulateDirectoryMetrics=false}) drop the
-     * per-shard metrics: they are shipped back to the coordinator inside each {@link QuerySearchResult} and accumulated
-     * by the coordinator's own consumer. Coordinator-side consumers delegate to the base implementation.
-     */
-    @Override
-    void accumulateDirectoryMetrics(DirectoryMetrics m) {
-        if (accumulateDirectoryMetrics) {
-            super.accumulateDirectoryMetrics(m);
-        }
     }
 
     private final ArrayDeque<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayDeque<>();

@@ -24,38 +24,50 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ArraySearchPhaseResultsTests extends ESTestCase {
 
-    public void testConsumeResultAccumulatesDirectoryMetrics() {
+    public void testConsumeResultPublishesDirectoryMetricsToSink() {
         int numShards = 5;
         long expectedBytesRead = 0;
         try (ArraySearchPhaseResults<QuerySearchResult> results = new ArraySearchPhaseResults<>(numShards)) {
+            AtomicReference<DirectoryMetrics> sink = wireSink(results);
             for (int i = 0; i < numShards; i++) {
                 long shardBytes = (i + 1) * 7L;
                 expectedBytesRead += shardBytes;
                 results.consumeResult(querySearchResultWithMetrics(i, storeMetrics(shardBytes)), () -> {});
             }
-            DirectoryMetrics drained = results.drainDirectoryMetrics();
-            assertFalse(drained.isEmpty());
-            assertEquals(expectedBytesRead, drained.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
-            assertTrue(results.drainDirectoryMetrics().isEmpty());
+            DirectoryMetrics observed = sink.get();
+            assertFalse(observed.isEmpty());
+            assertEquals(expectedBytesRead, observed.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
         }
     }
 
     public void testEmptyMetricsAreSkipped() {
         try (ArraySearchPhaseResults<QuerySearchResult> results = new ArraySearchPhaseResults<>(3)) {
+            AtomicReference<DirectoryMetrics> sink = wireSink(results);
             for (int i = 0; i < 3; i++) {
                 results.consumeResult(querySearchResultWithMetrics(i, null), () -> {});
             }
-            assertTrue(results.drainDirectoryMetrics().isEmpty());
+            assertTrue(sink.get().isEmpty());
         }
     }
 
-    public void testConcurrentAccumulation() throws Exception {
+    public void testDefaultSinkDropsMetrics() {
+        try (ArraySearchPhaseResults<QuerySearchResult> results = new ArraySearchPhaseResults<>(3)) {
+            // no sink wired; the default no-op must accept and discard metrics without any side effect
+            for (int i = 0; i < 3; i++) {
+                results.consumeResult(querySearchResultWithMetrics(i, storeMetrics((i + 1) * 5L)), () -> {});
+            }
+        }
+    }
+
+    public void testConcurrentSinkPublishing() throws Exception {
         int numShards = 64;
         long perShardBytes = 13L;
         try (ArraySearchPhaseResults<QuerySearchResult> results = new ArraySearchPhaseResults<>(numShards)) {
+            AtomicReference<DirectoryMetrics> sink = wireSink(results);
             int feeders = 4;
             CountDownLatch start = new CountDownLatch(1);
             Thread[] threads = new Thread[feeders];
@@ -75,9 +87,16 @@ public class ArraySearchPhaseResultsTests extends ESTestCase {
                 thread.join(TimeUnit.SECONDS.toMillis(10));
             }
 
-            DirectoryMetrics drained = results.drainDirectoryMetrics();
-            assertEquals(numShards * perShardBytes, drained.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
+            assertEquals(numShards * perShardBytes, sink.get().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
         }
+    }
+
+    static AtomicReference<DirectoryMetrics> wireSink(SearchPhaseResults<?> results) {
+        AtomicReference<DirectoryMetrics> ref = new AtomicReference<>(DirectoryMetrics.EMPTY);
+        results.setDirectoryMetricsSink(
+            m -> ref.accumulateAndGet(m, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming))
+        );
+        return ref;
     }
 
     private static QuerySearchResult querySearchResultWithMetrics(int shardIndex, DirectoryMetrics metrics) {

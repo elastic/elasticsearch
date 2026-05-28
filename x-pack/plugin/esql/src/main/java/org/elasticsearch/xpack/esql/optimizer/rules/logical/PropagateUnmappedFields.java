@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -35,7 +36,12 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
             return logicalPlan;
         }
         var fields = collectAttributesToPropagate(logicalPlan);
-        return fields.isEmpty() ? logicalPlan : logicalPlan.transformUp(EsRelation.class, er -> er.withAddedFields(fields));
+        return fields.isEmpty()
+            ? logicalPlan
+            : logicalPlan.transformUp(
+                EsRelation.class,
+                er -> er.indexMode() == IndexMode.LOOKUP ? er : er.withAdditionalAttributes(fields)
+            );
     }
 
     private static List<Attribute> collectAttributesToPropagate(LogicalPlan plan) {

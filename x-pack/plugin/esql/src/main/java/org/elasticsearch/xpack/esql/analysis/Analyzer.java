@@ -1264,6 +1264,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
                     resolved.add(resolvedField);
                 } else {
+                    // Multi-key LOOKUP JOIN re-entry after ResolveUnmapped: prior-pass-resolved keys pass through.
                     resolved.add(col);
                 }
             }

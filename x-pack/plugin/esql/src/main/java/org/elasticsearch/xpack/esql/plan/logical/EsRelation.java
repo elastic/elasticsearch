@@ -178,22 +178,18 @@ public class EsRelation extends LeafPlan {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
     }
 
-    public EsRelation withAddedFields(List<? extends Attribute> additionalFields) {
-        // LOOKUP relations have their own mapping; primary-side additions must not leak into them.
-        if (indexMode == IndexMode.LOOKUP || additionalFields.isEmpty()) {
+    public EsRelation withAdditionalAttributes(List<? extends Attribute> additionalAttributes) {
+        if (additionalAttributes.isEmpty()) {
             return this;
         }
-        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + additionalFields.size());
+        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + additionalAttributes.size());
         newAttrs.addAll(attrs);
-        newAttrs.addAll(additionalFields);
+        newAttrs.addAll(additionalAttributes);
         return withAttributes(newAttrs);
     }
 
     public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
-        List<Attribute> newAttrs = new ArrayList<>(attrs.size() + 1);
-        newAttrs.addAll(attrs);
-        newAttrs.add(additionalAttribute);
-        return withAttributes(newAttrs);
+        return withAdditionalAttributes(List.of(additionalAttribute));
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {

@@ -11,8 +11,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
-- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/119983
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -486,9 +484,6 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN_partialCompleted
   issue: https://github.com/elastic/elasticsearch/issues/149665
-- class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
-  method: testClientCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/149675
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -498,12 +493,6 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN
   issue: https://github.com/elastic/elasticsearch/issues/149698
-- class: org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/149720
-- class: org.elasticsearch.index.reindex.ResumeBulkByScrollRequestWireSerializingTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/149721
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardReplicasSetToZero
   issue: https://github.com/elastic/elasticsearch/issues/149740
@@ -600,3 +589,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
   method: testEstimatedHeapAllocationDecider
   issue: https://github.com/elastic/elasticsearch/issues/150046
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/150051

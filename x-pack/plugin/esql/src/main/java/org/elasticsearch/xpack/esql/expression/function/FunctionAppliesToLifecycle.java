@@ -13,6 +13,5 @@ public enum FunctionAppliesToLifecycle {
     BETA,
     GA,
     DEPRECATED,
-    REMOVED,
-    UNAVAILABLE
+    REMOVED
 }

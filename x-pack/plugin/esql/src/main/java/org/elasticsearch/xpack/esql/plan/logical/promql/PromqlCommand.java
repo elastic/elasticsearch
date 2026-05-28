@@ -61,6 +61,7 @@ public class PromqlCommand extends UnaryPlan
         PostAnalysisVerificationAware,
         TimestampAware,
         TimestampBoundsAware.OfLogicalPlan {
+    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
 
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
@@ -530,7 +531,7 @@ public class PromqlCommand extends UnaryPlan
             if (DataType.isNull(seriesType)) {
                 return;
             }
-            var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(functionCall.functionName());
+            var metadata = PROMQL_FUNCTION_REGISTRY.functionMetadata(functionCall.functionName());
             if (metadata == null) {
                 return;
             }

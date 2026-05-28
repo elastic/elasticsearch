@@ -135,6 +135,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
+    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
 
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
     // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
@@ -455,7 +456,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
+        Expression function = PROMQL_FUNCTION_REGISTRY.buildEsqlFunction(
             scalarFunction.functionName(),
             scalarFunction.source(),
             null,

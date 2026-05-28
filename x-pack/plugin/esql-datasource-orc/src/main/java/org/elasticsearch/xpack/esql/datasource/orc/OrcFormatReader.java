@@ -1119,7 +1119,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     }
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Failed to read ORC batch", e);
+                throw new IllegalArgumentException("Failed to read ORC batch", e);
             } finally {
                 counters.addReadNanos(System.nanoTime() - startNanos);
             }
@@ -1457,7 +1457,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             } else if (vector instanceof Decimal64ColumnVector d64) {
                 return d64.vector[idx] / d64ScaleFactor;
             }
-            throw new QlIllegalArgumentException("Unsupported list element type: " + vector.getClass().getSimpleName());
+            throw new IllegalArgumentException("Unsupported list element type: " + vector.getClass().getSimpleName());
         }
 
         private Block createListBooleanBlock(ListColumnVector listCol, int rowCount) {
@@ -1511,7 +1511,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     millis = lv.vector[idx] * MILLIS_PER_DAY;
                                 }
                             } else {
-                                throw new QlIllegalArgumentException(
+                                throw new IllegalArgumentException(
                                     "Unsupported list child type for DATETIME: " + child.getClass().getSimpleName()
                                 );
                             }
@@ -1557,7 +1557,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     effectiveNulls
                 );
             }
-            throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
+            throw new IllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
         }
 
         /**

@@ -21,7 +21,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
 
-import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED;
+import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCase {
@@ -81,7 +81,7 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
     // Dynamic setting update takes effect immediately
     public void testDynamicSettingUpdate() {
         var settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(SIMULATION_REBALANCING_ENABLED);
+        settingsSet.add(SIMULATION_REBALANCING_ENABLED_SETTING);
         var clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         var decider = new DisableSimulationRebalancingDecider(clusterSettings);
 
@@ -93,7 +93,7 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
         // Update to NEVER
         clusterSettings.applySettings(
             Settings.builder()
-                .put(SIMULATION_REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER)
+                .put(SIMULATION_REBALANCING_ENABLED_SETTING.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER)
                 .build()
         );
         assertCanRebalance(decider, simulatingAllocation(), randomFrom(indexOnlyShard(), searchOnlyShard()), Decision.Type.NO);
@@ -102,7 +102,7 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
         // Update back to ALWAYS
         clusterSettings.applySettings(
             Settings.builder()
-                .put(SIMULATION_REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS)
+                .put(SIMULATION_REBALANCING_ENABLED_SETTING.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS)
                 .build()
         );
         assertCanRebalance(decider, simulatingAllocation(), randomFrom(indexOnlyShard(), searchOnlyShard()), Decision.Type.YES);
@@ -110,9 +110,9 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
     }
 
     private static DisableSimulationRebalancingDecider createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled setting) {
-        var settings = Settings.builder().put(SIMULATION_REBALANCING_ENABLED.getKey(), setting.name()).build();
+        var settings = Settings.builder().put(SIMULATION_REBALANCING_ENABLED_SETTING.getKey(), setting.name()).build();
         var settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(SIMULATION_REBALANCING_ENABLED);
+        settingsSet.add(SIMULATION_REBALANCING_ENABLED_SETTING);
         return new DisableSimulationRebalancingDecider(new ClusterSettings(settings, settingsSet));
     }
 

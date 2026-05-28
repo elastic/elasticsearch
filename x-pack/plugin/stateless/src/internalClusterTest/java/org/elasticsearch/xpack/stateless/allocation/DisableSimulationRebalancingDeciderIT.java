@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.RebalancingEnabled;
-import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED;
+import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -108,7 +108,7 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
     }
 
     private TestHarness setupClusterWithSingleShard() {
-        final var rebalancingDisabled = Settings.builder().put(SIMULATION_REBALANCING_ENABLED.getKey(), RebalancingEnabled.NEVER).build();
+        final var rebalancingDisabled = Settings.builder().put(SIMULATION_REBALANCING_ENABLED_SETTING.getKey(), RebalancingEnabled.NEVER).build();
         final var indexNode1 = startMasterAndIndexNode(rebalancingDisabled);
         // Create the index, it'll be allocated to indexNode1
         final var indexName = randomIdentifier();

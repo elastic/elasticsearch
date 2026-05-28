@@ -42,7 +42,7 @@ public class StatelessBalancingWeightsFactoryIT extends AbstractStatelessPluginI
             // index balance will be set to a value >0 to ensure there is always some node weight balance.
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.55f)
             .put(
-                DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED.getKey(),
+                DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING.getKey(),
                 DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS
             )
             .put(StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING.getKey(), true);

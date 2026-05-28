@@ -1299,7 +1299,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
             StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
-            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED
+            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED_SETTING
         );
     }
 

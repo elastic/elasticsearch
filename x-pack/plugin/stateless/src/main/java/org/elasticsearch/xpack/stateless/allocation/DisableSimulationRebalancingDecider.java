@@ -95,7 +95,7 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
      * This decider is only added when the stateless plugin is enabled, so it's OK to disable
      * balancing in the index tier by default.
      */
-    public static final Setting<RebalancingEnabled> SIMULATION_REBALANCING_ENABLED = Setting.enumSetting(
+    public static final Setting<RebalancingEnabled> SIMULATION_REBALANCING_ENABLED_SETTING = Setting.enumSetting(
         RebalancingEnabled.class,
         "stateless.cluster.routing.allocation.balance.balancing_enabled",
         RebalancingEnabled.SEARCH_TIER_ONLY,
@@ -107,7 +107,7 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
 
     public DisableSimulationRebalancingDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
-            SIMULATION_REBALANCING_ENABLED,
+            SIMULATION_REBALANCING_ENABLED_SETTING,
             rebalancingEnabled -> this.rebalancingEnabled = rebalancingEnabled
         );
     }

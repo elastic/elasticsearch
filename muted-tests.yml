@@ -594,9 +594,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testDataVisibility
   issue: https://github.com/elastic/elasticsearch/issues/150028
-- class: org.elasticsearch.workloadidentity.HttpsWorkloadIdentityIssuerClientTests
-  method: testSuccessfulTokenIssuance
-  issue: https://github.com/elastic/elasticsearch/issues/150038
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
   issue: https://github.com/elastic/elasticsearch/issues/150045

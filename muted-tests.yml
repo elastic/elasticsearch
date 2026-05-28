@@ -607,3 +607,6 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testSlicesSparseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150073
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testRandomSchema
+  issue: https://github.com/elastic/elasticsearch/issues/150077

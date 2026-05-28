@@ -663,6 +663,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
+    public List<Object> nodeProperties() {
+        // config and sourceMetadata may carry SecureString (dataset path) or plaintext String
+        // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
+        // debug-log output.
+        return List.of(sourcePath, sourceType, attributes);
+    }
+
+    @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {

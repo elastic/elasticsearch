@@ -16,7 +16,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -38,7 +40,11 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's chat completion models.
  */
-public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, OpenAiRateLimitServiceSettings {
+public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject
+    implements
+        ServiceSettings,
+        OpenAiRateLimitServiceSettings,
+        OpenAiServiceSettings {
 
     public static final String NAME = "openai_completion_service_settings";
 
@@ -60,10 +66,11 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
             validationException
         );
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+        var oAuth2Settings = OpenAiOAuth2Settings.fromMap(map, validationException);
 
         validationException.throwIfValidationErrorsExist();
 
-        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens, rateLimitSettings);
+        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens, rateLimitSettings, oAuth2Settings);
     }
 
     @Override
@@ -84,19 +91,26 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         );
         var extractedRateLimitSettings = RateLimitSettings.of(
             serviceSettings,
-            this.rateLimitSettings,
+            rateLimitSettings,
             validationException,
             ConfigurationParseContext.REQUEST
+        );
+
+        var updatedOAuth2Settings = OpenAiOAuth2Settings.updateServiceSettingsIfPresent(
+            oAuth2Settings,
+            serviceSettings,
+            validationException
         );
 
         validationException.throwIfValidationErrorsExist();
 
         return new OpenAiChatCompletionServiceSettings(
-            this.modelId,
-            this.uri,
-            extractedOrganizationId != null ? extractedOrganizationId : this.organizationId,
-            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
-            extractedRateLimitSettings
+            modelId,
+            uri,
+            extractedOrganizationId != null ? extractedOrganizationId : organizationId,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : maxInputTokens,
+            extractedRateLimitSettings,
+            updatedOAuth2Settings
         );
     }
 
@@ -105,6 +119,8 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
     private final String organizationId;
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
+    @Nullable
+    private final OpenAiOAuth2Settings oAuth2Settings;
 
     public OpenAiChatCompletionServiceSettings(
         String modelId,
@@ -113,11 +129,23 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings ratelimitSettings
     ) {
+        this(modelId, uri, organizationId, maxInputTokens, ratelimitSettings, null);
+    }
+
+    public OpenAiChatCompletionServiceSettings(
+        String modelId,
+        @Nullable URI uri,
+        @Nullable String organizationId,
+        @Nullable Integer maxInputTokens,
+        @Nullable RateLimitSettings ratelimitSettings,
+        @Nullable OpenAiOAuth2Settings oAuth2Settings
+    ) {
         this.modelId = modelId;
         this.uri = uri;
         this.organizationId = organizationId;
         this.maxInputTokens = maxInputTokens;
         this.rateLimitSettings = Objects.requireNonNullElse(ratelimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.oAuth2Settings = oAuth2Settings;
     }
 
     OpenAiChatCompletionServiceSettings(
@@ -127,7 +155,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         @Nullable Integer maxInputTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(modelId, createOptionalUri(uri), organizationId, maxInputTokens, rateLimitSettings);
+        this(modelId, createOptionalUri(uri), organizationId, maxInputTokens, rateLimitSettings, null);
     }
 
     public OpenAiChatCompletionServiceSettings(StreamInput in) throws IOException {
@@ -136,6 +164,9 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
         this.rateLimitSettings = new RateLimitSettings(in);
+        this.oAuth2Settings = in.getTransportVersion().supports(OpenAiOAuth2Settings.OPENAI_OAUTH2_SETTINGS)
+            ? in.readOptionalWriteable(OpenAiOAuth2Settings::new)
+            : null;
     }
 
     @Override
@@ -163,6 +194,12 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
     }
 
     @Override
+    @Nullable
+    public OpenAiOAuth2Settings oAuth2Settings() {
+        return oAuth2Settings;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
@@ -183,6 +220,9 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         }
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (oAuth2Settings != null) {
+            oAuth2Settings.toXContent(builder, params);
         }
         rateLimitSettings.toXContent(builder, params);
         return builder;
@@ -205,6 +245,9 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(OpenAiOAuth2Settings.OPENAI_OAUTH2_SETTINGS)) {
+            out.writeOptionalWriteable(oAuth2Settings);
+        }
     }
 
     @Override
@@ -216,11 +259,12 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
             && Objects.equals(uri, that.uri)
             && Objects.equals(organizationId, that.organizationId)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(oAuth2Settings, that.oAuth2Settings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, organizationId, maxInputTokens, rateLimitSettings);
+        return Objects.hash(modelId, uri, organizationId, maxInputTokens, rateLimitSettings, oAuth2Settings);
     }
 }

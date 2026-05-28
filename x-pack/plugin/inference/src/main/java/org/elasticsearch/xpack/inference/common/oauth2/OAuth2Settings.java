@@ -49,6 +49,10 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         RestStatus.BAD_REQUEST
     );
 
+    public static final String OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR =
+        "Cannot update OAuth2 fields as the service was not configured with OAuth2 settings. "
+            + "Please create a new Inference Endpoint with the OAuth2 settings instead.";
+
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";
 

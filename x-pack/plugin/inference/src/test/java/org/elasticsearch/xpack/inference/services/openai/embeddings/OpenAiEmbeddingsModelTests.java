@@ -13,6 +13,8 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -20,6 +22,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
@@ -64,7 +67,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false, null),
             new OpenAiEmbeddingsTaskSettings(user, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
         );
     }
 
@@ -84,7 +89,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false, null),
             new OpenAiEmbeddingsTaskSettings(user, null),
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
         );
     }
 
@@ -103,7 +110,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false, null),
             new OpenAiEmbeddingsTaskSettings(user, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
         );
     }
 
@@ -123,7 +132,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, tokenLimit, false, null),
             new OpenAiEmbeddingsTaskSettings(user, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
         );
     }
 
@@ -144,7 +155,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false, null),
             new OpenAiEmbeddingsTaskSettings(user, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
         );
     }
 
@@ -167,7 +180,9 @@ public class OpenAiEmbeddingsModelTests extends ESTestCase {
             new OpenAiEmbeddingsServiceSettings(modelName, url, org, similarityMeasure, dimensions, tokenLimit, dimensionsSetByUser, null),
             new OpenAiEmbeddingsTaskSettings(user, null),
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
         );
     }
 }

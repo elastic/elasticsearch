@@ -12,8 +12,10 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiModelCreator;
 
 import java.util.Map;
 
@@ -21,7 +23,12 @@ import java.util.Map;
  * Creates {@link OpenAiChatCompletionModel} instances from config maps
  * or {@link ModelConfigurations} and {@link ModelSecrets} objects.
  */
-public class OpenAiChatCompletionModelCreator implements ModelCreator<OpenAiChatCompletionModel> {
+public class OpenAiChatCompletionModelCreator extends OpenAiModelCreator<OpenAiChatCompletionModel> {
+
+    public OpenAiChatCompletionModelCreator(ThreadPool threadPool, TokenCache tokenCache) {
+        super(threadPool, tokenCache);
+    }
+
     @Override
     public OpenAiChatCompletionModel createFromMaps(
         String inferenceId,
@@ -33,11 +40,21 @@ public class OpenAiChatCompletionModelCreator implements ModelCreator<OpenAiChat
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new OpenAiChatCompletionModel(inferenceId, taskType, service, serviceSettings, taskSettings, secretSettings, context);
+        return new OpenAiChatCompletionModel(
+            inferenceId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            threadPool,
+            tokenCache,
+            context
+        );
     }
 
     @Override
     public OpenAiChatCompletionModel createFromModelConfigurationsAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
-        return new OpenAiChatCompletionModel(config, secrets);
+        return new OpenAiChatCompletionModel(config, secrets, threadPool, tokenCache);
     }
 }

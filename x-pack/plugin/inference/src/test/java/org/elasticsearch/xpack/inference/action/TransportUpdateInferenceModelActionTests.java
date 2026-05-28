@@ -113,6 +113,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         licenseState = MockLicenseState.createMock();
         service = mock(InferenceService.class);
         when(service.name()).thenReturn(SERVICE_NAME_VALUE);
+        // Mockito doesn't invoke interface default methods; stub onModelUpdated to call the listener
+        // so the post-persist hook in TransportUpdateInferenceModelAction completes the chain.
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(2);
+            listener.onResponse(null);
+            return null;
+        }).when(service).onModelUpdated(any(), any(), any());
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),

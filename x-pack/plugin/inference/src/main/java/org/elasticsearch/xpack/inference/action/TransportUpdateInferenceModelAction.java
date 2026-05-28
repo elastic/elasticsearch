@@ -116,6 +116,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
         AtomicReference<InferenceService> service = new AtomicReference<>();
+        AtomicReference<Model> existingParsedModelRef = new AtomicReference<>();
+        AtomicReference<Model> mergedParsedModelRef = new AtomicReference<>();
 
         var inferenceEntityId = request.getInferenceEntityId();
 
@@ -165,6 +167,9 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     return;
                 }
 
+                existingParsedModelRef.set(existingParsedModel);
+                mergedParsedModelRef.set(mergedParsedModel);
+
                 if (isInClusterService(service.get().name())) {
                     updateInClusterEndpoint(request, mergedParsedModel, existingParsedModel, listener);
                 } else {
@@ -179,6 +184,18 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                             BaseInferenceActionRequest.getDefaultTimeoutForTaskType(taskType),
                             updateModelListener
                         );
+                }
+            })
+            .<Boolean>andThen((listener, didUpdate) -> {
+                if (didUpdate && existingParsedModelRef.get() != null && mergedParsedModelRef.get() != null) {
+                    service.get()
+                        .onModelUpdated(
+                            existingParsedModelRef.get(),
+                            mergedParsedModelRef.get(),
+                            listener.delegateFailureAndWrap((delegate, v) -> delegate.onResponse(true))
+                        );
+                } else {
+                    listener.onResponse(didUpdate);
                 }
             })
             .<ModelConfigurations>andThen((listener, didUpdate) -> {

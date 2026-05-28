@@ -11,6 +11,8 @@ package org.elasticsearch.xpack.inference.services.openai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -49,8 +51,10 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -103,7 +107,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.TEXT_EMBEDDING);
 
-        try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
@@ -130,7 +134,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.SPARSE_EMBEDDING);
 
-        try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
@@ -159,7 +163,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
 
-        try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
@@ -185,7 +189,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     public void testInfer_SendsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             // Wire-shape parity with production OpenAI: base64-encoded float32 embedding.
             String responseJson = Strings.format("""
@@ -242,7 +246,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         var s = mock(HttpRequestSender.Factory.class);
         when(s.createSender()).thenReturn(sender);
 
-        try (var service = new OpenAiService(s, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(s, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var endpointId = "endpoint_id";
             var model = OpenAiChatCompletionModelTests.createModelWithTaskType(
@@ -312,7 +316,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -365,7 +369,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             var latch = new CountDownLatch(1);
             service.unifiedCompletionInfer(
@@ -420,7 +424,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
     private void testStreamError(String expectedResponse) throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -496,7 +500,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
     private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenAiChatCompletionModelTests.createCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
@@ -564,7 +568,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -663,7 +667,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         );
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
@@ -676,7 +680,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     private void testChunkedInfer(OpenAiEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             // response with 2 embeddings; base64 wire shape, matching production OpenAI.
             String responseJson = Strings.format("""
@@ -757,7 +761,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     public void testEmbeddingInfer() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = Strings.format("""
                 {
@@ -827,7 +831,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     public void testEmbeddingInfer_FailsWithNonTextInputs() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
             var listener = new TestPlainActionFuture<InferenceServiceResults>();
@@ -854,7 +858,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     public void testEmbeddingInfer_FailsWithMultipleItemsForOneContentObject() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
             var listener = new TestPlainActionFuture<InferenceServiceResults>();
@@ -888,7 +892,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     public void testEmbeddingInfer_FailsWithNonOpenAiModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = createOpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             var mockModel = getInvalidModel("model_id", "service_name");
             var listener = new TestPlainActionFuture<InferenceServiceResults>();
@@ -980,6 +984,15 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                                     "updatable": true,
                                     "type": "map",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
+                                },
+                                "client_secret": {
+                                    "description": "You must provide exactly one of API key or OAuth2 client secret.",
+                                    "label": "OAuth2 Client Secret",
+                                    "required": false,
+                                    "sensitive": true,
+                                    "updatable": true,
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion", "chat_completion", "embedding"]
                                 }
                             }
                         }
@@ -1000,9 +1013,17 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    private static OpenAiService createOpenAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ClusterService clusterService
+    ) {
+        return new OpenAiService(factory, serviceComponents, clusterService, NoopTokenCache.INSTANCE, DefaultProjectResolver.INSTANCE);
+    }
+
     @Override
     public InferenceService createInferenceService() {
-        return new OpenAiService(
+        return createOpenAiService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -336,9 +337,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     }
 
     /**
-     * Creates a ProjectState with the target index and a mounted snapshot index whose primary shard is started on
-     * "node1". The mocked cluster health response is what drives the yellow-status outcome in tests, so the
-     * routing table here just needs to represent a plausible mounted state.
+     * Creates a ProjectState with the target index and a mounted snapshot index that has all primary shards active.
      */
     private void createProjectStateWithMountedSnapshot(String mountedIndexName) {
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
@@ -369,9 +368,14 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
         projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
-        ShardId shardId = new ShardId(mountedIndexMetadata.getIndex(), 0);
+        ShardRouting primaryShard = TestShardRouting.newShardRouting(
+            new ShardId(mountedIndexMetadata.getIndex(), 0),
+            "node1",
+            true,
+            ShardRoutingState.STARTED
+        );
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(mountedIndexMetadata.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED));
+            .addShard(primaryShard);
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

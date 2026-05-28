@@ -17,6 +17,7 @@ import org.elasticsearch.compute.aggregation.AllFirstBytesRefByLongAggregatorFun
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstExponentialHistogramByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstIntByIntAggregatorFunctionSupplier;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.aggregation.AllFirstIntByLongAggregatorFunction
 import org.elasticsearch.compute.aggregation.AllFirstLongByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstTDigestByIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
@@ -32,8 +34,6 @@ import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyTDigestAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstExponentialHistogramByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -259,8 +259,8 @@ public class First extends AggregateFunction implements ToAggregator {
                 case INTEGER -> new AllFirstIntByLongAggregatorFunctionSupplier();
                 case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
                 case FLOAT, DENSE_VECTOR -> new AllFirstFloatByLongAggregatorFunctionSupplier();
-                case EXPONENTIAL_HISTOGRAM -> new FirstExponentialHistogramByTimestampAggregatorFunctionSupplier();
-                case TDIGEST -> new FirstTDigestByTimestampAggregatorFunctionSupplier();
+                case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByLongAggregatorFunctionSupplier();
+                case TDIGEST -> new AllFirstTDigestByLongAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AllFirstBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();

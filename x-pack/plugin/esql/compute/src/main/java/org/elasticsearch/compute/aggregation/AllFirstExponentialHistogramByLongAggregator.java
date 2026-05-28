@@ -18,43 +18,43 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 /**
- * A time-series aggregation function that collects the first occurrence exponential histogram of a time series in a specified interval.
+ * Picks the exponential histogram with the minimum long sort key.
  */
 @Aggregator(
     processNulls = true,
     value = {
-        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "sortKeys", type = "LONG"),
         @IntermediateState(name = "values", type = "EXPONENTIAL_HISTOGRAM_BLOCK"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator()
-public class FirstExponentialHistogramByTimestampAggregator {
+public class AllFirstExponentialHistogramByLongAggregator {
     public static String describe() {
-        return "first_ExponentialHistogram_by_timestamp";
+        return "all_first_ExponentialHistogram_by_long";
     }
 
     public static ExponentialHistogramStates.WithLongSingleState initSingle(DriverContext driverContext) {
         return new ExponentialHistogramStates.WithLongSingleState(driverContext.breaker());
     }
 
-    public static void combine(ExponentialHistogramStates.WithLongSingleState current, ExponentialHistogram value, long timestamp) {
-        if (current.isSeen() == false || timestamp < current.longValue()) {
-            current.set(timestamp, value);
+    public static void combine(ExponentialHistogramStates.WithLongSingleState current, ExponentialHistogram value, long sortKey) {
+        if (current.isSeen() == false || sortKey < current.longValue()) {
+            current.set(sortKey, value);
         }
     }
 
     public static void combineIntermediate(
         ExponentialHistogramStates.WithLongSingleState current,
-        long timestamp,
+        long sortKey,
         ExponentialHistogramBlock values,
         boolean seen
     ) {
         if (seen && values.isNull(0) == false) {
             ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(0), new ExponentialHistogramScratch());
             if (current.isSeen()) {
-                combine(current, value, timestamp);
+                combine(current, value, sortKey);
             } else {
-                current.set(timestamp, value);
+                current.set(sortKey, value);
             }
         }
     }
@@ -71,17 +71,17 @@ public class FirstExponentialHistogramByTimestampAggregator {
         ExponentialHistogramStates.WithLongGroupingState current,
         int groupId,
         ExponentialHistogram value,
-        long timestamp
+        long sortKey
     ) {
-        if (current.seen(groupId) == false || timestamp < current.longValue(groupId)) {
-            current.set(groupId, timestamp, value);
+        if (current.seen(groupId) == false || sortKey < current.longValue(groupId)) {
+            current.set(groupId, sortKey, value);
         }
     }
 
     public static void combineIntermediate(
         ExponentialHistogramStates.WithLongGroupingState current,
         int groupId,
-        long timestamp,
+        long sortKey,
         ExponentialHistogramBlock values,
         boolean seen,
         int otherPosition
@@ -91,7 +91,7 @@ public class FirstExponentialHistogramByTimestampAggregator {
                 values.getFirstValueIndex(otherPosition),
                 new ExponentialHistogramScratch()
             );
-            combine(current, groupId, value, timestamp);
+            combine(current, groupId, value, sortKey);
         }
     }
 

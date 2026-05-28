@@ -126,16 +126,6 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                         standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", effectiveValueType),
                         standardAggregatorNameAllBytesTheSame("", sorts.type())
                     );
-                    // FirstExponentialHistogramByTimestamp predates the AllFirst* naming convention
-                    if (effectiveValueType == DataType.EXPONENTIAL_HISTOGRAM
-                        && (sorts.type() == DataType.LONG || sorts.type() == DataType.DATETIME || sorts.type() == DataType.DATE_NANOS)) {
-                        evaluatorStr = "FirstExponentialHistogramByTimestamp";
-                    }
-                    // FirstTDigestByTimestamp predates the AllFirst* naming convention
-                    if (effectiveValueType == DataType.TDIGEST
-                        && (sorts.type() == DataType.LONG || sorts.type() == DataType.DATETIME || sorts.type() == DataType.DATE_NANOS)) {
-                        evaluatorStr = "FirstTDigestByTimestamp";
-                    }
                 }
 
                 return new TestCaseSupplier.TestCase(

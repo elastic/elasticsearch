@@ -756,7 +756,7 @@ public final class ConstantMethodResultSpecializer {
         // shape the validator hasn't already approved.
         try {
             // defineHiddenClass is gated by the create_class_loader entitlement, which is
-            // granted to org.elasticsearch.compute in the ESQL plugin's entitlement-policy.yaml.
+            // granted to ALL-UNNAMED in the ESQL plugin's entitlement-policy.yaml.
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(base, MethodHandles.lookup());
             if (classData == null) {
                 return lookup.defineHiddenClass(bytecode, /* initialize */ true).lookupClass();

@@ -371,6 +371,27 @@ public class SqlParserTests extends ESTestCase {
         );
     }
 
+    public void testMaxExpressionDepth_prefixOperators_minOverflow() {
+        // MAX_EXPRESSION_DEPTH + 1 consecutive prefix operators are caught by the pre-scan
+        // prefixChain counter. Hidden-channel tokens (whitespace) between operators are skipped
+        // so the chain accumulates correctly. Note: bare "--" is a SQL line comment, so unary
+        // minus must be separated by spaces.
+        int depth = SqlParser.MAX_EXPRESSION_DEPTH + 1;
+        String notChain = join(" ", nCopies(depth, "NOT")).concat(" TRUE");
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(notChain));
+        assertThat(
+            e.getMessage(),
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+
+        String minusChain = join(" ", nCopies(depth, "-")).concat(" 1");
+        e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(minusChain));
+        assertThat(
+            e.getMessage(),
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
     public void testQuotedIndexName() {
         Project plan = project(parseStatement("SELECT * FROM \"foo,bar\""));
 

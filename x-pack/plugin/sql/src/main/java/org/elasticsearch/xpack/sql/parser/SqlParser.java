@@ -56,6 +56,9 @@ public class SqlParser {
      */
     public static final int MAX_EXPRESSION_DEPTH = 250;
 
+    static final String DEPTH_EXCEEDED_FRAGMENT = "exceeded the maximum expression depth";
+    private static final String DEPTH_EXCEEDED_MSG = "SQL statement " + DEPTH_EXCEEDED_FRAGMENT + " allowed ({})";
+
     /**
      * Used only in tests
      */
@@ -134,20 +137,17 @@ public class SqlParser {
                 int prefixChain = 0;
                 for (Token token : pipeline.tokenStream().getTokens()) {
                     switch (token.getType()) {
-                        case SqlBaseLexer.T__0 -> depth++;  // '('
-                        case SqlBaseLexer.T__1 -> depth--;  // ')'
+                        case SqlBaseLexer.LP -> depth++;
+                        case SqlBaseLexer.RP -> depth--;
                         case SqlBaseLexer.NOT, SqlBaseLexer.MINUS, SqlBaseLexer.PLUS -> prefixChain++;
-                        default -> prefixChain = 0;
+                        default -> { if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0; }
                     }
                     if (depth + prefixChain > MAX_EXPRESSION_DEPTH) {
-                        throw new ParsingException(
-                            "SQL statement exceeded the maximum expression depth allowed ({})",
-                            MAX_EXPRESSION_DEPTH
-                        );
+                        throw new ParsingException(DEPTH_EXCEEDED_MSG, MAX_EXPRESSION_DEPTH);
                     }
                 }
             } catch (ParsingException pe) {
-                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
+                if (pe.getMessage() != null && pe.getMessage().contains(DEPTH_EXCEEDED_FRAGMENT)) {
                     throw pe;
                 }
                 pipeline = createParserPipeline(sql, params);

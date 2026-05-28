@@ -595,3 +595,12 @@ tests:
 - class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
   method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
   issue: https://github.com/elastic/elasticsearch/issues/150054
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150065
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150068
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150070

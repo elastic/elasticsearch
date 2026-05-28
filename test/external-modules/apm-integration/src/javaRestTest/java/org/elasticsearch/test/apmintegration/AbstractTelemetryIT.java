@@ -68,4 +68,12 @@ public abstract class AbstractTelemetryIT extends ESRestTestCase {
             }
         });
     }
+
+    protected static long longSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return metricSet.samples().get(metricName) instanceof ReceivedTelemetry.ValueSample(Number value) ? value.longValue() : 0L;
+    }
+
+    protected static boolean positiveLongSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return longSample(metricSet, metricName) > 0;
+    }
 }

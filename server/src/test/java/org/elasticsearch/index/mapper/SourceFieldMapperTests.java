@@ -526,7 +526,9 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             assertThat(
                 exc.getMessage(),
                 containsString(
-                    String.format(Locale.ROOT, "Source mode [%s] requires a columnar index mode", SourceFieldMapper.Mode.COLUMNAR_STORED)
+                    "unsupported source mode [COLUMNAR_STORED] for index mode ["
+                        + nonColumnarMode
+                        + "]; supported values: [DISABLED, STORED, SYNTHETIC]"
                 )
             );
         }

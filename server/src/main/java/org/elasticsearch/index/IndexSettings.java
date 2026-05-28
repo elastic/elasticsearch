@@ -876,19 +876,17 @@ public final class IndexSettings {
 
             @Override
             public void validate(SourceFieldMapper.Mode value, Map<Setting<?>, Object> settings) {
-                if (value == SourceFieldMapper.Mode.COLUMNAR_STORED) {
-                    var indexMode = (IndexMode) settings.get(MODE);
-                    if (indexMode.isStrictColumnar() == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "Source mode [%s] requires a columnar index mode, but [%s] is [%s].",
-                                value,
-                                MODE.getKey(),
-                                indexMode
-                            )
-                        );
-                    }
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode.supportedSourceModes().contains(value) == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "unsupported source mode [%s] for index mode [%s]; supported values: %s",
+                            value,
+                            indexMode,
+                            indexMode.supportedSourceModes()
+                        )
+                    );
                 }
             }
 

@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-class FullFieldSemanticFieldValueFetcher extends SemanticFieldValueFetcher {
+class FullFieldSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher {
     private final SourceLoader.SyntheticFieldLoader embeddingsFieldLoader;
     private SourceLoader.SyntheticFieldLoader.DocValuesLoader dvLoader;
 

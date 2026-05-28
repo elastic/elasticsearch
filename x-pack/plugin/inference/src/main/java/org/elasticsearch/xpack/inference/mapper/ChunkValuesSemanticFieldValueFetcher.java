@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-class ChunkValuesSemanticFieldValueFetcher extends SemanticFieldValueFetcher {
+class ChunkValuesSemanticFieldValueFetcher extends ChildDocIteratingValueFetcher {
     ChunkValuesSemanticFieldValueFetcher(
         SemanticFieldMapper.SemanticFieldType fieldType,
         Function<Query, BitSetProducer> bitSetCache,

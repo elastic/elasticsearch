@@ -28,7 +28,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 
-abstract class SemanticFieldValueFetcher implements ValueFetcher {
+abstract class ChildDocIteratingValueFetcher implements ValueFetcher {
     protected final SemanticFieldMapper.SemanticFieldType fieldType;
 
     private final BitSetProducer bitSetProducer;
@@ -39,7 +39,7 @@ abstract class SemanticFieldValueFetcher implements ValueFetcher {
     private Scorer childScorer;
     protected OffsetSourceField.OffsetSourceLoader offsetsLoader;
 
-    SemanticFieldValueFetcher(
+    ChildDocIteratingValueFetcher(
         SemanticFieldMapper.SemanticFieldType fieldType,
         Function<Query, BitSetProducer> bitSetCache,
         IndexSearcher searcher

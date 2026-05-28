@@ -14,11 +14,6 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Test-only splitter used by contract tests to prove the SPI is not specialized to newline
- * delimiters. This class intentionally has no production callers.
- */
-@SuppressWarnings("unused")
 final class RegexRecordSplitter implements RecordSplitter {
 
     private final Pattern terminatorPattern;

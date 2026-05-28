@@ -52,13 +52,6 @@ public interface RecordSplitter {
     }
 
     /**
-     * Whether this splitter can find the last record boundary by scanning backward through a buffer.
-     */
-    default boolean allowsReverseScan() {
-        return false;
-    }
-
-    /**
      * Maximum bytes a single record may occupy before the splitter reports {@link #RECORD_TOO_LARGE}.
      */
     int maxRecordBytes();

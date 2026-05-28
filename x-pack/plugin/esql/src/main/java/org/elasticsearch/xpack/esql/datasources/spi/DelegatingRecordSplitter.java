@@ -30,6 +30,7 @@ final class DelegatingRecordSplitter implements RecordSplitter {
     @Override
     public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
         Objects.checkFromIndexSize(offset, length, buf.length);
+        // The legacy reader method is offset-unaware; copy only in the bridge path that adapts it.
         int boundary = offset == 0
             ? reader.findLastRecordBoundary(buf, length)
             : reader.findLastRecordBoundary(Arrays.copyOfRange(buf, offset, offset + length), length);

@@ -122,6 +122,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
+    private final OrcReaderCounters counters = new OrcReaderCounters();
     private final DynamicThreshold dynamicThreshold;
 
     public OrcFormatReader(BlockFactory blockFactory) {
@@ -196,7 +197,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * {@link OrcFile.ReaderOptions#orcTail}. When ORC sees a pre-supplied tail it skips
      * {@code ReaderImpl.extractFileTail(FileSystem, Path, long)} and the associated remote read.
      */
-    private static Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private Reader openReaderCached(OrcStorageObjectAdapter fs, Path path) throws IOException {
         OrcTail tail = loadTail(fs, path);
         return OrcFile.createReader(path, orcReaderOptions(fs).orcTail(tail));
     }
@@ -207,9 +208,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * the tail) and immediately closes it after extracting the {@link OrcTail}; subsequent calls
      * reuse the cached tail.
      */
-    private static OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+    private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
+        // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
+        boolean[] missed = { false };
         try {
-            return PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+            OrcTail tail = PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {
+                missed[0] = true;
                 // Open a reader once, extract the parsed tail, then close the reader. The
                 // OrcTail itself retains the serialized buffer + parsed protobuf footer and is
                 // safe to share across threads (treated as immutable by all callers).
@@ -228,6 +232,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
+            counters.recordFooterCache(missed[0] == false);
+            return tail;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/
             // ElasticsearchException; anything else (typically a plain RuntimeException from
@@ -365,6 +371,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
+        long footerStartNanos = System.nanoTime();
         Reader reader = openReaderCached(fs, path);
         TypeDescription schema = reader.getSchema();
         List<Attribute> attributes = convertOrcSchemaToAttributes(schema);
@@ -373,6 +380,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         boolean[] include = buildIncludeMask(schema, projectedColumns);
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
+        long stripeCount = reader.getStripes().size();
+        int totalColumns = schema.getFieldNames().size();
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripeCount);
+        counters.addStripesTotal(stripeCount);
+        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
         CloseableIterator<Page> iter = new OrcPageIterator(
@@ -382,9 +394,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             projectedAttributes,
             batchSize,
             blockFactory,
-            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE)
+            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE),
+            counters
         );
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
+    }
+
+    private static int countProjected(boolean[] include, int totalColumns) {
+        if (include == null) {
+            return totalColumns;
+        }
+        int n = 0;
+        for (int i = 1; i < include.length; i++) {
+            if (include[i]) {
+                n++;
+            }
+        }
+        return n;
     }
 
     @Override
@@ -474,6 +500,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // thread.
         // 2. PARSED_FOOTERS — JVM-wide cache keyed by (path, length); shared across producer
         // threads and across queries within the access TTL.
+        long footerStartNanos = System.nanoTime();
         OrcTail tail;
         if (context.fileContext() instanceof OrcTail cached) {
             tail = cached;
@@ -493,6 +520,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
 
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         readOptions.range(rangeStart, rangeEnd - rangeStart);
+        long stripesInRange = countStripesInRange(reader, rangeStart, rangeEnd);
+        long stripesInFile = reader.getStripes().size();
+        int totalColumns = schema.getFieldNames().size();
+        counters.addFooterRead(System.nanoTime() - footerStartNanos, sizeOrZero(object), stripesInFile);
+        counters.addStripesTotal(stripesInRange);
+        counters.setColumnCounts(countProjected(include, totalColumns), totalColumns);
         RecordReader rows = reader.rows(readOptions);
 
         return new OrcPageIterator(
@@ -502,8 +535,33 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             projectedAttributes,
             batchSize,
             blockFactory,
-            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd)
+            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd),
+            counters
         );
+    }
+
+    /** Returns {@code object.length()} if known, or 0 when unavailable. Best-effort sizing for
+     *  the {@code footer_size_bytes} counter; never throws. */
+    private static long sizeOrZero(StorageObject object) {
+        try {
+            long len = object.length();
+            return len >= 0 ? len : 0;
+        } catch (IOException e) {
+            return 0;
+        }
+    }
+
+    /** Counts stripes whose offset falls in {@code [rangeStart, rangeEnd)} — matches ORC's
+     *  range-based read selection. */
+    private static long countStripesInRange(Reader reader, long rangeStart, long rangeEnd) {
+        long n = 0;
+        for (StripeInformation stripe : reader.getStripes()) {
+            long off = stripe.getOffset();
+            if (off >= rangeStart && off < rangeEnd) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private static List<Attribute> resolveProjection(List<Attribute> attributes, List<String> projectedColumns) {
@@ -599,6 +657,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 nameSet.add(leaf.getColumnName());
             }
             readOptions.searchArgument(resolvedFilter, nameSet.toArray(new String[0]));
+            counters.markPredicatePushdownUsed();
+            counters.addPredicateColumns(nameSet);
         }
         return readOptions;
     }
@@ -650,6 +710,16 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     @Override
     public String formatName() {
         return "orc";
+    }
+
+    /**
+     * Returns an immutable typed snapshot of the ORC reader's counters for the operator-status
+     * envelope. Zero counters, false flag, empty predicate columns before any read() / readRange()
+     * has run.
+     */
+    @Override
+    public OrcReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
@@ -951,6 +1021,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          */
         private final Map<String, int[]> fieldNameToPath;
 
+        private final OrcReaderCounters counters;
+
         OrcPageIterator(
             Reader reader,
             RecordReader rows,
@@ -958,7 +1030,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             List<Attribute> attributes,
             int batchSize,
             BlockFactory blockFactory,
-            StripeSkipTable stripeSkipTable
+            StripeSkipTable stripeSkipTable,
+            OrcReaderCounters counters
         ) {
             this.reader = reader;
             this.rows = rows;
@@ -966,6 +1039,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
             this.stripeSkipTable = stripeSkipTable;
+            this.counters = counters;
 
             this.fieldNameToPath = new HashMap<>(attributes.size());
             // Top-level field index, computed once for literal-name lookups.
@@ -1023,6 +1097,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             if (batchReady) {
                 return true;
             }
+            long startNanos = System.nanoTime();
             try {
                 while (true) {
                     if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
@@ -1045,6 +1120,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read ORC batch", e);
+            } finally {
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -1071,6 +1148,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 throw new NoSuchElementException();
             }
             batchReady = false;
+            counters.addRowsEmitted(batch.size);
             return convertToPage();
         }
 

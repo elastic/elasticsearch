@@ -23,6 +23,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.IntStream;
 
@@ -75,7 +76,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
     }
 
-    public void testRecoveryMetricsOnPeerRecovery() throws Exception {
+    public void testRecoveryMetricsOnPeerRecovery() {
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode();
 
@@ -124,18 +125,12 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Active peer recoveries measurements on source during recovery", activePeerRecoveries, hasSize(1));
             assertThat("Active peer recoveries count on source during recovery", activePeerRecoveries.getFirst().getLong(), equalTo(1L));
 
-            // No simple way of catching the queued recovery via a latch due to the handler being async (fresh cluster check)
-            assertBusy(() -> {
-                List<Measurement> queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
-                    RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
-                );
-                assertThat("Queued peer recoveries measurements on source during recovery", queuedPeerRecoveries, hasSize(1));
-                assertThat(
-                    "Queued peer recoveries count on source during recovery",
-                    queuedPeerRecoveries.getFirst().getLong(),
-                    equalTo(1L)
-                );
-            });
+            awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSourceQueued() == 1));
+            List<Measurement> queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
+                RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
+            );
+            assertThat("Queued peer recoveries measurements on source during recovery", queuedPeerRecoveries, hasSize(1));
+            assertThat("Queued peer recoveries count on source during recovery", queuedPeerRecoveries.getFirst().getLong(), equalTo(1L));
 
             continueRecovery.countDown();
             ensureGreen(indexName);
@@ -180,7 +175,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
                 equalTo(0L)
             );
 
-            List<Measurement> queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
+            queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Queued peer recoveries measurements on source", queuedPeerRecoveries, hasSize(greaterThan(1)));

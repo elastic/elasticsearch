@@ -429,7 +429,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
         // 5. Verify data via createIpDataLookup + lookup
         IpLocationTestHelper.assertDatabaseAvailable(
-            internalCluster(),
+            listenerNode,
             projectId,
             "GeoLite2-City.mmdb",
             "89.160.20.128",
@@ -437,7 +437,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             "Linköping"
         );
         IpLocationTestHelper.assertDatabaseAvailable(
-            internalCluster(),
+            listenerNode,
             projectId,
             "GeoLite2-ASN.mmdb",
             "89.160.20.128",

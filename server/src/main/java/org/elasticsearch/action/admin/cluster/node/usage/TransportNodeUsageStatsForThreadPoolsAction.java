@@ -46,7 +46,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final LongGaugeMetric maxQueueLatencyGauge;
+    private final LongGaugeMetric maxQueueLatencyMillisGauge;
 
     @Inject
     public TransportNodeUsageStatsForThreadPoolsAction(
@@ -66,7 +66,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.maxQueueLatencyGauge = desiredBalanceMetrics.getWriteLoadDeciderMaxQueueLatencyGauge();
+        this.maxQueueLatencyMillisGauge = desiredBalanceMetrics.getWriteLoadDeciderMaxQueueLatencyGauge();
     }
 
     @Override
@@ -103,7 +103,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
             trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset(),
             trackingForWriteExecutor.peekMaxQueueLatencyInQueueMillis()
         );
-        maxQueueLatencyGauge.set(maxQueueLatencyMillis);
+        maxQueueLatencyMillisGauge.set(maxQueueLatencyMillis);
         ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
             trackingForWriteExecutor.getMaximumPoolSize(),
             (float) trackingForWriteExecutor.pollUtilization(

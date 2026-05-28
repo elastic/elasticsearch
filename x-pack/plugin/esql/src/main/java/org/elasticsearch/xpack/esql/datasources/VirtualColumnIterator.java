@@ -158,10 +158,7 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         // _id and _file.record_ref are both composed from the reader-emitted _rowPosition channel,
         // which the optimizer injects whenever either is requested. If the slot is present but the
         // channel is missing, fail loud rather than silently emit wrong identities.
-        Check.isTrue(
-            idIdx < 0 || rowPosChannelInData >= 0,
-            "_id requested but reader did not emit the _rowPosition channel"
-        );
+        Check.isTrue(idIdx < 0 || rowPosChannelInData >= 0, "_id requested but reader did not emit the _rowPosition channel");
         Check.isTrue(
             recordRefIdx < 0 || rowPosChannelInData >= 0,
             "_file.record_ref requested but reader did not emit the _rowPosition channel"

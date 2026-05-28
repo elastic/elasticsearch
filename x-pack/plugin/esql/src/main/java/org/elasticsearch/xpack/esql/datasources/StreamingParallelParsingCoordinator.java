@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -283,6 +284,20 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
+        private RecordSplitter recordSplitter() {
+            return reader.recordSplitter(maxRecordBytes);
+        }
+
+        private IOException recordTooLargeException() {
+            String hint = switch (reader.formatName()) {
+                case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
+                default -> "";
+            };
+            return new IOException(
+                "record exceeded max_record_size [" + maxRecordBytes + "] for format [" + reader.formatName() + "]" + hint
+            );
+        }
+
         private void runSegmentator(InputStream stream, int chunkSize) {
             byte[] carry = null;
             int carryLen = 0;
@@ -315,7 +330,10 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = reader.findLastRecordBoundary(buf, totalBytes);
+                    int lastNewline = recordSplitter().findLastRecordBoundary(buf, 0, totalBytes);
+                    if (lastNewline == RecordSplitter.RECORD_TOO_LARGE) {
+                        throw recordTooLargeException();
+                    }
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -617,24 +635,17 @@ public final class StreamingParallelParsingCoordinator {
             // (a format/quoting mismatch), so fail rather than read the input without bound.
             while (true) {
                 if (len + growBy > maxRecordBytes) {
-                    throw new IOException(
-                        "no record boundary found within "
-                            + len
-                            + " bytes (max record size "
-                            + maxRecordBytes
-                            + ") for format ["
-                            + reader.formatName()
-                            + "]: the record-boundary scanner is not reporting a boundary, which usually "
-                            + "means a format/quoting mismatch (e.g. a misconfigured delimiter or quote "
-                            + "character). Aborting to avoid an unbounded read of the input stream."
-                    );
+                    throw recordTooLargeException();
                 }
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
                     return new GrowResult(grown, -1);
                 }
                 // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
-                int boundary = reader.findLastRecordBoundary(grown, grown.length);
+                int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
+                if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
+                    throw recordTooLargeException();
+                }
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);
                 }

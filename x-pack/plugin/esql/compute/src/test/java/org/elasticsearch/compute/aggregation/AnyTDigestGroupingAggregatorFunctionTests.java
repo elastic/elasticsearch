@@ -48,9 +48,7 @@ public class AnyTDigestGroupingAggregatorFunctionTests extends GroupingAggregato
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        List<TDigestHolder> groupValues = input.stream()
-            .flatMap(p -> allTDigests(p, group))
-            .toList();
+        List<TDigestHolder> groupValues = input.stream().flatMap(p -> allTDigests(p, group)).toList();
         if (groupValues.isEmpty()) {
             assertTrue(result.isNull(position));
         } else {

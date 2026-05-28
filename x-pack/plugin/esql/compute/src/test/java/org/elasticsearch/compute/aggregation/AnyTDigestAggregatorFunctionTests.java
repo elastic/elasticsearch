@@ -59,9 +59,7 @@ public class AnyTDigestAggregatorFunctionTests extends AggregatorFunctionTestCas
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        List<TDigestHolder> allInputs = input.stream()
-            .flatMap(p -> allTDigests(p.getBlock(0)))
-            .toList();
+        List<TDigestHolder> allInputs = input.stream().flatMap(p -> allTDigests(p.getBlock(0))).toList();
         if (result.isNull(0)) {
             assertThat(allInputs, empty());
             return;

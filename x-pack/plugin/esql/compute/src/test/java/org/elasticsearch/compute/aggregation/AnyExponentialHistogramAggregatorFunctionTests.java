@@ -60,9 +60,7 @@ public class AnyExponentialHistogramAggregatorFunctionTests extends AggregatorFu
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        List<ExponentialHistogram> allInputs = input.stream()
-            .flatMap(p -> allExponentialHistograms(p.getBlock(0)))
-            .toList();
+        List<ExponentialHistogram> allInputs = input.stream().flatMap(p -> allExponentialHistograms(p.getBlock(0))).toList();
         if (result.isNull(0)) {
             assertThat(allInputs, empty());
             return;
@@ -77,7 +75,6 @@ public class AnyExponentialHistogramAggregatorFunctionTests extends AggregatorFu
 
     static Stream<ExponentialHistogram> allExponentialHistograms(Block block) {
         ExponentialHistogramBlock b = (ExponentialHistogramBlock) block;
-        return allValueOffsets(b).mapToObj(i -> b.getExponentialHistogram(i, new
-            ExponentialHistogramScratch()));
+        return allValueOffsets(b).mapToObj(i -> b.getExponentialHistogram(i, new ExponentialHistogramScratch()));
     }
 }

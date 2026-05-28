@@ -87,7 +87,10 @@ public class AllFirstExponentialHistogramByIntAggregator {
         int otherPosition
     ) {
         if (seen && values.isNull(otherPosition) == false) {
-            ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(otherPosition), new ExponentialHistogramScratch());
+            ExponentialHistogram value = values.getExponentialHistogram(
+                values.getFirstValueIndex(otherPosition),
+                new ExponentialHistogramScratch()
+            );
             combine(current, groupId, value, (int) sortKey);
         }
     }

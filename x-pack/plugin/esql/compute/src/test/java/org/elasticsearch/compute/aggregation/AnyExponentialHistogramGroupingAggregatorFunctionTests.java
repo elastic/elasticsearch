@@ -22,8 +22,7 @@ import java.util.List;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class AnyExponentialHistogramGroupingAggregatorFunctionTests extends
-    GroupingAggregatorFunctionTestCase {
+public class AnyExponentialHistogramGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
     protected boolean supportsMultiValues() {
@@ -34,8 +33,7 @@ public class AnyExponentialHistogramGroupingAggregatorFunctionTests extends
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongExponentialHistogramBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(i -> Tuple.tuple(randomLongBetween(0, 4),
-                BlockTestUtils.randomExponentialHistogram()))
+            LongStream.range(0, size).mapToObj(i -> Tuple.tuple(randomLongBetween(0, 4), BlockTestUtils.randomExponentialHistogram()))
         );
     }
 
@@ -51,9 +49,7 @@ public class AnyExponentialHistogramGroupingAggregatorFunctionTests extends
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        List<ExponentialHistogram> groupValues = input.stream()
-            .flatMap(p -> allExponentialHistograms(p, group))
-            .toList();
+        List<ExponentialHistogram> groupValues = input.stream().flatMap(p -> allExponentialHistograms(p, group)).toList();
         if (groupValues.isEmpty()) {
             assertTrue(result.isNull(position));
         } else {
@@ -69,7 +65,6 @@ public class AnyExponentialHistogramGroupingAggregatorFunctionTests extends
 
     static Stream<ExponentialHistogram> allExponentialHistograms(Page page, Long group) {
         ExponentialHistogramBlock b = (ExponentialHistogramBlock) page.getBlock(1);
-        return allValueOffsets(page, group).mapToObj(i -> b.getExponentialHistogram(i, new
-            ExponentialHistogramScratch()));
+        return allValueOffsets(page, group).mapToObj(i -> b.getExponentialHistogram(i, new ExponentialHistogramScratch()));
     }
 }

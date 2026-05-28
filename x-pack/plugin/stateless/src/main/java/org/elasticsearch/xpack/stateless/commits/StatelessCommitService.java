@@ -2190,8 +2190,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     shardId,
                     generation,
                     queueWaitInMs,
-                    pendingUploadBccGenerations.size())
-                    .field("elasticsearch.primary.bcc_upload_queue_duration", queueWaitInMs);
+                    pendingUploadBccGenerations.size()
+                ).field("elasticsearch.primary.bcc_upload_queue_duration", queueWaitInMs);
                 logger.info(message);
             }
         }

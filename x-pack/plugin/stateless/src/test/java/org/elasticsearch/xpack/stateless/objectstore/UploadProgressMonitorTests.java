@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.Message;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;

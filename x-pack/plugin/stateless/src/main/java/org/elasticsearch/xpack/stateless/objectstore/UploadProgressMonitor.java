@@ -26,7 +26,6 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
@@ -134,8 +133,8 @@ final class UploadProgressMonitor implements Scheduler.Cancellable {
                 primaryTermAndGeneration,
                 elapsedMs,
                 totalSizeInBytes,
-                blobPath).field("elasticsearch.primary.bcc_upload_time", elapsedMs)
-                    .field("elasticsearch.primary.bcc_uploaded_bytes", totalSizeInBytes);
+                blobPath
+            ).field("elasticsearch.primary.bcc_upload_time", elapsedMs).field("elasticsearch.primary.bcc_uploaded_bytes", totalSizeInBytes);
             logger.info(message);
         }
         return loggingTask == null || loggingTask.cancel();

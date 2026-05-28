@@ -14,8 +14,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -403,17 +401,14 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             throw new UnsupportedOperationException();
         }, null, emptyMap(), null, null);
 
-        Query noneQuery = multiMatchQuery(".").field("name.first")
-            .field("name.last")
-            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-            .toQuery(searchExecutionContext);
-        assertThat(noneQuery, instanceOf(MatchNoDocsQuery.class));
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+        fieldNames.put("name.last", 1.0f);
 
-        Query allQuery = multiMatchQuery(".").field("name.first")
-            .field("name.last")
-            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
-            .zeroTermsQuery(ZeroTermsQueryOption.ALL)
-            .toQuery(searchExecutionContext);
-        assertThat(allQuery, instanceOf(MatchAllDocsQuery.class));
+        MultiMatchQueryParser parser = new MultiMatchQueryParser(searchExecutionContext, QueryVisitor.EMPTY_VISITOR);
+        parser.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
+
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, ".", null);
+        assertNull(query);
     }
 }

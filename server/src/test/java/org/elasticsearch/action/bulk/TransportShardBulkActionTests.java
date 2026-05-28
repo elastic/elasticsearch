@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -141,7 +142,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         IndexRequest writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE).create(create);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
         items[0] = primaryRequest;
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -178,7 +179,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE).create(true);
         primaryRequest = new BulkItemRequest(0, writeRequest);
         items[0] = primaryRequest;
-        bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -232,7 +233,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 .opType(DocWriteRequest.OpType.INDEX);
             items[i] = new BulkItemRequest(i, writeRequest);
         }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         // Preemptively abort one of the bulk items, but allow the others to proceed
         BulkItemRequest rejectItem = randomFrom(items);
@@ -290,7 +291,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[1];
         DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
         items[0] = new BulkItemRequest(0, writeRequest);
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -364,7 +365,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[1];
         DocWriteRequest<IndexRequest> writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
         items[0] = new BulkItemRequest(0, writeRequest);
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         // Return an exception when trying to update the mapping, or when waiting for it to come
         RuntimeException err = new RuntimeException("some kind of exception");
@@ -421,7 +422,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[1];
         DocWriteRequest<DeleteRequest> writeRequest = new DeleteRequest("index").id("id");
         items[0] = new BulkItemRequest(0, writeRequest);
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         Translog.Location location = new Translog.Location(0, 0, 0);
 
@@ -469,7 +470,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         writeRequest = new DeleteRequest("index", "id");
         items[0] = new BulkItemRequest(0, writeRequest);
-        bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         location = context.getLocationToSync();
 
@@ -537,7 +538,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -594,7 +595,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -659,7 +660,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -748,7 +749,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -835,7 +836,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         IndexingPressure indexingPressure = new IndexingPressure(pressureSettings);
 
@@ -902,7 +903,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -976,7 +977,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -1016,7 +1017,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final ElasticsearchException err = new ElasticsearchException("oops");
         when(updateHelper.prepare(any(), eq(shard), any(), any())).thenThrow(err);
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         randomlySetIgnoredPrimaryResponse(primaryRequest);
 
@@ -1057,7 +1058,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     .opType(DocWriteRequest.OpType.INDEX);
                 items[i] = new BulkItemRequest(i, writeRequest);
             }
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
             while (context.hasMoreOperationsToExecute()) {
@@ -1104,7 +1105,12 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         itemRequests[0] = itemRequest;
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, itemRequests);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            itemRequests
+        );
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
         verify(shard, times(1)).markSeqNoAsNoop(1, 1, exception.toString());
         closeShards(shard);
@@ -1155,7 +1161,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
@@ -1210,7 +1216,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
             items[0] = new BulkItemRequest(0, writeRequest1);
             items[1] = new BulkItemRequest(1, writeRequest2);
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
             Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
@@ -1303,7 +1309,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 .opType(DocWriteRequest.OpType.INDEX);
             items[i] = new BulkItemRequest(i, writeRequest);
         }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
@@ -1361,7 +1367,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         AssertionError error = expectThrows(
             AssertionError.class,
@@ -1422,7 +1428,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
@@ -1537,7 +1543,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[1];
         IndexRequest writeRequest = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE);
         items[0] = new BulkItemRequest(0, writeRequest);
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, SplitShardCountSummary.IRRELEVANT, RefreshPolicy.NONE, items);
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
         TransportShardBulkAction.executeBulkItemRequest(

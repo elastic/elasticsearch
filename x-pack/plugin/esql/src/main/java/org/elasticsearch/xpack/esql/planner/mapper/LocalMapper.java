@@ -122,23 +122,35 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            // EXPERIMENTAL: when skip_final_aggregation pragma is set, data drivers run SINGLE mode
-            // so their output is the final result (no FINAL stage needed downstream).
-            // Correct only when group keys do not overlap across drivers.
             org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas = currentPragmas();
             // Pragmas don't reliably propagate to data-driver threads yet, so fall back to JVM-flag.
             boolean skipFinal = pragmas.skipFinalAggregation() || Boolean.getBoolean("esql.skip_final_agg");
-            AggregatorMode mode = skipFinal ? AggregatorMode.SINGLE : AggregatorMode.INITIAL;
-            PhysicalPlan aggExec = MapperUtils.aggExec(aggregate, mappedChild, mode, intermediate);
-
-            // EXPERIMENTAL: when data_driver_topn_limit pragma is set, push a TopN(K) into the data driver
-            // ordered by the first aggregate column DESC. Reduces each driver's emission to K rows.
+            // EXPERIMENTAL: data_driver_topn_limit pushes a TopN(K) into the data driver.
+            // To keep results correct when the same group key spans drivers, we run INITIAL
+            // (intermediate-state output) so the coordinator's FINAL can merge cross-driver
+            // partials BEFORE the global TopN. Setting skip_final_agg still uses SINGLE mode
+            // (final output, no FINAL stage) and is only correct when keys are in one driver.
             int topNLimit = pragmas.dataDriverTopNLimit();
             if (topNLimit == 0) {
                 topNLimit = Integer.getInteger("esql.data_driver_topn_limit", 0);
             }
-            if (topNLimit > 0 && mode == AggregatorMode.SINGLE && aggregate.aggregates().isEmpty() == false) {
-                Attribute sortAttr = aggregate.aggregates().get(0).toAttribute();
+            AggregatorMode mode = skipFinal ? AggregatorMode.SINGLE : AggregatorMode.INITIAL;
+            PhysicalPlan aggExec = MapperUtils.aggExec(aggregate, mappedChild, mode, intermediate);
+
+            if (topNLimit > 0 && aggregate.aggregates().isEmpty() == false) {
+                // For SINGLE-mode output, sort by the final aggregate attribute (e.g. `c`).
+                // For INITIAL-mode output, sort by the corresponding intermediate count/sum
+                // attribute (the first intermediate attr; FINAL agg later merges partial counts).
+                Attribute sortAttr;
+                if (mode == AggregatorMode.SINGLE) {
+                    sortAttr = aggregate.aggregates().get(0).toAttribute();
+                } else {
+                    // intermediate layout puts groupings FIRST, then per-agg state attrs.
+                    // For the first aggregate `c = COUNT(*)`, its partial-count attr lives at
+                    // index numGroupings (e.g. for GROUP BY WatchID, ClientIP -> index 2).
+                    int firstAggStateIdx = aggregate.groupings().size();
+                    sortAttr = intermediate.get(firstAggStateIdx);
+                }
                 Order order = new Order(aggregate.source(), sortAttr, Order.OrderDirection.DESC, Order.NullsPosition.FIRST);
                 return new TopNExec(
                     aggregate.source(),

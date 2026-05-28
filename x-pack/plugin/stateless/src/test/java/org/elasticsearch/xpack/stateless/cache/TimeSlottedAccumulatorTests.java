@@ -351,8 +351,9 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
         long clampedDelta = randomNonZeroDelta();
-        long beforeTail = Math.max(0, tailSlot - granularityMillis);
-        accumulator.accumulate(randomLongBetween(0, beforeTail), clampedDelta);
+        long beforeTail = tailSlot - granularityMillis;
+        long timestampBeforeTail = beforeTail < 0 ? beforeTail : randomLongBetween(0, beforeTail);
+        accumulator.accumulate(timestampBeforeTail, clampedDelta);
         assertThat(accumulator.sum(tailSlot, tailSlot + granularityMillis), equalTo(clampedDelta));
 
         long delta = randomNonZeroDelta();
@@ -516,7 +517,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         assertThat(accumulator.sum(queryStart, anchorSlot + granularityMillis), equalTo(firstDelta + secondDelta));
     }
 
-    public void testNegativeClockAnchorsAtEpoch() {
+    public void testEarlyEpochTimeRetainsNonNegativeTail() {
         TimeValue granularity = randomGranularity();
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 6);
@@ -526,9 +527,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long delta = randomNonZeroDelta();
         accumulator.accumulate(0, delta);
         assertThat(accumulator.sum(0, granularityMillis), equalTo(delta));
-
-        long tailSlot = -(long) (pastSlots - 1) * granularityMillis;
-        assertThat(accumulator.sum(tailSlot, granularityMillis), equalTo(delta));
+        assertThat(accumulator.sum(-granularityMillis, granularityMillis), equalTo(delta));
     }
 
     private static int randomFutureSlotCount() {

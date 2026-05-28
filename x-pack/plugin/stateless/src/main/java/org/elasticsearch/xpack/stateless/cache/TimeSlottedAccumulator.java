@@ -128,13 +128,22 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         }
         this.granularityMillis = granularity.millis();
         this.counts = new AtomicLongArray(totalSlots);
-        long anchorSlotStartMillis = toSlotStartMillis(Math.max(0, timeProvider.absoluteTimeInMillis()));
+        long anchorSlotStartMillis = toSlotStartMillis(timeProvider.absoluteTimeInMillis());
         try {
-            this.tailSlotStartMillis = Math.subtractExact(anchorSlotStartMillis, Math.multiplyExact(pastSlots - 1, granularityMillis));
+            long minAnchorSlotStartMillis = Math.multiplyExact(pastSlots - 1, granularityMillis);
+            if (anchorSlotStartMillis < minAnchorSlotStartMillis) {
+                anchorSlotStartMillis = minAnchorSlotStartMillis;
+            }
+            this.tailSlotStartMillis = Math.subtractExact(anchorSlotStartMillis, minAnchorSlotStartMillis);
             this.headSlotStartMillis = Math.addExact(anchorSlotStartMillis, Math.multiplyExact(futureSlots, granularityMillis));
             this.headSlotEndExclusiveMillis = Math.addExact(headSlotStartMillis, granularityMillis);
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("slot configuration overflows", e);
+        }
+        if (tailSlotStartMillis < 0 || headSlotStartMillis < 0) {
+            throw new IllegalStateException(
+                "retained slot bounds must be non-negative [tail=" + tailSlotStartMillis + ", head=" + headSlotStartMillis + "]"
+            );
         }
     }
 
@@ -187,7 +196,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         if (endMillis <= startMillis) {
             return 0;
         }
-        startMillis = Math.max(tailSlotStartMillis, Math.max(0, startMillis));
+        startMillis = Math.max(tailSlotStartMillis, startMillis);
         endMillis = Math.min(endMillis, headSlotEndExclusiveMillis);
         if (endMillis <= startMillis) {
             return 0;
@@ -213,11 +222,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * {@code [tailSlotMillis, headSlotMillis]}, then returns the offset from the tail (whose index is 0).
      */
     private int slotForTimestamp(long timestampMillis) {
-        long normalizedTimestampMillis = Math.clamp(
-            toSlotStartMillis(Math.max(0, timestampMillis)),
-            tailSlotStartMillis,
-            headSlotStartMillis
-        );
+        long normalizedTimestampMillis = Math.clamp(toSlotStartMillis(timestampMillis), tailSlotStartMillis, headSlotStartMillis);
         return (int) Math.floorDiv(normalizedTimestampMillis - tailSlotStartMillis, granularityMillis);
     }
 

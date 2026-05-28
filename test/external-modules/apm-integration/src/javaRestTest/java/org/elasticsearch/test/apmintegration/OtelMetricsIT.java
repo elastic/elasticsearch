@@ -23,7 +23,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
- * Test metrics exported by Elasticsearch directly using the OTel SDK
+ * Test metrics exported by Elasticsearch directly using the OTel SDK. Runs with
+ * {@code telemetry.otel.metrics.disk_buffer_size=0b} so the inherited baseline assertions
+ * also exercise the buffering-disabled bypass in {@code OtelSdkExportMeterSupplier}.
  */
 public class OtelMetricsIT extends AbstractMetricsIT {
 
@@ -33,6 +35,7 @@ public class OtelMetricsIT extends AbstractMetricsIT {
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
         .setting("telemetry.otel.metrics.interval", "10m") // one giant batch instead of multiple small ones with deltas we need to sum
+        .setting("telemetry.otel.metrics.disk_buffer_size", "0b")
         .build();
 
     @ClassRule

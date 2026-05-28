@@ -842,9 +842,11 @@ public enum DataType implements Writeable {
             || isCounter(t)
             || isSpatialOrGrid(t)
             || t == AGGREGATE_METRIC_DOUBLE
+            || t == DATE_PERIOD
             || t == DATE_RANGE
             || t == FLATTENED
             || t == HISTOGRAM
+            || t == TIME_DURATION
             || t == TSID_DATA_TYPE);
     }
 

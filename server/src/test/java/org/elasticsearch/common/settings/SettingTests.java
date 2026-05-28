@@ -1200,6 +1200,14 @@ public class SettingTests extends ESTestCase {
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [ServerlessPublic]")));
     }
 
+    public void testRejectIndexScopedDeprecatedSetting() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.IndexScope, Property.Deprecated)
+        );
+        assertThat(e, hasToString(containsString("index-scoped setting [foo.bar] can not have property [Deprecated]")));
+    }
+
     public void testTimeValue() {
         final TimeValue random = randomTimeValue();
 

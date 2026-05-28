@@ -11,8 +11,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test51AutoConfigurationWithPasswordProtectedKeystore
   issue: https://github.com/elastic/elasticsearch/issues/118212
-- class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
-  issue: https://github.com/elastic/elasticsearch/issues/119983
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -288,9 +286,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureMultiProjectObjectStoreIT
   method: testObjectStoreSeparation
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6311
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/147846
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
@@ -390,12 +385,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/147516
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
-  issue: https://github.com/elastic/elasticsearch/issues/147517
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
@@ -495,9 +484,6 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN_partialCompleted
   issue: https://github.com/elastic/elasticsearch/issues/149665
-- class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
-  method: testClientCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/149675
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
@@ -507,12 +493,6 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN
   issue: https://github.com/elastic/elasticsearch/issues/149698
-- class: org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/149720
-- class: org.elasticsearch.index.reindex.ResumeBulkByScrollRequestWireSerializingTests
-  method: testEqualsAndHashcode
-  issue: https://github.com/elastic/elasticsearch/issues/149721
 - class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
   method: testRetainCommitForReadersAfterShardReplicasSetToZero
   issue: https://github.com/elastic/elasticsearch/issues/149740
@@ -531,9 +511,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.reindex.management.ListTasksRelocationIT
-  method: testListTasksShowsOriginalIdentityAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149776
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
@@ -597,3 +574,39 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149964
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV2Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150015
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV1Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150019
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testDataVisibility
+  issue: https://github.com/elastic/elasticsearch/issues/150028
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/150045
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapAllocationDecider
+  issue: https://github.com/elastic/elasticsearch/issues/150046
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:stats.weightedAvgWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/150051
+- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
+  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
+  issue: https://github.com/elastic/elasticsearch/issues/150054
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150065
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150068
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150070
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparseWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/150073
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testRandomSchema
+  issue: https://github.com/elastic/elasticsearch/issues/150077

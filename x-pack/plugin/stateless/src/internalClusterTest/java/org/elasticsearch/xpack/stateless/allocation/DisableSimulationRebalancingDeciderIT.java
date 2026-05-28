@@ -108,7 +108,9 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
     }
 
     private TestHarness setupClusterWithSingleShard() {
-        final var rebalancingDisabled = Settings.builder().put(SIMULATION_REBALANCING_ENABLED_SETTING.getKey(), RebalancingEnabled.NEVER).build();
+        final var rebalancingDisabled = Settings.builder()
+            .put(SIMULATION_REBALANCING_ENABLED_SETTING.getKey(), RebalancingEnabled.NEVER)
+            .build();
         final var indexNode1 = startMasterAndIndexNode(rebalancingDisabled);
         // Create the index, it'll be allocated to indexNode1
         final var indexName = randomIdentifier();

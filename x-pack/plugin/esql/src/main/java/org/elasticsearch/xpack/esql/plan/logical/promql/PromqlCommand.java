@@ -368,7 +368,9 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        assert false : "Should not expect to see a PromqlCommand at this point " + sourceText();
+        throw new IllegalStateException(
+            "PromqlCommand verification and translation should already have been completed: [" + sourceText() + "]"
+        );
     }
 
     public void verify(Failures failures) {

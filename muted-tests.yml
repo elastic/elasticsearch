@@ -604,3 +604,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSlicesSparse
   issue: https://github.com/elastic/elasticsearch/issues/150070
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparseWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/150073

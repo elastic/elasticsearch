@@ -607,3 +607,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_half}
   issue: https://github.com/elastic/elasticsearch/issues/150094
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
+  issue: https://github.com/elastic/elasticsearch/issues/150095

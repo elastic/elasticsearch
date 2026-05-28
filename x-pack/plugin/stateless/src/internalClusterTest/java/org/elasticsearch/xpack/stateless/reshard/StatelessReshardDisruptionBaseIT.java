@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAct
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -62,16 +63,23 @@ public class StatelessReshardDisruptionBaseIT extends AbstractStatelessPluginInt
             }
             case LOCAL_FAIL_SHARD -> {
                 try {
-                    IndexShard indexShard = findIndexShard(index, randomIntBetween(0, indexMetadata.getNumberOfShards()));
-                    var listener = ClusterServiceUtils.addTemporaryStateListener(
-                        cs -> cs.routingTable(project.id())
-                            .index(index.getName())
-                            .shard(indexShard.shardId().id())
-                            .primaryShard()
-                            .unassigned()
-                    );
-                    logger.info("--> failing shard {}", indexShard.shardId());
-                    indexShard.failShard("broken", new Exception("boom local"));
+                    int shardIdToFail = randomIntBetween(0, indexMetadata.getNumberOfShards());
+                    boolean isIndexShard = randomBoolean();
+                    IndexShard shard;
+                    if (isIndexShard) {
+                        shard = findIndexShard(index, shardIdToFail);
+                    } else {
+                        shard = findSearchShard(index, shardIdToFail);
+                    }
+                    var listener = ClusterServiceUtils.addTemporaryStateListener(cs -> {
+                        var shardRoutingTable = cs.routingTable(project.id()).index(index.getName()).shard(shard.shardId().id());
+
+                        return isIndexShard
+                            ? shardRoutingTable.primaryShard().unassigned()
+                            : shardRoutingTable.unpromotableShards().stream().allMatch(ShardRouting::unassigned);
+                    });
+                    logger.info("--> failing {} shard {}", isIndexShard ? "index" : "search", shard.shardId());
+                    shard.failShard("broken", new Exception("boom local"));
                     // ensureGreen may succeed before the cluster state reflects the failed shard
                     safeAwait(listener);
                     ensureGreen(index.getName());

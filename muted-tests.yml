@@ -622,3 +622,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testGroupOnManyLongs
+  issue: https://github.com/elastic/elasticsearch/issues/150104

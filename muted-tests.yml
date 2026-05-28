@@ -598,3 +598,6 @@ tests:
 - class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
   method: testSlicesSparse
   issue: https://github.com/elastic/elasticsearch/issues/150065
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesSparse
+  issue: https://github.com/elastic/elasticsearch/issues/150068

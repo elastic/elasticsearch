@@ -121,7 +121,7 @@ public class QueryPlanningBenchmark {
             new AnalyzerContext(
                 config,
                 functionRegistry,
-                new PromqlFunctionRegistry(),
+                new PromqlFunctionRegistry(List.of()),
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),

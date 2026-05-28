@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.approximation;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -96,6 +97,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     }
 
     public void testApproximationPlan_withFork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
             "FROM test | FORK (STATS sum=SUM(emp_no)) (KEEP emp_no) (WHERE emp_no < 10 | STATS max=MAX(emp_no))"
         );
@@ -111,6 +113,7 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     }
 
     public void testApproximationPlan_withNonApproximableSubqueries() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
         LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
             "FROM (FROM test | LIMIT 1 | STATS bad = COUNT(*)), (FROM test | STATS good = COUNT(*))"
         );

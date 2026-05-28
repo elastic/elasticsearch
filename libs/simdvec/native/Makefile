@@ -18,7 +18,7 @@
 # See publish_vec_binaries.sh.
 
 HEADERS    = -I src/vec/headers/
-CXXFLAGS   = -std=c++17 -O3 -fpic -g -fstandalone-debug -DNDEBUG
+CXXFLAGS   = -std=c++20 -O3 -fpic -g -fstandalone-debug -DNDEBUG
 
 # Per-architecture march flags
 MARCH_AARCH64_TIER1 = armv8.2-a+dotprod
@@ -82,7 +82,7 @@ SO_X64 = $(OUT_DIR_AMD64)/libvec.so
 # --- local: build for the current platform using the native compiler ---
 # On macOS, overrides CLANG/CLANG_LINK to use the system clang (SDK available natively).
 # On Linux, overrides CXX_ARM/CXX_X64 to drop the cross-compilation target.
-# Ob both, we use the system strip instead of llvm-strip.
+# On both, we use the system strip instead of llvm-strip.
 
 .PHONY: all clean local install
 

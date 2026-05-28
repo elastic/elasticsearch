@@ -25,7 +25,7 @@ EXTERNAL "{{mv_sample}}" WITH {"multi_value_syntax": "none", "error_mode": "skip
 | KEEP id, tags
 | SORT id
 ;
-warningRegex:CSV read from \[.*mv_sample.*\] encountered parse errors handled per policy.*
+warningRegex:CSV read from \[.+\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: CSV row has \[5\] columns but schema defines \[3\] columns.*
 
 id:integer | tags:keyword

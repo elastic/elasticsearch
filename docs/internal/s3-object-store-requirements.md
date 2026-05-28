@@ -43,9 +43,9 @@ This document describes the requirements for an S3-compatible object store, both
 
 ### **🟢 Authenticating Requests (AWS Signature Version 4)**
 
-**Description:** The backend must authenticate requests using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html). All S3 API requests from Elasticsearch are signed with SigV4 using the configured credentials and region.
+**Description:** The backend must authenticate requests using [AWS Signature Version 4](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html). All S3 API requests from Elasticsearch are signed with a version 4 signature using the configured credentials and region. Full support for all version 4 signature calculation methods and other options is required.
 
-**Why:** Elasticsearch uses the AWS SDK v2 S3 client, which signs every request with SigV4. The backend must validate these signatures to authenticate requests. There is no option to disable signing or use a different authentication mechanism — the signer is hardcoded as AwsS3V4Signer. Credentials can be provided via static access key/secret key pairs, temporary session credentials (with session token), Web Identity Token (OIDC/IRSA), or the default AWS credential provider chain (environment variables, instance profile, etc.).
+**Why:** Elasticsearch uses the S3 client from the AWS-provided SDK for Java v2, which signs every request with the AWS version 4 signature mechanism. The SDK chooses the exact signature method and other options according to AWS-recommended best practices. There is no supported Java SDK which allows Elasticsearch to customize the signature algorithm. Credentials can be provided via static access key/secret key pairs, temporary session credentials (with session token), Web Identity Token (OIDC/IRSA), or the default AWS credential provider chain (environment variables, instance profile, etc.).
 
 ---
 

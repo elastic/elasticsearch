@@ -890,7 +890,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             int totalVectors = super.resetPostingsScorer(metadata);
             int totalBlocks = totalVectors / BULK_SIZE;
             KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
-            if (iterator.advance(startDocId) > endDocId) {
+            if (iterator.advance(startDocId) >= endDocId) {
                 this.vectors = 0;
                 return 0;
             }
@@ -898,13 +898,13 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             int docId = iterator.advance(endDocId);
             int maxOrd;
             if (docId == DocIdSetIterator.NO_MORE_DOCS) {
-                maxOrd = floatVectorValues.size() - 1;
+                maxOrd = floatVectorValues.size();
             } else {
                 maxOrd = iterator.index();
             }
-            assert maxOrd - minOrd + 1 <= totalVectors;
+            assert maxOrd - minOrd <= totalVectors;
             int startBlock = minOrd / BULK_SIZE;
-            int endBlock = maxOrd / BULK_SIZE;
+            int endBlock = (maxOrd - 1) / BULK_SIZE;
             if (endBlock == totalBlocks) {
                 this.vectors = totalVectors - startBlock * BULK_SIZE;
             } else {
@@ -933,7 +933,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
         protected void readDocIds(int count) {
             for (int j = 0; j < count; j++) {
                 int docId = floatVectorValues.ordToDoc(docBase++);
-                if (docId >= startDocId && docId <= endDocId) {
+                if (docId >= startDocId && docId < endDocId) {
                     docIdsScratch[j] = docId;
                 } else {
                     docIdsScratch[j] = -1;
@@ -992,9 +992,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
-                quantEncoding.bits() == 4
-                    ? ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
-                    : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED
+                quantEncoding.bits() == 4 ? ES940OSQVectorsScorer.BitEncoding.PACKED : ES940OSQVectorsScorer.BitEncoding.STRIPED
             );
         }
 

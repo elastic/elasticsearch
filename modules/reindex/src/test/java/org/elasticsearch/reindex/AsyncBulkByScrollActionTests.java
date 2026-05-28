@@ -60,6 +60,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
@@ -67,7 +68,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.rest.RestStatus;
@@ -150,7 +151,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private ThreadPool clientThreadPool;
     private TaskManager taskManager;
     private BulkByPaginatedSearchTask testTask;
-    private WorkerBulkByScrollTaskState worker;
+    private WorkerBulkByPaginatedSearchTaskState worker;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
     private TaskId taskId;
@@ -1402,6 +1403,28 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(sendBulkInvocations.get(), equalTo(0));
     }
 
+    public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        testRequest.getSearchRequest().searchSlice("slice-1");
+
+        IndexRequest indexRequest = new IndexRequest().index("test").id("1");
+        DeleteRequest deleteRequest = new DeleteRequest("test", "1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(deleteRequest), "slice-1");
+
+        assertThat(indexRequest.routing(), equalTo("slice-1"));
+        assertTrue(indexRequest.isRoutingFromSlice());
+        assertThat(deleteRequest.routing(), equalTo("slice-1"));
+        assertTrue(deleteRequest.isRoutingFromSlice());
+
+        testRequest.getSearchRequest().searchSlice(null);
+        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        assertThat(routingRequest.routing(), equalTo("routing-value"));
+        assertFalse(routingRequest.isRoutingFromSlice());
+    }
+
     /**
      * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
      * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.
@@ -2184,7 +2207,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         final BulkByPaginatedSearchTask.Status status = randomStatus();
 
-        final WorkerBulkByScrollTaskState workerState = mock(WorkerBulkByScrollTaskState.class);
+        final WorkerBulkByPaginatedSearchTaskState workerState = mock(WorkerBulkByPaginatedSearchTaskState.class);
         when(workerState.getNodeToRelocateTo()).thenReturn(Optional.of("target-node"));
         when(workerState.getStatus()).thenReturn(status);
 

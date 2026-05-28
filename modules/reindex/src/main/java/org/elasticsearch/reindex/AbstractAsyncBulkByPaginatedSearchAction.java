@@ -46,7 +46,7 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.rest.RestStatus;
@@ -59,6 +59,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -97,7 +98,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     protected final Logger logger;
     protected final BulkByPaginatedSearchTask task;
-    protected final WorkerBulkByScrollTaskState worker;
+    protected final WorkerBulkByPaginatedSearchTaskState worker;
     protected final ThreadPool threadPool;
     protected final ScriptService scriptService;
     protected final ReindexSslConfig sslConfig;
@@ -167,9 +168,13 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
-    private final ReindexSettings reindexSettings;
+    protected final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
+
+    protected CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
 
     AbstractAsyncBulkByPaginatedSearchAction(
         BulkByPaginatedSearchTask task,
@@ -259,6 +264,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         this.remoteVersion = remoteVersion;
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
+        this.breakerLabel = Objects.requireNonNull(breakerLabel);
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
             prepareSearchRequest(
@@ -270,9 +278,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
-        this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
-        this.breakerLabel = Objects.requireNonNull(breakerLabel);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -392,6 +397,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     protected void copyRouting(RequestWrapper<?> request, String routing) {
         request.setRouting(routing);
+        request.setRoutingFromSlice(mainRequest.getSearchRequest().isRoutingFromSlice());
     }
 
     /**
@@ -421,7 +427,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
                     if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
-                        reservedBytes.set(bulkRequest.estimatedSizeInBytes());
+                        reservedBytes.addAndGet(delta);
                     }
                 }
             }
@@ -510,8 +516,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     }
 
     void onScrollResponse(ScrollConsumableHitsResponse asyncResponse) {
-        // lastBatchStartTime is essentially unused (see WorkerBulkByScrollTaskState.throttleWaitTime. Leaving it for now, since it seems
-        // like a bug?
+        // lastBatchStartTime is essentially unused (see WorkerBulkByPaginatedSearchTaskState.throttleWaitTime).
+        // Leaving it for now, since it seems like a bug?
         onScrollResponse(System.nanoTime(), this.lastBatchSize, asyncResponse);
     }
 
@@ -587,6 +593,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             return;
         }
         if (asyncResponse.hasRemainingHits() == false) {
+            asyncResponse.releaseRemainingHits();
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }
@@ -623,6 +630,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
+            asyncResponse.response().closeBodyReleasable();
         });
         boolean cleanupHandedOff = false;
         try {
@@ -1062,6 +1070,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         String getRouting();
 
+        void setRoutingFromSlice(boolean routingFromSlice);
+
         void setSource(Map<String, Object> source);
 
         Map<String, Object> getSource();
@@ -1123,6 +1133,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Override
         public String getRouting() {
             return request.routing();
+        }
+
+        @Override
+        public void setRoutingFromSlice(boolean routingFromSlice) {
+            request.setRoutingFromSlice(routingFromSlice);
         }
 
         @Override
@@ -1205,6 +1220,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         @Override
+        public void setRoutingFromSlice(boolean routingFromSlice) {
+            request.setRoutingFromSlice(routingFromSlice);
+        }
+
+        @Override
         public Map<String, Object> getSource() {
             throw new UnsupportedOperationException("unable to get source from action request [" + request.getClass() + "]");
         }
@@ -1237,14 +1257,14 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         // "index" is the default operation
         protected static final String INDEX = "index";
 
-        private final WorkerBulkByScrollTaskState taskWorker;
+        private final WorkerBulkByPaginatedSearchTaskState taskWorker;
         protected final ScriptService scriptService;
         protected final Script script;
         protected final Map<String, Object> params;
         protected final LongSupplier nowInMillisSupplier;
 
         public ScriptApplier(
-            WorkerBulkByScrollTaskState taskWorker,
+            WorkerBulkByPaginatedSearchTaskState taskWorker,
             ScriptService scriptService,
             Script script,
             Map<String, Object> params,
@@ -1275,6 +1295,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         protected abstract CtxMap<T> execute(PaginatedHitSource.Hit doc, Map<String, Object> source);
+
+        protected Runnable buildCancellationCheck() {
+            BulkByPaginatedSearchTask task = taskWorker.getTask();
+            return () -> { if (task.isCancelled()) throw new TaskCancelledException(task.getReasonCancelled()); };
+        }
 
         protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
 
@@ -1364,6 +1389,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             for (; consumedOffset < hits.size(); consumedOffset++) {
                 hits.get(consumedOffset).release();
             }
+            asyncResponse.response().closeBodyReleasable();
         }
 
         void done(TimeValue extraKeepAlive) {

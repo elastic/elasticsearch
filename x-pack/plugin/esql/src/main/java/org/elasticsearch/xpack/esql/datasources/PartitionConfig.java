@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Configuration for partition detection strategy, parsed from WITH clause parameters.
@@ -39,6 +40,9 @@ public record PartitionConfig(Strategy strategy, @Nullable String pathTemplate) 
     public static final String CONFIG_PARTITIONING_DETECTION = "partition_detection";
     public static final String CONFIG_PARTITIONING_PATH = "partition_path";
     public static final String CONFIG_PARTITIONING_HIVE = "hive_partitioning";
+
+    /** Keys recognised by {@link #fromConfig}. */
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_PARTITIONING_DETECTION, CONFIG_PARTITIONING_PATH, CONFIG_PARTITIONING_HIVE);
 
     public static final PartitionConfig DEFAULT = new PartitionConfig(Strategy.AUTO, null);
 

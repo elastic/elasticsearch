@@ -110,17 +110,17 @@ class JvmActions {
         Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
     }
 
-    @EntitlementTest(expectedAccess = ES_MODULES_ONLY)
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
     static void defineClass() throws IllegalAccessException {
         MethodHandles.lookup().defineClass(new byte[0]);
     }
 
-    @EntitlementTest(expectedAccess = ES_MODULES_ONLY)
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
     static void defineHiddenClass() throws IllegalAccessException {
         MethodHandles.lookup().defineHiddenClass(new byte[0], false);
     }
 
-    @EntitlementTest(expectedAccess = ES_MODULES_ONLY)
+    @EntitlementTest(expectedAccess = ES_MODULES_ONLY, expectedExceptionIfDenied = IllegalAccessException.class)
     static void defineHiddenClassWithClassData() throws IllegalAccessException {
         MethodHandles.lookup().defineHiddenClassWithClassData(new byte[0], "data", false);
     }

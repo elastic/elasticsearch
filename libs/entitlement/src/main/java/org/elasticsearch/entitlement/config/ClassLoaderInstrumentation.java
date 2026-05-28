@@ -57,17 +57,19 @@ public class ClassLoaderInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(MethodHandles.Lookup.class, rule -> {
-            rule.calling(MethodHandles.Lookup::defineClass, byte[].class).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            rule.calling(MethodHandles.Lookup::defineClass, byte[].class)
+                .enforce(Policies::createClassLoader)
+                .elseThrow(e -> new IllegalAccessException(e.getMessage()));
             rule.calling(MethodHandles.Lookup::defineHiddenClass, byte[].class, Boolean.class, MethodHandles.Lookup.ClassOption[].class)
                 .enforce(Policies::createClassLoader)
-                .elseThrowNotEntitled();
+                .elseThrow(e -> new IllegalAccessException(e.getMessage()));
             rule.calling(
                 MethodHandles.Lookup::defineHiddenClassWithClassData,
                 byte[].class,
                 Object.class,
                 Boolean.class,
                 MethodHandles.Lookup.ClassOption[].class
-            ).enforce(Policies::createClassLoader).elseThrowNotEntitled();
+            ).enforce(Policies::createClassLoader).elseThrow(e -> new IllegalAccessException(e.getMessage()));
         });
     }
 }

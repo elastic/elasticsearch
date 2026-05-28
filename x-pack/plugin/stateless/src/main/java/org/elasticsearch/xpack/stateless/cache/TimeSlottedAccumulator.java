@@ -69,8 +69,8 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      */
     private final long headSlotStartMillis;
 
-    /** Exclusive end of the retained window: {@code headSlotStartMillis + granularityMillis}. */
-    private final long retainedEndExclusiveMillis;
+    /** Exclusive end of the head slot: {@code headSlotStartMillis + granularityMillis}. */
+    private final long headSlotEndExclusiveMillis;
 
     /**
      * Creates a fixed array of {@code pastSlots + futureSlots} atomic slot counts, one per time slot of
@@ -128,7 +128,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         try {
             this.tailSlotStartMillis = Math.subtractExact(anchorSlotStartMillis, Math.multiplyExact(pastSlots - 1, granularityMillis));
             this.headSlotStartMillis = Math.addExact(anchorSlotStartMillis, Math.multiplyExact(futureSlots, granularityMillis));
-            this.retainedEndExclusiveMillis = Math.addExact(headSlotStartMillis, granularityMillis);
+            this.headSlotEndExclusiveMillis = Math.addExact(headSlotStartMillis, granularityMillis);
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("slot configuration overflows", e);
         }
@@ -184,7 +184,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
             return 0;
         }
         startMillis = Math.max(tailSlotStartMillis, Math.max(0, startMillis));
-        endMillis = Math.min(endMillis, retainedEndExclusiveMillis);
+        endMillis = Math.min(endMillis, headSlotEndExclusiveMillis);
         if (endMillis <= startMillis) {
             return 0;
         }

@@ -216,7 +216,9 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                         nowInMillisSupplier.getAsLong()
                     )
                 );
-                update.newInstance(params, ctxMap).execute();
+                UpdateByQueryScript instance = update.newInstance(params, ctxMap);
+                instance._setCancellationCheck(buildCancellationCheck());
+                instance.execute();
                 return ctxMap;
             }
 

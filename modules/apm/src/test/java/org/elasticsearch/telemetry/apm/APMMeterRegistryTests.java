@@ -89,7 +89,7 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(lookedUpCounter, sameInstance(registeredCounter));
     }
 
-    public void testNoopIsSetOnStop() {
+    public void testNoopIsSetOnClose() {
         APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
         apmMeter.start();
 
@@ -97,6 +97,10 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(meter, sameInstance(testOtel));
 
         apmMeter.stop();
+        // After stop(), the registry still serves the real provider; the noop swap happens on close().
+        assertThat(apmMeter.getMeterRegistry().getMeter(), sameInstance(testOtel));
+
+        apmMeter.close();
 
         meter = apmMeter.getMeterRegistry().getMeter();
         assertThat(meter, sameInstance(noopOtel));

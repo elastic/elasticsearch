@@ -85,7 +85,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearch
      */
     @Override
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
-        request.setRouting(doc.getRouting());
+        copyRouting(request, doc.getRouting());
         return request;
     }
 

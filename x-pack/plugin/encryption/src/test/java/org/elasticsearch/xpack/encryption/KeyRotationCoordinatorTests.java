@@ -60,7 +60,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
     private static final String PASSWORD_ID = "v1";
-    private static final String PASSWORD_VALUE = "test-password";
+    // BC FIPS rejects PBKDF2 passwords shorter than 14 chars (112 bits); use a longer literal.
+    private static final String PASSWORD_VALUE = "test-password-fips";
 
     private static byte[] randomKey() {
         byte[] keyBytes = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
@@ -238,7 +239,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         MockSecureSettings secure = new MockSecureSettings();
         secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
         secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
-        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password");
+        secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
 
         // Pre-wrap a key under PASSWORD_ID so the rewrap path has something real to unwrap.
         byte[] plaintextKey = randomKey();
@@ -303,7 +304,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         MockSecureSettings rotated = new MockSecureSettings();
         rotated.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, "v2");
         rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD_VALUE);
-        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password");
+        rotated.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + "v2", "new-password-fips");
         coordinator.reload(Settings.builder().setSecureSettings(rotated).build());
 
         coordinator.tick();

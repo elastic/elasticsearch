@@ -85,7 +85,14 @@ final class PasswordBasedEncryption {
             SecretKeyFactory factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
             PBEKeySpec spec = new PBEKeySpec(password, salt, PBKDF2_ITERATIONS, KEK_LENGTH_BITS);
             try {
-                byte[] kekBytes = factory.generateSecret(spec).getEncoded();
+                byte[] kekBytes;
+                try {
+                    kekBytes = factory.generateSecret(spec).getEncoded();
+                } catch (Error e) {
+                    // Under BC FIPS, prerequisite violations (notably a password shorter than 14 chars / 112 bits, salt or iv constraints)
+                    // surface as a subclass of Error. Catch and rewrap so the JVM doesn't exit and the failure mirrors KeyStoreWrapper.
+                    throw new ElasticsearchException("Wrapping key derivation failed: " + e.getMessage(), e);
+                }
                 try {
                     return new SecretKeySpec(kekBytes, "AES");
                 } finally {

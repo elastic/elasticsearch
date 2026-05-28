@@ -34,7 +34,7 @@ public class ProjectEncryptionKeyServiceTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
     private static final String PASSWORD_ID = "v1";
-    private static final String PASSWORD_VALUE = "test-password";
+    private static final String PASSWORD_VALUE = "test-password-fips";
 
     private static ClusterStateListener captureListener(ClusterService clusterService) {
         ArgumentCaptor<ClusterStateListener> captor = ArgumentCaptor.forClass(ClusterStateListener.class);

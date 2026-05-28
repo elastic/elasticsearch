@@ -792,7 +792,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             DfsSearchResult result = context.dfsResult();
             context.sumWorkerThreadsBytesRead();
-            result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+            result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
             return result;
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -1071,7 +1071,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.addFetchResult();
                 QueryFetchSearchResult result = executeFetchPhase(readerContext, context, afterQueryTime);
                 context.sumWorkerThreadsBytesRead();
-                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                 return result;
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -1082,7 +1082,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
                 context.sumWorkerThreadsBytesRead();
-                context.queryResult().setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                context.queryResult().setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -1111,7 +1111,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return null;
     }
 
-    private static DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta) {
+    private static DirectoryMetrics getDirectoryMetricsDelta(Supplier<DirectoryMetrics> metricsDelta) {
         return metricsDelta == null ? DirectoryMetrics.EMPTY : metricsDelta.get();
     }
 
@@ -1136,7 +1136,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
                     searchContext.rankFeatureResult().incRef();
                     searchContext.sumWorkerThreadsBytesRead();
-                    searchContext.rankFeatureResult().setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                    searchContext.rankFeatureResult().setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
@@ -1145,7 +1145,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
                 searchContext.sumWorkerThreadsBytesRead();
-                rankFeatureResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                rankFeatureResult.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                 return rankFeatureResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1302,7 +1302,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
             searchContext.sumWorkerThreadsBytesRead();
-            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+            fetchResult.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }
@@ -1365,7 +1365,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // ScrollQuerySearchResult will incRef the QuerySearchResult when it gets constructed.
                 ScrollQuerySearchResult result = new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
                 searchContext.sumWorkerThreadsBytesRead();
-                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                 return result;
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -1437,7 +1437,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                     queryResult.incRef();
                     searchContext.sumWorkerThreadsBytesRead();
-                    queryResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                    queryResult.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                     return queryResult;
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1504,7 +1504,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
                 ScrollQueryFetchSearchResult result = new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
                 searchContext.sumWorkerThreadsBytesRead();
-                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
+                result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
                 return result;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);

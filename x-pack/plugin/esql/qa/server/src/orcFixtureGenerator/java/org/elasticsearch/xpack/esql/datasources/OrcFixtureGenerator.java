@@ -26,6 +26,8 @@ import org.apache.orc.Writer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +55,9 @@ public final class OrcFixtureGenerator {
 
     private OrcFixtureGenerator() {}
 
-    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
+    private static final Logger logger = LoggerFactory.getLogger(OrcFixtureGenerator.class);
+
+    @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
         if (args.length == 2) {
             java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
@@ -64,7 +68,7 @@ public final class OrcFixtureGenerator {
             Files.createDirectories(outputPath.getParent());
             Files.deleteIfExists(outputPath);
             generate(sourcePath, outputPath);
-            System.out.println("Generated ORC fixture: " + outputPath);
+            logger.info("Generated ORC fixture: {}", outputPath);
         } else if (args.length == 3) {
             java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
             java.nio.file.Path outputDir = java.nio.file.Path.of(args[1]);
@@ -85,7 +89,7 @@ public final class OrcFixtureGenerator {
                 java.nio.file.Path outputPath = outputDir.resolve(fileName);
                 Files.deleteIfExists(outputPath);
                 generateFromRows(result, range.from(), range.to(), outputPath);
-                System.out.println("Generated ORC split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
+                logger.info("Generated ORC split fixture: {} (rows {}-{})", outputPath, range.from(), range.to());
             }
         } else {
             System.err.println("Usage: OrcFixtureGenerator <source-csv-path> <output-orc-path>");

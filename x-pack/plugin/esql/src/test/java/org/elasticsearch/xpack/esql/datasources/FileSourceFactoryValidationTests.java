@@ -84,6 +84,16 @@ public class FileSourceFactoryValidationTests extends ESTestCase {
         assertConfigKeysMatchConstants(FileSplitProvider.class, FileSplitProvider.CONFIG_KEYS);
     }
 
+    public void testCoordinatorKeysIncludesAllPartitionConfigKeys() {
+        for (String key : PartitionConfig.CONFIG_KEYS) {
+            assertTrue("PartitionConfig key " + key + " must be a coordinator key", FileSourceFactory.COORDINATOR_KEYS.contains(key));
+        }
+    }
+
+    public void testPartitionConfigKeysMatchConstants() {
+        assertConfigKeysMatchConstants(PartitionConfig.class, PartitionConfig.CONFIG_KEYS);
+    }
+
     /**
      * Asserts {@code declared} equals the set of values of every {@code static final String CONFIG_*}
      * constant declared on {@code clazz}. Reflection-based so new constants are picked up without

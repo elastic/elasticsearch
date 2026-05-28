@@ -150,6 +150,17 @@ public abstract class SortedNumericLongValues {
      */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
         NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        LongValues longValues = singleton == null ? null : new LongValues() {
+            @Override
+            public long longValue() throws IOException {
+                return singleton.longValue();
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return singleton.advanceExact(doc);
+            }
+        };
         return new SortedNumericLongValues(singleton != null, values) {
             @Override
             public boolean advanceExact(int target) throws IOException {
@@ -163,21 +174,7 @@ public abstract class SortedNumericLongValues {
 
             @Override
             public LongValues asLongValues() {
-                if (singleton != null) {
-                    return new LongValues() {
-                        @Override
-                        public long longValue() throws IOException {
-                            return singleton.longValue();
-                        }
-
-                        @Override
-                        public boolean advanceExact(int doc) throws IOException {
-                            return singleton.advanceExact(doc);
-                        }
-                    };
-                } else {
-                    return null;
-                }
+                return longValues;
             }
 
             @Override

@@ -47,7 +47,7 @@ public class IndexModeStatsActionTypeTests extends ESTestCase {
         for (TransportVersion boundary : boundaries) {
             final Map<IndexMode, IndexStats> stats = serializeAndReadStats(IndexMode.values(), boundary);
             for (IndexMode mode : IndexMode.values()) {
-                if (mode.isSupportedBy(boundary)) {
+                if (mode.supportsVersion(boundary)) {
                     assertThat("version " + boundary + ": " + mode + " should be present", stats, hasKey(mode));
                 } else {
                     assertThat("version " + boundary + ": " + mode + " should be absent", stats, not(hasKey(mode)));

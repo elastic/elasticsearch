@@ -119,7 +119,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
             out.writeMap(
                 stats.entrySet()
                     .stream()
-                    .filter(e -> e.getKey().isSupportedBy(tv))
+                    .filter(e -> e.getKey().supportsVersion(tv))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)),
                 (o, m) -> IndexMode.writeTo(m, o),
                 (o, s) -> s.writeTo(o)

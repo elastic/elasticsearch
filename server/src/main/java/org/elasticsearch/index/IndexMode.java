@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -405,8 +406,8 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean isSupportedBy(TransportVersion version) {
-            return version.supports(COLUMNAR_INDEX_MODES_ADDED);
+        public TransportVersion getMinimalSupportedVersion() {
+            return COLUMNAR_INDEX_MODES_ADDED;
         }
 
         @Override
@@ -498,8 +499,8 @@ public enum IndexMode {
         }
 
         @Override
-        public boolean isSupportedBy(TransportVersion version) {
-            return version.supports(COLUMNAR_INDEX_MODES_ADDED);
+        public TransportVersion getMinimalSupportedVersion() {
+            return COLUMNAR_INDEX_MODES_ADDED;
         }
 
         @Override
@@ -593,8 +594,8 @@ public enum IndexMode {
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
 
         @Override
-        public boolean isSupportedBy(TransportVersion version) {
-            return version.supports(VECTORDB_DOCUMENT_INDEX_MODE);
+        public TransportVersion getMinimalSupportedVersion() {
+            return VECTORDB_DOCUMENT_INDEX_MODE;
         }
 
         @Override
@@ -730,12 +731,18 @@ public enum IndexMode {
     public static final FeatureFlag VECTORDB_FEATURE_FLAG = new FeatureFlag("vectordb_document_index_mode");
 
     /**
-     * Returns whether this index mode can be serialized to a node running the given transport version.
-     * Mirrors the guards in {@link #writeTo} but as a filter rather than a throw.
-     * Feature-gated modes override this to check their minimum transport version.
+     * Returns the minimum transport version a recipient node must run to deserialize this index mode.
+     * Modes introduced after the initial release override this to return their introduction version.
      */
-    public boolean isSupportedBy(TransportVersion version) {
-        return true;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    /**
+     * Returns whether this index mode can be serialized to a node running the given transport version.
+     */
+    public final boolean supportsVersion(TransportVersion version) {
+        return version.supports(getMinimalSupportedVersion());
     }
 
     /**
@@ -904,20 +911,13 @@ public enum IndexMode {
     }
 
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
-        if ((indexMode == COLUMNAR || indexMode == LOGSDB_COLUMNAR)
-            && out.getTransportVersion().supports(COLUMNAR_INDEX_MODES_ADDED) == false) {
-            throw new IOException(
-                "cannot serialize index mode ["
-                    + indexMode
-                    + "] to node on transport version ["
-                    + out.getTransportVersion()
-                    + "] that does not support it"
+        if (indexMode.supportsVersion(out.getTransportVersion()) == false) {
+            final var message = Strings.format(
+                "[%s] doesn't support serialization with transport version [%s]",
+                indexMode.getName(),
+                out.getTransportVersion()
             );
-        }
-        if (indexMode == VECTORDB_DOCUMENT && out.getTransportVersion().supports(VECTORDB_DOCUMENT_INDEX_MODE) == false) {
-            throw new IllegalArgumentException(
-                "cannot send index mode [" + VECTORDB_DOCUMENT.getName() + "] to a node that does not support it"
-            );
+            throw new IllegalStateException(message);
         }
         final int code = switch (indexMode) {
             case STANDARD -> 0;

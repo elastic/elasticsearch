@@ -93,7 +93,7 @@ public class CompressedExponentialHistogramHolder implements Releasable {
                 incoming.sum(),
                 incoming.min(),
                 incoming.max(),
-                encodedHistogramBuffer.bytesRefView()
+                encodedHistogramBuffer.bytes
             );
         } catch (IOException e) {
             throw new IllegalStateException("Histogram decoding failed", e);
@@ -152,10 +152,6 @@ public class CompressedExponentialHistogramHolder implements Releasable {
 
         void clear() {
             bytes.length = 0;
-        }
-
-        BytesRef bytesRefView() {
-            return bytes;
         }
 
         private void grow(int capacity) {

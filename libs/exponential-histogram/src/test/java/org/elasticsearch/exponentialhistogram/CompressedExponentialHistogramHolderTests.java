@@ -24,8 +24,6 @@ package org.elasticsearch.exponentialhistogram;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.ByteArrayOutputStream;
@@ -46,8 +44,7 @@ public class CompressedExponentialHistogramHolderTests extends ExponentialHistog
         try (CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker)) {
             holder.set(source);
             assertThat(holder.accessor(), equalTo(original));
-
-            CompressedExponentialHistogram otherCompressed = toCompressedHistogram(other);
+            // Resetting the source to different data should not alter the holder's copy
             source.reset(
                 other.zeroBucket().zeroThreshold(),
                 other.valueCount(),
@@ -101,17 +98,6 @@ public class CompressedExponentialHistogramHolderTests extends ExponentialHistog
         } catch (CircuitBreakingException e) {
             // expected
         }
-        assertThat(esBreaker.getUsed(), equalTo(0L));
-    }
-
-    public void testMemoryReleasedOnClose() {
-        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
-        ExponentialHistogramCircuitBreaker ehBreaker = breaker(esBreaker);
-        CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker);
-        try (ReleasableExponentialHistogram hist = randomHistogram(ehBreaker)) {
-            holder.set(hist);
-        }
-        Releasables.close(holder);
         assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 

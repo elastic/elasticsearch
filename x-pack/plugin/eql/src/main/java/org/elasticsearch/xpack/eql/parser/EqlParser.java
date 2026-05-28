@@ -42,7 +42,7 @@ public class EqlParser {
     /**
      * Maximum depth for nested expressions.
      */
-    public static final int MAX_EXPRESSION_DEPTH = 400;
+    public static final int MAX_EXPRESSION_DEPTH = 300;
 
     /**
      * Parses an EQL statement into execution plan

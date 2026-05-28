@@ -364,7 +364,7 @@ public class SqlParserTests extends ESTestCase {
 
     public void testMaxExpressionDepth_nestedFunction_maxAllowed() {
         // SQL grammar has an extra visitPredicated layer per level (depth = N + 3),
-        // so MAX_EXPRESSION_DEPTH - 3 nested abs() calls reach exactly depth 400.
+        // so MAX_EXPRESSION_DEPTH - 3 nested abs() calls reach exactly depth MAX_EXPRESSION_DEPTH.
         int depth = SqlParser.MAX_EXPRESSION_DEPTH - 3;
         new SqlParser().createExpression(join("", nCopies(depth, "abs(")).concat("i").concat(join("", nCopies(depth, ")"))));
     }

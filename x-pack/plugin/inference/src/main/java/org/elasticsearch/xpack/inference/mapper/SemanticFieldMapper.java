@@ -901,12 +901,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                 );
             }
             if (format != null) {
-                return new SemanticFieldValueFetcher(
-                    this,
-                    getChunksField().bitsetProducer(),
-                    context.searcher(),
-                    SemanticFieldValueFetcher.Mode.CHUNK_VALUES
-                );
+                return new ChunkValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
             }
 
             return originalValueFetcher(context);
@@ -921,12 +916,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
          */
         protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
-            return new SemanticFieldValueFetcher(
-                this,
-                getChunksField().bitsetProducer(),
-                context.searcher(),
-                SemanticFieldValueFetcher.Mode.ORIGINAL_VALUES
-            );
+            return new OriginalValuesSemanticFieldValueFetcher(this, getChunksField().bitsetProducer(), context.searcher());
         }
 
         /**

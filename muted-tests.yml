@@ -619,3 +619,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_fraction}
   issue: https://github.com/elastic/elasticsearch/issues/150098
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
+  issue: https://github.com/elastic/elasticsearch/issues/150099

@@ -193,7 +193,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
@@ -497,7 +497,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
-    private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
+    private final SetOnce<StatelessRecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
@@ -936,7 +936,7 @@ public class StatelessPlugin extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
+        components.add(setAndGet(recoveryMetricsCollector, new StatelessRecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
         skipMerges.set(new ShouldSkipMerges(indicesService));
         if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
@@ -1298,6 +1298,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
+            StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING,
             DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED
         );
     }

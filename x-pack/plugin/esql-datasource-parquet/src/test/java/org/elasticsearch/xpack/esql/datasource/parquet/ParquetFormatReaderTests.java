@@ -1643,7 +1643,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         Arrays.fill(garbage, (byte) 0x5a);
         StorageObject storageObject = createStorageObject(garbage, "s3://bucket/path/file.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1656,7 +1656,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testInvalidParquetOpenEmptyFile() throws Exception {
         StorageObject storageObject = createStorageObject(new byte[0], "memory://empty.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1676,8 +1676,131 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] truncated = Arrays.copyOf(full, Math.max(1, full.length / 8));
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+    }
+
+    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // Overwrite every byte in the data area (between PAR1 header and footer) so that column
+        // data is completely garbled, triggering a decoding error on read(). The footer at the
+        // end of the file stays intact so metadata() still succeeds.
+        int footerLenOffset = parquetData.length - 8;
+        int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
+            | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
+        int footerStart = parquetData.length - 8 - footerLen;
+        Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(parquetData, "https://host/corrupt.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // metadata() should still succeed (footer is intact)
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertNotNull(metadata);
+        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), containsString("id"));
+    }
+
+    public void testValidateFooterIntegrityRejectsNullsInRequiredColumn() {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(5);
+        PrimitiveType type = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetFormatReader.validateFooterIntegrity("https://example.com/bad.parquet", schema, List.of(block))
+        );
+        assertThat(ex.getMessage(), containsString("https://example.com/bad.parquet"));
+        assertThat(ex.getMessage(), containsString("column [id] is declared required but row group reports 5 null(s)"));
+    }
+
+    public void testValidateFooterIntegrityPassesForOptionalColumnWithNulls() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(5);
+        PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+    }
+
+    public void testValidateFooterIntegrityPassesForRequiredColumnWithZeroNulls() {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        PrimitiveType type = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
     }
 
     public void testValidParquetZeroRowsMetadata() throws Exception {

@@ -29,7 +29,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -79,6 +78,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -806,16 +806,19 @@ public final class KeywordFieldMapper extends FieldMapper {
                     indexedValueForSearch(value).utf8ToString(),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
-                    transpositions
+                    transpositions,
+                    context
                 );
             } else {
-                return new FuzzyQuery(
+                return FuzzyQueries.create(
                     new Term(name(), indexedValueForSearch(value)),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    MultiTermQuery.DOC_VALUES_REWRITE
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    context,
+                    name()
                 );
             }
         }
@@ -1429,9 +1432,19 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean shouldRecordOffset(DocumentParserContext context) {
-        return offsetsFieldName != null && context.isImmediateParentAnArray()
-        // canAddIgnoreField is for source_keep_mode
-            && (context.canAddIgnoredField() || (docValuesParameters.multiValue() && indexSettings.getMode().isColumnar()));
+        if (offsetsFieldName == null) {
+            return false;
+        }
+
+        // Columnar mode relies solely on offsets for array order reconstruction. Record an offset for every indexed value so the offset
+        // slots remain aligned with the sorted-set ords during decode, regardless of whether the value's immediate parent was an array.
+        if (docValuesParameters.multiValue() && indexSettings.getMode().isStrictColumnar()) {
+            return true;
+        }
+
+        // synthetic_source_keep=arrays path: only record when the value's immediate parent is an array, since out-of-array values are
+        // captured by _ignored_source.
+        return context.isImmediateParentAnArray() && context.canAddIgnoredField();
     }
 
     @Override

@@ -1301,6 +1301,23 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Carry over synthetic convert-function attributes introduced by
+         * {@code ResolveUnionTypesInUnionAll} through intermediate {@code Project} nodes (e.g. those
+         * produced by {@code RENAME}, {@code KEEP}, or {@code DROP}) sitting above the {@code UnionAll}.
+         * Without this, the synthetic {@code $$<field>$converted_to$<type>} attribute referenced by the
+         * rewritten convert function would not be visible above the {@code Project}, producing a plan
+         * with missing references that fails the optimizer's plan consistency check.
+         * https://github.com/elastic/elasticsearch/issues/149509
+         */
+        SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
+
+        /**
+         * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
+         * (from a subquery in FROM) or a {@code Fork}.
+         */
+        SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
@@ -1393,6 +1410,12 @@ public class EsqlCapabilities {
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
          */
         SUGGESTED_CAST,
+
+        /**
+         * Support for {@code TO_COUNTER} function and the {@code ::counter} cast operator, which converts
+         * {@code long}, {@code integer}, and {@code double} values to their counter-typed equivalents.
+         */
+        TO_COUNTER,
 
         /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
@@ -1880,12 +1903,13 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V5: TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input now produces a
-         * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
-         * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
-         * instead of silently aggregating across values.
+         * TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input produces a
+         * warning + null. RANGE_MIN/MAX/WITHIN/INTERSECTS return {@code null} when any argument is
+         * multi-valued (consistent with ES|QL null-for-MV semantics). The Lucene pushdown uses
+         * {@code RECHECK} so the row-level evaluator rechecks each candidate and returns {@code null}
+         * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
-        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2075,9 +2099,9 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
 
         /**
-         * PromQL uses TSTEP instead of TBUCKET.
+         * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
-        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+        FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
@@ -2466,6 +2490,17 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
+         * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
+         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
+         * until they catch up.
+         *
+         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
+         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         */
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
@@ -2818,6 +2853,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Fix for column pruning when FORK branches return no columns.
+         */
+        FORK_PROJECT_AWAY_COLUMNS_FIX,
+
+        /**
          * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to
          * sub-block-loaders for min, max and sum. Those sub-fields can be absent for empty histograms even when the
          * histogram field itself is present, so the null-filtered guarantee does not hold for them.
@@ -2860,7 +2900,30 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with FORK and subqueries.
          */
-        APPROXIMATION_FORK(Build.current().isSnapshot())
+        APPROXIMATION_FORK(Build.current().isSnapshot()),
+
+        /**
+         * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,
+         * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
+         */
+        FIRST_AGG_EXTENDED_TYPES,
+
+        /**
+         * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
+         * Snapshot-only.
+         */
+        DEDUP_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for COALESCE with date_range type.
+         */
+        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+
+        /**
+         * Support for ESQL parameters in PromQL label matchers:
+         * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
+         */
+        PROMQL_LABEL_MATCHER_PARAMS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

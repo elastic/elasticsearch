@@ -20,7 +20,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -133,9 +132,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         int configuredSlices = request.getResumeInfo().map(ResumeInfo::getTotalSlices).orElse(request.getSlices());
         assert request.getResumeInfo().isEmpty() || configuredSlices != AUTO_SLICES : "Resumed tasks can't have auto slices";
         if (configuredSlices == AUTO_SLICES) {
+            SearchRequest searchRequest = request.getSearchRequest();
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
-                new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
+                new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
+                    .searchSlice(searchRequest.searchSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;
@@ -190,7 +191,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             activeSlices = totalSlices;
         }
 
-        SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
+        SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), totalSlices);
         for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
             // If a resumed slice was already completed, skip sending the request and directly record the result
             Optional<ResumeInfo> resumeInfo = request.getResumeInfo();
@@ -215,14 +216,12 @@ class BulkByPaginatedSearchParallelizationHelper {
         }
     }
 
-    /**
-     * Slice a search request into {@code times} separate search requests slicing on {@code field}. Note that the slices are *shallow*
-     * copies of this request so don't change them.
-     */
-    static SearchRequest[] sliceIntoSubRequests(SearchRequest request, String field, int times) {
+    /// Slice a search request into `times` separate search requests slicing on the default field (which should be safe and optimal). Note
+    /// that the slices are *shallow* copies of this request so don't change them.
+    static SearchRequest[] sliceIntoSubRequests(SearchRequest request, int times) {
         SearchRequest[] slices = new SearchRequest[times];
         for (int slice = 0; slice < times; slice++) {
-            SliceBuilder sliceBuilder = new SliceBuilder(field, slice, times);
+            SliceBuilder sliceBuilder = new SliceBuilder(slice, times);
             SearchSourceBuilder slicedSource;
             if (request.source() == null) {
                 slicedSource = new SearchSourceBuilder().slice(sliceBuilder);

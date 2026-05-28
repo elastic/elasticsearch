@@ -13,6 +13,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -194,18 +195,13 @@ public final class ManifoldModel {
                 break;
             }
             double avgDist;
-            // compute average rank-th distance across sampled queries
-            if (nQueries >= PARALLEL_QUERY_THRESHOLD && Runtime.getRuntime().availableProcessors() > 1) {
-                avgDist = averageIthDistanceParallel(dim, rank, queries, fvv, corpusOrdinals, sampleStart, sampleEnd, topKs, nQueries);
-            } else {
-                double sum = 0;
-                for (int qi = 0; qi < nQueries; qi++) {
-                    queries.copyQuery(qi, false, queryScratch);
-                    topKs[qi].add(dim, queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
-                    sum += topKs[qi].ithDistance(rank);
-                }
-                avgDist = sum / nQueries;
+            double sum = 0;
+            for (int qi = 0; qi < nQueries; qi++) {
+                queries.copyQuery(qi, false, queryScratch);
+                topKs[qi].add(dim, queryScratch, fvv, corpusOrdinals, sampleStart, sampleEnd);
+                sum += topKs[qi].ithDistance(rank);
             }
+            avgDist = sum / nQueries;
             logRanks[logCount] = Math.log(rank);
             logSampleSizes[logCount] = Math.log(sampleSizes[i]);
             logDistances[logCount] = Math.log(avgDist);
@@ -241,60 +237,6 @@ public final class ManifoldModel {
         return new double[] { res.beta0(), res.beta1() };
     }
 
-    private static double averageIthDistanceParallel(
-        int dim,
-        int rank,
-        CalibrationQueries queries,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        int start,
-        int end,
-        ManifoldTopK[] topKs,
-        int nQueries
-    ) throws IOException {
-        // TODO : revisit usage of workers / thread pool
-        int workers = Math.min(nQueries, Runtime.getRuntime().availableProcessors());
-        double[] partialSums = new double[nQueries];
-        int[] queryStarts = new int[workers + 1];
-        for (int w = 0; w <= workers; w++) {
-            queryStarts[w] = w * nQueries / workers;
-        }
-        try (ExecutorService pool = Executors.newFixedThreadPool(workers, r -> {
-            Thread t = new Thread(r, "manifold-calibration");
-            t.setDaemon(true);
-            return t;
-        });) {
-
-            List<Future<?>> futures = new ArrayList<>(workers);
-            for (int w = 0; w < workers; w++) {
-                int w0 = w;
-                FloatVectorValues fvvCopy = fvv.copy();
-                futures.add(pool.submit(() -> {
-                    float[] localQueryScratch = new float[dim];
-                    for (int qi = queryStarts[w0]; qi < queryStarts[w0 + 1]; qi++) {
-                        try {
-                            queries.copyQuery(qi, false, localQueryScratch);
-                            topKs[qi].add(dim, localQueryScratch, fvvCopy, corpusOrdinals, start, end);
-                            partialSums[qi] = topKs[qi].ithDistance(rank);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }
-                }));
-            }
-            for (Future<?> future : futures) {
-                future.get();
-            }
-        } catch (Throwable t) {
-            throw new IOException(t);
-        }
-        double sum = 0;
-        for (int qi = 0; qi < nQueries; qi++) {
-            sum += partialSums[qi];
-        }
-        return sum / nQueries;
-    }
-
     /**
      * Max-heap of up to {@code k} smallest float distances (float dot / float squared Euclidean).
      */
@@ -313,7 +255,7 @@ public final class ManifoldModel {
             boolean dotLike = isDotLike(similarityFunction);
             for (int d = startDoc; d < endDoc; d++) {
                 float[] doc = fvv.vectorValue(corpusOrdinals[d]);
-                float dist = dotLike ? -dotFloat(dim, query, doc) : euclideanSqFloat(dim, query, doc);
+                float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
                 if (pq.size() < capacity) {
                     pq.offer(dist);
                 } else if (dist < pq.peek()) {
@@ -339,25 +281,6 @@ public final class ManifoldModel {
             float val = top;
             return isDotLike(similarityFunction) ? -val : val;
         }
-    }
-
-    /** Float dot product. */
-    static float dotFloat(int dim, float[] x, float[] y) {
-        float sum = 0f;
-        for (int i = 0; i < dim; i++) {
-            sum += x[i] * y[i];
-        }
-        return sum;
-    }
-
-    /** Float squared Euclidean distance. */
-    static float euclideanSqFloat(int dim, float[] x, float[] y) {
-        float sum = 0f;
-        for (int i = 0; i < dim; i++) {
-            float d = x[i] - y[i];
-            sum += d * d;
-        }
-        return sum;
     }
 
     /**

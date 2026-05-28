@@ -13,6 +13,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,37 +43,6 @@ public final class CalibrationUtils {
      */
     public record SampledData(int[] queryOrdinals, int[] corpusOrdinals) {}
 
-    /**
-     * Dot product of two float arrays of length {@code dim}.
-     */
-    public static double dot(int dim, float[] x, float[] y) {
-        double sum = 0;
-        for (int i = 0; i < dim; i++) {
-            sum += (double) x[i] * y[i];
-        }
-        return sum;
-    }
-
-    /**
-     * Squared Euclidean distance between two float arrays of length {@code dim}.
-     */
-    public static double euclideanSq(int dim, float[] x, float[] y) {
-        double sum = 0;
-        for (int i = 0; i < dim; i++) {
-            double d = x[i] - y[i];
-            sum += d * d;
-        }
-        return sum;
-    }
-
-    /**
-     * L2-normalize each row of the matrix in place.
-     */
-    public static void normalize(float[][] vectors) {
-        for (float[] v : vectors) {
-            normalizeVector(v);
-        }
-    }
 
     /**
      * L2-normalize a single vector in place.
@@ -119,7 +89,11 @@ public final class CalibrationUtils {
      * Copies every vector from {@code fvv} into a dense on-heap {@link FloatVectorValues} that supports
      * {@link FloatVectorValues#vectorValue(int)} for arbitrary ordinals. Lucene's merged float vector
      * implementation only allows {@code vectorValue(iterator.index())} in lockstep with a forward
-     * {@link DocIndexIterator}; merge-time calibration samples random ordinals and must call this first.
+     * {@link DocIndexIterator}.
+     * It effectively spills merged vectors to a temp file and opening
+     * {@link org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues#build(org.apache.lucene.store.IndexInput, org.apache.lucene.store.IndexInput, int, int)}
+     * for merge-time calibration (see {@link org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter}).
+     * This helper remains useful for tests and small in-memory sources.
      */
     public static FloatVectorValues toHeapDenseFloatVectorValues(FloatVectorValues fvv) throws IOException {
         final int size = fvv.size();
@@ -144,7 +118,7 @@ public final class CalibrationUtils {
         double maxNormSq = 0;
         for (int ord : corpusOrdinals) {
             float[] v = vectorValues.vectorValue(ord);
-            double normSq = dot(dim, v, v);
+            double normSq = ESVectorUtil.dotProduct(v, v);
             if (normSq > maxNormSq) {
                 maxNormSq = normSq;
             }

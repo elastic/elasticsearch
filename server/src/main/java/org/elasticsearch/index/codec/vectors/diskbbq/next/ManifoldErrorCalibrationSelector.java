@@ -202,7 +202,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 if (enc == null) {
                     continue;
                 }
-                long docs = mergeState.maxDocs[i];
+                long docs = mergeState.liveDocs[i].length();
                 calibratedSegments++;
                 encodingDocCounts.merge(enc, docs, Long::sum);
                 float oversample = car.getOversampleFactor(fieldInfo);
@@ -293,16 +293,17 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      * {@link FloatVectorValues} are not yet materialized (e.g. Lucene merge entry). Uses
      * {@code mergedVectorCount} in place of {@link FloatVectorValues#size()} for growth-ratio checks.
      */
-    public IvfSegmentConfig tryMergeMetadataReuse(FieldInfo fieldInfo, MergeState mergeState, long mergedVectorCount) {
+    public IvfSegmentConfig tryMergeMetadataReuse(FieldInfo fieldInfo, MergeState mergeState, float[] mergedGlobalCentroid, long mergedVectorCount) {
         MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-        return selectFromMergeState(fieldInfo, null, mergeState, mergeCtx, mergedVectorCount);
+        return selectFromMergeState(fieldInfo, mergedGlobalCentroid, mergeState, mergeCtx, mergedVectorCount);
     }
 
     /**
-     * Runs full calibration on {@code floatVectorValues}. The IVF merge path passes a dense heap view
+     * Runs full calibration on {@code floatVectorValues}. The IVF merge path passes a temp-spilled
+     * {@link org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues} with random ordinal access
      * (see {@link org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter}); other callers must not pass
-     * Lucene's single-pass merged {@link FloatVectorValues} without first calling
-     * {@link CalibrationUtils#toHeapDenseFloatVectorValues}.
+     * Lucene's single-pass merged {@link FloatVectorValues} without random access (spill to temp or use
+     * {@link CalibrationUtils#toHeapDenseFloatVectorValues} for small inputs).
      */
     public IvfSegmentConfig calibrate(FloatVectorValues floatVectorValues, VectorSimilarityFunction similarityFunction) throws IOException {
 
@@ -612,8 +613,8 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
         // TODO : precondition might be superseeded by larger bits, it needs to either get part of the cosst model
         // or deserve an iteration mechanism that works better in both the extreme cases: 1) preconditioning is useless,
         // 2) preconditioning is very helpful and allows to meet the target recall with much cheaper quantization parameters
-        for (boolean precondition : preconditionValues) {
-            for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
+        for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
+            for (boolean precondition : preconditionValues) {
                 CandidateEncoding candidate = sweep.candidate();
                 int configKey = configurationKey(candidate.qbits(), candidate.dbits(), precondition);
                 RepErrorStdModel errorModel = errorModelCache.get(configKey);

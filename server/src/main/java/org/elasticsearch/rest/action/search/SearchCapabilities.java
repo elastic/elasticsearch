@@ -67,6 +67,8 @@ public final class SearchCapabilities {
     private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
     private static final String AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE = "aggregate_metric_double_defaults_to_average";
     private static final String KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES = "knn_retriever_optional_num_candidates";
+    /** {@code date_histogram} on a {@code date_range} field limits each document to at most 10 000 buckets. */
+    private static final String DATE_HISTOGRAM_DATE_RANGE_BUCKET_LIMIT = "date_histogram_date_range_bucket_limit";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -103,6 +105,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_QUERY_VECTOR_BASE64);
         capabilities.add(AGGREGATE_METRIC_DOUBLE_DEFAULTS_TO_AVERAGE);
         capabilities.add(KNN_RETRIEVER_OPTIONAL_NUM_CANDIDATES);
+        capabilities.add(DATE_HISTOGRAM_DATE_RANGE_BUCKET_LIMIT);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

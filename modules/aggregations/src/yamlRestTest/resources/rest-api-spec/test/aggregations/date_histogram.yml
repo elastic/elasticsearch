@@ -225,6 +225,13 @@ setup:
 
 ---
 "date_histogram on range exceeds bucket limit":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ date_histogram_date_range_bucket_limit ]
+      test_runner_features: [capabilities]
+      reason: "date_histogram on date_range now limits buckets per document to prevent OOM and infinite loops"
   - do:
       catch: /exceeded the maximum number of buckets per document \[10000\]/
       search:
@@ -240,6 +247,13 @@ setup:
 
 ---
 "date_histogram on range with unbounded upper date":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ date_histogram_date_range_bucket_limit ]
+      test_runner_features: [capabilities]
+      reason: "date_histogram on date_range now limits buckets per document to prevent OOM and infinite loops"
   - do:
       catch: /exceeded the maximum number of buckets per document \[10000\]/
       search:
@@ -255,6 +269,13 @@ setup:
 
 ---
 "date_histogram on range with unbounded upper date one second buckets":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ date_histogram_date_range_bucket_limit ]
+      test_runner_features: [capabilities]
+      reason: "date_histogram on date_range now limits buckets per document to prevent OOM and infinite loops"
   - do:
       catch: /exceeded the maximum number of buckets per document \[10000\]/
       search:

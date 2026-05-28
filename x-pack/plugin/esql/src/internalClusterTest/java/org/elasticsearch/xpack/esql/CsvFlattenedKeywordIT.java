@@ -301,10 +301,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
             LookupJoinExclusionResult lookupResult = computeLookupJoinFieldExclusions();
             this.protectedKeywordPathsByDatasetIndexName = unionExclusionsByIndex(enrichResult.byIndex(), lookupResult.byIndex());
+
             DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByDatasetIndexName);
             this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
-            // C-class transparency: emit one INFO line for every keyword field that this variant will
+
+            // Emit one INFO line for every keyword field that this variant will
             // intentionally never convert. The user can grep for "skip-convert" to inventory the
             // permanent blind spots of the test variant. Three sources are emitted:
             // * enrich-policy match_fields: the policy reindex into .enrich-* requires keyword,
@@ -654,7 +656,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         + "so re-running the spec would only re-test the unmodified behavior"
                 );
             }
-            // Policy C: even when the query was modified (typically by tail-end EVAL/KEEP recovery
+            // Even when the query was modified (typically by tail-end EVAL/KEEP recovery
             // alone), if the only sites the rewriter actually visited were LOOKUP JOIN ... ON
             // bodies then no field_extract call survives in the launched query. ES|QL's analyzer
             // rejects an expression on either side of a join condition, so wrapping the join key

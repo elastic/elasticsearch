@@ -80,7 +80,7 @@ public final class SilencedFlattenedFindings {
          * and the test sees either a missing value or an unexpected warning that the spec did
          * not write.
          */
-        F1_FIELD_EXTRACT_MULTIVALUE_NULL(
+        FIELD_EXTRACT_MULTIVALUE_NULL(
             "TBD-F1",
             "field_extract returns null and emits a runtime warning on multi-value flattened input; the function is single-valued by design"
         ),
@@ -93,7 +93,7 @@ public final class SilencedFlattenedFindings {
          * identifier), so the wrapped value flows through unmodified and downstream commands
          * see the wrapper instead of the original list.
          */
-        F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED(
+        BARE_ATTRIBUTE_COMMAND_ON_FLATTENED(
             "TBD-F2",
             "MV_EXPAND/KEEP/RENAME/DROP operate on the flattened wrapper {\"v\": [...]} instead of the inner values "
                 + "because their grammar accepts only an attribute, not field_extract(...)"
@@ -109,7 +109,7 @@ public final class SilencedFlattenedFindings {
          * legal substitute on the LHS that preserves test semantics, so the variant cannot
          * exercise these tests at all.
          */
-        A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT(
+        MATCH_FAMILY_REJECTS_FIELD_EXTRACT(
             "TBD-A2",
             "MATCH/MatchPhrase/KQL/KNN function family and the `:` match-operator reject field_extract(...) "
                 + "as an argument; verifier requires a direct mapped-field reference"
@@ -122,7 +122,7 @@ public final class SilencedFlattenedFindings {
          * fails verification with "Unsupported type [flattened] for enrich matching field"
          * before any rewrite can run.
          */
-        A4_ENRICH_ON_REJECTS_FLATTENED(
+        ENRICH_ON_REJECTS_FLATTENED(
             "TBD-A4",
             "ENRICH ... ON does not accept flattened match fields; the verifier rejects them with "
                 + "'Unsupported type [flattened] for enrich matching field'"
@@ -138,7 +138,7 @@ public final class SilencedFlattenedFindings {
          * "JOIN left field [...] of type [FLATTENED] is incompatible with right field
          * [...] of type [KEYWORD]".
          */
-        A5_LOOKUP_JOIN_TYPE_MISMATCH(
+        LOOKUP_JOIN_TYPE_MISMATCH(
             "TBD-A5",
             "LOOKUP JOIN rejects flattened/keyword type mismatch when the join key is converted to flattened "
                 + "by an upstream EVAL on one side of the join"
@@ -183,136 +183,136 @@ public final class SilencedFlattenedFindings {
     static {
         Map<String, Finding> m = new HashMap<>();
 
-        m.put("date.dateDiffTestWarnings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("dedup.dedupMultivalueGroupKey", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("dissect.multivalueInput", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("docs.docsRound", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("docs.docsSortDesc", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("docs.docsSortTie", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("drop.whereWithEvalGeneratedValue_DropHeight", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("enrich.fieldsInOtherIndicesBug", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("folding.keyword_GreaterThan_MultiValueConstant", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("fork.forkAfterMvExpand", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("fork.forkBeforeMvExpand", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("fork.forkBranchWithMvExpand", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("grok.multivalueInput", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("grok.optionalMatchMv", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.byMultivaluedMvExpand", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.byMvExpand", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.groupingFilterIsAlwaysFalse", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.groupingFilterIsAlwaysTrue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.groupingFilterSometimesMatches", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.overridingExpressionGroupings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("inlinestats.overridingGroupings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("ints.convertStringToBaseIndexGroup3", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("ints.convertStringToBaseIndexGroup5", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("ints.convertStringToBaseIndexGroup7", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("ip.cdirMatchEqualsInsOrs", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("ip.cidrMatchEqualsInsOrsIPs", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("keep.projectMultiValueKeywords", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("keep.whereWithEvalGeneratedValue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("kql-function.kqlWithBoostOption", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("kql-function.kqlWithCaseInsensitiveOption", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("kql-function.kqlWithDefaultFieldOption", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("kql-function.kqlWithMultipleOptions", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.limitByMultivalueGroupKey", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultipleMultivalueGroupKeys", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultivalueGroupKey", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultivalueGroupKeyFiltered", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultivalueGroupKeyWithIntersection", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("mv_difference.mvDifference_from_keyword", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("rename.renameIntertwinedWithSort", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("spatial.simpleLoad", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats.filterOrdinalValues", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats.groupingFilterIsAlwaysFalse", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats.groupingFilterIsAlwaysTrue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats.groupingFilterSometimesMatches", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats.shadowingTheGroup", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats_first_last.Test passing foldables in the sort field", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats_first_last.Test passing int foldables in the sort field", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.concatOfText", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.containsWarnings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.convertFromString", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.equalToMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.equalToOrEqualToMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.greaterThanMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.in", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.inMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.lengthOfMvPushed", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.lengthOfText", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.lessThanMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.locateWarnings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvAppendStrings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvAppendStringsWhere", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvKeywordEqualsMultiValueConstant", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvKeywordNotEqualsMultiValueConstant", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvKeyword_IN_MultiValueConstant", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvSortEmp", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvZipEmp", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.notEqualToMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.notGreaterThanMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.notLessThanMultivalue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.repeatNegative", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.replaceWarnings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.reverseMultiValue", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.spaceNegative", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.startsWithText", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.substringOfText", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("topN.complexMultiSortingFields_SameFieldAscAndDesc", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("topN.sortingOnNumbersFromStrings", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("views.airportsLookupJoin", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("where-like.multiValueLike", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("where-like.multiValueRLike", Finding.F1_FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("date.dateDiffTestWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("dedup.dedupMultivalueGroupKey", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("dissect.multivalueInput", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("docs.docsRound", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("docs.docsSortDesc", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("docs.docsSortTie", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("drop.whereWithEvalGeneratedValue_DropHeight", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("enrich.fieldsInOtherIndicesBug", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("folding.keyword_GreaterThan_MultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("fork.forkAfterMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("fork.forkBeforeMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("fork.forkBranchWithMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("grok.multivalueInput", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("grok.optionalMatchMv", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.byMultivaluedMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.byMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.groupingFilterIsAlwaysFalse", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.groupingFilterIsAlwaysTrue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.groupingFilterSometimesMatches", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.overridingExpressionGroupings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("inlinestats.overridingGroupings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("ints.convertStringToBaseIndexGroup3", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("ints.convertStringToBaseIndexGroup5", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("ints.convertStringToBaseIndexGroup7", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("ip.cdirMatchEqualsInsOrs", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("ip.cidrMatchEqualsInsOrsIPs", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("keep.projectMultiValueKeywords", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("keep.whereWithEvalGeneratedValue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("kql-function.kqlWithBoostOption", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("kql-function.kqlWithCaseInsensitiveOption", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("kql-function.kqlWithDefaultFieldOption", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("kql-function.kqlWithMultipleOptions", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("limit.limitByMultivalueGroupKey", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("limit.sortLimitByMultipleMultivalueGroupKeys", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("limit.sortLimitByMultivalueGroupKey", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("limit.sortLimitByMultivalueGroupKeyFiltered", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("limit.sortLimitByMultivalueGroupKeyWithIntersection", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("mv_difference.mvDifference_from_keyword", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("rename.renameIntertwinedWithSort", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("spatial.simpleLoad", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats.filterOrdinalValues", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats.groupingFilterIsAlwaysFalse", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats.groupingFilterIsAlwaysTrue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats.groupingFilterSometimesMatches", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats.shadowingTheGroup", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats_first_last.Test passing foldables in the sort field", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("stats_first_last.Test passing int foldables in the sort field", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.concatOfText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.containsWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.convertFromString", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.equalToMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.equalToOrEqualToMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.greaterThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.in", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.inMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.lengthOfMvPushed", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.lengthOfText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.lessThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.locateWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvAppendStrings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvAppendStringsWhere", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvKeywordEqualsMultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvKeywordNotEqualsMultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvKeyword_IN_MultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvSortEmp", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.mvZipEmp", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.notEqualToMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.notGreaterThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.notLessThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.repeatNegative", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.replaceWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.reverseMultiValue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.spaceNegative", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.startsWithText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("string.substringOfText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("topN.complexMultiSortingFields_SameFieldAscAndDesc", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("topN.sortingOnNumbersFromStrings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("views.airportsLookupJoin", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("where-like.multiValueLike", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
+        m.put("where-like.multiValueRLike", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
 
-        m.put("mv_expand.doubleLimitWithSort", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.doubleLimit_expandLimitGreaterThanAvailable", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.doubleLimit_expandLimitLowerThanAvailable", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.doubleSort_OnDifferentThan_MvExpandedFields", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.expandAfterSort1", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.expandAfterSort2", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.expandWithMultiSort", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.filterAfterMvExpandOnExpandedAndUnexpandedFieldsFromSource", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.filterAfterMvExpandOnUnexpandedFieldFromSource", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.filterMvExpanded", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.keepStarMvExpand", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.returnMultiValueFieldsWithMultivalueTypeConversions", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.returnMultiValueFieldsWithoutExpansion", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.sortBeforeAndAfterMvExpand", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
-        m.put("mv_expand.tripleLimit_WithWhere_InBetween_MvExpand_And_Limit", Finding.F2_BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.doubleLimitWithSort", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.doubleLimit_expandLimitGreaterThanAvailable", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.doubleLimit_expandLimitLowerThanAvailable", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.doubleSort_OnDifferentThan_MvExpandedFields", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.expandAfterSort1", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.expandAfterSort2", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.expandWithMultiSort", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.filterAfterMvExpandOnExpandedAndUnexpandedFieldsFromSource", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.filterAfterMvExpandOnUnexpandedFieldFromSource", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.filterMvExpanded", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.keepStarMvExpand", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.returnMultiValueFieldsWithMultivalueTypeConversions", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.returnMultiValueFieldsWithoutExpansion", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.sortBeforeAndAfterMvExpand", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
+        m.put("mv_expand.tripleLimit_WithWhere_InBetween_MvExpand_And_Limit", Finding.BARE_ATTRIBUTE_COMMAND_ON_FLATTENED);
 
-        m.put("inlinestats.inlineStatsAfterPruningAggregate6", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("knn-function.testKnnWithSemanticTextMultiValueField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("lookup-join.whereFalseBeforeLookupJoinWithMatchOnEmployees", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.matchMultivaluedField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.matchWithFunctionPushedToLucene", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.testMatchAndQueryStringFunctions", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.testMatchInStatsWithGroupingBy", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.testMatchWithSemanticTextAndKeyword", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.testMatchWithSemanticTextMultiValueField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-function.testMultiValuedFieldWithConjunction", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.matchMultivaluedField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.matchWithFunctionPushedToLucene", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.matchWithMultivaluedKeywordField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.testMatchAndQueryStringFunctions", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.testMatchWithSemanticTextAndKeyword", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.testMatchWithSemanticTextMultiValueField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-operator.testMultiValuedFieldWithConjunction", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-phrase-function.matchPhraseMultivaluedField", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-phrase-function.matchPhraseWithFunctionPushedToLucene", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-phrase-function.testMatchPhraseAndQueryStringFunctions", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
-        m.put("match-phrase-function.testMultiValuedFieldWithConjunction", Finding.A2_MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("inlinestats.inlineStatsAfterPruningAggregate6", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("knn-function.testKnnWithSemanticTextMultiValueField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("lookup-join.whereFalseBeforeLookupJoinWithMatchOnEmployees", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.matchMultivaluedField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.matchWithFunctionPushedToLucene", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.testMatchAndQueryStringFunctions", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.testMatchInStatsWithGroupingBy", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.testMatchWithSemanticTextAndKeyword", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.testMatchWithSemanticTextMultiValueField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-function.testMultiValuedFieldWithConjunction", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.matchMultivaluedField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.matchWithFunctionPushedToLucene", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.matchWithMultivaluedKeywordField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.testMatchAndQueryStringFunctions", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.testMatchWithSemanticTextAndKeyword", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.testMatchWithSemanticTextMultiValueField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-operator.testMultiValuedFieldWithConjunction", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-phrase-function.matchPhraseMultivaluedField", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-phrase-function.matchPhraseWithFunctionPushedToLucene", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-phrase-function.testMatchPhraseAndQueryStringFunctions", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
+        m.put("match-phrase-function.testMultiValuedFieldWithConjunction", Finding.MATCH_FAMILY_REJECTS_FIELD_EXTRACT);
 
-        m.put("enrich.nullInput", Finding.A4_ENRICH_ON_REJECTS_FLATTENED);
-        m.put("enrich.spatialEnrichmentKeywordMatch", Finding.A4_ENRICH_ON_REJECTS_FLATTENED);
-        m.put("inlinestats.afterEnrich", Finding.A4_ENRICH_ON_REJECTS_FLATTENED);
-        m.put("inlinestats.beforeAndAfterEnrich", Finding.A4_ENRICH_ON_REJECTS_FLATTENED);
-        m.put("inlinestats.beforeEnrich", Finding.A4_ENRICH_ON_REJECTS_FLATTENED);
-        m.put("lookup-join.joinMaskingRegex", Finding.A4_ENRICH_ON_REJECTS_FLATTENED);
+        m.put("enrich.nullInput", Finding.ENRICH_ON_REJECTS_FLATTENED);
+        m.put("enrich.spatialEnrichmentKeywordMatch", Finding.ENRICH_ON_REJECTS_FLATTENED);
+        m.put("inlinestats.afterEnrich", Finding.ENRICH_ON_REJECTS_FLATTENED);
+        m.put("inlinestats.beforeAndAfterEnrich", Finding.ENRICH_ON_REJECTS_FLATTENED);
+        m.put("inlinestats.beforeEnrich", Finding.ENRICH_ON_REJECTS_FLATTENED);
+        m.put("lookup-join.joinMaskingRegex", Finding.ENRICH_ON_REJECTS_FLATTENED);
 
-        m.put("lookup-join.dropAgainWithWildcardAfterEval2", Finding.A5_LOOKUP_JOIN_TYPE_MISMATCH);
-        m.put("lookup-join.lookupIPAndMessageFromIndexChainedRenameKeep", Finding.A5_LOOKUP_JOIN_TYPE_MISMATCH);
+        m.put("lookup-join.dropAgainWithWildcardAfterEval2", Finding.LOOKUP_JOIN_TYPE_MISMATCH);
+        m.put("lookup-join.lookupIPAndMessageFromIndexChainedRenameKeep", Finding.LOOKUP_JOIN_TYPE_MISMATCH);
 
         SILENCED = Map.copyOf(m);
     }

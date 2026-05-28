@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql;
 
+import org.elasticsearch.core.Booleans;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -309,7 +311,7 @@ public final class SilencedFlattenedFindings {
      *                used in log lines should be stripped before calling
      */
     public static Optional<Finding> findingFor(String testId) {
-        if (Boolean.parseBoolean(System.getProperty(UNSILENCE_ALL_PROPERTY, "false"))) {
+        if (Booleans.parseBoolean(System.getProperty(UNSILENCE_ALL_PROPERTY, "false"))) {
             return Optional.empty();
         }
         if (parseUnsilenceList(System.getProperty(UNSILENCE_TESTS_PROPERTY, "")).contains(testId)) {

@@ -516,8 +516,10 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         if (fields.length < 3) return null;
         String submoduleRef = fields[2];
         String output = rootDirGitCommandOrNull(
-            "-C", submodulePath,
-            "show", submoduleRef + ":server/src/main/resources/transport/upper_bounds/" + name + ".csv"
+            "-C",
+            submodulePath,
+            "show",
+            submoduleRef + ":server/src/main/resources/transport/upper_bounds/" + name + ".csv"
         );
         if (output == null) return null;
         return TransportVersionUpperBound.fromString(Path.of(name + ".csv"), output.strip());

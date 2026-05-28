@@ -23,7 +23,6 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
@@ -631,7 +630,7 @@ public class LocalExecutionPlanner {
                 parallelWorkerExecutor,
                 4,
                 16,
-                TopNOperator.DEFAULT_PROMOTION_THRESHOLD_ROWS
+                context.plannerSettings.parallelTopNPromotionThresholdRows()
             );
         }
         return source.with(

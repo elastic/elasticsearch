@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -180,6 +181,7 @@ public class CsvIT extends ESTestCase {
                     return Settings.builder()
                         .put("xpack.security.enabled", false)
                         .put("xpack.license.self_generated.type", "trial")
+                        .put(PlannerSettings.PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getKey(), 0)
                         .build();
                 }
 

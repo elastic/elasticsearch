@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -180,6 +181,7 @@ public class EsqlSession {
     private final Verifier verifier;
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final PreMapper preMapper;
 
     private final Mapper mapper;
@@ -239,6 +241,7 @@ public class EsqlSession {
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         Mapper mapper,
         Verifier verifier,
         Metrics metrics,
@@ -260,6 +263,7 @@ public class EsqlSession {
         this.verifier = verifier;
         this.metrics = metrics;
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
@@ -1016,14 +1020,17 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
-        preAnalysisProfile.start();
+        TimeSpanMarker datasetResolutionProfile = executionInfo.queryProfile().datasetResolution();
+        datasetResolutionProfile.start();
         // Rewrite FROM targets that resolve to datasets into UnresolvedExternalRelation so the rest of
         // pre-analysis + analysis treats them identically to the inline EXTERNAL command. Pattern
         // expansion (wildcards, exclusions, date math, etc.) flows through the same
         // IndexNameExpressionResolver path indices use. The rewriter bails internally when there are
         // no datasets registered (the feature flag gates the CRUD layer that puts datasets there).
         parsed = DatasetRewriter.rewrite(parsed, projectMetadata, indexNameExpressionResolver);
+        datasetResolutionProfile.stop();
+        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
+        preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         preAnalysisProfile.stop();
         // Initialize the PreAnalysisResult with the local cluster's minimum transport version, so our planning will be correct also in
@@ -1827,6 +1834,7 @@ public class EsqlSession {
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             unmappedResolution,
             projectMetadata,
             r,

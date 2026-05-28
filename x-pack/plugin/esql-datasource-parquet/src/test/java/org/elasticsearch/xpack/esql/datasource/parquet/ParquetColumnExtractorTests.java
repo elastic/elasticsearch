@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -33,6 +34,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -883,7 +885,13 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         }
 
         @Override
-        public void readBytesAsync(long position, long length, Executor unused, ActionListener<ByteBuffer> listener) {
+        public void readBytesAsync(
+            long position,
+            long length,
+            BufferAllocator allocator,
+            Executor unused,
+            ActionListener<DirectReadBuffer> listener
+        ) {
             boolean blocking = overlapsAnyChunk(position, length);
             if (blocking) {
                 observedDispatches.incrementAndGet();
@@ -901,7 +909,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
                     int len = (int) Math.min(length, data.length - position);
                     byte[] copy = new byte[len];
                     System.arraycopy(data, pos, copy, 0, len);
-                    listener.onResponse(ByteBuffer.wrap(copy));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(copy), () -> {}));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     listener.onFailure(new IOException("interrupted while waiting for release", e));

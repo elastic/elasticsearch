@@ -186,73 +186,77 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             long rowCount = block.getRowCount();
 
             // Confirm the file actually has multiple pages so the test is meaningful.
-            PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storageObject);
-            org.apache.parquet.internal.column.columnindex.OffsetIndex oi = metadata.getOffsetIndex(0, "id");
-            assertNotNull("offset index must be present (writer should emit it for sorted V1/V2 files)", oi);
-            assertTrue("expected multiple pages to exercise firstRowIndex; got " + oi.getPageCount(), oi.getPageCount() >= 4);
-
-            // Build a RowRanges that selects a strict sub-window high in the row group, so pages
-            // earlier in the file must be filtered out and surviving pages have firstRowIndex > 0.
-            long rangeStart = rowCount / 4;          // e.g. 1024
-            long rangeEndExclusive = rowCount / 2;   // e.g. 2048
-            RowRanges rowRanges = RowRanges.of(rangeStart, rangeEndExclusive, rowCount);
-
-            Set<String> projected = Set.of("id");
-            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = prefetchChunks(storageObject, block, projected);
-
             try (
-                PageReadStore store = PrefetchedRowGroupBuilder.build(
-                    block,
-                    0,
-                    schema,
-                    projected,
-                    rowRanges,
-                    metadata,
-                    chunks,
-                    storageObject,
-                    codecFactory,
-                    blockFactory.arrowAllocator()
-                )
+                PreloadedRowGroupMetadata metadata = PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.arrowAllocator())
             ) {
-                ColumnDescriptor desc = schema.getColumns().getFirst();
-                ColumnInfo info = new ColumnInfo(
-                    desc,
-                    desc.getPrimitiveType().getPrimitiveTypeName(),
-                    DataType.INTEGER,
-                    desc.getMaxDefinitionLevel(),
-                    desc.getMaxRepetitionLevel(),
-                    desc.getPrimitiveType().getLogicalTypeAnnotation()
-                );
-                PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, rowRanges);
-                List<Integer> values = new ArrayList<>();
-                long remaining = rowCount;
-                while (remaining > 0) {
-                    int batch = (int) Math.min(2048, remaining);
-                    Block dataBlock = pcr.readBatch(batch, blockFactory);
-                    IntBlock intBlock = (IntBlock) dataBlock;
-                    int got = intBlock.getPositionCount();
-                    for (int i = 0; i < got; i++) {
-                        values.add(intBlock.getInt(i));
-                    }
-                    dataBlock.close();
-                    remaining -= got;
-                    if (got == 0) {
-                        break;
-                    }
-                }
-                // Surviving pages cover at least the requested range. The reader may emit
-                // whole pages (page-aligned superset) which is allowed by our contract; what is
-                // not allowed is dropping any of the requested rows.
-                for (long v = rangeStart; v < rangeEndExclusive; v++) {
-                    assertTrue(
-                        writerVersion + " filtered builder must return id " + v + " (returned " + values.size() + " values)",
-                        values.contains((int) v)
+                org.apache.parquet.internal.column.columnindex.OffsetIndex oi = metadata.getOffsetIndex(0, "id");
+                assertNotNull("offset index must be present (writer should emit it for sorted V1/V2 files)", oi);
+                assertTrue("expected multiple pages to exercise firstRowIndex; got " + oi.getPageCount(), oi.getPageCount() >= 4);
+
+                // Build a RowRanges that selects a strict sub-window high in the row group, so pages
+                // earlier in the file must be filtered out and surviving pages have firstRowIndex > 0.
+                long rangeStart = rowCount / 4;          // e.g. 1024
+                long rangeEndExclusive = rowCount / 2;   // e.g. 2048
+                RowRanges rowRanges = RowRanges.of(rangeStart, rangeEndExclusive, rowCount);
+
+                Set<String> projected = Set.of("id");
+                ColumnChunkPrefetcher.PrefetchedChunks prefetched = prefetchChunks(storageObject, block, projected);
+
+                try (
+                    org.elasticsearch.core.Releasable r = prefetched.release();
+                    PageReadStore store = PrefetchedRowGroupBuilder.build(
+                        block,
+                        0,
+                        schema,
+                        projected,
+                        rowRanges,
+                        metadata,
+                        prefetched.chunks(),
+                        storageObject,
+                        codecFactory,
+                        blockFactory.arrowAllocator()
+                    )
+                ) {
+                    ColumnDescriptor desc = schema.getColumns().getFirst();
+                    ColumnInfo info = new ColumnInfo(
+                        desc,
+                        desc.getPrimitiveType().getPrimitiveTypeName(),
+                        DataType.INTEGER,
+                        desc.getMaxDefinitionLevel(),
+                        desc.getMaxRepetitionLevel(),
+                        desc.getPrimitiveType().getLogicalTypeAnnotation()
                     );
-                }
-                // Also assert that values are a contiguous sorted sub-window of the original
-                // file (no out-of-order or duplicate emission from the page queue).
-                for (int i = 1; i < values.size(); i++) {
-                    assertTrue(writerVersion + " values must be sorted", values.get(i) > values.get(i - 1));
+                    PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, rowRanges);
+                    List<Integer> values = new ArrayList<>();
+                    long remaining = rowCount;
+                    while (remaining > 0) {
+                        int batch = (int) Math.min(2048, remaining);
+                        Block dataBlock = pcr.readBatch(batch, blockFactory);
+                        IntBlock intBlock = (IntBlock) dataBlock;
+                        int got = intBlock.getPositionCount();
+                        for (int i = 0; i < got; i++) {
+                            values.add(intBlock.getInt(i));
+                        }
+                        dataBlock.close();
+                        remaining -= got;
+                        if (got == 0) {
+                            break;
+                        }
+                    }
+                    // Surviving pages cover at least the requested range. The reader may emit
+                    // whole pages (page-aligned superset) which is allowed by our contract; what is
+                    // not allowed is dropping any of the requested rows.
+                    for (long v = rangeStart; v < rangeEndExclusive; v++) {
+                        assertTrue(
+                            writerVersion + " filtered builder must return id " + v + " (returned " + values.size() + " values)",
+                            values.contains((int) v)
+                        );
+                    }
+                    // Also assert that values are a contiguous sorted sub-window of the original
+                    // file (no out-of-order or duplicate emission from the page queue).
+                    for (int i = 1; i < values.size(); i++) {
+                        assertTrue(writerVersion + " values must be sorted", values.get(i) > values.get(i - 1));
+                    }
                 }
             }
         }
@@ -301,51 +305,55 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
         StorageObject storageObject,
         boolean withOffsetIndex
     ) throws IOException {
-        PreloadedRowGroupMetadata metadata = withOffsetIndex
-            ? PreloadedRowGroupMetadata.preload(reader, storageObject)
-            : PreloadedRowGroupMetadata.empty();
-        Set<String> projected = Set.of("id");
-        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = withOffsetIndex
-            ? prefetchChunks(storageObject, block, projected)
-            : null;
-
         try (
-            PageReadStore store = PrefetchedRowGroupBuilder.build(
-                block,
-                0,
-                schema,
-                projected,
-                /* rowRanges */ null,
-                metadata,
-                chunks,
-                storageObject,
-                codecFactory,
-                blockFactory.arrowAllocator()
-            )
+            PreloadedRowGroupMetadata metadata = withOffsetIndex
+                ? PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.arrowAllocator())
+                : PreloadedRowGroupMetadata.empty()
         ) {
-            ColumnDescriptor desc = schema.getColumns().getFirst();
-            ColumnInfo info = new ColumnInfo(
-                desc,
-                desc.getPrimitiveType().getPrimitiveTypeName(),
-                DataType.INTEGER,
-                desc.getMaxDefinitionLevel(),
-                desc.getMaxRepetitionLevel(),
-                desc.getPrimitiveType().getLogicalTypeAnnotation()
-            );
-            PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(block.getRowCount()));
-            List<Integer> values = new ArrayList<>(TOTAL_ROWS);
-            int remaining = (int) block.getRowCount();
-            while (remaining > 0) {
-                int batch = Math.min(1024, remaining);
-                Block dataBlock = pcr.readBatch(batch, blockFactory);
-                IntBlock intBlock = (IntBlock) dataBlock;
-                for (int i = 0; i < intBlock.getPositionCount(); i++) {
-                    values.add(intBlock.getInt(i));
+            Set<String> projected = Set.of("id");
+            ColumnChunkPrefetcher.PrefetchedChunks prefetched = withOffsetIndex ? prefetchChunks(storageObject, block, projected) : null;
+            NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = prefetched == null ? null : prefetched.chunks();
+            org.elasticsearch.core.Releasable releasable = prefetched == null ? () -> {} : prefetched.release();
+
+            try (
+                org.elasticsearch.core.Releasable r = releasable;
+                PageReadStore store = PrefetchedRowGroupBuilder.build(
+                    block,
+                    0,
+                    schema,
+                    projected,
+                    /* rowRanges */ null,
+                    metadata,
+                    chunks,
+                    storageObject,
+                    codecFactory,
+                    blockFactory.arrowAllocator()
+                )
+            ) {
+                ColumnDescriptor desc = schema.getColumns().getFirst();
+                ColumnInfo info = new ColumnInfo(
+                    desc,
+                    desc.getPrimitiveType().getPrimitiveTypeName(),
+                    DataType.INTEGER,
+                    desc.getMaxDefinitionLevel(),
+                    desc.getMaxRepetitionLevel(),
+                    desc.getPrimitiveType().getLogicalTypeAnnotation()
+                );
+                PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, RowRanges.all(block.getRowCount()));
+                List<Integer> values = new ArrayList<>(TOTAL_ROWS);
+                int remaining = (int) block.getRowCount();
+                while (remaining > 0) {
+                    int batch = Math.min(1024, remaining);
+                    Block dataBlock = pcr.readBatch(batch, blockFactory);
+                    IntBlock intBlock = (IntBlock) dataBlock;
+                    for (int i = 0; i < intBlock.getPositionCount(); i++) {
+                        values.add(intBlock.getInt(i));
+                    }
+                    remaining -= intBlock.getPositionCount();
+                    dataBlock.close();
                 }
-                remaining -= intBlock.getPositionCount();
-                dataBlock.close();
+                return values;
             }
-            return values;
         }
     }
 
@@ -381,15 +389,12 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
         }
     }
 
-    private NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> prefetchChunks(
-        StorageObject storageObject,
-        BlockMetaData block,
-        Set<String> projected
-    ) {
-        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetch(
+    private ColumnChunkPrefetcher.PrefetchedChunks prefetchChunks(StorageObject storageObject, BlockMetaData block, Set<String> projected) {
+        CompletableFuture<ColumnChunkPrefetcher.PrefetchedChunks> future = ColumnChunkPrefetcher.prefetch(
             storageObject,
             block,
-            projected
+            projected,
+            blockFactory.arrowAllocator()
         );
         return future.join();
     }

@@ -26,6 +26,9 @@ dependencies {
   compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
+  // Apache Arrow BufferAllocator API for breaker-accounted direct memory in readBytesAsync.
+  // Runtime classes are loaded via the x-pack-esql plugin's classloader (extendedPlugins).
+  compileOnly project(':libs:arrow')
   
   // AWS SDK for S3 access - following repository-s3 pattern
   // Using explicit module declarations instead of bundle for better classloading
@@ -80,6 +83,8 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':libs:arrow')
+  testImplementation project(xpackModule('esql:compute'))
   // S3 fixture for in-process unit tests of S3StorageProvider against a fake S3 endpoint.
   testImplementation project(':test:fixtures:s3-fixture')
   testImplementation project(':test:fixtures:aws-fixture-utils')

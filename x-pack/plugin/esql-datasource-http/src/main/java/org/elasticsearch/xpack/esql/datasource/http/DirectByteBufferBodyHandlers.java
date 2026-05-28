@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.http;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 
 import java.io.IOException;
 import java.net.http.HttpResponse;
@@ -20,6 +23,12 @@ import java.util.concurrent.Flow;
 /**
  * {@link HttpResponse.BodyHandler} implementations that accumulate HTTP response bodies directly
  * into a pre-allocated direct {@link ByteBuffer}, avoiding {@code BodyHandlers.ofByteArray()}.
+ *
+ * <p>Destination buffers are obtained from a caller-supplied {@link BufferAllocator} so the
+ * allocation is breaker-accounted. On success the {@link ArrowBuf} is handed to the caller via
+ * the {@link DirectReadBuffer#release()} returned to the listener; the caller releases it when
+ * the bytes have been consumed. On failure paths the subscriber releases the {@link ArrowBuf}
+ * itself so the charge does not outlive the failed request.
  */
 final class DirectByteBufferBodyHandlers {
 
@@ -30,14 +39,16 @@ final class DirectByteBufferBodyHandlers {
      * the body is accumulated into a direct buffer of {@code length}. When the server ignores the
      * {@code Range} header and responds with {@code 200 OK}, the first {@code skip} bytes are
      * discarded and the next {@code length} bytes are accumulated into a direct buffer.
+     *
+     * @param allocator allocator used to back the destination buffer on the 200/206 paths
      */
-    static HttpResponse.BodyHandler<ByteBuffer> ofRangeRead(long skip, int length) {
+    static HttpResponse.BodyHandler<DirectReadBuffer> ofRangeRead(long skip, int length, BufferAllocator allocator) {
         return responseInfo -> {
             int status = responseInfo.statusCode();
             if (status == HttpStatus.SC_PARTIAL_CONTENT) {
-                return new FixedLengthDirectSubscriber(length);
+                return new FixedLengthDirectSubscriber(length, allocator);
             } else if (status == HttpStatus.SC_OK) {
-                return new SkipThenFillDirectSubscriber(skip, length);
+                return new SkipThenFillDirectSubscriber(skip, length, allocator);
             } else {
                 return new DiscardingSubscriber();
             }
@@ -47,22 +58,25 @@ final class DirectByteBufferBodyHandlers {
     /**
      * Accumulates exactly {@code expectedLength} bytes into a direct buffer. Used for {@code 206} responses.
      */
-    static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<ByteBuffer> {
+    static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final int expectedLength;
-        private final CompletableFuture<ByteBuffer> body = new CompletableFuture<>();
+        private final BufferAllocator allocator;
+        private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
+        private volatile ArrowBuf destinationBuf;
         private volatile ByteBuffer destination;
         private int offset;
         private volatile Flow.Subscription subscription;
         private volatile boolean failed;
 
-        FixedLengthDirectSubscriber(int expectedLength) {
+        FixedLengthDirectSubscriber(int expectedLength, BufferAllocator allocator) {
             if (expectedLength < 0) {
                 throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
             }
             this.expectedLength = expectedLength;
+            this.allocator = allocator;
         }
 
         @Override
@@ -73,11 +87,18 @@ final class DirectByteBufferBodyHandlers {
             }
             this.subscription = subscription;
             try {
-                this.destination = ByteBuffer.allocateDirect(expectedLength);
-            } catch (OutOfMemoryError e) {
+                this.destinationBuf = allocator.buffer(expectedLength);
+                this.destination = destinationBuf.nioBuffer(0, expectedLength);
+            } catch (OutOfMemoryError | RuntimeException e) {
                 failed = true;
+                if (destinationBuf != null) {
+                    destinationBuf.close();
+                    destinationBuf = null;
+                }
                 subscription.cancel();
-                body.completeExceptionally(new IOException("failed to allocate " + expectedLength + " bytes of direct memory", e));
+                body.completeExceptionally(
+                    new IOException("failed to allocate " + expectedLength + " bytes from allocator " + allocator.getName(), e)
+                );
                 return;
             }
             subscription.request(Long.MAX_VALUE);
@@ -112,6 +133,7 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             failed = true;
+            releaseOnFailure();
             body.completeExceptionally(throwable);
         }
 
@@ -121,24 +143,39 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             if (offset != expectedLength) {
+                releaseOnFailure();
                 body.completeExceptionally(
                     new IOException("HTTP response body shorter than expected: received=" + offset + ", expected=" + expectedLength)
                 );
                 return;
             }
             destination.position(0).limit(offset);
-            body.complete(destination);
+            // Transfer ownership of the ArrowBuf to the caller via DirectReadBuffer.release().
+            // Null out the field so releaseOnFailure (if ever invoked after this point) does not
+            // double-close it.
+            ArrowBuf transferred = destinationBuf;
+            destinationBuf = null;
+            body.complete(new DirectReadBuffer(destination, transferred::close));
         }
 
         @Override
-        public CompletableFuture<ByteBuffer> getBody() {
+        public CompletableFuture<DirectReadBuffer> getBody() {
             return body;
         }
 
         private void fail(IOException error) {
             failed = true;
             subscription.cancel();
+            releaseOnFailure();
             body.completeExceptionally(error);
+        }
+
+        private void releaseOnFailure() {
+            ArrowBuf buf = destinationBuf;
+            if (buf != null) {
+                destinationBuf = null;
+                buf.close();
+            }
         }
     }
 
@@ -146,18 +183,20 @@ final class DirectByteBufferBodyHandlers {
      * Skips {@code skip} bytes then accumulates up to {@code length} bytes into a direct buffer.
      * Used when a server ignores {@code Range} and returns the full body with {@code 200 OK}.
      */
-    static final class SkipThenFillDirectSubscriber implements HttpResponse.BodySubscriber<ByteBuffer> {
+    static final class SkipThenFillDirectSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
         private final long skip;
         private final int length;
-        private final CompletableFuture<ByteBuffer> body = new CompletableFuture<>();
+        private final BufferAllocator allocator;
+        private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
         // See FixedLengthDirectSubscriber for the volatility rationale.
+        private volatile ArrowBuf destinationBuf;
         private volatile ByteBuffer destination;
         private long skipRemaining;
         private int fillOffset;
         private volatile Flow.Subscription subscription;
         private volatile boolean failed;
 
-        SkipThenFillDirectSubscriber(long skip, int length) {
+        SkipThenFillDirectSubscriber(long skip, int length, BufferAllocator allocator) {
             if (skip < 0) {
                 throw new IllegalArgumentException("skip must be non-negative, got: " + skip);
             }
@@ -167,6 +206,7 @@ final class DirectByteBufferBodyHandlers {
             this.skip = skip;
             this.length = length;
             this.skipRemaining = skip;
+            this.allocator = allocator;
         }
 
         @Override
@@ -177,11 +217,18 @@ final class DirectByteBufferBodyHandlers {
             }
             this.subscription = subscription;
             try {
-                this.destination = ByteBuffer.allocateDirect(length);
-            } catch (OutOfMemoryError e) {
+                this.destinationBuf = allocator.buffer(length);
+                this.destination = destinationBuf.nioBuffer(0, length);
+            } catch (OutOfMemoryError | RuntimeException e) {
                 failed = true;
+                if (destinationBuf != null) {
+                    destinationBuf.close();
+                    destinationBuf = null;
+                }
                 subscription.cancel();
-                body.completeExceptionally(new IOException("failed to allocate " + length + " bytes of direct memory", e));
+                body.completeExceptionally(
+                    new IOException("failed to allocate " + length + " bytes from allocator " + allocator.getName(), e)
+                );
                 return;
             }
             subscription.request(Long.MAX_VALUE);
@@ -215,6 +262,7 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             failed = true;
+            releaseOnFailure();
             body.completeExceptionally(throwable);
         }
 
@@ -224,6 +272,7 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             if (skipRemaining > 0) {
+                releaseOnFailure();
                 body.completeExceptionally(new IOException("Position " + skip + " is beyond content length for HTTP response body"));
                 return;
             }
@@ -232,26 +281,42 @@ final class DirectByteBufferBodyHandlers {
             // Downstream consumers like CoalescedRangeReader trust the requested length when slicing,
             // so returning a short buffer here would surface as an IllegalArgumentException at slice time.
             if (fillOffset != length) {
+                releaseOnFailure();
                 body.completeExceptionally(
                     new IOException("HTTP response body shorter than expected: received=" + fillOffset + ", expected=" + length)
                 );
                 return;
             }
             destination.position(0).limit(fillOffset);
-            body.complete(destination);
+            // Transfer ownership of the ArrowBuf to the caller; see FixedLengthDirectSubscriber.
+            ArrowBuf transferred = destinationBuf;
+            destinationBuf = null;
+            body.complete(new DirectReadBuffer(destination, transferred::close));
         }
 
         @Override
-        public CompletableFuture<ByteBuffer> getBody() {
+        public CompletableFuture<DirectReadBuffer> getBody() {
             return body;
+        }
+
+        private void releaseOnFailure() {
+            ArrowBuf buf = destinationBuf;
+            if (buf != null) {
+                destinationBuf = null;
+                buf.close();
+            }
         }
     }
 
     /**
-     * Discards the response body for unexpected status codes.
+     * Discards the response body for unexpected status codes. Returns an empty heap buffer so we
+     * do not allocate from the user's {@link BufferAllocator} on an error path — the body is
+     * never delivered to a successful listener and the caller's failure handler tears down the
+     * surrounding allocator anyway.
      */
-    static final class DiscardingSubscriber implements HttpResponse.BodySubscriber<ByteBuffer> {
-        private final CompletableFuture<ByteBuffer> body = new CompletableFuture<>();
+    static final class DiscardingSubscriber implements HttpResponse.BodySubscriber<DirectReadBuffer> {
+        private static final DirectReadBuffer EMPTY = new DirectReadBuffer(ByteBuffer.allocate(0), () -> {});
+        private final CompletableFuture<DirectReadBuffer> body = new CompletableFuture<>();
 
         @Override
         public void onSubscribe(Flow.Subscription subscription) {
@@ -268,11 +333,11 @@ final class DirectByteBufferBodyHandlers {
 
         @Override
         public void onComplete() {
-            body.complete(ByteBuffer.allocateDirect(0));
+            body.complete(EMPTY);
         }
 
         @Override
-        public CompletableFuture<ByteBuffer> getBody() {
+        public CompletableFuture<DirectReadBuffer> getBody() {
             return body;
         }
     }

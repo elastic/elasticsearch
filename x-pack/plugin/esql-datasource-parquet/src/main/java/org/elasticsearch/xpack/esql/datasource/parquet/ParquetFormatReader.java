@@ -1153,7 +1153,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (predicateColumnPaths != null) {
             counters.addPredicateColumns(predicateColumnPaths);
         }
-        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(reader, storageObject, predicateColumnPaths);
+        PreloadedRowGroupMetadata preloadedMetadata = PreloadedRowGroupMetadata.preload(
+            reader,
+            storageObject,
+            predicateColumnPaths,
+            blockFactory.arrowAllocator()
+        );
         adapter.installPreWarmedChunks(preloadedMetadata.preWarmedChunks());
 
         List<BlockMetaData> blocks;

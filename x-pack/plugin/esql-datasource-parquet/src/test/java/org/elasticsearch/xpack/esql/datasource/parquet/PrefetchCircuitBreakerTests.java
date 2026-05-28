@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -27,6 +28,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -235,7 +237,13 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                BufferAllocator allocator,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 executor.execute(() -> {
                     try {
                         int pos = (int) position;
@@ -243,7 +251,7 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
                         ByteBuffer buffer = ByteBuffer.allocate(len);
                         buffer.put(data, pos, len);
                         buffer.flip();
-                        listener.onResponse(buffer);
+                        listener.onResponse(new DirectReadBuffer(buffer, () -> {}));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -289,7 +297,13 @@ public class PrefetchCircuitBreakerTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                BufferAllocator allocator,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 executor.execute(() -> listener.onFailure(new IOException("Simulated async I/O failure")));
             }
         };

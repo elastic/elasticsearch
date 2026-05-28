@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
@@ -108,19 +110,26 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
-        readBytesAsyncWithRetry(position, length, executor, listener, 0, System.nanoTime());
+    public void readBytesAsync(
+        long position,
+        long length,
+        BufferAllocator allocator,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        readBytesAsyncWithRetry(position, length, allocator, executor, listener, 0, System.nanoTime());
     }
 
     private void readBytesAsyncWithRetry(
         long position,
         long length,
+        BufferAllocator allocator,
         Executor executor,
-        ActionListener<ByteBuffer> listener,
+        ActionListener<DirectReadBuffer> listener,
         int attempt,
         long startNanos
     ) {
-        delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
+        delegate.readBytesAsync(position, length, allocator, executor, ActionListener.wrap(result -> {
             retryPolicy.notifySuccess();
             listener.onResponse(result);
         }, e -> {
@@ -166,7 +175,7 @@ class RetryableStorageObject implements StorageObject {
                         listener.onFailure(new IOException("Retry interrupted", ie));
                         return;
                     }
-                    readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1, startNanos);
+                    readBytesAsyncWithRetry(position, length, allocator, executor, listener, attempt + 1, startNanos);
                 });
             } else {
                 listener.onFailure(e);

@@ -11,7 +11,10 @@ import software.amazon.awssdk.core.SdkResponse;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -55,18 +58,26 @@ import java.util.concurrent.CompletableFuture;
  *
  * @param <R> the unmarshalled SDK response type (e.g. {@code GetObjectResponse}).
  */
-final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, ByteBuffer> {
+final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, DirectReadBuffer> {
 
     private final int expectedLength;
+    private final BufferAllocator allocator;
 
     private volatile R response;
-    private volatile CompletableFuture<ByteBuffer> resultFuture;
+    private volatile CompletableFuture<DirectReadBuffer> resultFuture;
 
-    KnownLengthAsyncResponseTransformer(int expectedLength) {
+    /**
+     * @param expectedLength exact length of the response body in bytes
+     * @param allocator allocator from which the destination buffer is obtained; the returned
+     *     {@link DirectReadBuffer} wraps an {@link ArrowBuf} that is charged against this
+     *     allocator until {@link DirectReadBuffer#close()} is called by the caller
+     */
+    KnownLengthAsyncResponseTransformer(int expectedLength, BufferAllocator allocator) {
         if (expectedLength < 0) {
             throw new IllegalArgumentException("expectedLength must be non-negative, got: " + expectedLength);
         }
         this.expectedLength = expectedLength;
+        this.allocator = allocator;
     }
 
     /**
@@ -85,10 +96,10 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     }
 
     @Override
-    public CompletableFuture<ByteBuffer> prepare() {
+    public CompletableFuture<DirectReadBuffer> prepare() {
         // Allocated lazily here (not in the constructor) because prepare() is invoked again on each
         // retry; the previous attempt's buffer, if any, must be discarded.
-        CompletableFuture<ByteBuffer> bufferFuture = new CompletableFuture<>();
+        CompletableFuture<DirectReadBuffer> bufferFuture = new CompletableFuture<>();
         this.resultFuture = bufferFuture;
         return bufferFuture;
     }
@@ -100,12 +111,12 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void onStream(SdkPublisher<ByteBuffer> publisher) {
-        publisher.subscribe(new ChunkCopyingSubscriber(resultFuture, expectedLength));
+        publisher.subscribe(new ChunkCopyingSubscriber(resultFuture, expectedLength, allocator));
     }
 
     @Override
     public void exceptionOccurred(Throwable error) {
-        CompletableFuture<ByteBuffer> f = resultFuture;
+        CompletableFuture<DirectReadBuffer> f = resultFuture;
         if (f != null) {
             f.completeExceptionally(error);
         }
@@ -118,19 +129,22 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
      * response body) or falls short of it on completion.
      */
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
-        private final CompletableFuture<ByteBuffer> resultFuture;
+        private final CompletableFuture<DirectReadBuffer> resultFuture;
         private final int expectedLength;
+        private final BufferAllocator allocator;
         // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
         // guarantees serial signals with happens-before, but making the visibility explicit avoids
         // depending on each publisher implementation honoring that subtlety correctly.
+        private volatile ArrowBuf destinationBuf;
         private volatile ByteBuffer destination;
         private int offset;
         private volatile Subscription subscription;
         private volatile boolean failed;
 
-        ChunkCopyingSubscriber(CompletableFuture<ByteBuffer> resultFuture, int expectedLength) {
+        ChunkCopyingSubscriber(CompletableFuture<DirectReadBuffer> resultFuture, int expectedLength, BufferAllocator allocator) {
             this.resultFuture = resultFuture;
             this.expectedLength = expectedLength;
+            this.allocator = allocator;
         }
 
         @Override
@@ -141,14 +155,22 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             this.subscription = s;
-            // Allocate here (rather than the constructor) so a direct-memory OOM is routed through
-            // the result future instead of escaping publisher.subscribe(...) as an Error.
+            // Allocate here (rather than the constructor) so an allocator OOM/breaker trip is
+            // routed through the result future instead of escaping publisher.subscribe(...) as
+            // an Error.
             try {
-                this.destination = ByteBuffer.allocateDirect(expectedLength);
-            } catch (OutOfMemoryError e) {
+                this.destinationBuf = allocator.buffer(expectedLength);
+                this.destination = destinationBuf.nioBuffer(0, expectedLength);
+            } catch (OutOfMemoryError | RuntimeException e) {
                 failed = true;
+                if (destinationBuf != null) {
+                    destinationBuf.close();
+                    destinationBuf = null;
+                }
                 s.cancel();
-                resultFuture.completeExceptionally(new IOException("failed to allocate " + expectedLength + " bytes of direct memory", e));
+                resultFuture.completeExceptionally(
+                    new IOException("failed to allocate " + expectedLength + " bytes from allocator " + allocator.getName(), e)
+                );
                 return;
             }
             s.request(Long.MAX_VALUE);
@@ -172,6 +194,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                         + destination.capacity()
                 );
                 subscription.cancel();
+                releaseOnFailure();
                 resultFuture.completeExceptionally(error);
                 return;
             }
@@ -185,6 +208,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             failed = true;
+            releaseOnFailure();
             resultFuture.completeExceptionally(error);
         }
 
@@ -194,13 +218,27 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             if (offset != destination.capacity()) {
+                int capacity = destination.capacity();
+                releaseOnFailure();
                 resultFuture.completeExceptionally(
-                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + destination.capacity())
+                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + capacity)
                 );
                 return;
             }
             destination.position(0).limit(offset);
-            resultFuture.complete(destination);
+            // Transfer ownership of the ArrowBuf to the caller; null out the field so any
+            // subsequent releaseOnFailure (e.g. an SDK-internal late onError) does not double-close.
+            ArrowBuf transferred = destinationBuf;
+            destinationBuf = null;
+            resultFuture.complete(new DirectReadBuffer(destination, transferred::close));
+        }
+
+        private void releaseOnFailure() {
+            ArrowBuf buf = destinationBuf;
+            if (buf != null) {
+                destinationBuf = null;
+                buf.close();
+            }
         }
     }
 

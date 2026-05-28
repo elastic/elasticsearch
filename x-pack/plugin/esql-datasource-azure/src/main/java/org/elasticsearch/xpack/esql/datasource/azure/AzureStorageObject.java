@@ -13,8 +13,11 @@ import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -222,9 +225,15 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        BufferAllocator allocator,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (blobAsyncClient == null) {
-            super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, allocator, executor, listener);
             return;
         }
 
@@ -237,15 +246,32 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             return;
         }
 
+        int len = Math.toIntExact(length);
+        final ArrowBuf buf;
+        final ByteBuffer initial;
+        try {
+            buf = allocator.buffer(len);
+        } catch (OutOfMemoryError | RuntimeException e) {
+            listener.onFailure(new IOException("failed to allocate " + len + " bytes from allocator " + allocator.getName(), e));
+            return;
+        }
+        try {
+            initial = buf.nioBuffer(0, len);
+        } catch (RuntimeException e) {
+            buf.close();
+            listener.onFailure(new IOException("failed to obtain nio view of ArrowBuf for length " + len, e));
+            return;
+        }
+
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
         blobAsyncClient.downloadWithResponse(range, null, null, false)
             .flatMapMany(response -> response.getValue())
-            .reduce(ByteBuffer.allocateDirect(Math.toIntExact(length)), (acc, buf) -> {
-                if (buf.remaining() > acc.remaining()) {
+            .reduce(initial, (acc, chunk) -> {
+                if (chunk.remaining() > acc.remaining()) {
                     throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
                 }
-                acc.put(buf);
+                acc.put(chunk);
                 return acc;
             })
             .map(buffer -> {
@@ -256,11 +282,14 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             .whenComplete((buffer, error) -> {
                 if (error != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // Release eagerly on the failure path so the breaker charge does not outlive
+                    // the failed request.
+                    buf.close();
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
                     listener.onFailure(cause instanceof Exception e ? e : new RuntimeException(cause));
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
-                    listener.onResponse(buffer);
+                    listener.onResponse(new DirectReadBuffer(buffer, buf::close));
                 }
             });
     }

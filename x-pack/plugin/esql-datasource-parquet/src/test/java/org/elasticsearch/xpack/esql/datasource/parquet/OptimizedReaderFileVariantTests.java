@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
@@ -34,6 +35,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -320,13 +322,19 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                BufferAllocator allocator,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 executor.execute(() -> {
                     int pos = (int) position;
                     int len = (int) Math.min(length, data.length - pos);
                     ByteBuffer direct = ByteBuffer.allocateDirect(len);
                     direct.put(data, pos, len).flip();
-                    listener.onResponse(direct);
+                    listener.onResponse(new DirectReadBuffer(direct, () -> {}));
                 });
             }
 

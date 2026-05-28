@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -129,7 +131,13 @@ class QueryBudgetedStorageObject implements StorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        BufferAllocator allocator,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         try {
             acquirePermit();
         } catch (Exception e) {
@@ -137,7 +145,7 @@ class QueryBudgetedStorageObject implements StorageObject {
             return;
         }
         try {
-            delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
+            delegate.readBytesAsync(position, length, allocator, executor, ActionListener.wrap(result -> {
                 budget.release();
                 listener.onResponse(result);
             }, e -> {

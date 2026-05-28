@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.format.Util;
 import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -18,6 +19,7 @@ import org.apache.parquet.internal.hadoop.metadata.IndexReference;
 import org.apache.parquet.schema.MessageType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -49,7 +51,7 @@ import java.util.TreeMap;
  * <p>This class is populated once during file open and then read during row group
  * processing. All fields are effectively immutable after construction.
  */
-final class PreloadedRowGroupMetadata {
+final class PreloadedRowGroupMetadata implements Releasable {
 
     private static final Logger logger = LogManager.getLogger(PreloadedRowGroupMetadata.class);
 
@@ -72,27 +74,42 @@ final class PreloadedRowGroupMetadata {
      */
     private final MessageType schema;
 
+    /**
+     * Owns the allocator-backed direct memory holding {@link #preWarmedChunks} (and the
+     * temporary buffers used by the coalesced index fetch). Closed when this metadata is no
+     * longer needed — typically at the end of the iterator's lifecycle. Never null;
+     * {@link #empty()} uses a no-op releasable.
+     */
+    private final Releasable releasable;
+
     private static final MessageType EMPTY_SCHEMA = new MessageType("empty");
 
     PreloadedRowGroupMetadata(Map<String, ColumnIndex> columnIndexes, Map<String, OffsetIndex> offsetIndexes, MessageType schema) {
-        this(columnIndexes, offsetIndexes, new TreeMap<>(), schema);
+        this(columnIndexes, offsetIndexes, new TreeMap<>(), schema, () -> {});
     }
 
     PreloadedRowGroupMetadata(
         Map<String, ColumnIndex> columnIndexes,
         Map<String, OffsetIndex> offsetIndexes,
         NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> preWarmedChunks,
-        MessageType schema
+        MessageType schema,
+        Releasable releasable
     ) {
         this.columnIndexes = Map.copyOf(columnIndexes);
         this.offsetIndexes = Map.copyOf(offsetIndexes);
         // Defensive copy: the caller's map is no longer referenced after construction.
         this.preWarmedChunks = preWarmedChunks.isEmpty() ? new TreeMap<>() : new TreeMap<>(preWarmedChunks);
         this.schema = schema;
+        this.releasable = releasable;
     }
 
     static PreloadedRowGroupMetadata empty() {
         return new PreloadedRowGroupMetadata(Map.of(), Map.of(), EMPTY_SCHEMA);
+    }
+
+    @Override
+    public void close() {
+        releasable.close();
     }
 
     /**
@@ -121,8 +138,8 @@ final class PreloadedRowGroupMetadata {
      * <p>Falls back to {@link ParquetFileReader}'s sequential reading when no storage object
      * is provided (e.g., in-memory test files).
      */
-    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject) {
-        return preload(reader, storageObject, null);
+    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, BufferAllocator allocator) {
+        return preload(reader, storageObject, null, allocator);
     }
 
     /**
@@ -134,7 +151,12 @@ final class PreloadedRowGroupMetadata {
      * <p>Pass {@code null} or an empty set when no predicate columns exist; the result will then
      * carry no pre-warmed chunks and the caller can install nothing into the adapter.
      */
-    static PreloadedRowGroupMetadata preload(ParquetFileReader reader, StorageObject storageObject, Set<String> predicateColumnPaths) {
+    static PreloadedRowGroupMetadata preload(
+        ParquetFileReader reader,
+        StorageObject storageObject,
+        Set<String> predicateColumnPaths,
+        BufferAllocator allocator
+    ) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return empty();
@@ -142,7 +164,7 @@ final class PreloadedRowGroupMetadata {
 
         if (storageObject != null) {
             try {
-                return preloadCoalesced(reader, rowGroups, storageObject, predicateColumnPaths);
+                return preloadCoalesced(reader, rowGroups, storageObject, predicateColumnPaths, allocator);
             } catch (Exception e) {
                 logger.debug("Coalesced metadata preload failed, falling back to sequential: {}", e.getMessage());
             }
@@ -170,7 +192,8 @@ final class PreloadedRowGroupMetadata {
         ParquetFileReader reader,
         List<BlockMetaData> rowGroups,
         StorageObject storageObject,
-        Set<String> predicateColumnPaths
+        Set<String> predicateColumnPaths,
+        BufferAllocator allocator
     ) {
         List<CoalescedRangeReader.ByteRange> ranges = new ArrayList<>();
         List<RangeMeta> rangeMetas = new ArrayList<>();
@@ -200,9 +223,18 @@ final class PreloadedRowGroupMetadata {
 
         logger.debug("Coalesced metadata preload: [{}] ranges across [{}] row groups", ranges.size(), rowGroups.size());
 
-        PlainActionFuture<Map<CoalescedRangeReader.ByteRange, ByteBuffer>> future = new PlainActionFuture<>();
-        CoalescedRangeReader.readCoalesced(storageObject, ranges, CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP, Runnable::run, future);
-        Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = future.actionGet();
+        PlainActionFuture<CoalescedRangeReader.CoalescedRangeResult> future = new PlainActionFuture<>();
+        CoalescedRangeReader.readCoalesced(
+            storageObject,
+            ranges,
+            CoalescedRangeReader.DEFAULT_MAX_COALESCE_GAP,
+            allocator,
+            Runnable::run,
+            future
+        );
+        CoalescedRangeReader.CoalescedRangeResult fetchedResult = future.actionGet();
+        Map<CoalescedRangeReader.ByteRange, ByteBuffer> fetched = fetchedResult.ranges();
+        Releasable readRelease = fetchedResult.release();
 
         Map<String, ColumnIndex> columnIndexes = new HashMap<>();
         Map<String, OffsetIndex> offsetIndexes = new HashMap<>();
@@ -256,7 +288,13 @@ final class PreloadedRowGroupMetadata {
             }
         }
 
-        return new PreloadedRowGroupMetadata(columnIndexes, offsetIndexes, preWarmedChunks, reader.getFileMetaData().getSchema());
+        return new PreloadedRowGroupMetadata(
+            columnIndexes,
+            offsetIndexes,
+            preWarmedChunks,
+            reader.getFileMetaData().getSchema(),
+            readRelease
+        );
     }
 
     private enum RangeKind {

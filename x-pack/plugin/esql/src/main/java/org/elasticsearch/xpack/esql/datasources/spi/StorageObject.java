@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 
 import java.io.IOException;
@@ -95,20 +97,37 @@ public interface StorageObject {
      * Columnar formats (Parquet) can use this for parallel chunk reads when
      * {@link #supportsNativeAsync()} returns true.
      * <p>
-     * <b>Returned buffer contract:</b> the buffer delivered to the listener has
-     * {@code capacity() == length} (the requested length) and {@code remaining()} equal to the
-     * number of bytes actually read. On a short read these differ — consumers must use
-     * {@code remaining()} (or {@code limit() - position()}) to size their work, never
+     * <b>Returned buffer contract:</b> the {@link DirectReadBuffer#buffer()} delivered to the
+     * listener has {@code capacity() == length} (the requested length) and {@code remaining()}
+     * equal to the number of bytes actually read. On a short read these differ — consumers must
+     * use {@code remaining()} (or {@code limit() - position()}) to size their work, never
      * {@code capacity()}. The buffer is direct.
      * <p>
      * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
+     * <p>
+     * <b>Allocator ownership:</b> the returned buffer is a view of an {@link ArrowBuf} allocated
+     * from {@code allocator}. The caller must invoke {@link DirectReadBuffer#close()} once the
+     * bytes have been consumed; closing decrements the underlying {@code ArrowBuf}'s reference
+     * count, which is what actually returns the memory to the allocator. Closing the allocator
+     * alone is not enough — Arrow treats outstanding {@code ArrowBuf}s as a leak (see
+     * esql-planning#851).
+     *
      * @param position the starting byte position
      * @param length the number of bytes to read
+     * @param allocator allocator used to back the returned direct buffer; the storage object
+     *            allocates exactly one {@code ArrowBuf} of {@code length} bytes from this
+     *            allocator and returns a {@link DirectReadBuffer} wrapping a view of it
      * @param executor executor for running the async operation
      * @param listener callback for the result or failure
      */
-    default void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    default void readBytesAsync(
+        long position,
+        long length,
+        BufferAllocator allocator,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (length < 0) {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
@@ -117,14 +136,24 @@ public interface StorageObject {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
             return;
         }
-        // Allocate on the calling thread so a direct-memory OOM surfaces synchronously via the
-        // listener instead of escaping the executor's Runnable as an Error and leaving the
-        // listener permanently uncompleted.
+        // Allocate on the calling thread so a direct-memory OOM (or breaker trip) surfaces
+        // synchronously via the listener instead of escaping the executor's Runnable as an Error
+        // and leaving the listener permanently uncompleted.
+        final ArrowBuf buf;
         final ByteBuffer direct;
         try {
-            direct = ByteBuffer.allocateDirect((int) length);
-        } catch (OutOfMemoryError e) {
-            listener.onFailure(new IOException("failed to allocate " + length + " bytes of direct memory", e));
+            buf = allocator.buffer(length);
+        } catch (OutOfMemoryError | RuntimeException e) {
+            listener.onFailure(new IOException("failed to allocate " + length + " bytes from allocator " + allocator.getName(), e));
+            return;
+        }
+        try {
+            // Explicit (index, length) overload: ArrowBuf may round capacity up, but the
+            // returned buffer's remaining() must equal the declared length.
+            direct = buf.nioBuffer(0, (int) length);
+        } catch (RuntimeException e) {
+            buf.close();
+            listener.onFailure(new IOException("failed to obtain nio view of ArrowBuf for length " + length, e));
             return;
         }
         try {
@@ -132,15 +161,17 @@ public interface StorageObject {
                 try {
                     int read = Math.max(0, readBytes(position, direct));
                     direct.position(0).limit(read);
-                    listener.onResponse(direct);
+                    listener.onResponse(new DirectReadBuffer(direct, buf::close));
                 } catch (Exception e) {
+                    buf.close();
                     listener.onFailure(e);
                 }
             });
         } catch (RejectedExecutionException e) {
-            // Route executor rejection (saturated queue, shutdown) through the listener so the
-            // caller's ActionListener chain doesn't hang. The pre-allocated direct buffer becomes
-            // garbage and is reclaimed by the platform Cleaner.
+            // Route executor rejection (saturated queue, shutdown) through the listener and
+            // release the allocator-backed buffer eagerly so it does not stay charged against
+            // the breaker for the lifetime of the JVM.
+            buf.close();
             listener.onFailure(e);
         }
     }

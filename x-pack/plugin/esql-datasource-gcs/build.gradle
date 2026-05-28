@@ -30,6 +30,9 @@ dependencies {
   compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
+  // Apache Arrow BufferAllocator API for breaker-accounted direct memory in readBytesAsync.
+  // Runtime classes are loaded via the x-pack-esql plugin's classloader (extendedPlugins).
+  compileOnly project(':libs:arrow')
 
   // Google Cloud Storage client library - versions consistent with repository-gcs module
   implementation 'com.google.cloud:google-cloud-storage:2.50.0'
@@ -68,6 +71,8 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(':libs:arrow')
+  testImplementation project(xpackModule('esql:compute'))
 }
 
 tasks.named("dependencyLicenses").configure {

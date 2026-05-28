@@ -18,17 +18,18 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
@@ -314,9 +315,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        BufferAllocator allocator,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (s3AsyncClient == null) {
-            super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, allocator, executor, listener);
             return;
         }
 
@@ -346,7 +353,10 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
         long startNanos = System.nanoTime();
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>((int) length);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            (int) length,
+            allocator
+        );
         s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
@@ -372,7 +382,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 }
             }
 
-            counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
+            counters.addRequest(System.nanoTime() - startNanos, buffer.buffer().remaining());
             listener.onResponse(buffer);
         });
     }

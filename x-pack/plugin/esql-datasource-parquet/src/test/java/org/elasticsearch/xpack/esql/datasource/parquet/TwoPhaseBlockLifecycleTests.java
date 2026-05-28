@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.parquet.conf.PlainParquetConfiguration;
 import org.apache.parquet.example.data.Group;
 import org.apache.parquet.example.data.simple.SimpleGroupFactory;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -437,10 +439,16 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                BufferAllocator allocator,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 try (InputStream stream = newStream(position, length)) {
                     byte[] bytes = stream.readAllBytes();
-                    listener.onResponse(ByteBuffer.wrap(bytes));
+                    listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {}));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }

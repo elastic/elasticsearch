@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -87,7 +88,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .findFirst()
             .orElse(null);
         assertNotNull(timeSeriesMetadata);
-        assertThat(timeSeriesMetadata.withoutFields(), hasItem("pod"));
+        assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {
@@ -108,7 +109,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(fragment.toString(), fragmentPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(fragmentPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
         PhysicalPlan deserializedDataNodePlan = SerializationTestUtils.serializeDeserialize(
             dataNodePlan,
             StreamOutput::writeNamedWriteable,
@@ -126,7 +127,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(deserializedFragment.toString(), deserializedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(deserializedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localLogical = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), SearchStats.EMPTY)
@@ -142,7 +143,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(localizedFragment.toString(), localizedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(localizedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         PhysicalPlan mappedLocalizedFragment = LocalMapper.INSTANCE.map(localizedFragment);
         var mappedPackedTimeSeriesValues = mappedLocalizedFragment.collect(
@@ -157,7 +158,7 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .filter(attr -> MetadataAttribute.TIMESERIES.equals(attr.name()))
             .toList();
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
-        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
+        assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).excludedFields(), hasItem("pod"));
 
         var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
@@ -288,5 +289,24 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    /**
+     * Verifies that WITHOUT groupings have their names correctly extracted even as UnresolvedAttributes.
+     * The fix for #149793 changed LabelSetSpec and TimeSeriesWithout to extract names from any Attribute,
+     * not just FieldAttribute with isDimension() == true.
+     */
+    public void testWithoutGroupingNamesExtractedCorrectly() {
+        PromqlCommand promql = planPromql(
+            "PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))",
+            false
+        ).collect(PromqlCommand.class).getFirst();
+        var acrossSeriesAggregates = promql.promqlPlan()
+            .collect(org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate.class);
+        assertFalse("Plan must contain an AcrossSeriesAggregate", acrossSeriesAggregates.isEmpty());
+        var agg = acrossSeriesAggregates.getFirst();
+        assertThat(agg.groupings(), hasSize(2));
+        java.util.Set<String> names = agg.groupings().stream().map(Attribute::name).collect(java.util.stream.Collectors.toSet());
+        assertThat(names, equalTo(java.util.Set.of("pod", "region")));
     }
 }

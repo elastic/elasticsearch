@@ -90,6 +90,13 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
         return new AcrossSeriesAggregate(source(), newChild, definition(), parameters(), grouping(), groupings());
     }
 
+    /**
+     * Returns a new aggregate with the given groupings, preserving all other fields.
+     */
+    public AcrossSeriesAggregate withGroupings(List<Attribute> newGroupings) {
+        return new AcrossSeriesAggregate(source(), child(), definition(), parameters(), grouping(), newGroupings);
+    }
+
     // @Override
     // public String telemetryLabel() {
     // return "PROMQL_ACROSS_SERIES_AGGREGATION";

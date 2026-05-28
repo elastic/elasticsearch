@@ -23,6 +23,8 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.ResponseCollectorService;
 
 import java.util.ArrayList;
@@ -36,6 +38,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class OperationRouting {
+
+    private static final Logger logger = LogManager.getLogger(OperationRouting.class);
 
     /**
      * Feature flag for ARS probing of stat-less nodes. Controls the default value of
@@ -152,6 +156,12 @@ public class OperationRouting {
             ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING,
             this::setAdaptiveReplicaSelectionWarmupSamples
         );
+        logger.info(
+            "ARS probing {}: inflight_cap={}, warmup_samples={}",
+            adaptiveReplicaSelectionProbeEnabled ? "enabled" : "disabled",
+            adaptiveReplicaSelectionProbeInflightCap,
+            adaptiveReplicaSelectionWarmupSamples
+        );
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -160,14 +170,32 @@ public class OperationRouting {
 
     void setAdaptiveReplicaSelectionProbeEnabled(boolean probeEnabled) {
         this.adaptiveReplicaSelectionProbeEnabled = probeEnabled;
+        logger.info(
+            "ARS probing changed to {}: inflight_cap={}, warmup_samples={}",
+            adaptiveReplicaSelectionProbeEnabled ? "enabled" : "disabled",
+            adaptiveReplicaSelectionProbeInflightCap,
+            adaptiveReplicaSelectionWarmupSamples
+        );
     }
 
     void setAdaptiveReplicaSelectionProbeInflightCap(long probeInflightCap) {
         this.adaptiveReplicaSelectionProbeInflightCap = probeInflightCap;
+        logger.info(
+            "ARS probing inflight cap changed to {}: probe_enabled={}, warmup_samples={}",
+            adaptiveReplicaSelectionProbeInflightCap,
+            adaptiveReplicaSelectionProbeEnabled,
+            adaptiveReplicaSelectionWarmupSamples
+        );
     }
 
     void setAdaptiveReplicaSelectionWarmupSamples(int adaptiveReplicaSelectionWarmupSamples) {
         this.adaptiveReplicaSelectionWarmupSamples = adaptiveReplicaSelectionWarmupSamples;
+        logger.info(
+            "ARS probing warmup samples changed to {}: probe_enabled={}, inflight_cap={}",
+            adaptiveReplicaSelectionWarmupSamples,
+            adaptiveReplicaSelectionProbeEnabled,
+            adaptiveReplicaSelectionProbeInflightCap
+        );
     }
 
     public boolean isAdaptiveReplicaSelectionProbeEnabled() {

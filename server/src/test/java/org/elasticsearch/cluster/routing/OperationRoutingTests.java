@@ -28,6 +28,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -311,7 +312,7 @@ public class OperationRoutingTests extends ESTestCase {
         List<ShardRouting> searchedShards = new ArrayList<>(numShards);
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
         List<SearchShardRouting> groupIterator = opRouting.searchShards(
             project,
             indexNames,
@@ -441,7 +442,7 @@ public class OperationRoutingTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
-        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
         List<SearchShardRouting> groupIterator = opRouting.searchShards(
             project,
             indexNames,
@@ -516,7 +517,7 @@ public class OperationRoutingTests extends ESTestCase {
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
-        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
 
         // We have two nodes with very similar statistics
         collector.addNodeStatistics("node_0", 1, TimeValue.timeValueMillis(50).nanos(), TimeValue.timeValueMillis(40).nanos());

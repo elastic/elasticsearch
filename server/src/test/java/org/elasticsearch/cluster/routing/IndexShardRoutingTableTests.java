@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -39,7 +40,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 threadPool,
                 null
             );
-            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+            ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
             collector.addNodeStatistics("node1", 1, 100_000, 50_000);
             collector.addNodeStatistics("node2", 5, 500_000, 200_000);
 
@@ -96,7 +97,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 threadPool,
                 null
             );
-            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+            ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
             // warmA is the fastest, well-established peer. warmB is slightly busier. Both run well
             // past the warmup threshold so they're considered warm.
             collector.addNodeStatistics("warmA", 2, 100_000, 100_000);
@@ -136,7 +137,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
             // Now drop warmA's queue so its bare rank drops below the would-be freshX rank, then
             // re-add freshX with a value that makes it look fastest of all. The clamp should peg
             // freshX up to warmA's bare rank instead of letting it surge ahead.
-            ResponseCollectorService floodCollector = new ResponseCollectorService(clusterService);
+            ResponseCollectorService floodCollector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
             floodCollector.addNodeStatistics("warmA", 3, 100_000, 100_000);
             for (int i = 0; i < 50; i++) {
                 floodCollector.addNodeStatistics("warmA", 3, 100_000, 100_000);
@@ -175,7 +176,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 threadPool,
                 null
             );
-            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+            ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
             collector.addNodeStatistics("warmA", 1, 100_000, 50_000);
             for (int i = 0; i < 50; i++) {
                 collector.addNodeStatistics("warmA", 1, 100_000, 50_000);
@@ -215,7 +216,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 threadPool,
                 null
             );
-            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+            ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
             collector.addNodeStatistics("warmA", 3, 100_000, 100_000);
             for (int i = 0; i < 50; i++) {
                 collector.addNodeStatistics("warmA", 3, 100_000, 100_000);
@@ -254,7 +255,7 @@ public class IndexShardRoutingTableTests extends ESTestCase {
                 threadPool,
                 null
             );
-            ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+            ResponseCollectorService collector = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
             // warmA is well-warmed; freshX has only one observation.
             collector.addNodeStatistics("warmA", 2, 100_000, 100_000);
             for (int i = 0; i < 50; i++) {

@@ -155,6 +155,7 @@ import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
 import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -760,7 +761,7 @@ public class SnapshotResiliencyTestHelper {
                     PeerOnlyRecoveryPlannerService.INSTANCE
                 );
 
-                final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
+                final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
                 final SearchTransportService searchTransportService = new SearchTransportService(
                     transportService,
                     client,

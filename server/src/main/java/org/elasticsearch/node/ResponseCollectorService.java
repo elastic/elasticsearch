@@ -12,6 +12,7 @@ package org.elasticsearch.node;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,12 +21,18 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Collects statistics about queue size, response time, and service time of
@@ -34,6 +41,8 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class ResponseCollectorService implements ClusterStateListener {
 
+    private static final Logger logger = LogManager.getLogger(ResponseCollectorService.class);
+
     /**
      * The weight parameter used for all moving averages of parameters.
      */
@@ -41,14 +50,123 @@ public final class ResponseCollectorService implements ClusterStateListener {
 
     public static final FeatureFlag ARS_FORMULA_ADJUSTMENT_FEATURE_FLAG = new FeatureFlag("ars_formula_adjustment");
 
+    private final ClusterService clusterService;
     private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Tracks when each ARS-candidate node joined the cluster (nanoseconds from
+     * {@link System#nanoTime()}). Used to compute the probing-phase duration when the
+     * first observation for that node is received. Entries are removed either when the
+     * first observation arrives or when the node leaves the cluster.
+     */
+    private final ConcurrentMap<String, Long> nodeJoinTimeNanos = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Tracks when each node received its first ARS observation (nanoseconds from
+     * {@link System#nanoTime()}). Used to compute the warming-phase duration when the
+     * node graduates to warm. Entries are removed either on graduation or when the node
+     * leaves the cluster.
+     */
+    private final ConcurrentMap<String, Long> nodeFirstObservationTimeNanos = ConcurrentCollections.newConcurrentMap();
+    /**
+     * Minimum observation count for a node to be considered warm. Kept in sync with
+     * {@link OperationRouting#ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING} so the
+     * warming gauge and graduation log use the same threshold as the routing logic.
+     */
+    private volatile int warmupSamples;
+    private LongHistogram probingDurationHistogram;
+    private LongHistogram warmingDurationHistogram;
 
-    public ResponseCollectorService(ClusterService clusterService) {
+    public ResponseCollectorService(ClusterService clusterService, MeterRegistry meterRegistry) {
+        this.clusterService = clusterService;
+        this.warmupSamples = OperationRouting.ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(OperationRouting.ADAPTIVE_REPLICA_SELECTION_WARMUP_SAMPLES_SETTING, v -> this.warmupSamples = v);
+        // Register metrics before adding the cluster-state listener so that all fields
+        // (including the histogram references) are fully initialized before any
+        // clusterChanged callback can fire on the cluster-applier thread.
+        registerMetrics(meterRegistry);
         clusterService.addListener(this);
+    }
+
+    /**
+     * Registers all OTel instruments for ARS node lifecycle observability.
+     * <ul>
+     *   <li><b>es.ars.nodes.probing.current</b> (gauge) — data/search nodes for which this
+     *       coordinator has not yet received a single ARS response. Computed on each OTel
+     *       collection tick (~10 s) from live maps; zero overhead between ticks.</li>
+     *   <li><b>es.ars.nodes.warming.current</b> (gauge) — nodes whose observation count is
+     *       above zero but still below the warmup threshold.</li>
+     *   <li><b>es.ars.nodes.probing.duration</b> (histogram) — milliseconds a node spent in
+     *       the probing state, recorded when its first ARS observation arrives.</li>
+     *   <li><b>es.ars.nodes.warming.duration</b> (histogram) — milliseconds a node spent in
+     *       the warming state, recorded when it graduates to warm.</li>
+     * </ul>
+     */
+    @SuppressWarnings("resource")
+    private void registerMetrics(MeterRegistry meterRegistry) {
+        meterRegistry.registerLongGauge(
+            "es.ars.nodes.probing.current",
+            "Number of data/search nodes in the cluster for which this coordinator has no ARS statistics yet",
+            "1",
+            this::countProbingNodes
+        );
+        meterRegistry.registerLongGauge(
+            "es.ars.nodes.warming.current",
+            "Number of nodes whose ARS observation count is above zero but below the warmup threshold",
+            "1",
+            this::countWarmingNodes
+        );
+        probingDurationHistogram = meterRegistry.registerLongHistogram(
+            "es.ars.nodes.probing.duration",
+            "Time in milliseconds from a data/search node joining the cluster until this coordinator records its first ARS observation for it",
+            "ms"
+        );
+        warmingDurationHistogram = meterRegistry.registerLongHistogram(
+            "es.ars.nodes.warming.duration",
+            "Time in milliseconds from the first ARS observation for a node until it accumulates enough observations to graduate to warm",
+            "ms"
+        );
+    }
+
+    private LongWithAttributes countProbingNodes() {
+        long count = 0;
+        for (DiscoveryNode node : clusterService.state().nodes()) {
+            if (isArsCandidate(node) && nodeIdToStats.containsKey(node.getId()) == false) {
+                count++;
+            }
+        }
+        return new LongWithAttributes(count);
+    }
+
+    private LongWithAttributes countWarmingNodes() {
+        final int threshold = warmupSamples;
+        long count = 0;
+        for (NodeStatistics ns : nodeIdToStats.values()) {
+            if (ns.observationCount < threshold) {
+                count++;
+            }
+        }
+        return new LongWithAttributes(count);
+    }
+
+    /**
+     * Returns {@code true} for nodes that are candidates for ARS shard routing: traditional
+     * data-tier nodes and stateless search nodes. Pure master, ingest, and coordinating-only
+     * nodes are excluded because they never receive shard-level search requests.
+     */
+    private static boolean isArsCandidate(DiscoveryNode node) {
+        return node.getRoles().stream().anyMatch(r -> r.canContainData() || "search".equals(r.roleName()));
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.nodesAdded()) {
+            final long now = System.nanoTime();
+            for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
+                if (isArsCandidate(addedNode)) {
+                    nodeJoinTimeNanos.put(addedNode.getId(), now);
+                }
+            }
+        }
         if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 removeNode(removedNode.getId());
@@ -58,11 +176,19 @@ public final class ResponseCollectorService implements ClusterStateListener {
 
     void removeNode(String nodeId) {
         nodeIdToStats.remove(nodeId);
+        nodeJoinTimeNanos.remove(nodeId);
+        nodeFirstObservationTimeNanos.remove(nodeId);
     }
 
     public void addNodeStatistics(String nodeId, int queueSize, long responseTimeNanos, long avgServiceTimeNanos) {
+        // Snapshot the observation count inside the compute lambda so we can log state
+        // transitions after the segment lock is released. Reading observationCount from the
+        // returned NodeStatistics is unsafe: that object is shared in the map and another
+        // thread may already have incremented the field before we read it outside the lock.
+        final AtomicLong observationCountSnapshot = new AtomicLong();
         nodeIdToStats.compute(nodeId, (id, ns) -> {
             if (ns == null) {
+                observationCountSnapshot.set(1);
                 ExponentiallyWeightedMovingAverage queueEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, queueSize);
                 ExponentiallyWeightedMovingAverage responseEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, responseTimeNanos);
                 return new NodeStatistics(nodeId, queueEWMA, responseEWMA, avgServiceTimeNanos);
@@ -71,9 +197,45 @@ public final class ResponseCollectorService implements ClusterStateListener {
                 ns.responseTime.addValue((double) responseTimeNanos);
                 ns.serviceTime = avgServiceTimeNanos;
                 ns.observationCount++;
+                observationCountSnapshot.set(ns.observationCount);
                 return ns;
             }
         });
+
+        recordTransition(nodeId, observationCountSnapshot.get());
+    }
+
+    /**
+     * Logs and records telemetry for ARS node lifecycle transitions triggered by a new
+     * observation. Called immediately after the {@code compute()} block so the segment lock
+     * is no longer held.
+     * <ul>
+     *   <li>{@code count == 1}: node leaves probing, enters warming — logs the event, records
+     *       probing duration if a join timestamp is available, and stores the warming-start
+     *       timestamp.</li>
+     *   <li>{@code count == warmupSamples}: node graduates from warming to warm — logs the
+     *       event and records warming duration if a warming-start timestamp is available.</li>
+     * </ul>
+     */
+    private void recordTransition(String nodeId, long count) {
+        if (count == 1) {
+            logger.info("Node [{}] entered ARS warming state (first observation recorded)", nodeId);
+            final long now = System.nanoTime();
+            final Long joinTime = nodeJoinTimeNanos.remove(nodeId);
+            if (joinTime != null) {
+                probingDurationHistogram.record((now - joinTime) / 1_000_000L);
+            }
+            nodeFirstObservationTimeNanos.put(nodeId, now);
+        } else {
+            final int threshold = warmupSamples;
+            if (threshold > 0 && count == threshold) {
+                logger.info("Node [{}] graduated from ARS warming to warm (observations={})", nodeId, threshold);
+                final Long warmingStart = nodeFirstObservationTimeNanos.remove(nodeId);
+                if (warmingStart != null) {
+                    warmingDurationHistogram.record((System.nanoTime() - warmingStart) / 1_000_000L);
+                }
+            }
+        }
     }
 
     public Map<String, ComputedNodeStats> getAllNodeStatistics() {

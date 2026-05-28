@@ -740,9 +740,7 @@ public class ES940OSQVectorsScorerTests extends BaseVectorizationTests {
                 // Skip the cross-scorer equality assertions for this cell
                 // until the Java scorers are migrated to the new contract; the bulk path is still
                 // exercised above to catch any -Infinity handling regression.
-                boolean skipCrossScorerCheck = similarityFunction == VectorSimilarityFunction.EUCLIDEAN
-                    && queryBits == 7
-                    && indexBits == 7;
+                boolean skipCrossScorerCheck = similarityFunction == VectorSimilarityFunction.EUCLIDEAN && queryBits == 7 && indexBits == 7;
                 if (skipCrossScorerCheck == false) {
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
                     for (int j = 0; j < bulkSize; j++) {

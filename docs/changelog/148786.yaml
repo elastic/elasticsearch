@@ -1,5 +1,5 @@
 area: Reindex
 issues: []
 pr: 148786
-summary: Update reference docs for reindex resilience
+summary: Improved reindex resilience and management APIs
 type: enhancement

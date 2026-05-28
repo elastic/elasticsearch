@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.test.ESTestCase;
 
+/**
+ * Tests the predicates that classify known generative-test failures as allowed failures.
+ */
 public class GenerativeRestTestTests extends ESTestCase {
 
     public void testLimitByMvExpandBugMatchesDedup() {
@@ -50,6 +53,14 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
+    public void testFullTextAfterSubqueryRequiresKnownErrorShape() {
+        String query = "FROM all_types, (FROM colors | MV_EXPAND hex_code) | WHERE match_phrase(hex_code, \"world search\")";
+        String error = "verification_exception: line 1:973: [MatchPhrase] function cannot be used after field "
+            + "with details (from an unrelated diagnostic)";
+
+        assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
+    }
+
     public void testFullTextAfterSubqueryMatchesLookupMessage() {
         String query = "FROM logs, (FROM messages | LOOKUP JOIN message_types_lookup ON message) | WHERE qstr(\"text:hello\")";
         String error = "verification_exception: line 1:34: [QSTR] function cannot be used after LOOKUP";
@@ -84,6 +95,20 @@ public class GenerativeRestTestTests extends ESTestCase {
         String query = "SET approximation={};FROM colors | LIMIT 12 BY color | STATS c = COUNT(*)";
         String error = "verification_exception: line 1:40: approximation not supported: query with [LIMIT 12 BY color] "
             + "before [STATS] cannot be approximated";
+
+        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
+    }
+
+    public void testApproximationUnsupportedSubqueryMatchesPlaceholderMessage() {
+        String query = "SET approximation={};FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),logs";
+        String error = "verification_exception: approximation not supported: SampleProbabilityPlaceHolder cannot be planned";
+
+        assertTrue(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
+    }
+
+    public void testApproximationUnsupportedSubqueryRequiresApproximationErrorForPlaceholder() {
+        String query = "SET approximation={};FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),logs";
+        String error = "verification_exception: plan contains SampleProbabilityPlaceHolder";
 
         assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
     }

@@ -861,14 +861,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     private static final Pattern FULL_TEXT_AFTER_SUBQUERY_IN_FROM_PATTERN = Pattern.compile(
         ".*(?:(?:\\[(?:KQL|QSTR|MATCH|MatchPhrase)] function)|(?:\\[:\\] operator)) cannot be used after "
-            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|.*\\(from).*",
-        Pattern.DOTALL
+            + "(?:LIMIT|INLINE|LOOKUP|MV_EXPAND|STATS|CHANGE_POINT|LIMIT BY|TOP|[^\\n]*,\\s*\\(\\s*FROM\\b).*",
+        Pattern.DOTALL | Pattern.CASE_INSENSITIVE
     );
 
     /**
      * Product rejects full-text in {@code WHERE} when a subquery branch in {@code FROM} still contains a
-     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.) or when {@code QSTR}/{@code KQL}
-     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. Gated on a parenthesised inner {@code FROM}.
+     * pipeline-breaking command ({@code LIMIT}, {@code INLINE STATS}, etc.) or when full-text functions/operators
+     * are placed after {@code LOOKUP JOIN}; the generator only walks the outer command list. Gated on a
+     * parenthesised inner {@code FROM}.
      * See <a href="https://github.com/elastic/elasticsearch/issues/149516">#149516</a>.
      */
     static boolean isFullTextAfterSubqueryInFromBug(String errorMessage, String query) {
@@ -1083,7 +1084,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static final Pattern APPROXIMATION_SUBQUERY_BUG_PATTERN = Pattern.compile(
         ".*(?:approximation not supported: (?:aggregation function \\[.+] (?:cannot be approximated|must return a numeric value)"
             + "|query with \\[.+] before \\[STATS] cannot be approximated)"
-            + "|SampleProbabilityPlaceHolder).*",
+            + "|approximation not supported: .*SampleProbabilityPlaceHolder).*",
         Pattern.DOTALL
     );
 

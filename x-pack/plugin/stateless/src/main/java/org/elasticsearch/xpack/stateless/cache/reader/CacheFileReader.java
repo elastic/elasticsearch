@@ -129,7 +129,7 @@ public class CacheFileReader {
             blobCacheMetrics,
             relativeTimeInMillisSupplier,
             regionSize,
-            contextToAdvice(context),
+            contextToAdvice(context, hasSearchRole),
             0,
             Long.MAX_VALUE,
             hasSearchRole
@@ -189,7 +189,7 @@ public class CacheFileReader {
      * @param subFileLength the sub-file's length in bytes
      */
     public CacheFileReader copyWithContext(IOContext context, long subFileOffset, long subFileLength) {
-        int advice = contextToAdvice(context);
+        int advice = contextToAdvice(context, hasSearchRole);
         long exclStart;
         long exclEnd;
         if (advice == SharedBytes.MADV_RANDOM && regionSize > 0) {
@@ -215,12 +215,12 @@ public class CacheFileReader {
 
     /**
      * Maps Lucene's {@link DataAccessHint} to the corresponding {@code madvise} advice.
-     * Returns {@code MADV_RANDOM} only when the feature flag is enabled and the context
-     * contains {@link DataAccessHint#RANDOM}. The caller is responsible for ensuring the
-     * advice is only applied to regions that exclusively contain the target file's data.
+     * Returns {@code MADV_RANDOM} only when the node has the search role, the feature flag
+     * is enabled, and the context contains {@link DataAccessHint#RANDOM}. On non-search nodes
+     * (e.g. during indexing or merge), sequential read-ahead is preserved.
      */
-    static int contextToAdvice(IOContext context) {
-        if (MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
+    static int contextToAdvice(IOContext context, boolean hasSearchRole) {
+        if (hasSearchRole && MADVISE_RANDOM_FEATURE_FLAG.isEnabled() && context.hints().contains(DataAccessHint.RANDOM)) {
             return SharedBytes.MADV_RANDOM;
         }
         return SharedBytes.MADV_NORMAL;

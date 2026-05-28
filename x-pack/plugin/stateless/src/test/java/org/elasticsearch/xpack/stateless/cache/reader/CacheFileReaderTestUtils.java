@@ -40,8 +40,8 @@ public final class CacheFileReaderTestUtils {
         return CacheFileReader.MADVISE_RANDOM_FEATURE_FLAG.isEnabled();
     }
 
-    public static int contextToAdvice(IOContext context) {
-        return CacheFileReader.contextToAdvice(context);
+    public static int contextToAdvice(IOContext context, boolean hasSearchRole) {
+        return CacheFileReader.contextToAdvice(context, hasSearchRole);
     }
 
     public static long roundUpToRegion(long offset, int regionSize) {

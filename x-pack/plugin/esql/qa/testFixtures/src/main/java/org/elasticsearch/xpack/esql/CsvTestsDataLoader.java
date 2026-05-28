@@ -227,7 +227,6 @@ public class CsvTestsDataLoader {
         new TestDataset("web_logs"),
         new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
         new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
-        new TestDataset("mv_sample_quoted", "mapping-mv_sample.json", "mv_sample_quoted.csv"),
         new TestDataset("colors"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),

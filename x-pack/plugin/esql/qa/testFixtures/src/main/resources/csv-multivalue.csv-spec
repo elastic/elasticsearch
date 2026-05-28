@@ -54,27 +54,13 @@ c:long
 10
 ;
 
-// Silent-drift case: a quoted bracket cell ("[a,b,c]") under multi_value_syntax: none does NOT
-// misalign columns (the quotes contain the commas), so the row parses cleanly — but the cell is
-// a literal string [a,b,c], not an array. The MV_COUNT == 1 assertion is what makes the silent-
-// drift invariant testable: a 3-element array would yield MV_COUNT == 3. tags itself is not
-// projected — the csv-spec harness treats expected cells starting with '[' as multi-value
-// literals (CsvTestUtils.loadPageFromCsv), so projecting tags would require an unsafe
-// stringification of the literal; the MV_COUNT proxy is the supported pattern (matches the TSV
-// peer tsvNoneOnMultiValueDataReadsLiteralNoFailure). No warningRegex == no warning fires.
-csvNoneOnQuotedBracketIsLiteralNoWarning
-required_capability: external_command
-
-EXTERNAL "{{mv_sample_quoted}}" WITH {"multi_value_syntax": "none"}
-| EVAL cnt = MV_COUNT(tags)
-| KEEP id, cnt
-| SORT id
-;
-
-id:integer | cnt:integer
-1          | 1
-2          | 1
-;
+// Silent-drift coverage (quoted "[a,b,c]" under multi_value_syntax: none parses as 1 literal value,
+// not a 3-element MV) lives at the unit-test layer: CsvFormatReaderTests.testMultiValueDefault
+// ReadsBracketsAsLiteral. That layer constructs the bytes in-memory and asserts both MV_COUNT == 1
+// and the literal cell value. We deliberately do NOT exercise this at the csv-spec layer because
+// CsvTestsDataLoader.loadCsvData (the test-setup CSV parser) doesn't follow RFC-4180 quote-escape
+// semantics — it has its own `\,` escape only — so a fixture containing `1,"[a,b,c]",10` parses
+// as 5 entries on line 2 and breaks every bcUpgradeTest setup that loads all datasets.
 
 // ---- Relocated from external-basic.csv-spec ----
 // These queries assert ES|QL multi-value behavior on the bracket-MV employees fixture.

@@ -50,6 +50,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
     private final boolean hasSearchRole;
 
+    // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,

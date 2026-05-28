@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
@@ -91,6 +92,16 @@ public class InferenceService {
      */
     public void executeEmbeddingInference(EmbeddingAction.Request request, ActionListener<InferenceAction.Response> listener) {
         executeAsyncWithOrigin(client, INFERENCE_ORIGIN, EmbeddingAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Executes a rerank inference request.
+     *
+     * @param request  the rerank request to execute
+     * @param listener the listener to notify upon completion
+     */
+    public void executeRerankInference(RerankAction.Request request, ActionListener<InferenceAction.Response> listener) {
+        executeAsyncWithOrigin(client, INFERENCE_ORIGIN, RerankAction.INSTANCE, request, listener);
     }
 
     public ThreadPool threadPool() {

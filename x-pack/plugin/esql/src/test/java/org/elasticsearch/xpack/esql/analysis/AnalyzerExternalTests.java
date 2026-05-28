@@ -273,19 +273,17 @@ public class AnalyzerExternalTests extends ESTestCase {
      * forward is NOT "the user kept it": no {@code _file.*} column may reach the final output.
      * This is the regression guard for the {@code EXTERNAL | DROP | LIMIT} leak.
      */
-    public void testExternalSurfacesFileMetadataByDefault() {
+    public void testDropDoesNotSurfaceFileMetadata() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        // The EXTERNAL command auto-attaches _file.* (it has no METADATA clause); like regular-index
-        // metadata requested via METADATA, those columns surface in default output as ordinary
-        // columns, subject to KEEP / DROP. Dropping an unrelated data column must not hide them.
         var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | DROP first_name | LIMIT 3");
-        List<String> names = plan.output().stream().map(Attribute::name).toList();
-        assertFalse("dropped data column must be gone", names.contains("first_name"));
-        assertTrue(
-            "EXTERNAL surfaces auto-attached _file.* columns by default",
-            names.stream().anyMatch(FileMetadataColumns.NAMES::contains)
-        );
+        for (Attribute attr : plan.output()) {
+            assertFalse("Virtual attribute " + attr.name() + " must not surface through DROP", attr instanceof VirtualAttribute);
+            assertFalse(
+                "_file.* column " + attr.name() + " must not surface through DROP",
+                FileMetadataColumns.NAMES.contains(attr.name())
+            );
+        }
     }
 
     /**

@@ -1,56 +1,60 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * Copyright Elasticsearch B.V., and/or licensed to Elasticsearch B.V.
+ * under one or more license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ * This file is based on a modification of https://github.com/open-telemetry/opentelemetry-java which is licensed under the Apache 2.0 License.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.exponentialhistogram;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.test.BlockTestUtils;
-import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils.randomHistogram;
 import static org.hamcrest.Matchers.equalTo;
 
-public class BreakingExponentialHistogramHolderTests extends ESTestCase {
+public class CompressedExponentialHistogramHolderTests extends ExponentialHistogramTestCase {
 
     public void testSetFromCompressedHistogramCopiesData() throws IOException {
-        ExponentialHistogram original = BlockTestUtils.randomExponentialHistogram();
-        ExponentialHistogram other = BlockTestUtils.randomExponentialHistogram();
+        ReleasableExponentialHistogram original = randomHistogramWithDoubleZeroThreshold();
+        ReleasableExponentialHistogram other = randomHistogramWithDoubleZeroThreshold();
 
-        ExponentialHistogramArrayBlock.EncodedHistogramData encoded = ExponentialHistogramArrayBlock.encode(original);
-        CompressedExponentialHistogram source = new CompressedExponentialHistogram();
-        source.reset(
-            original.zeroBucket().zeroThreshold(),
-            original.valueCount(),
-            original.sum(),
-            original.min(),
-            original.max(),
-            encoded.encodedHistogram()
-        );
+        CompressedExponentialHistogram source = toCompressedHistogram(original);
+        ExponentialHistogramCircuitBreaker ehBreaker = breaker();
 
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
-        try (BreakingExponentialHistogramHolder holder = BreakingExponentialHistogramHolder.create(breaker)) {
+        try (CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker)) {
             holder.set(source);
             assertThat(holder.accessor(), equalTo(original));
 
-            // Resetting the source to different data should not alter the holder's copy
-            ExponentialHistogramArrayBlock.EncodedHistogramData otherEncoded = ExponentialHistogramArrayBlock.encode(other);
+            CompressedExponentialHistogram otherCompressed = toCompressedHistogram(other);
             source.reset(
                 other.zeroBucket().zeroThreshold(),
                 other.valueCount(),
                 other.sum(),
                 other.min(),
                 other.max(),
-                otherEncoded.encodedHistogram()
+                new BytesRef(encodeHistogramBytes(other))
             );
 
             assertThat(holder.accessor(), equalTo(original));
@@ -58,8 +62,8 @@ public class BreakingExponentialHistogramHolderTests extends ESTestCase {
     }
 
     public void testSetFromEmptyHistogram() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
-        try (BreakingExponentialHistogramHolder holder = BreakingExponentialHistogramHolder.create(breaker)) {
+        ExponentialHistogramCircuitBreaker ehBreaker = breaker();
+        try (CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker)) {
             holder.set(ExponentialHistogram.empty());
             ExponentialHistogram result = holder.accessor();
             assertThat(result.valueCount(), equalTo(0L));
@@ -70,10 +74,10 @@ public class BreakingExponentialHistogramHolderTests extends ESTestCase {
     }
 
     public void testSetOverwritesPreviousValue() {
-        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
-        try (BreakingExponentialHistogramHolder holder = BreakingExponentialHistogramHolder.create(breaker)) {
-            ExponentialHistogram first = BlockTestUtils.randomExponentialHistogram();
-            ExponentialHistogram second = BlockTestUtils.randomExponentialHistogram();
+        ExponentialHistogramCircuitBreaker ehBreaker = breaker();
+        try (CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker)) {
+            ReleasableExponentialHistogram first = randomHistogramWithDoubleZeroThreshold();
+            ReleasableExponentialHistogram second = randomHistogramWithDoubleZeroThreshold();
             holder.set(first);
             assertThat(holder.accessor(), equalTo(first));
 
@@ -83,15 +87,60 @@ public class BreakingExponentialHistogramHolderTests extends ESTestCase {
     }
 
     public void testCrankyCircuitBreaker() {
-        CircuitBreaker breaker = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
-        assertThrows(CircuitBreakingException.class, () -> {
+        CrankyCircuitBreakerService crankyBreakerService = new CrankyCircuitBreakerService();
+        CircuitBreaker esBreaker = crankyBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        ExponentialHistogramCircuitBreaker ehBreaker = breaker(esBreaker);
+        try {
             while (true) {
-                try (BreakingExponentialHistogramHolder holder = BreakingExponentialHistogramHolder.create(breaker);) {
-                    holder.set(BlockTestUtils.randomExponentialHistogram());
+                try (CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker)) {
+                    try (ReleasableExponentialHistogram hist = randomHistogram(ehBreaker)) {
+                        holder.set(hist);
+                    }
                 }
             }
-        });
-        assertThat(breaker.getUsed(), equalTo(0L));
+        } catch (CircuitBreakingException e) {
+            // expected
+        }
+        assertThat(esBreaker.getUsed(), equalTo(0L));
     }
 
+    public void testMemoryReleasedOnClose() {
+        CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(10));
+        ExponentialHistogramCircuitBreaker ehBreaker = breaker(esBreaker);
+        CompressedExponentialHistogramHolder holder = CompressedExponentialHistogramHolder.create(ehBreaker);
+        try (ReleasableExponentialHistogram hist = randomHistogram(ehBreaker)) {
+            holder.set(hist);
+        }
+        Releasables.close(holder);
+        assertThat(esBreaker.getUsed(), equalTo(0L));
+    }
+
+    private ReleasableExponentialHistogram randomHistogramWithDoubleZeroThreshold() {
+        ExponentialHistogram random = randomHistogram();
+        ReleasableExponentialHistogram input = ExponentialHistogram.builder(random, breaker())
+            .zeroBucket(ZeroBucket.create(random.zeroBucket().zeroThreshold(), random.zeroBucket().count()))
+            .build();
+        autoReleaseOnTestEnd(input);
+        return input;
+    }
+
+    private static CompressedExponentialHistogram toCompressedHistogram(ExponentialHistogram input) throws IOException {
+        byte[] encodedBytes = encodeHistogramBytes(input);
+        CompressedExponentialHistogram decoded = new CompressedExponentialHistogram();
+        decoded.reset(
+            input.zeroBucket().zeroThreshold(),
+            input.valueCount(),
+            input.sum(),
+            input.min(),
+            input.max(),
+            newBytesRef(encodedBytes)
+        );
+        return decoded;
+    }
+
+    private static byte[] encodeHistogramBytes(ExponentialHistogram input) throws IOException {
+        ByteArrayOutputStream encodedStream = new ByteArrayOutputStream();
+        CompressedExponentialHistogram.writeHistogramBytes(encodedStream, input);
+        return encodedStream.toByteArray();
+    }
 }

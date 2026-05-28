@@ -1,20 +1,30 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * Copyright Elasticsearch B.V., and/or licensed to Elasticsearch B.V.
+ * under one or more license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ * This file is based on a modification of https://github.com/open-telemetry/opentelemetry-java which is licensed under the Apache 2.0 License.
  */
 
-package org.elasticsearch.compute.data;
+package org.elasticsearch.exponentialhistogram;
 
-import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogram;
-import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,36 +39,37 @@ import java.io.OutputStream;
  * <p>
  * The stored histogram can be accessed as a {@link ExponentialHistogram} via {@link #accessor()}.
  */
-public class BreakingExponentialHistogramHolder implements Releasable, Accountable {
+public class CompressedExponentialHistogramHolder implements Releasable {
 
-    private static final String CIRCUIT_BREAKER_LABEL = "BreakingExponentialHistogramHolder";
-    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(BreakingExponentialHistogramHolder.class)
+    private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompressedExponentialHistogramHolder.class)
         + CompressedExponentialHistogram.SIZE;
 
     private final BreakingBytesRefOutputStream encodedHistogramBuffer;
     private final CompressedExponentialHistogram histogram;
-    private final CircuitBreaker breaker;
+    private final ExponentialHistogramCircuitBreaker breaker;
 
-    public static BreakingExponentialHistogramHolder create(CircuitBreaker breaker) {
+    public static CompressedExponentialHistogramHolder create(ExponentialHistogramCircuitBreaker breaker) {
         BreakingBytesRefOutputStream buffer = null;
         boolean success = false;
         try {
             buffer = new BreakingBytesRefOutputStream(breaker);
-            breaker.addEstimateBytesAndMaybeBreak(BASE_SIZE, CIRCUIT_BREAKER_LABEL);
+            breaker.adjustBreaker(BASE_SIZE);
             var histogram = new CompressedExponentialHistogram();
             success = true;
-            return new BreakingExponentialHistogramHolder(buffer, histogram, breaker);
+            return new CompressedExponentialHistogramHolder(buffer, histogram, breaker);
         } finally {
             if (success == false) {
-                Releasables.close(buffer);
+                if (buffer != null) {
+                    buffer.close();
+                }
             }
         }
     }
 
-    private BreakingExponentialHistogramHolder(
+    private CompressedExponentialHistogramHolder(
         BreakingBytesRefOutputStream encodedHistogramBuffer,
         CompressedExponentialHistogram histogram,
-        CircuitBreaker breaker
+        ExponentialHistogramCircuitBreaker breaker
     ) {
         this.encodedHistogramBuffer = encodedHistogramBuffer;
         this.histogram = histogram;
@@ -69,7 +80,7 @@ public class BreakingExponentialHistogramHolder implements Releasable, Accountab
      * Sets this holder to a copy of the given histogram.
      */
     public void set(ExponentialHistogram incoming) {
-        encodedHistogramBuffer.delegate.clear();
+        encodedHistogramBuffer.clear();
         try {
             CompressedExponentialHistogram.writeHistogramBytes(encodedHistogramBuffer, incoming);
         } catch (IOException e) {
@@ -82,7 +93,7 @@ public class BreakingExponentialHistogramHolder implements Releasable, Accountab
                 incoming.sum(),
                 incoming.min(),
                 incoming.max(),
-                encodedHistogramBuffer.delegate.bytesRefView()
+                encodedHistogramBuffer.bytesRefView()
             );
         } catch (IOException e) {
             throw new IllegalStateException("Histogram decoding failed", e);
@@ -96,61 +107,79 @@ public class BreakingExponentialHistogramHolder implements Releasable, Accountab
         return histogram;
     }
 
-    @Override
+    /**
+     * @return the estimated RAM usage of this holder including the encoded buffer.
+     */
     public long ramBytesUsed() {
         return BASE_SIZE + encodedHistogramBuffer.ramBytesUsed();
     }
 
     @Override
     public void close() {
-        breaker.addWithoutBreaking(-BASE_SIZE);
-        Releasables.close(encodedHistogramBuffer);
+        breaker.adjustBreaker(-BASE_SIZE);
+        encodedHistogramBuffer.close();
     }
 
     /**
-     * {@link OutputStream} adapter backed by a {@link BreakingBytesRefBuilder} for circuit-breaking writes.
+     * {@link OutputStream} that manages its own {@code byte[]} with circuit breaker accounting.
      */
-    private static class BreakingBytesRefOutputStream extends OutputStream implements Releasable, Accountable {
+    static class BreakingBytesRefOutputStream extends OutputStream implements Releasable {
 
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BreakingBytesRefOutputStream.class);
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BreakingBytesRefOutputStream.class)
+            + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
-        private final BreakingBytesRefBuilder delegate;
-        private final CircuitBreaker breaker;
+        private final ExponentialHistogramCircuitBreaker breaker;
+        private final BytesRef bytes;
 
-        BreakingBytesRefOutputStream(CircuitBreaker breaker) {
+        BreakingBytesRefOutputStream(ExponentialHistogramCircuitBreaker breaker) {
             this.breaker = breaker;
-            BreakingBytesRefBuilder delegate = new BreakingBytesRefBuilder(breaker, CIRCUIT_BREAKER_LABEL);
-            boolean success = false;
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, CIRCUIT_BREAKER_LABEL);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(delegate);
-                }
-            }
-            this.delegate = delegate;
+            breaker.adjustBreaker(SHALLOW_SIZE + bytesArrayRamBytesUsed(0));
+            this.bytes = new BytesRef();
         }
 
         @Override
         public void write(int b) {
-            delegate.append((byte) b);
+            grow(bytes.length + 1);
+            bytes.bytes[bytes.length++] = (byte) b;
         }
 
         @Override
         public void write(byte[] b, int off, int len) {
-            delegate.append(b, off, len);
+            grow(bytes.length + len);
+            System.arraycopy(b, off, bytes.bytes, bytes.length, len);
+            bytes.length += len;
         }
 
-        @Override
-        public long ramBytesUsed() {
-            return SHALLOW_SIZE + delegate.ramBytesUsed();
+        void clear() {
+            bytes.length = 0;
+        }
+
+        BytesRef bytesRefView() {
+            return bytes;
+        }
+
+        private void grow(int capacity) {
+            int oldCapacity = bytes.bytes.length;
+            if (oldCapacity >= capacity) {
+                return;
+            }
+            int newCapacity = ArrayUtil.oversize(capacity, Byte.BYTES);
+            breaker.adjustBreaker(bytesArrayRamBytesUsed(newCapacity));
+            bytes.bytes = ArrayUtil.growExact(bytes.bytes, newCapacity);
+            breaker.adjustBreaker(-bytesArrayRamBytesUsed(oldCapacity));
+        }
+
+        long ramBytesUsed() {
+            return SHALLOW_SIZE + bytesArrayRamBytesUsed(bytes.bytes.length);
         }
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-SHALLOW_SIZE);
-            delegate.close();
+            breaker.adjustBreaker(-ramBytesUsed());
+        }
+
+        private static long bytesArrayRamBytesUsed(long capacity) {
+            return RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + capacity);
         }
     }
 }

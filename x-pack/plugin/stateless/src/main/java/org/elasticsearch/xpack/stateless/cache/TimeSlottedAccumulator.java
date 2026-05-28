@@ -201,7 +201,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
             try {
                 result = Math.addExact(total, right);
             } catch (ArithmeticException e) {
-                result = total > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+                return right > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
             }
             total = result;
         }

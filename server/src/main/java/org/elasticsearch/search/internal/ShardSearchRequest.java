@@ -210,6 +210,17 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
         String clusterAlias,
         SplitShardCountSummary splitShardCountSummary
     ) {
+        this(shardId, nowInMillis, aliasFilter, clusterAlias, splitShardCountSummary, null);
+    }
+
+    public ShardSearchRequest(
+        ShardId shardId,
+        long nowInMillis,
+        AliasFilter aliasFilter,
+        String clusterAlias,
+        SplitShardCountSummary splitShardCountSummary,
+        @Nullable String sliceRouting
+    ) {
         this(
             OriginalIndices.NONE,
             shardId,
@@ -230,7 +241,7 @@ public class ShardSearchRequest extends AbstractTransportRequest implements Indi
             SearchService.NO_TIMEOUT,
             false,
             splitShardCountSummary,
-            null
+            sliceRouting
         );
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
@@ -54,6 +55,8 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     private final RemoteInfo remote;
     private final SearchRequest searchRequest;
     private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    private final CircuitBreaker circuitBreaker;
+    private final long memoryAccountingThresholdBytes;
     /**
      * Keep-alive duration for the scroll HTTP request currently in flight, set before each execute and cleared after success.
      */
@@ -71,7 +74,9 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         RemoteInfo remoteInfo,
         SearchRequest searchRequest,
         @Nullable Version initialRemoteVersion,
-        SearchContextKeepaliveDeadline keepaliveDeadline
+        SearchContextKeepaliveDeadline keepaliveDeadline,
+        CircuitBreaker circuitBreaker,
+        long memoryAccountingThresholdBytes
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
@@ -79,6 +84,8 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         this.client = client;
         this.remoteVersion = initialRemoteVersion;
         this.keepaliveDeadline = keepaliveDeadline;
+        this.circuitBreaker = circuitBreaker;
+        this.memoryAccountingThresholdBytes = memoryAccountingThresholdBytes;
     }
 
     @Override
@@ -94,7 +101,9 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                 RESPONSE_PARSER,
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                 threadPool,
-                client
+                client,
+                circuitBreaker,
+                memoryAccountingThresholdBytes
             );
         } else {
             lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
@@ -104,9 +113,11 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                     RESPONSE_PARSER,
                     RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                     threadPool,
-                    client
+                    client,
+                    circuitBreaker,
+                    memoryAccountingThresholdBytes
                 );
-            }), threadPool, client);
+            }), threadPool, client, circuitBreaker, memoryAccountingThresholdBytes);
         }
     }
 
@@ -143,7 +154,9 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
             RESPONSE_PARSER,
             wrapScrollSearchListener(searchListener),
             threadPool,
-            client
+            client,
+            circuitBreaker,
+            memoryAccountingThresholdBytes
         );
     }
 

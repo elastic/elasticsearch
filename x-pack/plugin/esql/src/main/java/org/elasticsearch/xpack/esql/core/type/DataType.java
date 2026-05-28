@@ -735,6 +735,13 @@ public enum DataType implements Writeable {
         return t.isNumeric() || isNull(t);
     }
 
+    /**
+     * True for integer-valued data types that use integral compute blocks directly.
+     */
+    public static boolean isIntegral(DataType t) {
+        return t == INTEGER || t == LONG;
+    }
+
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
     }

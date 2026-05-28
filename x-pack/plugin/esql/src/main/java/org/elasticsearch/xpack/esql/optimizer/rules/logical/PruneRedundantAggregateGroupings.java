@@ -25,19 +25,21 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isIntegral;
 
 /**
  * Removes {@code STATS BY} keys that do not add grouping cardinality and rebuilds their output above the aggregation.
  */
-public final class PruneRedundantAggregateGroupings extends OptimizerRules.OptimizerRule<Aggregate> {
+public final class PruneRedundantAggregateGroupings extends OptimizerRules.OptimizerRule<Aggregate>
+    implements
+        OptimizerRules.LocalAware<Aggregate> {
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
@@ -60,7 +62,7 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             }
         }
 
-        if (prunedGroupings.isEmpty()) {
+        if (prunedGroupings.isEmpty() || newGroupings.isEmpty()) {
             return aggregate;
         }
 
@@ -85,6 +87,11 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             plan = new Project(aggregate.source(), plan, aggregate.aggregates().stream().map(NamedExpression::toAttribute).toList());
         }
         return plan;
+    }
+
+    @Override
+    public Rule<Aggregate, LogicalPlan> local() {
+        return null;
     }
 
     private static boolean shouldSkipAggregate(Aggregate aggregate) {
@@ -227,7 +234,7 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
     }
 
     private static boolean isSafeIntegralAttribute(Attribute attribute) {
-        return attribute.dataType() == INTEGER || attribute.dataType() == LONG;
+        return isIntegral(attribute.dataType());
     }
 
     private static boolean isScalarFoldable(Expression expression) {

@@ -69,6 +69,44 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         as(aggregate.child(), EsRelation.class);
     }
 
+    public void testDoesNotPruneOnlyEvalConstantGrouping() {
+        var plan = plan("""
+            FROM test
+            | EVAL const1 = 1
+            | STATS c = COUNT(*) BY const1
+            """);
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("const1"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "const1"));
+        as(aggregate.child(), Eval.class);
+    }
+
+    public void testDoesNotPruneOnlyDirectLiteralGrouping() {
+        var plan = plan("""
+            FROM test
+            | STATS c = COUNT(*) BY 1
+            """);
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("1"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "1"));
+        as(aggregate.child(), Eval.class);
+    }
+
+    public void testDoesNotPruneOnlyMultipleConstantGroupings() {
+        var plan = plan("""
+            FROM test
+            | EVAL const1 = 1
+            | STATS c = COUNT(*) BY const1, 2
+            """);
+
+        var aggregate = as(as(plan, Limit.class).child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("const1", "2"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "const1", "2"));
+        as(aggregate.child(), Eval.class);
+    }
+
     public void testDoesNotPruneMultivalueConstantGrouping() {
         var plan = plan("""
             FROM test
@@ -92,6 +130,29 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
 
         var eval = as(project.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("ip_m1", "ip_m2", "ip_m3"));
+
+        var aggregate = rewrittenAggregate(eval);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP"));
+        as(aggregate.child(), ExternalRelation.class);
+        assertThat(
+            eval.fields().get(0).child(),
+            instanceOf(org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub.class)
+        );
+    }
+
+    public void testPrunesRecursiveDerivedExternalGrouping() {
+        var plan = externalPlan("""
+            EXTERNAL "s3://bucket/data.parquet"
+            | EVAL ip_m1 = ClientIP - 1, ip_m2 = ip_m1 - 1
+            | STATS c = COUNT(*) BY ClientIP, ip_m2
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m2"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("ip_m2"));
 
         var aggregate = rewrittenAggregate(eval);
         assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));

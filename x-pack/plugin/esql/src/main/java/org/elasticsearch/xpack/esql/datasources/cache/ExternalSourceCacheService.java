@@ -141,9 +141,11 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             Map<String, Object> mergedForFile = mergeContributions(wholeFile, partials);
-            if (mergedForFile != null && mergedForFile.isEmpty() == false) {
-                merged.put(e.getKey(), mergedForFile);
+            if (mergedForFile == null || mergedForFile.isEmpty()) {
+                logger.debug("dropping captured stats for [{}]: {} partial(s) produced no merged output", e.getKey(), partials.size());
+                continue;
             }
+            merged.put(e.getKey(), mergedForFile);
         }
         reconcileSourceStats(merged);
     }
@@ -213,45 +215,43 @@ public class ExternalSourceCacheService implements Closeable {
             // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
             // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
-            // Cache.keys() returns a live iterator over the LRU-ordered doubly-linked list, and its
-            // javadoc explicitly forbids mutation during iteration (anything other than
-            // Iterator#remove leaves iteration "undefined"). Collect the matching replacements first,
-            // then apply them after the iterator is fully consumed.
-            List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> pendingUpdates = null;
-            for (SchemaCacheKey key : schemaCache.keys()) {
+            // Cache.forEach iterates each segment's HashMap under the segment's readLock,
+            // making it safe against concurrent LRU mutations: promote() (called by get(),
+            // computeIfAbsent, etc. on any thread) acquires only lruLock, not the segment
+            // readLock, so it cannot corrupt the forEach traversal. Cache.keys() and
+            // Cache.values() walk the LRU doubly-linked list with no locks and are therefore
+            // unsafe here. Do NOT call get() or put() inside the forEach consumer — the
+            // segment readLock is not reentrant and put() acquires the segment writeLock.
+            List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> matchingEntries = new ArrayList<>();
+            schemaCache.forEach((key, existing) -> {
                 if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
-                    continue;
-                }
-                SchemaCacheEntry existing = schemaCache.get(key);
-                if (existing == null) {
-                    continue;
+                    return;
                 }
                 Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
                 if (Objects.equals(existingFingerprint, contributionFingerprint) == false) {
-                    continue;
+                    return;
                 }
+                matchingEntries.add(Map.entry(key, existing));
+            });
+            for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> match : matchingEntries) {
+                SchemaCacheKey key = match.getKey();
+                SchemaCacheEntry existing = match.getValue();
                 Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
                 enriched.putAll(mergedStats);
-                SchemaCacheEntry replaced = new SchemaCacheEntry(
-                    existing.columnNames(),
-                    existing.columnTypes(),
-                    existing.columnNullabilities(),
-                    existing.columnSynthetics(),
-                    existing.sourceType(),
-                    existing.location(),
-                    enriched,
-                    existing.connectorConfig(),
-                    existing.cachedAtMillis()
+                schemaCache.put(
+                    key,
+                    new SchemaCacheEntry(
+                        existing.columnNames(),
+                        existing.columnTypes(),
+                        existing.columnNullabilities(),
+                        existing.columnSynthetics(),
+                        existing.sourceType(),
+                        existing.location(),
+                        enriched,
+                        existing.connectorConfig(),
+                        existing.cachedAtMillis()
+                    )
                 );
-                if (pendingUpdates == null) {
-                    pendingUpdates = new ArrayList<>();
-                }
-                pendingUpdates.add(Map.entry(key, replaced));
-            }
-            if (pendingUpdates != null) {
-                for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> update : pendingUpdates) {
-                    schemaCache.put(update.getKey(), update.getValue());
-                }
             }
         }
     }

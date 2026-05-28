@@ -226,11 +226,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * finalize marker to reconstruct a whole-file stat. Lose the partials, lose the warm-path
      * aggregate pushdown for any file large enough to be parallel-parsed.
      * <p>
-     * {@link ExternalStatsCapture#ACTIVE} is a plain {@link ThreadLocal}, so this contract is
-     * currently broken: the coordinator dispatches each segment onto the supplied
-     * {@link ExecutorService}, where no sink is bound, and the published contributions silently
-     * vanish. This test will fail until that propagation is fixed (e.g. by binding the sink
-     * around the {@code reader.read(...).close()} block inside {@code parseSegment}).
+     * {@code ExternalStatsCapture}'s active sink is a plain {@link ThreadLocal} that does not
+     * propagate to executor threads, so the coordinator threads through an explicit
+     * {@code captureSink} parameter and binds it around the per-segment {@code reader.read(...)
+     * .close()} block inside {@code parseSegment}. This test asserts that bind actually wires
+     * each worker's published contribution into the consumer-owned sink.
      */
     public void testParallelReadPropagatesPerSegmentPartialsToSink() throws Exception {
         // Build a multi-segment file. Lines are short so 4 workers each see at least one chunk

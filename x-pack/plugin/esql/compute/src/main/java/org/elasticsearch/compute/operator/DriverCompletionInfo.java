@@ -292,7 +292,7 @@ public record DriverCompletionInfo(
                 cpuNanos,
                 driverProfiles,
                 planProfiles,
-                capturedSourceMetadata
+                capturedSourceMetadata.isEmpty() ? Map.of() : new HashMap<>(capturedSourceMetadata)
             );
         }
     }

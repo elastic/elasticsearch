@@ -553,9 +553,31 @@ public class ObjectMapper extends Mapper {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
+                if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new MapperParsingException(
+                        "parameter ["
+                            + STORE_ARRAY_SOURCE_PARAM
+                            + "] is not allowed on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
                 builder.sourceKeepMode(SourceKeepMode.ARRAYS);
                 return true;
             } else if (fieldName.equals(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM)) {
+                if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new MapperParsingException(
+                        "parameter ["
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + "] is not allowed on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
                 builder.sourceKeepMode(SourceKeepMode.from(fieldNode.toString()));
                 return true;
             } else if (fieldName.equals("properties")) {

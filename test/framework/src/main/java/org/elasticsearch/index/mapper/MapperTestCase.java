@@ -570,8 +570,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         for (var field : fields) {
-            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+            assertThat(field.fieldType().indexOptions(), equalTo(defaultDisabledIndexOption()));
         }
+    }
+
+    /**
+     * Most field types default to disabled indexing when IndexSettings.INDEX_DISABLED_BY_DEFAULT is set.
+     * Text-like fields are the notable exception.
+     */
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.NONE;
     }
 
     protected final void assertParseMinimalWarnings() {
@@ -1233,7 +1241,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
-            (ctx, docid) -> Source.fromBytes(doc.source())
+            (ctx, docid) -> Source.fromBytes(doc.source().originalBytes())
         );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {

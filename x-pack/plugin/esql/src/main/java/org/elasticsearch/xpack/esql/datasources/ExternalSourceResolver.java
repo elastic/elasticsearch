@@ -73,9 +73,61 @@ public class ExternalSourceResolver {
 
     static final String CONFIG_SCHEMA_RESOLUTION = "schema_resolution";
 
-    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION);
+    /**
+     * Config key under which {@link DatasetRewriter} stores data-source-level settings
+     * (auth credentials, region, etc.) when building the merged config for a dataset query.
+     * These are kept separate from the dataset format settings so that file-format factories
+     * can validate only the keys they own, and so that credential values are not embedded in
+     * the serialized plan sent to data nodes.
+     */
+    public static final String DATASOURCE_CONFIG_KEY = "_datasource";
+
+    public static final Set<String> CONFIG_KEYS = Set.of(CONFIG_SCHEMA_RESOLUTION, DATASOURCE_CONFIG_KEY);
 
     private static final int MAX_PARALLEL_METADATA_READS = 16;
+
+    /**
+     * Returns a config suitable for passing to a storage provider: merges the {@link #DATASOURCE_CONFIG_KEY}
+     * sub-map (data-source auth/connection settings) into the top level so that the provider can
+     * access credentials. For queries that do not originate from a dataset (no {@code _datasource}
+     * key), the input map is returned unchanged.
+     */
+    static Map<String, Object> storageConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return config;
+        }
+        Object raw = config.get(DATASOURCE_CONFIG_KEY);
+        if (raw == null) {
+            return config;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> datasource = (Map<String, Object>) raw;
+        if (datasource.isEmpty()) {
+            return config;
+        }
+        Map<String, Object> result = new HashMap<>(datasource);
+        config.forEach((k, v) -> {
+            if (DATASOURCE_CONFIG_KEY.equals(k) == false) {
+                result.put(k, v);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Returns a config suitable for embedding in plan nodes: removes the {@link #DATASOURCE_CONFIG_KEY}
+     * sub-map so that credential values (e.g. {@link org.elasticsearch.common.settings.SecureString})
+     * are not serialized with the plan sent to data nodes. The credentials are only needed
+     * at resolution time (handled by {@link #storageConfig}), not at execution time for local sources.
+     */
+    static Map<String, Object> planConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty() || config.containsKey(DATASOURCE_CONFIG_KEY) == false) {
+            return config;
+        }
+        Map<String, Object> result = new HashMap<>(config);
+        result.remove(DATASOURCE_CONFIG_KEY);
+        return result;
+    }
 
     private final Executor executor;
     private final DataSourceModule dataSourceModule;
@@ -134,6 +186,10 @@ public class ExternalSourceResolver {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
+                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
+                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+                        listener.onFailure(e);
+                        return;
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -405,7 +461,7 @@ public class ExternalSourceResolver {
     private StorageProvider resolveProvider(StoragePath storagePath, Map<String, Object> config) {
         StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
         if (config != null && config.isEmpty() == false) {
-            return registry.createProvider(storagePath.scheme(), settings, config);
+            return registry.createProvider(storagePath.scheme(), settings, storageConfig(config));
         }
         return registry.provider(storagePath);
     }
@@ -433,8 +489,9 @@ public class ExternalSourceResolver {
             if (queryConfig != null) {
                 mergedConfig.putAll(queryConfig);
             }
+            mergedConfig.remove(DATASOURCE_CONFIG_KEY);
         } else {
-            mergedConfig = queryConfig != null ? queryConfig : Map.of();
+            mergedConfig = queryConfig != null ? planConfig(queryConfig) : Map.of();
         }
 
         return new ExternalSourceMetadata() {
@@ -704,13 +761,14 @@ public class ExternalSourceResolver {
         @Nullable Map<String, Object> queryConfig
     ) {
         if (metadataConfig == null || metadataConfig.isEmpty()) {
-            return queryConfig != null ? queryConfig : Map.of();
+            return queryConfig != null ? planConfig(queryConfig) : Map.of();
         }
         if (queryConfig == null || queryConfig.isEmpty()) {
             return metadataConfig;
         }
         Map<String, Object> merged = new HashMap<>(metadataConfig);
         merged.putAll(queryConfig);
+        merged.remove(DATASOURCE_CONFIG_KEY);
         return merged;
     }
 
@@ -859,13 +917,21 @@ public class ExternalSourceResolver {
             }
         }
 
+        // Per-query nullability: a partition column is non-nullable when no file in the matched
+        // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
+        // to null in PartitionMetadata#filePartitionValues, so this is precise rather than
+        // pessimistic. The same dataset may yield different nullability across globs depending on
+        // which files match.
+        Set<String> nullableColumns = partitionMetadata.nullablePartitionColumns();
+
         for (Map.Entry<String, DataType> entry : partitionColumns.entrySet()) {
             String name = entry.getKey();
             DataType type = entry.getValue();
+            Nullability nullability = nullableColumns.contains(name) ? Nullability.TRUE : Nullability.FALSE;
             // synthetic=false: partition columns are user-addressable (referenceable in WHERE, STATS BY, EVAL, ...).
             // Marking them synthetic causes AnalyzerRules.maybeResolveAgainstList to skip them during name resolution
             // and produces "Unknown column [X], did you mean [X]?" errors.
-            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
+            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
         }
 
         return withSchema(metadata, List.copyOf(enrichedSchema));
@@ -926,6 +992,7 @@ public class ExternalSourceResolver {
 
         // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params (WITH clause).
         // Query-level params take precedence so users can override connector-resolved values.
+        // Strip _datasource from the stored config so credentials are not serialized with the plan.
         Map<String, Object> mergedConfig;
         Map<String, Object> metadataConfig = metadata.config();
         if (metadataConfig != null && metadataConfig.isEmpty() == false) {
@@ -933,8 +1000,9 @@ public class ExternalSourceResolver {
             if (queryConfig != null) {
                 mergedConfig.putAll(queryConfig);
             }
+            mergedConfig.remove(DATASOURCE_CONFIG_KEY);
         } else {
-            mergedConfig = queryConfig;
+            mergedConfig = planConfig(queryConfig);
         }
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()

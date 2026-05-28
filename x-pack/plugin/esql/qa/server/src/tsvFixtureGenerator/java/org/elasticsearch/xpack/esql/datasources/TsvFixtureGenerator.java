@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
 import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

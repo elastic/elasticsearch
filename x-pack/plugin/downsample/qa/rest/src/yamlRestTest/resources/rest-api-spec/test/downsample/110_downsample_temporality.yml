@@ -1,5 +1,5 @@
 # TODO: guarded by IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG — add a cluster_features
-# requirement and remove the tests.rest.blacklist entry in build.gradle when the flag is lifted.
+# requirement and remove the excludeTestsMatching entry in build.gradle when the flag is lifted.
 
 "Downsample delta temporality counter":
 

@@ -23,8 +23,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -57,7 +57,6 @@ import java.util.function.BooleanSupplier;
  */
 public class ProvidedIdFieldMapper extends IdFieldMapper {
     public static final NodeFeature ID_FIELD_MODE_MAPPING_ATTRIBUTE = new NodeFeature("mapper.id_field.mode_mapping_attribute");
-    public static final FeatureFlag ID_FIELD_MODE_FEATURE_FLAG = new FeatureFlag("id_field_mode");
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ProvidedIdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
@@ -94,7 +93,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (ID_FIELD_MODE_FEATURE_FLAG.isEnabled()) {
+            if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
                 return new Parameter<?>[] { mode };
             } else {
                 return new Parameter<?>[] {};

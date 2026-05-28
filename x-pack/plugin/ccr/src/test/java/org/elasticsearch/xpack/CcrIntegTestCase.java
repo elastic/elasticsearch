@@ -49,9 +49,9 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -175,7 +175,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             )
         );
 
-        if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled()) {
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             mockPlugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
         }
 

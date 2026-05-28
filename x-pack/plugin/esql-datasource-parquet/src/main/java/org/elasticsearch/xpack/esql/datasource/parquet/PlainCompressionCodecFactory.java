@@ -11,8 +11,6 @@ import io.airlift.compress.MalformedInputException;
 import io.airlift.compress.lz4.Lz4Compressor;
 import io.airlift.compress.lz4.Lz4Decompressor;
 
-import com.github.luben.zstd.Zstd;
-
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -273,27 +271,22 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     /**
      * Zstd decompressor.
      *
-     * <p>The hot path — direct→direct decompression invoked by parquet-mr's
-     * {@code ColumnChunkPageReadStore} and our own {@code PrefetchedPageReader} — delegates to
-     * {@link PanamaZstd}, the shared Panama FFI binding that lives in
-     * {@code esql-datasource-compression-libs} (so Iceberg/ORC adopters can route their direct
-     * paths through the same code). This avoids zstd-jni's {@code GetPrimitiveArrayCritical}
-     * pinning on heap byte arrays (a G1GC evacuation-failure source for large column chunks) and
-     * the JNI calling-convention overhead. The Panama API accepts plain direct {@link ByteBuffer}s
-     * with absolute offsets and leaves both buffers' {@code position}/{@code limit} unchanged;
-     * this method advances them itself to match the parquet SPI contract.
+     * <p>Both code paths — the direct→direct hot path invoked by parquet-mr's
+     * {@code ColumnChunkPageReadStore} and our own {@code PrefetchedPageReader}, and the cold
+     * {@code BytesInput}/{@code byte[]} path — delegate to {@link PanamaZstd}, the shared Panama
+     * FFI binding that lives in {@code esql-datasource-compression-libs} (so Iceberg/ORC adopters
+     * can route their direct paths through the same code). This eliminates zstd-jni from the
+     * production runtime classpath entirely. The cold path uses {@code PanamaZstd.decompressHeap}
+     * which is bound with {@code Linker.Option.critical(true)}, so heap segments cross into
+     * libzstd without an off-heap staging copy — equivalent to zstd-jni's
+     * {@code GetPrimitiveArrayCritical} path but without G1's region pinning.
      *
-     * <p>The {@link BytesInput} overload (cold path: {@code byte[]} input, write path) stays on
-     * zstd-jni for now since it has no direct-buffer call site and the public Panama API does not
-     * expose a {@code byte[]} entry point. Removing zstd-jni entirely is blocked on the streaming
-     * decompressor (issue #811).
-     *
-     * <p>If the Panama binding is unavailable on this platform ({@link PanamaZstd#isAvailable()}
-     * returns {@code false}), the direct path drops down to zstd-jni's
-     * {@code decompressDirectByteBuffer} second-tier fallback (preserving the pre-Panama
-     * direct→direct behavior on platforms where {@code libs/native} could not load libzstd),
-     * and only falls all the way through to {@link #decompressViaHeapCopy} when at least one
-     * buffer is heap-backed.
+     * <p>When the Panama binding is unavailable on a platform ({@link PanamaZstd#isAvailable()}
+     * returns {@code false}), both paths fail with the same {@link IllegalStateException} from
+     * {@code PanamaZstd}. The previous second-tier zstd-jni direct-buffer fallback was removed
+     * because by definition libs/native couldn't load libzstd, so the fallback would also fail —
+     * it merely deferred the same error. Aligns with {@code ZstdDecompressionCodec}'s
+     * hard-fail-on-construction stance.
      */
     private static class ZstdBytesDecompressor implements BytesInputDecompressor {
         private final PanamaZstd panamaZstd = PanamaZstd.instance();
@@ -301,17 +294,30 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+            int written;
             try {
-                Zstd.decompress(out, bytes.toByteArray());
+                // BytesInput.toByteArray() may copy or alias depending on the BytesInput
+                // implementation; we accept whatever parquet-mr hands us. The
+                // PanamaZstd.decompressHeap downcall is critical(true), so the heap segments
+                // cross into libzstd with no off-heap staging copy — same behavior as zstd-jni's
+                // GetPrimitiveArrayCritical path, minus the G1 region pinning.
+                written = panamaZstd.decompressHeap(out, bytes.toByteArray());
             } catch (RuntimeException e) {
                 throw new IOException("Zstd decompression failed", e);
+            }
+            // Guard against silent corruption: out is allocated via UninitializedArrays so any
+            // shortfall would leak uninitialized bytes into the BytesInput we hand back.
+            if (written != decompressedSize) {
+                throw new IOException(
+                    "Zstd decompression produced " + written + " bytes, expected " + decompressedSize + " from page header"
+                );
             }
             return BytesInput.from(out);
         }
 
         @Override
         public void decompress(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize) throws IOException {
-            if (panamaZstd.isAvailable() && input.isDirect() && output.isDirect()) {
+            if (input.isDirect() && output.isDirect()) {
                 int inputPos = input.position();
                 int outputPos = output.position();
                 int written;
@@ -327,19 +333,12 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
                 }
                 output.position(outputPos + written);
                 input.position(inputPos + compressedSize);
-            } else if (input.isDirect() && output.isDirect()) {
-                // Panama unavailable but both buffers are direct: keep the pre-Panama zstd-jni
-                // direct path as a second-tier fallback so we don't regress to heap copy on the
-                // (rare) platforms where libs/native could not load libzstd.
-                int inputPos = input.position();
-                int outputPos = output.position();
-                long written = Zstd.decompressDirectByteBuffer(output, outputPos, decompressedSize, input, inputPos, compressedSize);
-                if (Zstd.isError(written)) {
-                    throw new IOException("Zstd decompression failed: " + Zstd.getErrorName(written));
-                }
-                output.position(outputPos + (int) written);
-                input.position(inputPos + compressedSize);
             } else {
+                // At least one buffer is heap-backed: route through the BytesInput/byte[] path
+                // which is now also Panama-backed (see decompress(BytesInput, int) above). The
+                // previous "Panama unavailable, fall back to zstd-jni direct" branch is gone —
+                // if libs/native could not load libzstd, both code paths fail identically, so
+                // the fallback was masking the real failure mode.
                 decompressViaHeapCopy(this, input, compressedSize, output, decompressedSize);
             }
         }
@@ -649,10 +648,26 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     }
 
     private static class ZstdBytesCompressor implements BytesInputCompressor {
+        // Default zstd compression level — matches zstd-jni's Zstd.compress(byte[]) default which
+        // this method previously delegated to. parquet-mr's defaultCompressionCodecFactory uses 3
+        // as well, so we preserve behavior for any caller that constructs a Parquet writer with
+        // this factory. ESQL is a reader in production; this codec is only exercised by tests, but
+        // we keep it on the Panama path so dropping zstd-jni from the implementation classpath is
+        // clean (no orphan call site).
+        private static final int DEFAULT_LEVEL = 3;
+        private final PanamaZstd panamaZstd = PanamaZstd.instance();
+
         @Override
         public BytesInput compress(BytesInput bytes) throws IOException {
             byte[] in = bytes.toByteArray();
-            return BytesInput.from(Zstd.compress(in));
+            byte[] out = new byte[panamaZstd.compressBound(in.length)];
+            int written;
+            try {
+                written = panamaZstd.compressHeap(out, 0, out.length, in, 0, in.length, DEFAULT_LEVEL);
+            } catch (RuntimeException e) {
+                throw new IOException("Zstd compression failed", e);
+            }
+            return BytesInput.from(out, 0, written);
         }
 
         @Override

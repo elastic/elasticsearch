@@ -42,6 +42,9 @@ public final class Messages {
         "[scroll_size] cannot be used in combination with [esql_query]; ESQL datafeeds do not use the scroll API";
     public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_INDICES_OPTIONS =
         "[indices_options] cannot be used in combination with [esql_query]; ESQL does not accept indices options";
+    public static final String DATAFEED_CONFIG_ESQL_INCOMPATIBLE_WITH_CHUNKING_OFF =
+        "[chunking_config] mode [off] cannot be used in combination with [esql_query]; "
+            + "ES|QL responses are size-capped so chunking is required to retrieve all results";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";

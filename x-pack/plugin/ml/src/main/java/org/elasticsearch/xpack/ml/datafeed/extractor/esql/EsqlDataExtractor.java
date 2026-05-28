@@ -124,9 +124,15 @@ public class EsqlDataExtractor implements DataExtractor {
 
         QueryBuilder timeFilter = new RangeQueryBuilder(context.timeField()).gte(context.start()).lt(context.end()).format(EPOCH_MILLIS);
 
+        // Anomaly detection drops records that arrive out of time order
+        // (AbstractDataToProcessWriter#transformTimeAndWrite). ES|QL gives no row
+        // ordering unless the query has an explicit SORT, so append one on the
+        // time field. A trailing SORT overrides any user-supplied SORT, which is
+        // the intended behavior for AD ingest.
+        String orderedQuery = context.esqlQuery() + " | SORT `" + context.timeField() + "` ASC";
         EsqlQueryRequestBuilder<? extends EsqlQueryRequest, ? extends EsqlQueryResponse> request = EsqlQueryRequestBuilder
             .newRequestBuilder(client)
-            .query(context.esqlQuery())
+            .query(orderedQuery)
             .filter(timeFilter);
 
         try (EsqlQueryResponse response = execute(request)) {

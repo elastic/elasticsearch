@@ -203,7 +203,7 @@ public final class Utils {
                     2,
                     4,
                     () -> ESTestCase.randomBoolean()
-                        ? new InferenceString(DataType.TEXT, ESTestCase.randomAlphaOfLengthBetween(5, 10))
+                        ? InferenceString.ofText(ESTestCase.randomAlphaOfLengthBetween(5, 10))
                         : new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8=")
                 )
             );

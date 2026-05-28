@@ -405,6 +405,11 @@ public enum IndexMode {
         }
 
         @Override
+        public boolean isSupportedBy(TransportVersion version) {
+            return version.supports(COLUMNAR_INDEX_MODES_ADDED);
+        }
+
+        @Override
         public void validateMapping(MappingLookup lookup) {}
 
         @Override
@@ -490,6 +495,11 @@ public enum IndexMode {
             if (setting.equals(Boolean.FALSE)) {
                 validateRoutingPathSettings(settings);
             }
+        }
+
+        @Override
+        public boolean isSupportedBy(TransportVersion version) {
+            return version.supports(COLUMNAR_INDEX_MODES_ADDED);
         }
 
         @Override
@@ -581,6 +591,11 @@ public enum IndexMode {
     VECTORDB_DOCUMENT("vectordb_document") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
+
+        @Override
+        public boolean isSupportedBy(TransportVersion version) {
+            return version.supports(VECTORDB_DOCUMENT_INDEX_MODE);
+        }
 
         @Override
         public void validateMapping(MappingLookup lookup) {}
@@ -713,6 +728,15 @@ public enum IndexMode {
     public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
     public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
     public static final FeatureFlag VECTORDB_FEATURE_FLAG = new FeatureFlag("vectordb_document_index_mode");
+
+    /**
+     * Returns whether this index mode can be serialized to a node running the given transport version.
+     * Mirrors the guards in {@link #writeTo} but as a filter rather than a throw.
+     * Feature-gated modes override this to check their minimum transport version.
+     */
+    public boolean isSupportedBy(TransportVersion version) {
+        return true;
+    }
 
     /**
      * Returns only the index modes that are available in the current build.

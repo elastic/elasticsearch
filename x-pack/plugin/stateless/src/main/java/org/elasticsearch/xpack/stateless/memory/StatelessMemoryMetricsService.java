@@ -270,12 +270,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         return nodeIdToHeapUsage;
     }
 
-    public long getIndexMemoryOverhead() {
-        return INDEX_MEMORY_OVERHEAD * totalIndices;
-    }
-
     public long getNodeBaseHeapEstimateInBytes() {
-        return getIndexMemoryOverhead() + workloadMemoryOverhead;
+        return INDEX_MEMORY_OVERHEAD * totalIndices + workloadMemoryOverhead;
     }
 
     // Visible for testing

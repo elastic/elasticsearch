@@ -180,6 +180,7 @@ public final class CalibrationUtils {
         @Override
         public float[] vectorValue(int ord) throws IOException {
             float[] v = delegate.vectorValue(ord);
+            System.arraycopy(v, 0, buffer, 0, dim);
             double normSq = ESVectorUtil.dotProduct(v, v);
             buffer[dim] = (float) Math.sqrt(Math.max(0.0, maxNormSq - normSq));
             return buffer;

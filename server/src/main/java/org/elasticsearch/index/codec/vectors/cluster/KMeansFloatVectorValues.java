@@ -42,10 +42,13 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
     }
 
     /**
-     * Wraps an existing {@link FloatVectorValues} and an ordinal mapping so that
-     * {@code vectorValue(i)} delegates to {@code fvv.vectorValue(ordinals[i])}.
-     * This avoids materializing a {@code float[][]} when only a subset of vectors
-     * from the original source is needed (e.g. for k-means clustering on a sample).
+     * Wraps an existing {@link FloatVectorValues} and an ordinal mapping for clustering (e.g. k-means on a
+     * calibration sample). Local ordinal {@code i} maps to {@code fvv.vectorValue(ordinals[i])} without
+     * materializing a {@code float[][]}.
+     * <p>
+     * Returned vectors follow the delegate's reuse contract: the {@code float[]} from {@link #vectorValue(int)}
+     * must not be retained across a later {@code vectorValue} call on this instance. Clustering code satisfies
+     * that contract; callers that need a stable copy must copy themselves.
      */
     public static KMeansFloatVectorValues wrap(FloatVectorValues fvv, int[] ordinals) {
         VectorSupplier supplier = new FloatVectorValuesSupplier(fvv, ordinals);
@@ -56,6 +59,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
      * Like {@link #wrap(FloatVectorValues, int[])} but only the first {@code length} ordinals are used
      * (local ordinals {@code 0 .. length-1} map to {@code fvv.vectorValue(ordinals[i])}).
      * Reuses the backing {@code ordinals} array without copying when a prefix of the full corpus is needed.
+     * See {@link #wrap(FloatVectorValues, int[])} for vector reuse semantics.
      */
     public static KMeansFloatVectorValues wrap(FloatVectorValues fvv, int[] ordinals, int length) {
         if (length < 0 || length > ordinals.length) {
@@ -202,9 +206,9 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
     }
 
     /**
-     * Adapts a {@link FloatVectorValues} plus an ordinal mapping into a {@link VectorSupplier}.
-     * Local ordinal {@code i} maps to {@code fvv.vectorValue(ordinals[i])}.
-     * The returned vector is cloned to avoid sharing the internal buffer.
+     * Adapts a {@link FloatVectorValues} plus an ordinal mapping into a {@link VectorSupplier} for clustering.
+     * Local ordinal {@code i} maps to {@code fvv.vectorValue(ordinals[i])}. The returned array is the delegate's
+     * buffer and may be reused on the next access; do not retain it across subsequent {@code vector} calls.
      */
     private static final class FloatVectorValuesSupplier implements VectorSupplier {
 
@@ -218,7 +222,7 @@ public final class KMeansFloatVectorValues extends ClusteringFloatVectorValues {
 
         @Override
         public float[] vector(int ord) throws IOException {
-            return fvv.vectorValue(ordinals[ord]).clone();
+            return fvv.vectorValue(ordinals[ord]);
         }
 
         @Override

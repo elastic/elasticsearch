@@ -82,6 +82,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
+    private final RecoveryMetricsCollector metrics;
 
     // TODO: make this value dynamic once we register `INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING`
     private final int maxConcurrentOutgoingRecoveries;
@@ -94,7 +95,8 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         IndicesService indicesService,
         ClusterService clusterService,
         RecoverySettings recoverySettings,
-        RecoveryPlannerService recoveryPlannerService
+        RecoveryPlannerService recoveryPlannerService,
+        RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
@@ -104,6 +106,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         this.maxConcurrentOutgoingRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_OUTGOING_RECOVERIES_SETTING.get(
             clusterService.getSettings()
         );
+        this.metrics = recoveryMetricsCollector;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -227,7 +230,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         ongoingRecoveries.reestablishRecovery(request, shard, listener);
     }
 
-    // TODO: add actual OTel metrics for how many recoveries are queued vs active. RecoveryStats are only exposed via REST calls.
     final class OngoingRecoveries {
 
         private final Map<IndexShard, ShardRecoveryContext> activeRecoveries = new HashMap<>();
@@ -265,6 +267,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return addNewRecovery(request, task, shard);
             }
             shard.recoveryStats().incCurrentAsSourceQueued();
+            metrics.outgoingPeerRecoveryEnqueued();
             // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
             final var subscribableListener = new SubscribableListener<RecoveryResponse>();
             subscribableListener.addListener(listener);
@@ -276,12 +279,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             assert Thread.holdsLock(this);
             assert lifecycle.started();
             assert activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries;
-            activeRecoveryHandlerCount++;
             final ShardRecoveryContext shardContext = activeRecoveries.computeIfAbsent(shard, s -> new ShardRecoveryContext());
             final Tuple<RecoverySourceHandler, RemoteRecoveryTargetHandler> handlers = shardContext.addNewRecovery(request, task, shard);
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
             nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new HashSet<>()).add(recoveryTargetHandler);
+            activeRecoveryHandlerCount++;
             shard.recoveryStats().incCurrentAsSource();
+            metrics.outgoingPeerRecoveryStarted();
             return handlers.v1();
         }
 
@@ -349,6 +353,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     assert activeRecoveryHandlerCount == maxConcurrentOutgoingRecoveries - 1;
                     nextRecovery = pendingRecoveries.poll();
                     nextRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
+                    metrics.outgoingPeerRecoveryDequeued();
                     nextHandler = addNewRecovery(nextRecovery.request(), nextRecovery.task(), nextRecovery.shard());
                 } else {
                     nextHandler = null;
@@ -395,6 +400,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (removed != null) {
                 activeRecoveryHandlerCount--;
                 shard.recoveryStats().decCurrentAsSource();
+                metrics.outgoingPeerRecoveryCompleted();
                 removed.cancel();
                 assert nodeToHandlers.getOrDefault(removed.targetNode(), Collections.emptySet()).contains(removed)
                     : "Remote recovery was not properly tracked [" + removed + "]";
@@ -493,6 +499,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             pendingRecoveries.removeIf(pendingRecovery -> {
                 if (predicate.test(pendingRecovery)) {
                     pendingRecovery.shard().recoveryStats().decCurrentAsSourceQueued();
+                    metrics.outgoingPeerRecoveryDequeued();
                     cancelled.add(pendingRecovery);
                     return true;
                 }

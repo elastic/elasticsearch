@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -27,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -173,6 +175,53 @@ public class SchemaUtilTests extends ESTestCase {
         }
     }
 
+    public void testGetSourceFieldMappingsIncludesProjectRouting() throws InterruptedException {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        String projectRouting = "_alias:_origin";
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new SourceConfig(
+                        new String[] { "index-1" },
+                        QueryConfig.matchAll(),
+                        emptyMap(),
+                        IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+                        projectRouting
+                    ),
+                    new String[] { "field-1" },
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(client.lastFieldCapsRequest);
+                    assertThat(client.lastFieldCapsRequest.getProjectRouting(), is(equalTo(projectRouting)));
+                    assertThat(client.lastFieldCapsRequest.indicesOptions(), is(equalTo(IndicesOptions.CPS_LENIENT_EXPAND_OPEN)));
+                }
+            );
+        }
+    }
+
+    public void testGetSourceFieldMappingsWithoutProjectRouting() throws InterruptedException {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new SourceConfig(new String[] { "index-1" }),
+                    new String[] { "field-1" },
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(client.lastFieldCapsRequest);
+                    assertNull(client.lastFieldCapsRequest.getProjectRouting());
+                }
+            );
+        }
+    }
+
     public void testIsNumericType() {
         assertFalse(SchemaUtil.isNumericType(null));
         assertFalse(SchemaUtil.isNumericType("non-existing"));
@@ -259,6 +308,7 @@ public class SchemaUtilTests extends ESTestCase {
     private static class FieldCapsMockClient extends NoOpClient {
 
         private final Set<String> fieldsWithoutMappings;
+        volatile FieldCapabilitiesRequest lastFieldCapsRequest;
 
         FieldCapsMockClient(ThreadPool threadPool, Set<String> fieldsWithoutMappings) {
             super(threadPool);
@@ -273,6 +323,7 @@ public class SchemaUtilTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
+                lastFieldCapsRequest = fieldCapsRequest;
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
                     if (fieldsWithoutMappings.contains(field)) {

@@ -34,16 +34,23 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();
 
-        boolean fromDocValues = hasDocValues && useDocValues;
-
-        if (value instanceof List<?> == false) {
-            return convert(value, nullValue, fieldMapping, fromDocValues);
+        ValueSource source;
+        if (hasDocValues && useDocValues) {
+            source = ValueSource.DOC_VALUES;
+        } else if (params.syntheticSource()) {
+            source = ValueSource.IGNORED_SOURCE;
+        } else {
+            source = ValueSource.STORED_SOURCE;
         }
 
-        if (fromDocValues) {
+        if (value instanceof List<?> == false) {
+            return convert(value, nullValue, fieldMapping, source);
+        }
+
+        if (source == ValueSource.DOC_VALUES) {
             // Sorted
             var resultList = ((List<Object>) value).stream()
-                .map(v -> convert(v, nullValue, fieldMapping, true))
+                .map(v -> convert(v, nullValue, fieldMapping, source))
                 .filter(Objects::nonNull)
                 .sorted()
                 .toList();
@@ -52,13 +59,19 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
         // parsing from source
         var resultList = ((List<Object>) value).stream()
-            .map(v -> convert(v, nullValue, fieldMapping, false))
+            .map(v -> convert(v, nullValue, fieldMapping, source))
             .filter(Objects::nonNull)
             .toList();
         return maybeFoldList(resultList);
     }
 
-    private T convert(Object value, T nullValue, Map<String, Object> fieldMapping, boolean fromDocValues) {
+    private enum ValueSource {
+        DOC_VALUES,
+        IGNORED_SOURCE,
+        STORED_SOURCE
+    }
+
+    private T convert(Object value, T nullValue, Map<String, Object> fieldMapping, ValueSource valueSource) {
         switch (value) {
             case null -> {
                 return nullValue;
@@ -71,7 +84,10 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
                 }
                 // Attempt to parse the string as a number. If that fails, the string is malformed, so return null.
                 // The two code paths in the mapper use different parsers, so we delegate to the appropriate method.
-                Number parsed = fromDocValues ? tryParseString(s) : tryParseStringFromSource(s);
+                Number parsed = switch (valueSource) {
+                    case DOC_VALUES, IGNORED_SOURCE -> tryParseString(s);
+                    case STORED_SOURCE -> tryParseStringFromSource(s);
+                };
                 if (parsed != null) {
                     return convert(parsed, fieldMapping);
                 }

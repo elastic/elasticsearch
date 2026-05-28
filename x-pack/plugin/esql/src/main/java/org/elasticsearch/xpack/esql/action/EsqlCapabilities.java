@@ -1257,6 +1257,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
+         * (from a subquery in FROM) or a {@code Fork}.
+         */
+        SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

@@ -475,14 +475,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
+        assert useColumnarSource == false || syntheticRecovery : "columnar_stored source requires synthetic recovery source";
+
         if (syntheticRecovery) {
-            assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+            assert isSynthetic() || isColumnarStored() : "Recovery source should not be disabled for non-synthetic sources";
             // Synthetic source recovery is enabled; omit the full recovery source.
             // Instead, store only the size of the uncompressed original source.
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
-        } else if (stored() == false || useColumnarSource || adaptedStoredSource != storedSource) {
+        } else if (stored() == false || adaptedStoredSource != storedSource) {
             // If the source is missing (due to synthetic source, columnar_stored, or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.

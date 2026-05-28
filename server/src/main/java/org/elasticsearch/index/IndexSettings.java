@@ -48,7 +48,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -909,10 +908,12 @@ public final class IndexSettings {
                 .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
 
             boolean useSyntheticRecoverySource = isNewIndexVersion || isIndexVersionInBackportRange;
-            return String.valueOf(
-                useSyntheticRecoverySource
-                    && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)
-            );
+
+            var sourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
+            boolean sourceModeDefault = sourceMode == SourceFieldMapper.Mode.SYNTHETIC
+                || sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+
+            return String.valueOf(useSyntheticRecoverySource && sourceModeDefault);
 
         },
         new Setting.Validator<>() {

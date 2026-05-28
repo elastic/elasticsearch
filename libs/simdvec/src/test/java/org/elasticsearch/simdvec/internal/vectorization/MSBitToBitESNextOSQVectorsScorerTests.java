@@ -16,7 +16,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.nativeaccess.BBQTestUtils;
 import org.elasticsearch.simdvec.ES940OSQVectorsScorer;
-import org.elasticsearch.simdvec.internal.vectorization.MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -62,7 +61,6 @@ public class MSBitToBitESNextOSQVectorsScorerTests extends ESTestCase {
     }
 
     public void testSymmetric1BitDotProductMatchesNativeWhenSupported() throws IOException {
-        assumeTrue("native scorer not available", MemorySegmentScorer.NATIVE_SUPPORTED);
 
         int dims = random().nextInt(1, 64) * 8;
         int length = BBQTestUtils.numBytes(dims, 1);
@@ -86,15 +84,14 @@ public class MSBitToBitESNextOSQVectorsScorerTests extends ESTestCase {
                 out.writeBytes(doc, 0, doc.length);
             }
             try (IndexInput in = dir.openInput("v.bin", IOContext.DEFAULT)) {
-                var nativeScorer = new MemorySegmentES940OSQVectorsScorer(
+                var nativeScorer = MemorySegmentES940OSQVectorsScorer.usingNative(
                     in,
                     (byte) 1,
                     (byte) 1,
                     dims,
                     length,
                     ES940OSQVectorsScorer.BULK_SIZE,
-                    ES940OSQVectorsScorer.BitEncoding.STRIPED,
-                    true
+                    ES940OSQVectorsScorer.BitEncoding.STRIPED
                 );
                 assertEquals(expected, nativeScorer.quantizeScore(query));
             }

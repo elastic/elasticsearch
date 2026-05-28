@@ -751,3 +751,184 @@ increase_bytes_in:double | rate_bytes_in:double | time_bucket:datetime
 27.0                     | 0.045                | 2024-05-09T23:40:00.000Z
 0.0                      | 0.045                | 2024-05-09T23:50:00.000Z
 ;
+
+// Verify that ::counter produces a counter type that rate() accepts.
+// network.total_bytes_in is already counter_long, so ::counter is a no-op — same result as
+// rate(network.total_bytes_in). In practice, ::counter is useful when a field was misclassified
+// as a plain numeric type (long/integer/double) instead of its counter equivalent.
+rateOnToCounterCastNoop
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+//tag::toCounter[]
+TS k8s
+| STATS rate_bytes_in=avg(rate(network.total_bytes_in::counter)) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
+| SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
+//end::toCounter[]
+
+//tag::toCounter-result[]
+rate_bytes_in:double | time_bucket:datetime
+26.69853             | 2024-05-10T00:04:00.000Z
+25.238823            | 2024-05-10T00:20:00.000Z
+22.148003            | 2024-05-10T00:01:00.000Z
+19.281831            | 2024-05-10T00:19:00.000Z
+18.744102            | 2024-05-10T00:11:00.000Z
+17.752681            | 2024-05-10T00:17:00.000Z
+16.945882            | 2024-05-10T00:10:00.000Z
+16.65479             | 2024-05-10T00:07:00.000Z
+15.773894            | 2024-05-10T00:18:00.000Z
+15.515104            | 2024-05-10T00:00:00.000Z
+;
+//end::toCounter-result[]
+
+// Same as above using the to_counter() function form, grouped by cluster.
+// network.total_bytes_in is already counter_long, so to_counter() is a no-op here.
+rateOnToCounterFunctionNoopGrouped
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+TS k8s
+| STATS rate_bytes_in=avg(rate(to_counter(network.total_bytes_in))) BY cluster, time_bucket = bucket(@timestamp,5minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
+| SORT rate_bytes_in DESC, time_bucket, cluster | LIMIT 10;
+
+rate_bytes_in:double | cluster:keyword | time_bucket:datetime
+25.832433            | prod            | 2024-05-10T00:20:00.000Z
+15.4274              | qa              | 2024-05-10T00:15:00.000Z
+13.765487            | qa              | 2024-05-10T00:05:00.000Z
+12.73738             | prod            | 2024-05-10T00:15:00.000Z
+8.152119             | qa              | 2024-05-10T00:20:00.000Z
+7.822212             | qa              | 2024-05-10T00:10:00.000Z
+7.535957             | prod            | 2024-05-10T00:10:00.000Z
+7.169543             | staging         | 2024-05-10T00:05:00.000Z
+6.830557             | staging         | 2024-05-10T00:10:00.000Z
+6.021526             | staging         | 2024-05-10T00:15:00.000Z
+;
+
+// Round-trip: strip counter semantics with to_long(), then re-apply with ::counter.
+// Results must be identical to rateOnToCounterCastNoop (same underlying data).
+rateOnToCounterCastRoundTrip
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+TS k8s
+| STATS rate_bytes_in=avg(rate(to_long(network.total_bytes_in)::counter)) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
+| SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
+
+rate_bytes_in:double | time_bucket:datetime
+26.69853             | 2024-05-10T00:04:00.000Z
+25.238823            | 2024-05-10T00:20:00.000Z
+22.148003            | 2024-05-10T00:01:00.000Z
+19.281831            | 2024-05-10T00:19:00.000Z
+18.744102            | 2024-05-10T00:11:00.000Z
+17.752681            | 2024-05-10T00:17:00.000Z
+16.945882            | 2024-05-10T00:10:00.000Z
+16.65479             | 2024-05-10T00:07:00.000Z
+15.773894            | 2024-05-10T00:18:00.000Z
+15.515104            | 2024-05-10T00:00:00.000Z
+;
+
+// Same round-trip using the to_counter() function form, grouped by cluster.
+// Results must be identical to rateOnToCounterFunctionNoopGrouped (same underlying data).
+rateOnToCounterFunctionRoundTripGrouped
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+TS k8s
+| STATS rate_bytes_in=avg(rate(to_counter(to_long(network.total_bytes_in)))) BY cluster, time_bucket = bucket(@timestamp,5minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, cluster, time_bucket
+| SORT rate_bytes_in DESC, time_bucket, cluster | LIMIT 10;
+
+rate_bytes_in:double | cluster:keyword | time_bucket:datetime
+25.832433            | prod            | 2024-05-10T00:20:00.000Z
+15.4274              | qa              | 2024-05-10T00:15:00.000Z
+13.765487            | qa              | 2024-05-10T00:05:00.000Z
+12.73738             | prod            | 2024-05-10T00:15:00.000Z
+8.152119             | qa              | 2024-05-10T00:20:00.000Z
+7.822212             | qa              | 2024-05-10T00:10:00.000Z
+7.535957             | prod            | 2024-05-10T00:10:00.000Z
+7.169543             | staging         | 2024-05-10T00:05:00.000Z
+6.830557             | staging         | 2024-05-10T00:10:00.000Z
+6.021526             | staging         | 2024-05-10T00:15:00.000Z
+;
+
+// Verify that ::counter is a no-op on a counter_double field.
+// network.total_cost is already counter_double, so ::counter is idempotent — same result as
+// rate(network.total_cost). Results must match avg_rate_cost from rate_combined_avg.
+rateOnToCounterCastNoopDouble
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+TS k8s
+| STATS rate_cost=avg(rate(network.total_cost::counter)) BY cluster, time_bucket = bucket(@timestamp,10minute)
+| EVAL rate_cost=ROUND(rate_cost, 6) | KEEP rate_cost, cluster, time_bucket
+| SORT rate_cost DESC, time_bucket, cluster | LIMIT 10;
+
+rate_cost:double | cluster:keyword | time_bucket:datetime
+0.147035         | qa              | 2024-05-10T00:00:00.000Z
+0.140924         | qa              | 2024-05-10T00:10:00.000Z
+0.101357         | prod            | 2024-05-10T00:10:00.000Z
+0.087142         | prod            | 2024-05-10T00:00:00.000Z
+0.08109          | staging         | 2024-05-10T00:00:00.000Z
+0.079398         | qa              | 2024-05-10T00:20:00.000Z
+0.077014         | staging         | 2024-05-10T00:10:00.000Z
+0.026226         | staging         | 2024-05-10T00:20:00.000Z
+0.020462         | prod            | 2024-05-10T00:20:00.000Z
+;
+
+// Round-trip for double: strip counter_double with to_double(), then re-apply with to_counter().
+// Results must be identical to rateOnToCounterCastNoopDouble (same underlying data).
+rateOnToCounterFunctionRoundTripGroupedDouble
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+TS k8s
+| STATS rate_cost=avg(rate(to_counter(to_double(network.total_cost)))) BY cluster, time_bucket = bucket(@timestamp,10minute)
+| EVAL rate_cost=ROUND(rate_cost, 6) | KEEP rate_cost, cluster, time_bucket
+| SORT rate_cost DESC, time_bucket, cluster | LIMIT 10;
+
+rate_cost:double | cluster:keyword | time_bucket:datetime
+0.147035         | qa              | 2024-05-10T00:00:00.000Z
+0.140924         | qa              | 2024-05-10T00:10:00.000Z
+0.101357         | prod            | 2024-05-10T00:10:00.000Z
+0.087142         | prod            | 2024-05-10T00:00:00.000Z
+0.08109          | staging         | 2024-05-10T00:00:00.000Z
+0.079398         | qa              | 2024-05-10T00:20:00.000Z
+0.077014         | staging         | 2024-05-10T00:10:00.000Z
+0.026226         | staging         | 2024-05-10T00:20:00.000Z
+0.020462         | prod            | 2024-05-10T00:20:00.000Z
+;
+
+// Round-trip for integer: counter_long → long → integer → counter_integer, testing the integer
+// input path of to_counter. Test data values fit in int32, so rate is identical to the long round-trip.
+// Results must be identical to rateOnToCounterCastNoop (same underlying data, no overflow).
+rateOnToCounterCastRoundTripInteger
+required_capability: rate_with_interpolation_v2
+required_capability: ts_command_v0
+required_capability: to_counter
+
+TS k8s
+| STATS rate_bytes_in=avg(rate(to_integer(to_long(network.total_bytes_in))::counter)) BY time_bucket = bucket(@timestamp,1minute)
+| EVAL rate_bytes_in=ROUND(rate_bytes_in, 6) | KEEP rate_bytes_in, time_bucket
+| SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
+
+rate_bytes_in:double | time_bucket:datetime
+26.69853             | 2024-05-10T00:04:00.000Z
+25.238823            | 2024-05-10T00:20:00.000Z
+22.148003            | 2024-05-10T00:01:00.000Z
+19.281831            | 2024-05-10T00:19:00.000Z
+18.744102            | 2024-05-10T00:11:00.000Z
+17.752681            | 2024-05-10T00:17:00.000Z
+16.945882            | 2024-05-10T00:10:00.000Z
+16.65479             | 2024-05-10T00:07:00.000Z
+15.773894            | 2024-05-10T00:18:00.000Z
+15.515104            | 2024-05-10T00:00:00.000Z
+;

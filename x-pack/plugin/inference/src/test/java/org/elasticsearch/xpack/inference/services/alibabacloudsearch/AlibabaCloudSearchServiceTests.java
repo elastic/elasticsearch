@@ -533,8 +533,8 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var inputTwo = randomAlphanumericOfLength(8);
             var query = randomAlphanumericOfLength(8);
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 null,
                 null,
                 null

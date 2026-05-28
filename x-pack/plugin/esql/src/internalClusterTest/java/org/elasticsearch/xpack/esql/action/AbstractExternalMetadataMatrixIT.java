@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -176,17 +177,24 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
 
-            // Sorted by emp_no (1,2,3), so the rows line up with file-local offsets 0,1,2 regardless
-            // of whether the reader emits its own _rowPosition (Parquet) or the per-file counter does.
+            // _id is <location>:<token>, where <token> is an opaque, stable, per-record reference.
+            // Its form is format-defined and intentionally NOT uniform across readers: columnar
+            // formats (Parquet/ORC) emit a file-global row index, text formats emit a file-global
+            // byte offset, etc. So we assert the contract — same location prefix, distinct, parseable
+            // non-negative longs, strictly increasing in file order (rows are sorted by emp_no, which
+            // matches file order in the canonical fixture) — not specific values like 0,1,2.
             List<String> ids = new ArrayList<>();
             for (List<Object> row : rows) {
                 ids.add(row.get(1).toString());
             }
-            for (int i = 0; i < ids.size(); i++) {
-                String id = ids.get(i);
+            long previousToken = -1;
+            for (String id : ids) {
                 int sep = id.lastIndexOf(':');
                 assertThat("rendered _id [" + id + "] must contain a location:offset separator", sep, greaterThan(0));
-                assertThat("file-local row offset", id.substring(sep + 1), equalTo(Integer.toString(i)));
+                long token = Long.parseLong(id.substring(sep + 1));
+                assertThat("record token must be non-negative", token, greaterThanOrEqualTo(0L));
+                assertThat("record tokens must strictly increase in file order, got [" + id + "]", token, greaterThan(previousToken));
+                previousToken = token;
             }
             String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
             for (String id : ids) {

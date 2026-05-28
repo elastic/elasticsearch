@@ -1432,9 +1432,19 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private boolean shouldRecordOffset(DocumentParserContext context) {
-        return offsetsFieldName != null && context.isImmediateParentAnArray()
-        // canAddIgnoreField is for source_keep_mode
-            && (context.canAddIgnoredField() || (docValuesParameters.multiValue() && indexSettings.getMode().isColumnar()));
+        if (offsetsFieldName == null) {
+            return false;
+        }
+
+        // Columnar mode relies solely on offsets for array order reconstruction. Record an offset for every indexed value so the offset
+        // slots remain aligned with the sorted-set ords during decode, regardless of whether the value's immediate parent was an array.
+        if (docValuesParameters.multiValue() && indexSettings.getMode().isStrictColumnar()) {
+            return true;
+        }
+
+        // synthetic_source_keep=arrays path: only record when the value's immediate parent is an array, since out-of-array values are
+        // captured by _ignored_source.
+        return context.isImmediateParentAnArray() && context.canAddIgnoredField();
     }
 
     @Override

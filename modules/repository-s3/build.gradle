@@ -62,6 +62,7 @@ dependencies {
 
   testImplementation project(':test:fixtures:s3-fixture')
   testImplementation "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  testImplementation project(':test:fixtures:tls-utils')
 
   internalClusterTestImplementation project(':test:fixtures:aws-fixture-utils')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
@@ -71,6 +72,7 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  yamlRestTestImplementation project(':test:fixtures:tls-utils')
   yamlRestTestImplementation project(':test:framework')
   yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 
@@ -81,6 +83,7 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:minio-fixture')
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
   javaRestTestImplementation project(':test:fixtures:testcontainer-utils')
+  javaRestTestImplementation project(':test:fixtures:tls-utils')
   javaRestTestImplementation project(':test:framework')
   javaRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
 }

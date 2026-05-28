@@ -9,7 +9,6 @@
 
 package org.elasticsearch.workloadidentity;
 
-import org.apache.http.ConnectionReuseStrategy;
 import org.apache.http.HttpResponse;
 import org.apache.http.nio.conn.ManagedNHttpClientConnection;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;

@@ -58,7 +58,7 @@ public class CohereRerankModel extends CohereModel {
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereRerankServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((CohereRerankServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
     }
 

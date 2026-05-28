@@ -1,0 +1,69 @@
+[[release-notes-8.19.16]]
+== {es} version 8.19.16
+
+coming[8.19.16]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.16]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Fix auto_date_histogram/date_histogram inside a global agg {es-pull}147427[#147427] (issue: {es-issue}92570[#92570])
+* Fix `ArrayIndexOutOfBoundsException` in `date_histogram` with `hard_bounds` outside data {es-pull}148765[#148765] (issue: {es-issue}148763[#148763])
+
+CCR::
+* Fix CCR follow to handle `indexing_complete` race {es-pull}145304[#145304]
+
+Distributed::
+* Fix `FsBlobContainer.moveBlobAtomic` fallback on CIFS filesystems {es-pull}148777[#148777] (issue: {es-issue}148811[#148811])
+* Fix race in FsBlobContainer.moveBlobAtomic by replacing move op with hard link {es-pull}147405[#147405] (issue: {es-issue}147171[#147171])
+
+ES|QL::
+* Create new block when filter `OrdinalBytesRefBlock` {es-pull}136444[#136444] (issue: {es-issue}136423[#136423])
+* Deep copy `BytesRef` when creating a constant vector block {es-pull}141242[#141242] (issues: {es-issue}140615[#140615], {es-issue}140809[#140809], {es-issue}140621[#140621])
+* Do not enable doc-partitioning for count {es-pull}143544[#143544] (issue: {es-issue}134512[#134512])
+* Fix ArrayIndexOutOfBoundsException in centroid grouping evaluateFinal {es-pull}148815[#148815] (issue: {es-issue}141318[#141318])
+* Fix FROM *_logs index name validation {es-pull}149395[#149395] (issue: {es-issue}146073[#146073])
+* Fix `_index` LIKE with ? wildcard {es-pull}147462[#147462] (issue: {es-issue}146364[#146364])
+* Fix alias id when drop all aggregates {es-pull}135247[#135247]
+* Use search threadpool for coordination in ES|QL {es-pull}149034[#149034]
+
+Inference::
+* [Inference API] Fixing potential NPE if `InferenceContext` is null {es-pull}148921[#148921]
+
+Infra/Core::
+* Fix potential OOME on `SearchResponse#toString()` for extemely large responses {es-pull}147267[#147267]
+* Use `toTruncatedString` in chunked objects `toString` {es-pull}147860[#147860] (issue: {es-issue}143694[#143694])
+
+Infra/Node Lifecycle::
+* Fix readiness edge case on startup {es-pull}140791[#140791] (issue: {es-issue}136955[#136955])
+
+SQL::
+* Fix REPLACE with empty pattern {es-pull}148616[#148616]
+
+Search::
+* Fix: correctly serialise sparse field pruning options in mixed cluster scenarios {es-pull}147823[#147823]
+* Pass `CircuitBreakingException` through `SearchExecutionContext#toQuery` {es-pull}148607[#148607]
+
+Transform::
+* Exclude clusters in license check {es-pull}143146[#143146] (issues: {es-issue}114514[#114514], {es-issue}114509[#114509])
+* Only run next search once {es-pull}148268[#148268] (issue: {es-issue}147716[#147716])
+* Propagate deprecation warnings {es-pull}147934[#147934] (issues: {es-issue}82935[#82935], {es-issue}82936[#82936])
+
+Watcher::
+* Clear watch schedules when starting trigger engine {es-pull}145325[#145325] (issues: {es-issue}137562[#137562], {es-issue}131964[#131964])
+* Fix race in `TickerScheduleTriggerEngine` by checking watcher to node allocation {es-pull}147678[#147678] (issue: {es-issue}146874[#146874])
+
+[[upgrade-8.19.16]]
+[float]
+=== Upgrades
+
+Infra/Logging::
+* Upgrade to log4j 2.26.0 {es-pull}132166[#132166] (issue: {es-issue}132035[#132035])
+
+Security::
+* Update elastic-apm-agent-java8 to 1.55.6 {es-pull}148271[#148271]
+
+

@@ -309,6 +309,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle scoring that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot fold constant_keyword fields",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_CONSTANT_KEYWORD.capabilityName())
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(

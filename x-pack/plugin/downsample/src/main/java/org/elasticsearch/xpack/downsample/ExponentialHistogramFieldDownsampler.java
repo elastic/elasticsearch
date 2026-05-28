@@ -74,7 +74,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             merger = null;
         }
 
@@ -95,6 +95,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
             }
             ExponentialHistogram value = docValues.histogramValue();
             merger.add(value);
+            state = State.IN_PROGRESS;
         }
     }
 
@@ -111,15 +112,14 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
-            isDone = false;
+            state = State.EMPTY;
             lastValue = null;
         }
 
         @Override
         public void collectCurrentValues(ExponentialHistogramValuesReader docValues) throws IOException {
             lastValue = docValues.histogramValue();
-            isDone = true;
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override

@@ -101,11 +101,12 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
             while (sketch.next()) {
                 tDigestState.add(sketch.value(), sketch.count());
             }
+            state = State.IN_PROGRESS;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             tDigestState = null;
         }
 
@@ -147,13 +148,12 @@ abstract class TDigestHistogramFieldDownsampler extends AbstractFieldDownsampler
         @Override
         public void collectCurrentValues(HistogramValues docValues) throws IOException {
             lastValue = docValues.histogram();
-            isDone = true;
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
-            isDone = false;
+            state = State.EMPTY;
             lastValue = null;
         }
 

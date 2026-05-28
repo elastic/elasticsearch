@@ -27,7 +27,7 @@ public class AggregateMetricDoubleFieldSerializerTests extends ESTestCase {
         var docIdBuffer = IntArrayList.from(0, 1, 2);
         var valuesInstance = createNumericValuesInstance(docIdBuffer, 55.0, 12.2, 5.5);
         producer.collect(valuesInstance, docIdBuffer);
-        assertThat(producer.isDone, equalTo(false));
+        assertThat(producer.isDone(), equalTo(false));
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.humanReadable(true).startObject();
             producer.write(builder);

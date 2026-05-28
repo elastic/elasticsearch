@@ -56,8 +56,7 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
 
     @Override
     public void reset() {
-        isEmpty = true;
-        isDone = false;
+        state = State.EMPTY;
         lastValue = null;
     }
 
@@ -85,7 +84,7 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
             }
             lastValue = values;
         }
-        isDone = true;
+        state = State.BUCKET_COMPLETED;
     }
 
     @Override

@@ -31,13 +31,12 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITIO
 abstract class AbstractFieldDownsampler<T extends DocValues> implements DownsampleFieldSerializer {
 
     private final String name;
-    protected boolean isEmpty;
-    protected boolean isDone;
+    protected State state;
     protected final IndexFieldData<?> fieldData;
 
     AbstractFieldDownsampler(String name, IndexFieldData<?> fieldData) {
         this.name = name;
-        this.isEmpty = true;
+        this.state = State.EMPTY;
         this.fieldData = fieldData;
     }
 
@@ -57,14 +56,14 @@ abstract class AbstractFieldDownsampler<T extends DocValues> implements Downsamp
      * @return true if the field has not collected any value.
      */
     public boolean isEmpty() {
-        return isEmpty;
+        return state == State.EMPTY;
     }
 
     /**
-     * @return true if the downsampled value for this field is already computed.
+     * @return true if the downsampler does not need to collect any more value.
      */
     public boolean isDone() {
-        return isDone;
+        return state == State.BUCKET_COMPLETED;
     }
 
     /**
@@ -87,7 +86,6 @@ abstract class AbstractFieldDownsampler<T extends DocValues> implements Downsamp
             if (docValues.advanceExact(docId) == false) {
                 continue;
             }
-            isEmpty = false;
             collectCurrentValues(docValues);
         }
     }
@@ -162,6 +160,18 @@ abstract class AbstractFieldDownsampler<T extends DocValues> implements Downsamp
         }
         // If a field is not a metric, we downsample it as a label
         return LastValueFieldDownsampler.create(fieldName, fieldType, fieldData, fieldCounts);
+    }
+
+    /**
+     * The state of the downsampler:
+     * - {@link #EMPTY} means that the downsampled value is not initialised yet.
+     * - {@link #IN_PROGRESS} means that the downsampled value is initialised, but the rest of the values still need to be collected.
+     * - {@link #BUCKET_COMPLETED} means that the downsampled value is determined, and we do not need to collect more values.
+     */
+    enum State {
+        EMPTY,
+        IN_PROGRESS,
+        BUCKET_COMPLETED;
     }
 
     static class DownsamplerCountPerValueType {

@@ -44,8 +44,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
     }
 
     public void tsidReset() {
-        isEmpty = true;
-        isDone = false;
+        state = State.EMPTY;
         dimensionValue = null;
     }
 
@@ -73,7 +72,7 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
             }
             this.dimensionValue = values;
         }
-        this.isDone = true;
+        this.state = State.BUCKET_COMPLETED;
     }
 
     public void collectOnce(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -87,7 +86,6 @@ public final class DimensionFieldDownsampler extends AbstractFieldDownsampler<Fo
             if (docValues.advanceExact(docId)) {
                 collectCurrentValues(docValues);
             }
-            this.isEmpty = false;
         }
     }
 

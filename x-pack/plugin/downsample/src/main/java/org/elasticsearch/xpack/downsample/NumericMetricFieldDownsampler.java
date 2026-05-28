@@ -95,11 +95,12 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 sum.add(value);
                 count++;
             }
+            state = State.IN_PROGRESS;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             max = MAX_NO_VALUE;
             min = MIN_NO_VALUE;
             sum.reset(0, 0);
@@ -134,7 +135,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         @Override
         public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
             lastValue = docValues.nextValue();
-            isDone = true;
+            state = State.BUCKET_COMPLETED;
         }
 
         public Double lastValue() {
@@ -146,8 +147,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
-            isDone = false;
+            state = State.EMPTY;
             lastValue = Double.NaN;
         }
 
@@ -191,7 +191,6 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 }
                 int docValuesCount = counterDocValues.docValueCount();
                 assert docValuesCount > 0;
-                isEmpty = false;
                 collectCurrentValues(counterDocValues, currentTimestamp);
             }
         }
@@ -232,10 +231,11 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             previousValue = currentCounterValue;
             assert lastTimestamp == -1 || timestamp < lastTimestamp;
             lastTimestamp = timestamp;
+            state = State.IN_PROGRESS;
         }
 
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             previousBucketValue = downsampledValue;
             downsampledValue = Double.NaN;
             lastTimestamp = -1;

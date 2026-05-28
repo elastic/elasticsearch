@@ -64,11 +64,12 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
                     case value_count -> count += Math.round(value);
                 }
             }
+            state = State.IN_PROGRESS;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             max = MAX_NO_VALUE;
             min = MIN_NO_VALUE;
             sum.reset(0, 0);
@@ -114,13 +115,12 @@ abstract sealed class AggregateMetricDoubleFieldDownsampler extends NumericMetri
                 }
                 lastValue = values;
             }
-            isDone = true;
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override
         public void reset() {
-            isEmpty = true;
-            isDone = false;
+            state = State.EMPTY;
             lastValue = null;
         }
 

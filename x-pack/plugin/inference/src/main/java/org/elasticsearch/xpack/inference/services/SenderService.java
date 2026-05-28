@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -246,7 +245,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
                 validationException.throwIfValidationErrorsExist();
                 yield new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, query),
+                    InferenceString.ofText(query),
                     InferenceString.fromStringList(input),
                     returnDocuments,
                     topN,
@@ -443,8 +442,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
     );
 
     @Override
-    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(Boolean.TRUE);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

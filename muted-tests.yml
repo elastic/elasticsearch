@@ -634,3 +634,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
   issue: https://github.com/elastic/elasticsearch/issues/150109
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_half}
+  issue: https://github.com/elastic/elasticsearch/issues/150110

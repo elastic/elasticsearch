@@ -489,9 +489,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 // Synthetic file-global row index, not an ORC column. Typed LONG (not NULL) so the
                 // producer pipeline reads it as a LongBlock; OrcPageIterator fills it from
                 // RecordReader.getRowNumber() rather than from the ORC vectors.
-                projected.add(
-                    new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.LONG, Nullability.FALSE, null, false)
-                );
+                projected.add(new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.LONG, Nullability.FALSE, null, false));
                 continue;
             }
             Attribute attr = attributeMap.get(columnName);

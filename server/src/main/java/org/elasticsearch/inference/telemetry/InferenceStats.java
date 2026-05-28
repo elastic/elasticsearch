@@ -44,6 +44,8 @@ public class InferenceStats {
 
     public static final String SEMANTIC_TEXT_USE_CASE = "semantic_text_bulk";
 
+    static final String ES_PLUGIN_NAME_VALUE = "inference";
+
     /**
      * Kibana constructs use-case strings like {@code siem_migrations_<migrationType>} where {@code migrationType} is a free-form
      * discriminator. To keep cardinality at 1 for this family, any value beginning with this prefix is collapsed to
@@ -116,7 +118,7 @@ public class InferenceStats {
         this.constantAttributes = Objects.requireNonNull(constantAttributes);
     }
 
-    public static InferenceStats create(MeterRegistry meterRegistry, String stackVersion, boolean isProductionRelease) {
+    public static InferenceStats create(MeterRegistry meterRegistry, NodeTelemetryAttributes attributes) {
         return new InferenceStats(
             meterRegistry.registerLongCounter(
                 INFERENCE_REQUEST_COUNT_TOTAL,
@@ -133,7 +135,7 @@ public class InferenceStats {
                 "Inference API time spent waiting for Trained Model Deployments",
                 "ms"
             ),
-            Map.of(MetricAttributes.ES_STACK_VERSION, stackVersion, MetricAttributes.ES_PRODUCTION_RELEASE, isProductionRelease)
+            attributes.asMap()
         );
     }
 

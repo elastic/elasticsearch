@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -37,6 +36,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
@@ -52,7 +52,7 @@ public class ReplaceSparklineAggregateTests extends AbstractLogicalPlanOptimizer
     public void checkCapability() {
         assumeTrue(
             "sparkline should be enabled",
-            EsqlCapabilities.capabilities(new EsqlFunctionRegistry(), false).capabilities().contains("fn_sparkline")
+            EsqlCapabilities.capabilities(TEST_FUNCTION_REGISTRY, false).capabilities().contains("fn_sparkline")
         );
     }
 

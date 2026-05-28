@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.esql-release'
 
 description = 'Tests for requests made through the Node Client request API'
 

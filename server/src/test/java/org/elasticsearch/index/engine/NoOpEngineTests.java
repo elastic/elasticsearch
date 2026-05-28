@@ -69,7 +69,7 @@ public class NoOpEngineTests extends EngineTestCase {
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
         for (int i = 0; i < docs; i++) {
-            ParsedDocument doc = testParsedDocument("" + i, null, testDocumentWithTextField(), B_1, null);
+            ParsedDocument doc = testParsedDocument("" + i, null, testDocumentWithTextField(), B_1);
             engine.index(indexForDoc(doc));
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
         }
@@ -103,7 +103,7 @@ public class NoOpEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             Path translogPath = createTempDir();
-            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            EngineConfig config = config(indexSettings, store, translogPath, NoMergePolicy.INSTANCE, globalCheckpoint::get);
             final int numDocs = scaledRandomIntBetween(10, 3000);
             int deletions = 0;
             try (InternalEngine engine = createEngine(config)) {

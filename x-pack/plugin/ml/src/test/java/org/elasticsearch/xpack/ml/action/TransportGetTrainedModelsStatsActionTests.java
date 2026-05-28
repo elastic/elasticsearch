@@ -31,6 +31,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -164,6 +165,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             client,
             null,
             UserAgentParserRegistry.NOOP,
+            IpLocationService.NOOP,
             FailureStoreMetrics.NOOP,
             TestProjectResolvers.alwaysThrow(),
             new FeatureService(List.of()) {

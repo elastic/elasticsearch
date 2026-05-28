@@ -588,6 +588,12 @@ public enum DataType implements Writeable {
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    /**
+     * The identifier used in the {@code ::counter} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the counter variant of the input's numeric type.
+     */
+    public static final String COUNTER_CAST_NAME = "counter";
+
     public static Collection<DataType> types() {
         return TYPES;
     }
@@ -832,7 +838,16 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE || t == FLATTENED);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatialOrGrid(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == DATE_PERIOD
+            || t == DATE_RANGE
+            || t == FLATTENED
+            || t == HISTOGRAM
+            || t == TIME_DURATION
+            || t == TSID_DATA_TYPE);
     }
 
     public String nameUpper() {

@@ -1840,6 +1840,17 @@ public abstract class FieldMapper extends Mapper {
                         continue;
                     }
                     case SYNTHETIC_SOURCE_KEEP_PARAM -> {
+                        if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                            throw new MapperParsingException(
+                                "parameter ["
+                                    + SYNTHETIC_SOURCE_KEEP_PARAM
+                                    + "] is not allowed on field ["
+                                    + name
+                                    + "] in index using ["
+                                    + parserContext.getIndexSettings().getMode()
+                                    + "] index mode"
+                            );
+                        }
                         sourceKeepMode = Optional.of(SourceKeepMode.from(XContentMapValues.nodeStringValue(propNode)));
                         iterator.remove();
                         continue;

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_MEDIAN_ABSOLUTE_DEVIATION` function [esql-mv_median_absolute_deviation]
 
-:::{include} ../../_snippets/functions/layout/mv_median_absolute_deviation.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_median_absolute_deviation.md
 :::

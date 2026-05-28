@@ -24,6 +24,8 @@ import java.util.Objects;
 
 public class LoggingFeatureSetUsage extends XPackFeatureUsage {
 
+    private static final TransportVersion LOGGING_XPACK_USAGE = TransportVersion.fromName("logging_xpack_usage");
+
     record LoggingConfig(boolean enabled, boolean userInfo) implements Writeable, ToXContentFragment {
 
         LoggingConfig(StreamInput in) throws IOException {
@@ -132,7 +134,7 @@ public class LoggingFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.zero();
+        return LOGGING_XPACK_USAGE;
     }
 
     @Override

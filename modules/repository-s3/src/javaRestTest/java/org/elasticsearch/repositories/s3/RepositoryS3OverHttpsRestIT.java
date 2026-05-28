@@ -12,11 +12,16 @@ package org.elasticsearch.repositories.s3;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
+import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
+import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -24,45 +29,56 @@ import org.junit.rules.TestRule;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-public class RepositoryS3ExplicitProtocolRestIT extends AbstractRepositoryS3RestTestCase {
+public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3ExplicitProtocolRestIT");
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3OverHttpsRestIT");
     private static final String BUCKET = PREFIX + "bucket";
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
-    private static final String CLIENT = "explicit_protocol_client";
+    private static final String CLIENT = "https_s3_client";
+
+    protected static final TestTlsCertificate testTlsCertificate = TestTlsCertificate.generate("localhost");
+
+    protected static final TestTrustStore trustStore = new TestTrustStore(testTlsCertificate::getPemCertificateStream);
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
-        null,
+        testTlsCertificate,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-    );
-
-    private static String getEndpoint() {
-        final var s3FixtureAddress = s3Fixture.getAddress();
-        assertThat(s3FixtureAddress, startsWith("http://"));
-        return "\"" + s3FixtureAddress.substring("http://".length()) + "\"";
-    }
+    ) {
+        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
+        @Override
+        protected HttpHandler createHandler() {
+            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
+            return exchange -> {
+                delegate.assertContentSha256Header(exchange, equalTo("UNSIGNED-PAYLOAD"));
+                delegate.handle(exchange);
+            };
+        }
+    };
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
-        .setting("s3.client." + CLIENT + ".endpoint", RepositoryS3ExplicitProtocolRestIT::getEndpoint)
-        .setting("s3.client." + CLIENT + ".protocol", () -> "http")
+        .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
+        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
+        .setting("s3.client." + CLIENT + ".path_style_access", "true")
+        .apply(builder -> trustStore.apply(builder, true))
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(trustStore).around(cluster);
 
     @Override
     protected String getTestRestCluster() {

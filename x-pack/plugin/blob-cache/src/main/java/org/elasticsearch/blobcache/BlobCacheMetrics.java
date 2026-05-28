@@ -38,6 +38,10 @@ public class BlobCacheMetrics {
     public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
     public static final String BLOB_CACHE_PREFETCH_TOTAL = "es.blob_cache.prefetch.total";
     public static final String PREFETCH_RESULT_ATTRIBUTE_KEY = "es_prefetch_result";
+    public static final String BLOB_CACHE_EVICTION_SCAN_TIME = "es.blob_cache.eviction.scan_time.histogram";
+    public static final String BLOB_CACHE_EVICTION_SCANNED_ENTRIES = "es.blob_cache.eviction.scanned_entries.histogram";
+    public static final String EVICTION_MODE_ATTRIBUTE_KEY = "evict_mode";
+    public static final String EVICTION_OUTCOME_ATTRIBUTE_KEY = "outcome";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -48,6 +52,8 @@ public class BlobCacheMetrics {
     private final LongCounter cachePopulationTime;
     private final LongCounter cacheBypassCounter;
     private final LongCounter prefetchCounter;
+    private final LongHistogram evictionScanTime;
+    private final LongHistogram evictionScannedEntries;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -81,6 +87,24 @@ public class BlobCacheMetrics {
         AlreadyCached,
         Fetched,
         Failed
+    }
+
+    /// Caller posture for an LFU eviction scan, used as the {@link #EVICTION_MODE_ATTRIBUTE_KEY} attribute on
+    /// {@link #BLOB_CACHE_EVICTION_SCAN_TIME} and {@link #BLOB_CACHE_EVICTION_SCANNED_ENTRIES}.
+    public enum EvictionMode {
+        /** Caller will skip the operation if no quick victim is available (e.g. non-forced prefetch). */
+        Opportunistic,
+        /** Do all you can to find a free region. */
+        Required
+    }
+
+    /// The outcome of an LFU eviction scan, used as the {@link #EVICTION_OUTCOME_ATTRIBUTE_KEY} attribute on
+    /// {@link #BLOB_CACHE_EVICTION_SCAN_TIME} and {@link #BLOB_CACHE_EVICTION_SCANNED_ENTRIES}.
+    public enum EvictionScanOutcome {
+        /** Scan returned an IO slot. */
+        Found,
+        /** Scan exhausted its frequency buckets without freeing a region. */
+        None
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -135,6 +159,24 @@ public class BlobCacheMetrics {
                 BLOB_CACHE_PREFETCH_TOTAL,
                 "The number of prefetch attempts, broken down by outcome via the [" + PREFETCH_RESULT_ATTRIBUTE_KEY + "] attribute",
                 "count"
+            ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_EVICTION_SCAN_TIME,
+                "The time spent scanning the LFU cache for an eviction victim, broken down by ["
+                    + EVICTION_MODE_ATTRIBUTE_KEY
+                    + "] and ["
+                    + EVICTION_OUTCOME_ATTRIBUTE_KEY
+                    + "]",
+                "microseconds"
+            ),
+            meterRegistry.registerLongHistogram(
+                BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
+                "The number of LFU entries iterated during an eviction scan, broken down by ["
+                    + EVICTION_MODE_ATTRIBUTE_KEY
+                    + "] and ["
+                    + EVICTION_OUTCOME_ATTRIBUTE_KEY
+                    + "]",
+                "entries"
             )
         );
 
@@ -175,7 +217,9 @@ public class BlobCacheMetrics {
         LongCounter epochChanges,
         LongHistogram searchOriginDownloadTime,
         LongCounter cacheBypassCounter,
-        LongCounter prefetchCounter
+        LongCounter prefetchCounter,
+        LongHistogram evictionScanTime,
+        LongHistogram evictionScannedEntries
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -188,6 +232,8 @@ public class BlobCacheMetrics {
         this.searchOriginDownloadTime = searchOriginDownloadTime;
         this.cacheBypassCounter = cacheBypassCounter;
         this.prefetchCounter = prefetchCounter;
+        this.evictionScanTime = evictionScanTime;
+        this.evictionScannedEntries = evictionScannedEntries;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -281,6 +327,20 @@ public class BlobCacheMetrics {
      */
     public void recordPrefetch(PrefetchResult result) {
         prefetchCounter.incrementBy(1L, Map.of(PREFETCH_RESULT_ATTRIBUTE_KEY, result.name()));
+    }
+
+    /// Record both eviction-scan histograms ({@link #BLOB_CACHE_EVICTION_SCAN_TIME} in microseconds and
+    /// {@link #BLOB_CACHE_EVICTION_SCANNED_ENTRIES}) for a single LFU eviction scan invocation. The {@code mode} and
+    /// {@code outcome} attributes let dashboards split healthy "found a victim" latency from worst-case
+    /// "exhausted all buckets" scans, which by construction walk every entry they touch.
+    /// @param elapsedNanos elapsed time of the scan in nanoseconds; converted to microseconds inside this method
+    /// @param scannedEntries number of LFU list iterations performed across all frequency buckets touched
+    /// @param mode the caller's posture (see {@link EvictionMode})
+    /// @param outcome whether the scan freed a region (see {@link EvictionScanOutcome})
+    public void recordEvictionScan(long elapsedNanos, long scannedEntries, EvictionMode mode, EvictionScanOutcome outcome) {
+        Map<String, Object> attrs = Map.of(EVICTION_MODE_ATTRIBUTE_KEY, mode.name(), EVICTION_OUTCOME_ATTRIBUTE_KEY, outcome.name());
+        evictionScanTime.record(TimeUnit.NANOSECONDS.toMicros(elapsedNanos), attrs);
+        evictionScannedEntries.record(scannedEntries, attrs);
     }
 
     public long readCount() {

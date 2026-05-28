@@ -141,7 +141,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -286,9 +285,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      *
      * @param sourceNode node holding the shard
      * @param targetNode node that will recover the shard
-     * @throws Exception
      */
-    public void startShardRecovery(String sourceNode, String targetNode) throws Exception {
+    public void startShardRecovery(String sourceNode, String targetNode) {
         logger.info("--> updating cluster settings with moving shard from node `{}` to node `{}`", sourceNode, targetNode);
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, sourceNode, targetNode));
 
@@ -296,13 +294,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         indicesAdmin().prepareRecoveries(INDEX_NAME).get();
 
         logger.info("--> waiting for recovery to begin on both the source and target nodes");
-        final Index index = resolveIndex(INDEX_NAME);
-        assertBusy(() -> {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, sourceNode);
-            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
-            indicesService = internalCluster().getInstance(IndicesService.class, targetNode);
-            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
-        });
+        awaitRecoveryCountStats(
+            Map.of(sourceNode, stats -> stats.currentAsSource() == 1, targetNode, stats -> stats.currentAsTarget() == 1)
+        );
 
         logger.info("--> checking cluster recovery stats reflect the ongoing recovery on each node");
         final NodesStatsResponse statsResponse = clusterAdmin().prepareNodesStats()
@@ -329,7 +323,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
      * @param nodeName the name of the node
      * @param isRecoveryThrottlingNode whether to expect throttling to have occurred on the node
      */
-    public void assertNodeHasThrottleTimeAndNoRecoveries(String nodeName, Boolean isRecoveryThrottlingNode) {
+    public void assertNodeThrottleTimeStats(String nodeName, Boolean isRecoveryThrottlingNode) {
         final NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
@@ -568,13 +562,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB));
 
         logger.info("--> waiting for recovery to start both on source and target");
-        final Index index = resolveIndex(INDEX_NAME);
-        assertBusy(() -> {
-            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
-            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
-            indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
-            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
-        });
+        awaitRecoveryCountStats(Map.of(nodeA, stats -> stats.currentAsSource() == 1, nodeB, stats -> stats.currentAsTarget() == 1));
 
         logger.info("--> request recoveries");
         List<RecoveryState> recoveryStates = getRecoveryStates(INDEX_NAME);
@@ -625,22 +613,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         assertRecoveryState(recoveryStates.getFirst(), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(recoveryStates.getFirst().getIndex());
-
-        final Consumer<String> assertNodeHasThrottleTimeAndNoRecoveries = nodeName -> {
-            final NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats(nodeName)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get();
-            assertThat(nodesStatsResponse.getNodes(), hasSize(1));
-            final NodeStats nodeStats = nodesStatsResponse.getNodes().getFirst();
-            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            assertThat(recoveryStats.currentAsSource(), equalTo(0));
-            assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-        };
-        // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
-        // is decremented, which may happen after the recovery was done.
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
+        awaitRecoveryCountStats(Map.of(nodeA, RecoveryStats::noCurrentRecoveries, nodeB, RecoveryStats::noCurrentRecoveries));
 
         logger.info("--> bump replica count");
         setReplicaCount(1, INDEX_NAME);
@@ -784,10 +757,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // --- Shard recovery complete. Verify throttling millis remain reflected in node stats.
 
         logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
-        // We must use assertBusy because recovery counters are decremented only when the last reference to
-        // the RecoveryTarget is decremented, which may happen after the recovery finishes.
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeA, true));
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeB, false));
+        awaitRecoveryCountStats(Map.of(nodeA, RecoveryStats::noCurrentRecoveries, nodeB, RecoveryStats::noCurrentRecoveries));
+        assertNodeThrottleTimeStats(nodeA, true);
+        assertNodeThrottleTimeStats(nodeB, false);
     }
 
     /**
@@ -848,11 +820,12 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
         // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
         // is decremented, which may happen after the recovery was done.
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeA, false));
-        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries(nodeB, true));
+        awaitRecoveryCountStats(Map.of(nodeA, RecoveryStats::noCurrentRecoveries, nodeB, RecoveryStats::noCurrentRecoveries));
+        assertNodeThrottleTimeStats(nodeA, false);
+        assertNodeThrottleTimeStats(nodeB, true);
     }
 
-    public void testSnapshotRecovery() throws Exception {
+    public void testSnapshotRecovery() {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
 
@@ -1730,7 +1703,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transportService.clearAllRules();
     }
 
-    public void testReservesBytesDuringPeerRecoveryPhaseOne() throws Exception {
+    public void testReservesBytesDuringPeerRecoveryPhaseOne() {
         internalCluster().startNode();
         final List<String> dataNodes = internalCluster().startDataOnlyNodes(2);
         final String indexName = "test-index";
@@ -1803,7 +1776,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
     }
 
-    public void testWaitForClusterStateToBeAppliedOnSourceNode() throws Exception {
+    public void testWaitForClusterStateToBeAppliedOnSourceNode() {
         internalCluster().startMasterOnlyNode();
         final var primaryNode = internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
@@ -2148,19 +2121,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
-
-        assertBusy(() -> {
-            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get()
-                .getNodes()
-                .getFirst()
-                .getIndices()
-                .getRecoveryStats();
-            assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
-            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
-        });
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSourceQueued() == 1 && stats.currentAsSource() == 1));
 
         fileChunkLatch.countDown();
         ensureGreen(indexName);
@@ -2217,18 +2178,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
                 )
         );
-        assertBusy(() -> {
-            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get()
-                .getNodes()
-                .getFirst()
-                .getIndices()
-                .getRecoveryStats();
-            assertThat("expected three queued recovery requests", recoveryStats.currentAsSourceQueued(), equalTo(3));
-            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
-        });
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSourceQueued() == 3 && stats.currentAsSource() == 1));
 
         allocationSettingsUpdate = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE);
@@ -2301,18 +2251,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         safeAwait(fileChunkReceivedLatch);
-        assertBusy(() -> {
-            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get()
-                .getNodes()
-                .getFirst()
-                .getIndices()
-                .getRecoveryStats();
-            assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
-            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
-        });
+        awaitRecoveryCountStats(Map.of(sourceNode, stats -> stats.currentAsSourceQueued() == 1 && stats.currentAsSource() == 1));
 
         assertAcked(indicesAdmin().prepareDelete(indexName));
         final var updatedStats = clusterAdmin().prepareNodesStats(sourceNode)

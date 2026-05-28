@@ -235,17 +235,22 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. Secrets stay as
-     * {@link org.elasticsearch.common.settings.SecureString}; callers materialize plaintext via
-     * {@link Object#toString()} at use site. Use {@code Objects.toString(config.get(key), null)}
-     * — direct {@code (String)} cast would CCE on non-String values.
+     * Dataset format settings at the top level; data-source auth/connection settings stored under
+     * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
+     * options. {@link ExternalSourceResolver#storageConfig} flattens the sub-map before passing
+     * settings to a storage provider; {@link ExternalSourceResolver#planConfig} strips it before
+     * embedding config in plan nodes (avoiding serialization of credential objects).
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
-        for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
-        }
         merged.putAll(dataset.settings());
+        if (parent.settings().isEmpty() == false) {
+            Map<String, Object> dsSettings = new HashMap<>();
+            for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
+                dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
+            }
+            merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
+        }
         return merged;
     }
 }

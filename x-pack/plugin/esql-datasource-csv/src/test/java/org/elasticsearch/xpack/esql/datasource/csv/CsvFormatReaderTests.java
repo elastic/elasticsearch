@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -1110,6 +1111,170 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(new BytesRef("Bob"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(1, new BytesRef()));
             assertEquals(200, ((IntBlock) page.getBlock(2)).getInt(1));
         }
+    }
+
+    /** Mid-field literal quotes (odd counts) must not suppress the boundary — pre-fix this returned -1. */
+    public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        // one mid-field quote in row 1, three in row 2; none at field start
+        String data = "1\ta\"b\tc\n2\td\"e\"f\"g\th\n";
+        byte[] buf = data.getBytes(StandardCharsets.UTF_8);
+
+        int boundary = reader.findLastRecordBoundary(buf, buf.length);
+        assertEquals("must find the terminating newline of the last complete record", buf.length - 1, boundary);
+        assertEquals('\n', (char) buf[boundary]);
+    }
+
+    /** Same, on a 105-column ClickBench-shaped row with dense literal quotes. */
+    public void testTsvFindLastRecordBoundaryClickBenchShaped() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        String row = clickBenchShapedTsvRow();
+        byte[] buf = (row + row).getBytes(StandardCharsets.UTF_8);
+
+        int boundary = reader.findLastRecordBoundary(buf, buf.length);
+        assertEquals(buf.length - 1, boundary);
+        assertEquals('\n', (char) buf[boundary]);
+    }
+
+    /** The streaming sibling findNextRecordBoundary applies the same field-start rule. */
+    public void testTsvFindNextRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        String row1 = "1\ta\"b\tc\n";
+        String data = row1 + "2\td\te\n";
+        byte[] buf = data.getBytes(StandardCharsets.UTF_8);
+
+        long consumed = reader.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf)));
+        assertEquals(row1.length(), consumed);
+    }
+
+    /**
+     * A field-leading quote opens a quoted field; an embedded {@code ""} is a literal quote and a lone
+     * {@code "} closes the field. Pins the doubled-quote peek (the {@code peekByte} window) in both scanners.
+     */
+    public void testTsvDoubledQuoteInQuotedFieldIsLiteral() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        String row1 = "\"a\"\"b\"\tc\n"; // quoted field a"b (doubled quote), then c
+        byte[] buf = (row1 + "d\te\n").getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(row1.length(), reader.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
+        assertEquals(buf.length - 1, reader.findLastRecordBoundary(buf, buf.length));
+    }
+
+    /** Oracle: the boundary scanner and {@link CsvFormatReader#readCsvRecord} must agree on record count, CSV and TSV. */
+    public void testRecordBoundaryCountAgreesWithReadCsvRecord() throws IOException {
+        for (boolean tsv : new boolean[] { true, false }) {
+            CsvFormatOptions options = tsv ? CsvFormatOptions.TSV : CsvFormatOptions.DEFAULT;
+            CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+            char delim = options.delimiter();
+            boolean bracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && delim == ',';
+
+            int rows = randomIntBetween(5, 50);
+            StringBuilder sb = new StringBuilder();
+            for (int r = 0; r < rows; r++) {
+                int cols = randomIntBetween(1, 8);
+                for (int c = 0; c < cols; c++) {
+                    if (c > 0) {
+                        sb.append(delim);
+                    }
+                    sb.append(randomFieldWithLiteralQuotes(delim));
+                }
+                sb.append('\n');
+            }
+            String data = sb.toString();
+            byte[] buf = data.getBytes(StandardCharsets.UTF_8);
+
+            // Oracle: records produced by the real tokenizer.
+            int parserRecords = 0;
+            try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+                while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), delim, bracketAware) != null) {
+                    parserRecords++;
+                }
+            }
+
+            // Scanner: records found by driving findNextRecordBoundary forward.
+            int scannerRecords = 0;
+            BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
+            while (reader.findNextRecordBoundary(in) >= 0) {
+                scannerRecords++;
+            }
+
+            assertEquals("record count mismatch (tsv=" + tsv + ") for data:\n" + data, parserRecords, scannerRecords);
+            // Buffer ends on a complete record, so the last byte is the final record boundary.
+            assertEquals(buf.length - 1, reader.findLastRecordBoundary(buf, buf.length));
+        }
+    }
+
+    /** Fuzz: the scanner never returns -1 for a buffer ending on a complete record, at any quote count. */
+    public void testTsvBoundaryNeverMinusOneWhenCompleteRecordPresent() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        for (int iter = 0; iter < 200; iter++) {
+            StringBuilder sb = new StringBuilder();
+            int rows = randomIntBetween(1, 6);
+            for (int r = 0; r < rows; r++) {
+                int cols = randomIntBetween(1, 6);
+                for (int c = 0; c < cols; c++) {
+                    if (c > 0) {
+                        sb.append('\t');
+                    }
+                    // Plain field with a random number of literal mid-field quotes (no field-leading quote).
+                    sb.append('x');
+                    int quotes = randomIntBetween(0, 5);
+                    for (int q = 0; q < quotes; q++) {
+                        sb.append(randomBoolean() ? '"' : 'y');
+                    }
+                }
+                sb.append('\n');
+            }
+            byte[] buf = sb.toString().getBytes(StandardCharsets.UTF_8);
+            int boundary = reader.findLastRecordBoundary(buf, buf.length);
+            assertEquals("returned -1 for a buffer ending on a complete record:\n" + sb, buf.length - 1, boundary);
+        }
+    }
+
+    /** A 105-column TSV row with literal quotes scattered through a handful of text-like columns. */
+    private static String clickBenchShapedTsvRow() {
+        StringBuilder row = new StringBuilder();
+        for (int c = 0; c < 105; c++) {
+            if (c > 0) {
+                row.append('\t');
+            }
+            switch (c % 7) {
+                case 0 -> row.append(c);                              // numeric column
+                case 3 -> row.append("http://x/?q=\"a\"&p=").append(c); // URL-like, literal quotes
+                case 5 -> row.append("Title \"with\" quotes ").append(c); // text, literal quotes
+                default -> row.append('v').append(c);
+            }
+        }
+        row.append('\n');
+        return row.toString();
+    }
+
+    /** A field that is either plain text with random mid-field literal quotes, or a properly quoted field. */
+    private String randomFieldWithLiteralQuotes(char delim) {
+        if (randomInt(4) == 0) {
+            // Properly quoted field: may embed the delimiter, a newline, and doubled quotes.
+            StringBuilder b = new StringBuilder("\"");
+            int n = randomIntBetween(0, 6);
+            for (int i = 0; i < n; i++) {
+                int pick = randomInt(4);
+                switch (pick) {
+                    case 0 -> b.append(delim);
+                    case 1 -> b.append('\n');
+                    case 2 -> b.append("\"\""); // escaped literal quote inside the quoted field
+                    default -> b.append((char) ('a' + randomInt(25)));
+                }
+            }
+            b.append('"');
+            return b.toString();
+        }
+        // Plain field: starts with a letter (never a field-leading quote), then random text + literal quotes.
+        StringBuilder b = new StringBuilder();
+        b.append((char) ('a' + randomInt(25)));
+        int n = randomIntBetween(0, 8);
+        for (int i = 0; i < n; i++) {
+            b.append(randomBoolean() ? '"' : (char) ('a' + randomInt(25)));
+        }
+        return b.toString();
     }
 
     public void testPipeDelimited() throws IOException {
@@ -3524,7 +3689,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    // --- Datetime fast-path equivalence tests (#769) ---
+    // --- Datetime fast-path equivalence tests ---
     // tryParseSpaceSeparatedDatetimeMillis avoids the JDK DateTimeFormatter Parsed-HashMap
     // allocation that dominated ~16% of CPU on Q24 of the CSV ClickBench profile. These tests lock
     // in the equivalence contract: any input the fast path accepts must produce the same epoch
@@ -3577,6 +3742,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024/05/12 14:30:45"));
         // Non-ASCII digit (full-width '1') in the year — must be rejected without throwing
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("\uFF12024-05-12 14:30:45"));
+        // Negative year — `-2024-05-12 14:30:45` is 20 chars and fails the length guard
+        // (19 or 23 only); `-999-05-12 14:30:45` is 19 chars but the leading '-' fails
+        // parseFixedDigits at offset 0. Either way, BCE-style dates route to Stage 3.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-2024-05-12 14:30:45"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));
     }
 
     public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {
@@ -5613,5 +5783,82 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             assertEquals(new BytesRef("hello\nworld"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
         }
+    }
+
+    // --- Stream drain prevention ---
+
+    /**
+     * Regression guard: {@code readSchema} must not drain the full stream body when closing
+     * after reading a typed header. Storage providers that drain on close (e.g. S3) would
+     * otherwise block the search thread for the full object transfer time.
+     * The fix must abort the stream before the drain can occur.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code (because {@code close()} drains the entire body) and
+     * passes once the fix ensures the stream is aborted after the header is read.
+     */
+    public void testReadSchemaDoesNotDrainStream_typedHeader() throws IOException {
+        // Typed-header CSV: the schema is fully encoded in the header line so readSchema
+        // needs only that one line. The rest of the file should never be consumed.
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,value:double\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be >> reader buffer size to be meaningful", bytes.length, Matchers.greaterThan(1_000_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // Only the header line was needed. The BufferedReader pre-fills up to 64 KB on
+        // the first readLine(), so allow 2x that as a generous upper bound — but the vast
+        // majority of the multi-MB file must not have been touched.
+        assertThat(
+            "readSchema must not drain the stream after reading a typed header; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
+    }
+
+    /**
+     * Regression guard: for plain (untyped) headers, type inference reads a bounded sample
+     * of rows, but the remaining file body must not be drained on close.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code and passes once the fix aborts the stream after the
+     * sample rows are consumed.
+     */
+    public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
+        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // The file contains 200 000 rows so most of it should remain unread after schema().
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // The sample covers at most DEFAULT_SAMPLE_SIZE rows, which is a small fraction
+        // of the 200 000-row file. The remaining body must not be drained.
+        assertThat(
+            "readSchema must not drain beyond the schema sample; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
     }
 }

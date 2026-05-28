@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -119,8 +120,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
      * Even though we didn't manage to reproduce the problem in real conditions, we decided
      * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
+     * <p>
+     * With JDK 26 on Linux, ANTLR stack overflow was observed at 398 nested function calls, so the limit
+     * was reduced to 300 to provide a safety margin across JVM versions and platforms.
      */
-    public static final int MAX_EXPRESSION_DEPTH = 400;
+    public static final int MAX_EXPRESSION_DEPTH = 300;
 
     protected final ParsingContext context;
 
@@ -173,7 +177,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         expressionDepth++;
         if (expressionDepth > MAX_EXPRESSION_DEPTH) {
             throw new ParsingException(
-                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                "ES|QL statement exceeded the maximum expression depth allowed ({}): [{}]",
                 MAX_EXPRESSION_DEPTH,
                 ctx.getParent().getText()
             );
@@ -791,6 +795,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
+        // DataType.COUNTER_CAST_NAME is a virtual cast target — not a real DataType, but maps to the counter
+        // variant of the input's numeric type (long→counter_long, double→counter_double, integer→counter_integer).
+        if (dataTypeCtx instanceof EsqlBaseParser.ToDataTypeContext toDataType) {
+            String typeName = visitIdentifier(toDataType.identifier()).toLowerCase(Locale.ROOT);
+            if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
+                return new ToCounter(source, expression(parseTree));
+            }
+        }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);
         var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
         if (converterToFactory == null) {

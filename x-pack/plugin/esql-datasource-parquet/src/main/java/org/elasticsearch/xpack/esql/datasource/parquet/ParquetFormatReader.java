@@ -2027,7 +2027,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         } catch (Exception e) {
                             Releasables.closeExpectNoException(blocks);
                             Attribute attr = attributes.get(col);
-                            throw new ElasticsearchException(
+                            throw new IllegalArgumentException(
                                 "Failed to read Parquet column ["
                                     + attr.name()
                                     + "] (type "
@@ -2045,11 +2045,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         }
                     }
                 }
-            } catch (ElasticsearchException e) {
+            } catch (IllegalArgumentException e) {
                 throw e;
             } catch (Exception e) {
                 Releasables.closeExpectNoException(blocks);
-                throw new ElasticsearchException(
+                throw new IllegalArgumentException(
                     "Failed to create Page batch at row group ["
                         + (rowGroupOrdinal + 1)
                         + "] page batch ["

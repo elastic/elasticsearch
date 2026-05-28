@@ -57,10 +57,13 @@ public final class BinaryDocValuesContainsTermQuery extends Query {
                     return null;
                 }
 
+                // The optimized path returns a TwoPhaseIterator-backed iterator (see the contract
+                // on tryContainsIterator). ConstantScoreScorer unwraps the TwoPhase so Lucene's
+                // BulkScorer drives approximation.advance(min) + matches() within [min, max), giving
+                // linear scaling under sub-segment slicing (DataPartitioning.DOC).
                 final DocIdSetIterator containsIter = values instanceof BlockLoader.OptionalColumnAtATimeReader direct
                     ? direct.tryContainsIterator(containsTerm)
                     : null;
-
                 final DocIdSetIterator iterator;
                 if (containsIter != null) {
                     iterator = containsIter;

@@ -80,6 +80,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -2927,6 +2928,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("planning", instanceOf(Map.class))
             .entry("parsing", instanceOf(Map.class))
             .entry("view_resolution", instanceOf(Map.class))
+            .entry("dataset_resolution", instanceOf(Map.class))
             .entry("preanalysis", instanceOf(Map.class))
             .entry("indices_resolution", instanceOf(Map.class))
             .entry("enrich_resolution", instanceOf(Map.class))
@@ -2938,12 +2940,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("minimumTransportVersion", instanceOf(Integer.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
+        if (includeRollupMetrics) {
+            // Query-wide rollup metrics added with esql_external_source_profile TV. Older nodes
+            // don't emit these. JSON parsing yields Integer for small values and Long for large
+            // (e.g. cpu_nanos easily overflows Integer); use isIntOrLong() per the EsqlListQueriesActionIT precedent.
+            mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
@@ -2960,6 +2976,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
+    @Deprecated
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, false);
+    }
+
     /**
      * Create empty result matcher from result, taking into account all metadata items.
      */
@@ -2967,7 +2989,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return getResultMatcher(
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
-            result.containsKey("start_time_in_millis")
+            result.containsKey("start_time_in_millis"),
+            result.containsKey("rows_emitted")
         );
     }
 

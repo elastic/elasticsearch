@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInChangePointBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInLimitBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantAggregateGroupings;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
@@ -220,6 +221,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            new PruneRedundantAggregateGroupings(),
             /* Then deduplicate aggregations
                We need this after the constant folding
                because we could have expressions like

@@ -873,13 +873,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.rerankInfer(
                 model,
-                new RerankRequest(
-                    fromStringList(List.of("candidate1", "candidate2")),
-                    new InferenceString(DataType.TEXT, "query"),
-                    null,
-                    null,
-                    null
-                ),
+                new RerankRequest(fromStringList(List.of("candidate1", "candidate2")), InferenceString.ofText("query"), null, null, null),
                 null,
                 listener
             );
@@ -1131,7 +1125,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             }
             service.rerankInfer(
                 model,
-                new RerankRequest(fromStringList(inputs), new InferenceString(DataType.TEXT, query), topN, returnDocuments, taskSettings),
+                new RerankRequest(fromStringList(inputs), InferenceString.ofText(query), topN, returnDocuments, taskSettings),
                 null,
                 listener
             );

@@ -60,7 +60,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -895,10 +894,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             scanForMovesToMake(
                 shardMoved,
                 allocation.routingNodes().nodeInterleavedShardIterator(),
-                // Only consider moves that would be better than the existing one tracked for the node
-                bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent,
-                // Defer moving of not-preferred until we've moved the NOs
-                bestNonPreferredShardMovementsTracker::putBestMoveDecision,
+                bestNonPreferredShardMovementsTracker,
                 // Defer moving shards where canRemain: NO but only NOT_PREFERRED targets are available
                 // Moving canRemain: NO, canAllocate: YES shards first may resolve the root cause (e.g., heap pressure) and
                 // make movement to NOT_PREFERRED targets unnecessary.
@@ -917,12 +913,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 scanForMovesToMake(
                     shardMoved,
                     allocation.routingNodes().nodeInterleavedShardIterator(nodesWithDeferredNoRemainNotPreferredMoves),
-                    // We're not looking to improve our not-preferred shard selection on this iteration
-                    shardRouting -> false,
-                    // ... so we shouldn't see any of these
-                    (shardRouting, moveDecision) -> {
-                        assert false : "unexpected move decision made for shard [" + shardRouting.shardId() + "] : [" + moveDecision + "]";
-                    },
+                    bestNonPreferredShardMovementsTracker,
                     // Execute any remaining canRemain:NO, canAllocate:NOT_PREFERRED moves
                     (shardRouting, projectIndex, moveDecision) -> {
                         executeMove(shardRouting, projectIndex, moveDecision, MOVE_CANNOT_REMAIN_REASON);
@@ -977,21 +968,23 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *
          * @param shardMoved An atomic boolean that is set to true if a move was made
          * @param shardsToCheck The iterator of shards to check
-         * @param notPreferredPredicate A predicate that determines whether to look for targets for a canRemain: NOT_PREFERRED shard
-         * @param canRemainNotPreferredConsumer A consumer for shards where canRemain is NOT_PREFERRED and there is a target available
+         * @param bestNonPreferredShardMovementsTracker The tracker of best not-preferred shard movements
          * @param canRemainNoCanAllocateNotPreferredAction An action to perform on shards where canRemain: NO and canAllocate: NOT_PREFERRED
          */
         private void scanForMovesToMake(
             AtomicBoolean shardMoved,
             Iterator<ShardRouting> shardsToCheck,
-            Predicate<ShardRouting> notPreferredPredicate,
-            BiConsumer<ShardRouting, MoveDecision> canRemainNotPreferredConsumer,
+            BestShardMovementsTracker bestNonPreferredShardMovementsTracker,
             MoveDecisionAction canRemainNoCanAllocateNotPreferredAction
         ) {
             while (shardsToCheck.hasNext()) {
                 final ShardRouting shardRouting = shardsToCheck.next();
                 final ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecision moveDecision = decideMove(index, shardRouting, notPreferredPredicate);
+                final MoveDecision moveDecision = decideMove(
+                    index,
+                    shardRouting,
+                    bestNonPreferredShardMovementsTracker::shardIsBetterThanCurrent
+                );
                 // A THROTTLE allocation decision can happen when not simulating
                 assert moveDecision.isDecisionTaken() == false
                     || allocation.isSimulating() == false
@@ -1008,7 +1001,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
-                        canRemainNotPreferredConsumer.accept(shardRouting, moveDecision);
+                        bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
                     } else if (moveDecision.getAllocationDecision() == AllocationDecision.NOT_PREFERRED) {
                         if (canRemainNoCanAllocateNotPreferredAction.execute(shardRouting, index, moveDecision)) {
                             shardMoved.set(true);

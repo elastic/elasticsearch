@@ -418,7 +418,7 @@ public class TransportWriteActionTests extends ESTestCase {
                     "Pre Submission Cancellation",
                     TestAction.class.getCanonicalName(),
                     Level.WARN,
-                    String.format(
+                    Strings.format(
                         "Bulk Transport Write Action request [%s] for Index shard [[test][1]] is cancelled pre-submission.",
                         request.getDescription()
                     )

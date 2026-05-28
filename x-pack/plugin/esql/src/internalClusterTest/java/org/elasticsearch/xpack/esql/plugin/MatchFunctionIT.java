@@ -435,7 +435,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchWithRow() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
         var query = """
             ROW content = to_text(["This is a brown fox", "This is a brown dog", "This dog is really brown"])
             | MV_EXPAND content
@@ -453,7 +453,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchWithRowAndMultiValues() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
         var query = """
             ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
             | MV_EXPAND content
@@ -475,7 +475,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchWithRowAndNullValues() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
         var query = """
             ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
             | MV_EXPAND content
@@ -494,7 +494,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testMatchRuntimeExpression() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
         var query = """
             FROM test
             | EVAL new_content = to_text(concat(content, " and a white cat"))
@@ -515,6 +515,26 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
                     List.of("This is a brown fox and a white cat")
                 )
             );
+        }
+    }
+
+    public void testRuntimeMatchWithIndexedFieldMatch() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled());
+        var query = """
+            FROM test
+            | EVAL new_content = to_text(concat(content, " and a white cat"))
+            | WHERE match(new_content, "fox") OR match(content, "cat")
+            | SORT id
+            | KEEP id
+            """;
+
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(5), List.of(6)));
         }
     }
 

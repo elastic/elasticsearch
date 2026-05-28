@@ -399,7 +399,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     protected boolean isRuntimeSearch() {
-        return EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled()
+        return EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
             && fieldAsFieldAttribute() == null
             && field.dataType() == TEXT;
@@ -459,7 +459,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         }
 
         Match other = (Match) o;
-        return this.configuration == other.configuration;
+        return configuration.equals(other.configuration);
     }
 
     @Override

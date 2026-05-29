@@ -441,7 +441,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     public void testSoarDistanceByte() {
         int size = random().nextInt(128, 512);
-        float deltaEps = 1f * size;
         var vector = new byte[size];
         var centroid = new byte[size];
         var preResidual = new float[size];
@@ -454,7 +453,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         float rnorm = random().nextFloat() + 0.01f; // avoid division by near-zero
         var expected = defaultedProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
         var result = panamaProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
-        assertEquals(expected, result, deltaEps);
+        assertEquals(expected, result, Math.abs(expected) * 1e-5f + 1e-3f);
     }
 
     public void testQuantizeVectorWithIntervals() {

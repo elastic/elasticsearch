@@ -311,9 +311,9 @@ public final class BulkByScrollWireSerializingTestUtils {
                 );
             case 2 -> mutatedRequest.setAbortOnVersionConflict(originalRequest.isAbortOnVersionConflict() == false);
             case 3 -> {
-                int minMaxDocs = Math.max(10, mutatedRequest.getSlices());
+                final int minMaxDocs = Math.max(10, mutatedRequest.getSlices());
                 mutatedRequest.setMaxDocs(
-                    ESTestCase.randomValueOtherThan(originalRequest.getMaxDocs(), () -> ESTestCase.between(minMaxDocs, 50000))
+                    ESTestCase.randomValueOtherThan(originalRequest.getMaxDocs(), () -> ESTestCase.between(minMaxDocs, 50_000))
                 );
             }
             case 4 -> mutatedRequest.setRefresh(originalRequest.isRefresh() == false);
@@ -336,9 +336,14 @@ public final class BulkByScrollWireSerializingTestUtils {
                     () -> ESTestCase.randomFloatBetween(0.001f, 2000f, true)
                 )
             );
-            case 10 -> mutatedRequest.setSlices(
-                ESTestCase.randomValueOtherThan(originalRequest.getSlices(), () -> ESTestCase.between(1, 100))
-            );
+            case 10 -> {
+                final int maxSlices = mutatedRequest.getMaxDocs() == AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
+                    ? 100
+                    : mutatedRequest.getMaxDocs();
+                mutatedRequest.setSlices(
+                    ESTestCase.randomValueOtherThan(originalRequest.getSlices(), () -> ESTestCase.between(1, maxSlices))
+                );
+            }
             case 11 -> mutatedRequest.setShouldStoreResult(originalRequest.getShouldStoreResult() == false);
             case 12 -> mutatedRequest.setEligibleForRelocationOnShutdown(originalRequest.isEligibleForRelocationOnShutdown() == false);
             case 13 -> mutatedRequest.setResumeInfo(
@@ -360,10 +365,6 @@ public final class BulkByScrollWireSerializingTestUtils {
                 }
             }
             default -> throw new AssertionError();
-        }
-        if (mutatedRequest.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
-            && mutatedRequest.getMaxDocs() < mutatedRequest.getSlices()) {
-            mutatedRequest.setMaxDocs(mutatedRequest.getSlices());
         }
     }
 

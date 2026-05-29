@@ -619,7 +619,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                         centroidSlices.sliceOffsets()[i] = centroidSlices.sliceOffsets()[i - 1] + result.centroids().length;
                     }
                 }
-                KMeansResult<float[]> result = KMeansResult.merge(centroidClusters);
+                KMeansResult<float[]> result = KMeansResult.merge(centroidClusters, CentroidOps.FLOAT);
                 assert CentroidSlices.assertSliceOffsets(centroidSlices.sliceOffsets(), result.centroids().length);
                 return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo, result, centroidSlices);
             }
@@ -976,7 +976,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 sliceLengths[i] = sliceNumVectors;
                 sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
             }
-            final KMeansResult<float[]> merged = KMeansResult.merge(kmeansResults);
+            final KMeansResult<float[]> merged = KMeansResult.merge(kmeansResults, CentroidOps.FLOAT);
             if (logger.isDebugEnabled()) {
                 logger.debug("final centroid count: {}", merged.centroids().length);
             }

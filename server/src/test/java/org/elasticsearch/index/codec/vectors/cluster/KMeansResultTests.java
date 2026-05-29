@@ -51,7 +51,8 @@ public class KMeansResultTests extends ESTestCase {
             List.of(
                 new KMeansResult<>(centroids1, assignments1, soarAssignments1),
                 new KMeansResult<>(centroids2, assignments2, soarAssignments2)
-            )
+            ),
+            CentroidOps.FLOAT
         );
 
         assertCentroidsEqual(expectedCentroids, merged.centroids());
@@ -92,7 +93,8 @@ public class KMeansResultTests extends ESTestCase {
             List.of(
                 new KMeansResult<>(centroids1, assignments1, soarAssignments1),
                 new KMeansResult<>(centroids2, assignments2, new int[0])
-            )
+            ),
+            CentroidOps.FLOAT
         );
 
         assertCentroidsEqual(expectedCentroids, merged.centroids());

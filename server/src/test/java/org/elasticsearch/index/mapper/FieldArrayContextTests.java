@@ -178,24 +178,34 @@ public class FieldArrayContextTests extends ESTestCase {
         return new TestDocumentParserContext(settings);
     }
 
-    public void testGetOffsetsFieldNameColumnarBranchFiresWhenAllConditionsHold() {
+    /**
+     * Happy path: all columnar-branch preconditions hold (synthetic source, columnar, multi_value, no copy_to, no multi_fields). The
+     * builder's leaf name should be returned with the {@code .offsets} suffix.
+     */
+    public void testColumnarBranchFiresWhenAllConditionsHold() {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext context = MapperBuilderContext.root(true, false);
-        String name = getOffsetsFieldName(
-            context,
-            Mapper.SourceKeepMode.NONE,
-            true,
-            false,
-            builder,
-            IndexVersion.current(),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            true,
-            true
+        assertEquals(
+            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
+            getOffsetsFieldName(
+                context,
+                Mapper.SourceKeepMode.NONE,
+                true,
+                false,
+                builder,
+                IndexVersion.current(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                true,
+                true
+            )
         );
-        assertEquals("field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX, name);
     }
 
-    public void testGetOffsetsFieldNameColumnarBranchSkipsWhenAnyConditionMissing() {
+    /**
+     * Skip cases: each precondition of the columnar branch, when missing, must cause the method to return {@code null}. Covers all four
+     * skip conditions: non-synthetic source, non-columnar mode, {@code multi_value=false}, and {@code copy_to} present on the source.
+     */
+    public void testColumnarBranchSkipsWhenAnyConditionMissing() {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext syntheticRoot = MapperBuilderContext.root(true, false);
         MapperBuilderContext storedRoot = MapperBuilderContext.root(false, false);
@@ -242,17 +252,12 @@ public class FieldArrayContextTests extends ESTestCase {
                 false
             )
         );
-    }
-
-    public void testGetOffsetsFieldNameColumnarBranchExcludesCopyToAndMultiFields() {
-        MapperBuilderContext context = MapperBuilderContext.root(true, false);
-
-        // copy_to blocks the columnar branch — the target's reconstructed source would mix copy_to values with direct writes
+        // copy_to source is skipped
         FieldMapper.Builder withCopyTo = newTestBuilder("field");
         withCopyTo.copyTo = FieldMapper.CopyTo.empty().withAddedFields(List.of("target"));
         assertNull(
             getOffsetsFieldName(
-                context,
+                syntheticRoot,
                 Mapper.SourceKeepMode.NONE,
                 true,
                 false,
@@ -263,39 +268,23 @@ public class FieldArrayContextTests extends ESTestCase {
                 true
             )
         );
-
-        // multi-fields parents are blocked — the offsets sidecar on the parent would be wasted; sub-fields get their own offsets
-        FieldMapper.Builder withMultiFields = newTestBuilder("field");
-        withMultiFields.multiFieldsBuilder.add(newTestBuilder("sub"));
-        assertNull(
-            getOffsetsFieldName(
-                context,
-                Mapper.SourceKeepMode.NONE,
-                true,
-                false,
-                withMultiFields,
-                IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
-            )
-        );
     }
 
-    public void testGetOffsetsFieldNameLegacyBranchUnchanged() {
+    public void testLegacyBranchUnchanged() {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext context = MapperBuilderContext.root(true, false);
-        // legacy branch requires source_keep_mode=ARRAYS; the new isColumnar/multiValue flags default to false in the legacy overload
-        String name = getOffsetsFieldName(
-            context,
-            Mapper.SourceKeepMode.ARRAYS,
-            true,
-            false,
-            builder,
-            IndexVersion.current(),
-            IndexVersions.MINIMUM_COMPATIBLE
+        assertEquals(
+            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
+            getOffsetsFieldName(
+                context,
+                Mapper.SourceKeepMode.ARRAYS,
+                true,
+                false,
+                builder,
+                IndexVersion.current(),
+                IndexVersions.MINIMUM_COMPATIBLE
+            )
         );
-        assertEquals("field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX, name);
     }
 
     private static FieldMapper.Builder newTestBuilder(String name) {

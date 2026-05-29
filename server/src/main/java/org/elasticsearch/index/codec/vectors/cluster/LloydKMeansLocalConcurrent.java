@@ -16,15 +16,17 @@ import org.apache.lucene.util.hnsw.IntToIntFunction;
 import java.io.IOException;
 
 /**
- * concurrent implementation of Lloyd's k-means
+ * Concurrent implementation of Lloyd's k-means.
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
+class LloydKMeansLocalConcurrent<V> extends LloydKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
 
-    LloydKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
+    LloydKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+        super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
     }
@@ -36,9 +38,9 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
 
     @Override
     protected boolean stepLloyd(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         IntToIntFunction ordTranslator,
-        float[][] centroids,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
@@ -47,6 +49,7 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
             executor,
             numWorkers,
             vectors,
+            ops,
             ordTranslator,
             centroids,
             centroidChangedSlices,
@@ -57,16 +60,16 @@ class LloydKMeansLocalConcurrent extends LloydKMeansLocal {
 
     @Override
     protected void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
+        ClusteringVectorValues<V> vectors,
+        KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
-        assignSpilledConcurrent(executor, numWorkers, vectors, kmeansIntermediate, neighborhoods, soarLambda);
+        assignSpilledConcurrent(executor, numWorkers, vectors, ops, kmeansIntermediate, neighborhoods, soarLambda);
     }
 
     @Override
-    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+    protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(executor, numWorkers, ops.toFloatCentroids(centroids), clustersPerNeighborhood);
     }
 }

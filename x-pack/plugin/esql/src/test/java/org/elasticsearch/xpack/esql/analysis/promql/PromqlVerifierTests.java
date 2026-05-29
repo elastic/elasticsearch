@@ -109,10 +109,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlInstantQuery() {
-        tsdb.error(
-            "PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))",
-            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
-        );
+        assertNotNull(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))"));
     }
 
     public void testPromqlMissingBucketParameters() {
@@ -176,11 +173,9 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testCounterMetricWithUnsupportedFunction() {
-        // network.bytes_in is a counter metric - avg_over_time doesn't support counters
-        tsdb.error(
-            "PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])",
-            containsString("function [avg_over_time] does not support counter metric [network.bytes_in]")
-        );
+        // network.bytes_in is a counter metric; avg_over_time auto-wraps counters with to_gauge()
+        var plan = tsdb.query("PROMQL index=test step=5m avg_over_time(network.bytes_in[5m])");
+        assertTrue("avg_over_time() on a counter should be valid (implicit to_gauge wrap)", plan.resolved());
     }
 
     public void testCounterMetricWithAcrossSeriesAggregateIsValid() {
@@ -209,11 +204,9 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testGaugeMetricWithCounterOnlyFunction() {
-        // network.connections is a gauge - rate() requires counter metrics
-        tsdb.error(
-            "PROMQL index=test step=5m rate(network.connections[5m])",
-            containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
-        );
+        // network.connections is a gauge; rate() auto-wraps plain numerics with to_counter()
+        var plan = tsdb.query("PROMQL index=test step=5m rate(network.connections[5m])");
+        assertTrue("rate() on a plain numeric gauge should be valid (implicit to_counter wrap)", plan.resolved());
     }
 
     public void testRateOnNonNumericField() {

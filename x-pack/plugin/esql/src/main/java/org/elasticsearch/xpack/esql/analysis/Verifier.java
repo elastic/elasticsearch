@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -400,12 +401,11 @@ public class Verifier {
      */
     private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
         if (plan instanceof InlineStats is) {
-            Holder<Limit> inlineStatsDescendantLimit = new Holder<>();
+            Holder<LogicalPlan> inlineStatsDescendantLimit = new Holder<>();
             is.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof Limit l) {
-                    inlineStatsDescendantLimit.set(l);
+                if (p instanceof Limit || p instanceof LimitBy) {
+                    inlineStatsDescendantLimit.set(p);
                     breakEarly.set(true);
-                    return;
                 }
             });
 

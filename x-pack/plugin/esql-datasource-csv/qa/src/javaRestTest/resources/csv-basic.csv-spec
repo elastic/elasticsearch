@@ -1,0 +1,70 @@
+// Scalar end-to-end coverage for CSV/TSV reading, using the bracket-free employees twin
+// (employees_no_mv). This is the CSV/TSV counterpart to the shared external-basic.csv-spec: that
+// spec reads the multi-value employees fixture, which only parses under multi_value_syntax: brackets,
+// so for CSV/TSV (default none) we read the scalar twin instead. The scalar columns are identical to
+// employees, so these assertions match. Multi-value behavior is covered by csv-multivalue.csv-spec /
+// tsv-multivalue.csv-spec.
+
+readAllEmployeesScalar
+required_capability: external_command
+
+EXTERNAL "{{employees_no_mv}}"
+| KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date          | gender:keyword | hire_date:date           | languages:integer | height:double | salary:integer | still_hired:boolean
+10001          | "Georgi"           | "Facello"         | 1953-09-02T00:00:00.000Z | "M"            | 1986-06-26T00:00:00.000Z | 2                 | 2.03          | 57305          | true
+10002          | "Bezalel"          | "Simmel"          | 1964-06-02T00:00:00.000Z | "F"            | 1985-11-21T00:00:00.000Z | 5                 | 2.08          | 56371          | true
+10003          | "Parto"            | "Bamford"         | 1959-12-03T00:00:00.000Z | "M"            | 1986-08-28T00:00:00.000Z | 4                 | 1.83          | 61805          | false
+10004          | "Chirstian"        | "Koblick"         | 1954-05-01T00:00:00.000Z | "M"            | 1986-12-01T00:00:00.000Z | 5                 | 1.78          | 36174          | true
+10005          | "Kyoichi"          | "Maliniak"        | 1955-01-21T00:00:00.000Z | "M"            | 1989-09-12T00:00:00.000Z | 1                 | 2.05          | 63528          | true
+;
+
+filterByEmployeeNumberScalar
+required_capability: external_command
+
+EXTERNAL "{{employees_no_mv}}"
+| WHERE emp_no == 10001
+| KEEP emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | "Georgi"           | "Facello"
+;
+
+aggregateCountScalar
+required_capability: external_command
+
+EXTERNAL "{{employees_no_mv}}"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+aggregateByGenderScalar
+required_capability: external_command
+
+EXTERNAL "{{employees_no_mv}}"
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+topNSortBySalaryDescScalar
+required_capability: external_command
+
+EXTERNAL "{{employees_no_mv}}"
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+;

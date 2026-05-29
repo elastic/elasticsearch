@@ -18,7 +18,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -38,7 +38,7 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
     private static final Logger logger = LogManager.getLogger(AbstractResumeBulkByScrollAction.class);
 
     private final ClusterService clusterService;
-    private final ActionType<BulkByScrollResponse> delegateAction;
+    private final ActionType<BulkByPaginatedSearchResponse> delegateAction;
     private final NodeClient nodeClient;
 
     protected AbstractResumeBulkByScrollAction(
@@ -48,7 +48,7 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
         Writeable.Reader<ResumeBulkByScrollRequest> requestReader,
         Executor executor,
         ClusterService clusterService,
-        ActionType<BulkByScrollResponse> delegateAction,
+        ActionType<BulkByPaginatedSearchResponse> delegateAction,
         NodeClient nodeClient
     ) {
         super(actionName, transportService, actionFilters, requestReader, executor);
@@ -63,7 +63,7 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
         assert request.getDelegate().getResumeInfo().isPresent();
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
 
-        var responseListener = new SubscribableListener<BulkByScrollResponse>();
+        var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
         Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(delegateTask));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());

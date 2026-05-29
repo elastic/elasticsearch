@@ -1,5 +1,5 @@
 area: ES|QL
-issues: []
+issues: [141596]
 pr: 149307
 summary: "Extend FIRST and EARLIEST aggregations to support additional types including\
   \ spatial types, version and unsigned_long"

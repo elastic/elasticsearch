@@ -36,7 +36,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
 import static org.hamcrest.Matchers.empty;
@@ -72,7 +71,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             EsqlTestUtils.TEST_CFG.withZoneId(ZoneId.of("Europe/Paris"))
         );
 
-        var expression = TEST_PROMQL_FUNCTION_REGISTRY.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction("year", Source.EMPTY, null, ctx, List.of());
         assertThat(as(expression.fold(FoldContext.small()), Double.class), equalTo(2023.0));
     }
 
@@ -84,7 +83,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
             EsqlTestUtils.TEST_CFG
         );
 
-        var expression = TEST_PROMQL_FUNCTION_REGISTRY.buildEsqlFunction(
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             "year",
             Source.EMPTY,
             Literal.fromDouble(Source.EMPTY, 1712574000.0),
@@ -136,7 +135,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     private void assertTimeExtraction(PromqlFunctionRegistry.PromqlContext ctx, String function, double expected) {
-        var expression = TEST_PROMQL_FUNCTION_REGISTRY.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
+        var expression = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function, Source.EMPTY, null, ctx, List.of());
         assertThat(function, as(expression.fold(FoldContext.small()), Double.class), equalTo(expected));
     }
 

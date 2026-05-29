@@ -30,10 +30,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
  */
 public final class CalibrationUtils {
 
-    static final int MAX_QUERY_SAMPLE = 1024;
-    static final int MAX_CORPUS_SAMPLE = 16384;
-    static final int MAX_QUERY_SAMPLE_FAST = 128;
-    static final int MAX_CORPUS_SAMPLE_FAST = 8192;
+    static final int MAX_QUERY_SAMPLE = 512;
+    static final int MAX_CORPUS_SAMPLE = 10240;
     static final long CALIBRATION_SEED = 215873873L;
 
     private CalibrationUtils() {}
@@ -210,14 +208,6 @@ public final class CalibrationUtils {
      */
     public static SampledData sampleData(FloatVectorValues vectorValues) throws IOException {
         return sampleData(vectorValues, MAX_QUERY_SAMPLE, MAX_CORPUS_SAMPLE);
-    }
-
-    /**
-     * Sample random, disjoint query and corpus subsets using reduced sample sizes
-     * for faster calibration (e.g., during merge re-calibration).
-     */
-    public static SampledData sampleDataFast(FloatVectorValues vectorValues) throws IOException {
-        return sampleData(vectorValues, MAX_QUERY_SAMPLE_FAST, MAX_CORPUS_SAMPLE_FAST);
     }
 
     /**

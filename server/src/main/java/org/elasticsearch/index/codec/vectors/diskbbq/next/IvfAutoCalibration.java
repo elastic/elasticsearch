@@ -20,7 +20,7 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.CalibrationU
 import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.ErrorModel;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.ExpectedRecall;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.ManifoldModel;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.RepErrorStdModel;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.QuantizationErrorStdModel;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -36,7 +36,7 @@ import java.util.Objects;
 
 /**
  * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled: reuses
- * persisted segment metadata when possible, otherwise runs fast or full calibration on merged vectors.
+ * persisted segment metadata when possible, otherwise runs full calibration on merged vectors.
  * {@link #resolve} requires a non-null {@link MergeState}. Segments with fewer than
  * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@link #DEFAULT_CALIBRATED_OVERSAMPLE}.
  */
@@ -77,14 +77,14 @@ public class IvfAutoCalibration {
         new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC, 7, 7), };
 
     /**
-     * Rerank depth multipliers (numerator/denominator), aligned with auto_osq {@code rerankDepthCandidates}.
+     * Rerank depth multipliers swept in ascending cost order.
      */
-    private static final int[][] RERANK_RATIOS = { { 5, 2 }, { 15, 10 }, { 7, 4 }, { 2, 1 } };
+    private static final double[] RERANK_DEPTHS = { 1.25, 1.5, 1.75, 2.0, 2.5 };
 
     /**
      * Weight of rerank depth in the calibration cost model ({@code dbits + RERANK_COST_WEIGHT * rerankDepth}).
      */
-    private static final double RERANK_COST_WEIGHT = 1.5;
+    private static final double RERANK_COST_WEIGHT = 1.2;
 
     /**
      * Sweeps (encoding, rerank ratio) in ascending estimated cost so the first config meeting target recall is cheap.
@@ -123,12 +123,9 @@ public class IvfAutoCalibration {
     }
 
     /**
-     * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState},
-     * except for <em>bounded</em> (force-merge) merges: those run {@link #runFastCalibration} first so calibration
-     * is not skipped after major segment consolidation; if the fast path does not meet {@link #targetRecall},
-     * full {@link #calibrate} runs once on the same vectors (fast-then-full fallback) when the fast path does not
-     * meet the configured target recall. Bounded merges are detected
-     * from the merged segment's Lucene diagnostics key {@code mergeMaxNumSegments} ({@code >= 1}).
+     * On merge, attempts to reuse quantization metadata from input segments via {@link #selectFromMergeState}.
+     * When reuse is not possible, runs full calibration on merged vectors. Bounded (force-merge) merges
+     * skip metadata reuse and always calibrate.
      */
     public IvfSegmentConfig resolve(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState) {
         Objects.requireNonNull(mergeState, "mergeState");
@@ -141,52 +138,32 @@ public class IvfAutoCalibration {
         }
 
         MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-        if (mergeCtx.boundedForceMerge()) {
-            logger.debug(
-                "Merge calibration: bounded force merge (mergeMaxNumSegments=[{}], inputSegments=[{}]), skipping metadata reuse; running fast calibration",
-                mergeCtx.mergeMaxNumSegmentsForLog(),
-                mergeCtx.inputSegments()
-            );
-            try {
-                // TODO : use fast if met target recall AND with good quantization error OLS fit
-                FastCalibrationOutcome fastOutcome = runFastCalibration(floatVectorValues, dim, similarityFunction, numVectors, mergeCtx);
-                if (fastOutcome.metTargetRecall()) {
-                    return fastOutcome.result();
-                }
-                return calibrate(floatVectorValues, similarityFunction);
-            } catch (IOException e) {
-                logger.warn("calibration failed on bounded force merge, falling back to ONE_BIT_4BIT_QUERY", e);
-                return new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                    false,
-                    DEFAULT_CALIBRATED_OVERSAMPLE
-                );
-            }
-        } else {
+        if (mergeCtx.boundedForceMerge() == false) {
             IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, floatVectorValues.size());
             if (reused != null) {
                 return reused;
             }
-            logger.debug("Merge calibration reuse not possible, running fast calibration");
-            try {
-                return calibrateFast(floatVectorValues, dim, similarityFunction, numVectors, mergeCtx);
-            } catch (IOException e) {
-                logger.warn("fast calibration failed, falling back to ONE_BIT_4BIT_QUERY", e);
-                return new IvfSegmentConfig(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-                    false,
-                    DEFAULT_CALIBRATED_OVERSAMPLE
-                );
-            }
+        } else {
+            logger.debug(
+                "Merge calibration: bounded force merge (mergeMaxNumSegments=[{}], inputSegments=[{}]), skipping metadata reuse",
+                mergeCtx.mergeMaxNumSegmentsForLog(),
+                mergeCtx.inputSegments()
+            );
+        }
+
+        logger.debug("Merge calibration reuse not possible, running calibration");
+        try {
+            return calibrate(floatVectorValues, similarityFunction);
+        } catch (IOException e) {
+            logger.warn("calibration failed on merge, falling back to ONE_BIT_4BIT_QUERY", e);
+            return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
         }
     }
 
     /**
      * Attempts to reuse calibration results from the input segments being merged.
      * Returns a merged {@link IvfSegmentConfig} if the data has not changed significantly,
-     * or {@code null} if merge-time fast calibration should be performed.
-     * Not used for bounded (force-merge) merges; those use {@link #runFastCalibration} with a full
-     * {@link #calibrate} fallback when the fast path does not meet the target recall.
+     * or {@code null} if merge-time calibration should be performed.
      */
     IvfSegmentConfig selectFromMergeState(
         FieldInfo fieldInfo,
@@ -287,61 +264,18 @@ public class IvfAutoCalibration {
      * {@link CalibrationUtils#toHeapDenseFloatVectorValues} for small inputs).
      */
     public IvfSegmentConfig calibrate(FloatVectorValues floatVectorValues, VectorSimilarityFunction similarityFunction) throws IOException {
-        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, floatVectorValues.dimension(), similarityFunction, false);
-        logCalibrationPrepared(ctx, false);
+        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, floatVectorValues.dimension(), similarityFunction);
+        logCalibrationPrepared(ctx);
         SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction);
         return logCalibrationResult(outcome);
     }
 
-    /**
-     * Outcome of {@link #runFastCalibration}: {@code metTargetRecall} is true when an encoding met the
-     * target recall before the best-effort path.
-     */
-    protected record FastCalibrationOutcome(IvfSegmentConfig result, boolean metTargetRecall) {}
-
-    /**
-     * Runs calibration with reduced sample sizes, fewer sweep iterations, and fewer
-     * manifold model data points for faster execution during merge re-calibration.
-     */
-    IvfSegmentConfig calibrateFast(
-        FloatVectorValues floatVectorValues,
-        int dim,
-        VectorSimilarityFunction similarityFunction,
-        int N,
-        MergeCalibrationContext mergeCtx
-    ) throws IOException {
-        return runFastCalibration(floatVectorValues, dim, similarityFunction, N, mergeCtx).result();
-    }
-
-    /**
-     * Same work as {@link #calibrateFast} but exposes whether the target recall was reached (for bounded-merge fallback).
-     */
-    protected FastCalibrationOutcome runFastCalibration(
-        FloatVectorValues floatVectorValues,
-        int dim,
-        VectorSimilarityFunction similarityFunction,
-        int numVectors,
-        MergeCalibrationContext mergeCtx
-    ) throws IOException {
-        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, dim, similarityFunction, true);
-        logCalibrationPrepared(ctx, true);
-        SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction, numVectors);
-        return logFastCalibrationResult(outcome, mergeCtx);
-    }
-
-    /**
-     * Shared setup for {@link #calibrate} and {@link #runFastCalibration}: sampling, optional Neyshabur lift,
-     * {@link CalibrationQueries}, and preconditioned corpus view.
-     */
     private CalibrationContext prepareCalibrationRun(
         FloatVectorValues floatVectorValues,
         int dim,
-        VectorSimilarityFunction similarityFunction,
-        boolean fast
+        VectorSimilarityFunction similarityFunction
     ) throws IOException {
-        CalibrationUtils.SampledData sampled = fast
-            ? CalibrationUtils.sampleDataFast(floatVectorValues)
-            : CalibrationUtils.sampleData(floatVectorValues);
+        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(floatVectorValues);
         int[] queryOrdinals = sampled.queryOrdinals();
         int[] corpusOrdinals = sampled.corpusOrdinals();
 
@@ -373,7 +307,6 @@ public class IvfAutoCalibration {
             dimWork,
             floatVectorValues.size(),
             cosine,
-            fast,
             corpusOrdinals,
             calibrationQueries,
             fvvForCalibration,
@@ -381,68 +314,40 @@ public class IvfAutoCalibration {
         );
     }
 
-    private void logCalibrationPrepared(CalibrationContext ctx, boolean fast) {
-        logger.debug(
-            "Read {} corpus vectors of dimension {}{}",
-            ctx.corpusOrdinals().length,
-            ctx.dim(),
-            fast ? " (fast calibration sample)" : ""
-        );
+    private void logCalibrationPrepared(CalibrationContext ctx) {
+        logger.debug("Read {} corpus vectors of dimension {}", ctx.corpusOrdinals().length, ctx.dim());
         logger.debug("Sampled {} queries from the corpus", ctx.calibrationQueries().size());
         logger.debug("Using {} documents per cluster", vectorsPerCluster);
-        logger.debug("Calibrating quantization parameters{}", fast ? " (fast)" : "");
+        logger.debug("Calibrating quantization parameters");
         logger.debug("block dim: {}", blockDimension);
     }
 
     private SweepOutcome runCalibrationPipeline(CalibrationContext ctx, VectorSimilarityFunction similarityFunction) throws IOException {
-        return runCalibrationPipeline(ctx, similarityFunction, ctx.numVectors());
-    }
-
-    private SweepOutcome runCalibrationPipeline(CalibrationContext ctx, VectorSimilarityFunction similarityFunction, int numVectors)
-        throws IOException {
-        double[] manifold = ctx.fast()
-            ? ManifoldModel.estimateManifoldParametersFast(
-                similarityFunction,
-                ctx.dimWork(),
-                ctx.calibrationQueries(),
-                ctx.fvvForCalibration(),
-                ctx.corpusOrdinals(),
-                k
-            )
-            : ManifoldModel.estimateManifoldParameters(
-                similarityFunction,
-                ctx.dimWork(),
-                ctx.calibrationQueries(),
-                ctx.fvvForCalibration(),
-                ctx.corpusOrdinals(),
-                k
-            );
+        double[] manifold = ManifoldModel.estimateManifoldParameters(
+            similarityFunction,
+            ctx.dimWork(),
+            ctx.calibrationQueries(),
+            ctx.fvvForCalibration(),
+            ctx.corpusOrdinals(),
+            k
+        );
         double alpha = manifold[0];
         double invDim = manifold[1];
 
-        RepErrorStdModel errorScalingModel = ctx.fast()
-            ? ErrorModel.estimateRepErrorStdScalingParameterFast(
-                similarityFunction,
-                ctx.dimWork(),
-                ctx.calibrationQueries(),
-                ctx.fvvOrth(),
-                ctx.corpusOrdinals(),
-                ctx.cosine(),
-                k
-            )
-            : ErrorModel.estimateRepErrorStdScalingParameter(
-                similarityFunction,
-                ctx.dimWork(),
-                ctx.calibrationQueries(),
-                ctx.fvvOrth(),
-                ctx.corpusOrdinals(),
-                ctx.cosine(),
-                k
-            );
+        QuantizationErrorStdModel errorScalingModel = ErrorModel.estimateQuantizationErrorStdModel(
+            similarityFunction,
+            ctx.dimWork(),
+            ctx.calibrationQueries(),
+            ctx.fvvOrth(),
+            ctx.corpusOrdinals(),
+            ctx.cosine(),
+            k,
+            vectorsPerCluster
+        );
 
         return sweepQuantizationCandidates(
             similarityFunction,
-            numVectors,
+            ctx.numVectors(),
             alpha,
             invDim,
             ctx.dimWork(),
@@ -451,106 +356,42 @@ public class IvfAutoCalibration {
             ctx.fvvOrth(),
             ctx.corpusOrdinals(),
             ctx.cosine(),
-            errorScalingModel,
-            ctx.fast()
+            errorScalingModel
         );
     }
 
     private IvfSegmentConfig logCalibrationResult(SweepOutcome outcome) {
         if (outcome.metTargetRecall()) {
-            logSelectedConfig(outcome, false, null);
+            logSelectedConfig(outcome);
             return outcome.config();
         }
-        logBestEffortConfig(outcome, false, null);
+        logBestEffortConfig(outcome);
         return outcome.config();
     }
 
-    private FastCalibrationOutcome logFastCalibrationResult(SweepOutcome outcome, MergeCalibrationContext mergeCtx) {
-        if (outcome.metTargetRecall()) {
-            logSelectedConfig(outcome, true, mergeCtx);
-            return new FastCalibrationOutcome(outcome.config(), true);
-        }
-        logBestEffortConfig(outcome, true, mergeCtx);
-        return new FastCalibrationOutcome(outcome.config(), false);
-    }
-
-    private void logSelectedConfig(SweepOutcome outcome, boolean fast, MergeCalibrationContext mergeCtx) {
+    private void logSelectedConfig(SweepOutcome outcome) {
         String recallPct = String.format(Locale.ROOT, "%.2f", outcome.selectedExpectedRecall() * 100.0);
-        if (fast) {
-            if (mergeCtx != null) {
-                logger.info(
-                    "Fast calibration Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%) [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
-                    outcome.config().quantEncoding(),
-                    vectorsPerCluster,
-                    outcome.config().usePrecondition(),
-                    outcome.selectedQbits(),
-                    outcome.selectedDbits(),
-                    outcome.selectedRerankN(),
-                    recallPct,
-                    mergeCtx.inputSegments(),
-                    mergeCtx.mergeKind(),
-                    mergeCtx.mergeMaxNumSegmentsForLog()
-                );
-            } else {
-                logger.info(
-                    "Fast calibration Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%)",
-                    outcome.config().quantEncoding(),
-                    vectorsPerCluster,
-                    outcome.config().usePrecondition(),
-                    outcome.selectedQbits(),
-                    outcome.selectedDbits(),
-                    outcome.selectedRerankN(),
-                    recallPct
-                );
-            }
-        } else {
-            logger.info(
-                "Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%)",
-                outcome.config().quantEncoding(),
-                vectorsPerCluster,
-                outcome.config().usePrecondition(),
-                outcome.selectedQbits(),
-                outcome.selectedDbits(),
-                outcome.selectedRerankN(),
-                recallPct
-            );
-        }
+        logger.info(
+            "Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%)",
+            outcome.config().quantEncoding(),
+            vectorsPerCluster,
+            outcome.config().usePrecondition(),
+            outcome.selectedQbits(),
+            outcome.selectedDbits(),
+            outcome.selectedRerankN(),
+            recallPct
+        );
     }
 
-    private void logBestEffortConfig(SweepOutcome outcome, boolean fast, MergeCalibrationContext mergeCtx) {
-        if (fast) {
-            if (mergeCtx != null) {
-                logger.info(
-                    "Fast calibration: no encoding met target recall [{}], selecting best [{}] oversample [{}] precondition [{}] recall [{}] [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
-                    targetRecall,
-                    outcome.config().quantEncoding(),
-                    outcome.config().rescoreOversample(),
-                    outcome.config().usePrecondition(),
-                    outcome.bestRecall(),
-                    mergeCtx.inputSegments(),
-                    mergeCtx.mergeKind(),
-                    mergeCtx.mergeMaxNumSegmentsForLog()
-                );
-            } else {
-                logger.info(
-                    "Fast calibration: no encoding met target recall [{}], selecting best [{}] oversample [{}] precondition [{}] recall [{}]",
-                    targetRecall,
-                    outcome.config().quantEncoding(),
-                    outcome.config().rescoreOversample(),
-                    outcome.config().usePrecondition(),
-                    outcome.bestRecall()
-                );
-            }
-        } else {
-            logger.info(
-                "Calibration: no encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
-                targetRecall,
-                outcome.config().quantEncoding(),
-                outcome.config().rescoreOversample(),
-                outcome.config().usePrecondition(),
-                outcome.bestRecall()
-            );
-        }
+    private void logBestEffortConfig(SweepOutcome outcome) {
+        logger.info(
+            "Calibration: no encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
+            targetRecall,
+            outcome.config().quantEncoding(),
+            outcome.config().rescoreOversample(),
+            outcome.config().usePrecondition(),
+            outcome.bestRecall()
+        );
     }
 
     private record CalibrationContext(
@@ -558,7 +399,6 @@ public class IvfAutoCalibration {
         int dimWork,
         int numVectors,
         boolean cosine,
-        boolean fast,
         int[] corpusOrdinals,
         CalibrationQueries calibrationQueries,
         FloatVectorValues fvvForCalibration,
@@ -568,23 +408,16 @@ public class IvfAutoCalibration {
     private static CalibrationSweep[] buildCostOrderedSweeps() {
         List<CalibrationSweep> sweeps = new ArrayList<>();
         for (CandidateEncoding candidate : CANDIDATES) {
-            for (int[] rerankRatio : RERANK_RATIOS) {
-                sweeps.add(
-                    new CalibrationSweep(
-                        candidate,
-                        rerankRatio[0],
-                        rerankRatio[1],
-                        calibrationCost(candidate.dbits(), rerankRatio[0], rerankRatio[1])
-                    )
-                );
+            for (double rerankDepth : RERANK_DEPTHS) {
+                sweeps.add(new CalibrationSweep(candidate, rerankDepth, calibrationCost(candidate.dbits(), rerankDepth)));
             }
         }
-        sweeps.sort(Comparator.comparingDouble(CalibrationSweep::cost));
+        sweeps.sort(Comparator.comparingDouble(CalibrationSweep::cost).thenComparingInt(s -> s.candidate().qbits()));
         return sweeps.toArray(CalibrationSweep[]::new);
     }
 
-    private static double calibrationCost(int dbits, int rerankNumerator, int rerankDenominator) {
-        return dbits + RERANK_COST_WEIGHT * ((double) rerankNumerator / rerankDenominator);
+    private static double calibrationCost(int dbits, double rerankDepth) {
+        return dbits + RERANK_COST_WEIGHT * rerankDepth;
     }
 
     private static int configurationKey(int qbits, int dbits, boolean precondition) {
@@ -602,60 +435,43 @@ public class IvfAutoCalibration {
         FloatVectorValues fvvOrth,
         int[] corpusOrdinals,
         boolean cosine,
-        RepErrorStdModel errorScalingModel,
-        boolean fast
+        QuantizationErrorStdModel errorScalingModel
     ) throws IOException {
         double bestRecall = -1;
         ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
         float bestOversample = DEFAULT_CALIBRATED_OVERSAMPLE;
         boolean bestPrecondition = false;
 
-        Map<Integer, RepErrorStdModel> errorModelCache = new HashMap<>();
+        Map<Integer, QuantizationErrorStdModel> errorModelCache = new HashMap<>();
         boolean[] preconditionValues = new boolean[] { false, true };
 
-        // TODO : precondition might be superseeded by larger bits, it needs to either get part of the cosst model
-        // or deserve an iteration mechanism that works better in both the extreme cases: 1) preconditioning is useless,
-        // 2) preconditioning is very helpful and allows to meet the target recall with much cheaper quantization parameters
         for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
             for (boolean precondition : preconditionValues) {
                 CandidateEncoding candidate = sweep.candidate();
                 int configKey = configurationKey(candidate.qbits(), candidate.dbits(), precondition);
-                RepErrorStdModel errorModel = errorModelCache.get(configKey);
+                QuantizationErrorStdModel errorModel = errorModelCache.get(configKey);
                 if (errorModel == null) {
                     FloatVectorValues magnitudeFvv = precondition ? fvvOrth : fvvForCalibration;
-                    errorModel = fast
-                        ? ErrorModel.estimateRepErrorStdMagnitudeParameterFast(
-                            errorScalingModel,
-                            similarityFunction,
-                            dimWork,
-                            calibrationQueries,
-                            precondition,
-                            magnitudeFvv,
-                            corpusOrdinals,
-                            cosine,
-                            k,
-                            candidate.qbits(),
-                            candidate.dbits()
-                        )
-                        : ErrorModel.estimateRepErrorStdMagnitudeParameter(
-                            errorScalingModel,
-                            similarityFunction,
-                            dimWork,
-                            calibrationQueries,
-                            precondition,
-                            magnitudeFvv,
-                            corpusOrdinals,
-                            cosine,
-                            k,
-                            candidate.qbits(),
-                            candidate.dbits()
-                        );
+                    errorModel = ErrorModel.estimateQuantizationErrorStdMagnitudeParameter(
+                        errorScalingModel,
+                        similarityFunction,
+                        dimWork,
+                        calibrationQueries,
+                        precondition,
+                        magnitudeFvv,
+                        corpusOrdinals,
+                        cosine,
+                        k,
+                        candidate.qbits(),
+                        candidate.dbits(),
+                        vectorsPerCluster
+                    );
                     errorModelCache.put(configKey, errorModel);
                 }
 
-                int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankNumerator(), sweep.rerankDenominator());
-                float oversample = (float) sweep.rerankNumerator() / sweep.rerankDenominator();
-                double errorStd = errorModel.quantizeRepErrorStd(vectorsPerCluster, numVectors);
+                int rerankVal = ExpectedRecall.rerankN(k, sweep.rerankDepth());
+                float oversample = (float) sweep.rerankDepth();
+                double errorStd = errorModel.errorStd(vectorsPerCluster, numVectors);
                 double expected = ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, k, rerankVal);
 
                 logger.debug(
@@ -728,7 +544,7 @@ public class IvfAutoCalibration {
         };
     }
 
-    private record CalibrationSweep(CandidateEncoding candidate, int rerankNumerator, int rerankDenominator, double cost) {}
+    private record CalibrationSweep(CandidateEncoding candidate, double rerankDepth, double cost) {}
 
     private record SweepOutcome(
         IvfSegmentConfig config,

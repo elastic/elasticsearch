@@ -24,6 +24,15 @@ public class ExpectedRecallTests extends ESTestCase {
         assertEquals(20, ExpectedRecall.rerankN(10, 2, 1));
     }
 
+    public void testRerankNFromDepth() {
+        assertEquals(13, ExpectedRecall.rerankN(10, 1.25));
+        assertEquals(15, ExpectedRecall.rerankN(10, 1.5));
+        assertEquals(18, ExpectedRecall.rerankN(10, 1.75));
+        assertEquals(20, ExpectedRecall.rerankN(10, 2.0));
+        assertEquals(23, ExpectedRecall.rerankN(10, 2.25));
+        assertEquals(25, ExpectedRecall.rerankN(10, 2.5));
+    }
+
     public void testExpectedRecallDecreasesAsErrorStdIncreases() {
         int n = 10_000;
         double alpha = -2.0;

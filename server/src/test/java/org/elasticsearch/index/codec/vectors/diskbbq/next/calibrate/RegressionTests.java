@@ -43,4 +43,32 @@ public class RegressionTests extends ESTestCase {
         assertThat(p.mean(), closeTo(6.0, 1e-9));
         assertTrue(Double.isFinite(p.std()));
     }
+
+    public void testOlsAccumulatorMatchesBatchFitOls() {
+        double[] x = { 0.0, 1.0, 2.0, 3.0, 4.0 };
+        double[] y = new double[x.length];
+        for (int i = 0; i < x.length; i++) {
+            y[i] = 2.0 + 3.0 * x[i];
+        }
+        Regression.OLSAccumulator acc = new Regression.OLSAccumulator();
+        acc.update(x, y);
+        Regression.OLSResult batch = Regression.fitOls(x, y);
+        Regression.OLSResult incremental = acc.fit();
+        assertThat(incremental.beta0(), closeTo(batch.beta0(), 1e-10));
+        assertThat(incremental.beta1(), closeTo(batch.beta1(), 1e-10));
+    }
+
+    public void testOlsAccumulatorFitPluginReusesSlope() {
+        double[] x = { 1.0, 2.0, 3.0, 4.0, 5.0 };
+        double[] y = new double[x.length];
+        for (int i = 0; i < x.length; i++) {
+            y[i] = 1.0 + 0.5 * x[i];
+        }
+        Regression.OLSResult scaling = Regression.fitOls(x, y);
+        Regression.OLSAccumulator acc = new Regression.OLSAccumulator();
+        acc.update(x, y);
+        Regression.OLSResult plugin = acc.fitPlugin(scaling);
+        assertThat(plugin.beta1(), closeTo(scaling.beta1(), 1e-10));
+        assertThat(plugin.beta0(), closeTo(scaling.beta0(), 1e-9));
+    }
 }

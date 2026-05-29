@@ -91,14 +91,10 @@ public final class ManifoldModel {
         15872,
         16384 };
 
-    static final int[] RANKS_FOR_K = { 29, 25, 21, 17, 13, 9, 7, 5 };
-
-    static final int[] SAMPLE_SIZES_FAST = { 4096, 5632, 7168, 8704, 10240, 11776, 13312, 16384 };
-
     private ManifoldModel() {}
 
     /**
-     * Estimate manifold parameters (alpha, invDim) using default (full) sample sizes.
+     * Estimate manifold parameters (alpha, invDim) using default sample sizes.
      */
     public static double[] estimateManifoldParameters(
         VectorSimilarityFunction similarityFunction,
@@ -111,26 +107,8 @@ public final class ManifoldModel {
         return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksForK(k), SAMPLE_SIZES);
     }
 
-    /**
-     * Estimate manifold parameters (alpha, invDim) using reduced sample sizes for faster execution.
-     */
-    public static double[] estimateManifoldParametersFast(
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        CalibrationQueries queries,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        int k
-    ) throws IOException {
-        return estimateManifoldParameters(similarityFunction, dim, queries, fvv, corpusOrdinals, k, ranksForKFast(k), SAMPLE_SIZES_FAST);
-    }
-
     static int[] ranksForK(int k) {
         return ranksFromMultipliers(RANK_MULTIPLIERS, k);
-    }
-
-    static int[] ranksForKFast(int k) {
-        return ranksFromMultipliers(RANKS_FOR_K, k);
     }
 
     private static int[] ranksFromMultipliers(int[] multipliers, int k) {

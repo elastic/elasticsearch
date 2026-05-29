@@ -22,17 +22,10 @@
  *   <li>{@link CalibrationQueries} materializes queries on demand (cosine normalization,
  *       optional Neyshabur lift, optional orthogonal preconditioning).</li>
  *   <li>{@link ManifoldModel} fits a log-linear rank–distance model over the corpus sample.</li>
- *   <li>{@link ErrorModel} fits representation-error scaling and magnitude models via
+ *   <li>{@link ErrorModel} fits quantization-error scaling and magnitude models via
  *       hierarchical k-means sweeps and {@link Regression} OLS.</li>
  *   <li>{@link ExpectedRecall} estimates recall@k for candidate encodings and rerank depths.</li>
  * </ol>
- *
- * <h2>Fast vs full calibration</h2>
- * <p>Full calibration uses larger sample sizes and more sweep points ({@link CalibrationUtils#sampleData},
- * {@link ManifoldModel#estimateManifoldParameters}, {@link ErrorModel#estimateRepErrorStdScalingParameter}).
- * Fast calibration ({@code *Fast} methods) reduces samples and sweeps for background merges.
- * Bounded force-merges run fast calibration first and fall back to full calibration when target recall
- * is not met.
  *
  * <h2>Caller requirements</h2>
  * <p>Callers must supply a {@link org.apache.lucene.index.FloatVectorValues} implementation that supports

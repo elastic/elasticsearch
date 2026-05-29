@@ -23,22 +23,9 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Error model for representation (quantization) error in scalar quantization.
+ * Error model for quantization error in scalar quantization.
  * Estimates the standard deviation of the error in distance/similarity after quantizing
  * queries and documents. Used by calibration to predict recall.
- * <p>
- * Corpus vectors are accessed lazily via {@link FloatVectorValues} and ordinal arrays
- * to avoid materializing a large {@code float[][]}. Queries are provided via
- * {@link CalibrationQueries} (late materialization, ~1024 vectors max).
- * <p>
- * Fits two OLS regressions:
- * <ul>
- *   <li><b>Scaling model</b>: sweeps (nDocsPerCluster, sampleSize) pairs to fit
- *       {@code log(error_std) ~ beta0 + beta1 * (log(L) - log(N))}.</li>
- *   <li><b>Magnitude model</b>: for a specific (qbits, dbits), sweeps cluster sizes at
- *       a fixed sample size, fitting with a plug-in regression that reuses the slope
- *       from the scaling model.</li>
- * </ul>
  */
 public final class ErrorModel {
 
@@ -46,40 +33,13 @@ public final class ErrorModel {
 
     static final int N_QUERY_CLUSTERS = 32;
 
-    static final int[] N_DOCS_PER_CLUSTER_SCALING = { 256, 240, 224, 216, 200, 184, 176, 160, 144, 136, 120, 104, 96, 80, 64 };
-    static final int[] SAMPLE_SIZES_SCALING = {
-        8192,
-        8872,
-        9552,
-        9892,
-        10572,
-        11252,
-        11592,
-        12272,
-        12952,
-        13292,
-        13972,
-        14652,
-        14992,
-        15672,
-        16352 };
+    static final int[] SAMPLE_SIZES_SCALING = { 4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360 };
 
-    static final int[] N_DOCS_PER_CLUSTER_SCALING_FAST = { 256, 216, 176, 136, 104, 80, 64 };
-    static final int[] SAMPLE_SIZES_SCALING_FAST = { 8192, 9892, 11592, 13292, 14652, 15672, 16352 };
+    static final int[] SAMPLE_SIZES_MAGNITUDE = { 2048, 3072, 4096 };
 
-    static final int[] N_DOCS_PER_CLUSTER_MAGNITUDE = { 64, 72, 80, 88, 96, 104, 112, 120, 128 };
-    static final int[] N_DOCS_PER_CLUSTER_MAGNITUDE_FAST = { 64, 80, 96, 112, 128 };
-    static final int SAMPLE_SIZE_MAGNITUDE = 4096;
-
-    /**
-     * Stop scaling/magnitude sweeps once the quantization-error OLS reaches this R².
-     */
-    private static final double SCALING_R2_EARLY_EXIT = 0.95;
-
-    /**
-     * Minimum sweep points before {@link #SCALING_R2_EARLY_EXIT} can truncate the sweep.
-     */
-    private static final int MIN_SWEEP_POINTS_BEFORE_EARLY_EXIT = 3;
+    /** Scaling fit always uses (qbits=4, dbits=1), matching {@code ONE_BIT_4BIT_QUERY}. */
+    private static final int SCALING_QBITS = 4;
+    private static final int SCALING_DBITS = 1;
 
     private ErrorModel() {}
 
@@ -107,64 +67,9 @@ public final class ErrorModel {
     }
 
     /**
-     * Centroid representation error standard deviation. For each query, finds the top 5%
-     * of clusters by similarity and measures the error between the exact similarity to
-     * each document and the similarity to its assigned centroid.
-     *
-     * @param fvv the vector values source for lazy access
-     * @param corpusOrdinals ordinal indices into {@code fvv}
-     * @param cosine if true, normalize corpus vectors on-the-fly
-     */
-    static double centroidRepErrorStd(
-        VectorSimilarityFunction sim,
-        int dim,
-        CalibrationQueries queries,
-        boolean usePreconditioned,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        boolean cosine,
-        int[][] perClusterAssignments,
-        float[][] centroids
-    ) throws IOException {
-        int k = perClusterAssignments.length;
-        int visit = Math.max(1, (5 * k + 99) / 100);
-        OnlineMeanAndVariance moments = new OnlineMeanAndVariance();
-
-        int[] order = new int[k];
-        double[] simToCentroid = new double[k];
-        float[] scratch = cosine ? new float[dim] : null;
-        float[] queryScratch = new float[dim];
-
-        for (int qi = 0; qi < queries.size(); qi++) {
-            queries.copyQuery(qi, usePreconditioned, queryScratch);
-            for (int i = 0; i < k; i++) {
-                simToCentroid[i] = simExact(sim, dim, queryScratch, centroids[i]);
-            }
-            mergeSortIndicesByKeysDescending(simToCentroid, order, k);
-            for (int idx = 0; idx < Math.min(visit, k); idx++) {
-                int ci = order[idx];
-                float[] cent = centroids[ci];
-                for (int j : perClusterAssignments[ci]) {
-                    float[] doc = fvv.vectorValue(corpusOrdinals[j]);
-                    if (cosine) {
-                        doc = CalibrationUtils.copyAndNormalize(doc, scratch);
-                    }
-                    double err = simExact(sim, dim, queryScratch, doc) - simExact(sim, dim, queryScratch, cent);
-                    moments.add(err);
-                }
-            }
-        }
-        return Math.sqrt(moments.var());
-    }
-
-    /**
      * Quantized representation error standard deviation. Quantizes doc residuals and
      * query residuals using OSQ, estimates dot products, and compares to exact
      * similarities for the top-5k ranked documents per query.
-     *
-     * @param fvv the vector values source for lazy access
-     * @param corpusOrdinals ordinal indices into {@code fvv}
-     * @param cosine if true, normalize corpus vectors on-the-fly
      */
     static double quantizedRepErrorStd(
         VectorSimilarityFunction sim,
@@ -173,6 +78,7 @@ public final class ErrorModel {
         boolean usePreconditioned,
         FloatVectorValues fvv,
         int[] corpusOrdinals,
+        int corpusLength,
         boolean cosine,
         int[] docAssignments,
         float[][] docCentroids,
@@ -181,7 +87,7 @@ public final class ErrorModel {
         int dbits,
         int k
     ) throws IOException {
-        int nDocs = docAssignments.length;
+        int nDocs = corpusLength;
         int nDocClusters = docCentroids.length;
         if (nDocClusters == 0 || nDocs == 0) {
             return 1.0;
@@ -298,50 +204,9 @@ public final class ErrorModel {
     }
 
     /**
-     * Clusters the corpus and measures centroid and quantized representation error standard deviations.
-     *
-     * @param corpusLength number of corpus vectors to use (prefix of {@code corpusOrdinals}).
-     * @param warmStartCentroids optional centroids from a prior sweep with the same top-level cluster count
-     * @return {@code double[]{centroidStd, quantizedStd}}
+     * Clusters the corpus prefix and measures quantized representation error standard deviation.
      */
-    static double[] repErrorStds(
-        VectorSimilarityFunction sim,
-        int dim,
-        CalibrationQueries queries,
-        boolean usePreconditioned,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        int corpusLength,
-        boolean cosine,
-        int nQueryClusters,
-        int nDocsPerCluster,
-        int qbits,
-        int dbits,
-        int k,
-        float[][] warmStartCentroids
-    ) throws IOException {
-        return repErrorStdsWithCentroids(
-            sim,
-            dim,
-            queries,
-            usePreconditioned,
-            fvv,
-            corpusOrdinals,
-            corpusLength,
-            cosine,
-            nQueryClusters,
-            nDocsPerCluster,
-            qbits,
-            dbits,
-            k,
-            warmStartCentroids
-        ).stds();
-    }
-
-    /**
-     * Like {@link #repErrorStds} but also returns centroids for warm-starting the next sweep.
-     */
-    static RepErrorStdComputeResult repErrorStdsWithCentroids(
+    static QuantizedErrorComputeResult quantizedRepErrorStdWithCentroids(
         VectorSimilarityFunction sim,
         int dim,
         CalibrationQueries queries,
@@ -367,35 +232,9 @@ public final class ErrorModel {
         float[][] centroids = docClusters.centroids();
         int[] flatAssignments = docClusters.assignments();
         if (centroids.length == 0) {
-            return new RepErrorStdComputeResult(new double[] { 1.0, 1.0 }, centroids);
+            return new QuantizedErrorComputeResult(1.0, centroids);
         }
 
-        int nClusters = centroids.length;
-        int[] clusterSizes = new int[nClusters];
-        for (int flatAssignment : flatAssignments) {
-            clusterSizes[flatAssignment]++;
-        }
-        int[][] perClusterAssignments = new int[nClusters][];
-        for (int i = 0; i < nClusters; i++) {
-            perClusterAssignments[i] = new int[clusterSizes[i]];
-        }
-        int[] clusterOffsets = new int[nClusters];
-        for (int i = 0; i < flatAssignments.length; i++) {
-            int cluster = flatAssignments[i];
-            perClusterAssignments[cluster][clusterOffsets[cluster]++] = i;
-        }
-
-        double cStd = centroidRepErrorStd(
-            sim,
-            dim,
-            queries,
-            usePreconditioned,
-            fvv,
-            corpusOrdinals,
-            cosine,
-            perClusterAssignments,
-            centroids
-        );
         double qStd = quantizedRepErrorStd(
             sim,
             dim,
@@ -403,6 +242,7 @@ public final class ErrorModel {
             usePreconditioned,
             fvv,
             corpusOrdinals,
+            corpusLength,
             cosine,
             flatAssignments,
             centroids,
@@ -412,102 +252,16 @@ public final class ErrorModel {
             k
         );
 
-        return new RepErrorStdComputeResult(new double[] { cStd, qStd }, centroids);
+        return new QuantizedErrorComputeResult(qStd, centroids);
     }
 
-    record RepErrorStdComputeResult(double[] stds, float[][] centroids) {}
+    record QuantizedErrorComputeResult(double std, float[][] centroids) {}
 
     /**
-     * Plug-in regression that reuses the slope from the scaling model and only fits the
-     * intercept. Used by the magnitude model to avoid overfitting with few data points.
+     * Estimate the scaling of quantization error by sweeping sample sizes at fixed
+     * {@code nDocsPerCluster}, fitting {@code log(error_std) ~ beta0 + beta1 * (log(L) - log(N))}.
      */
-    static Regression.OLSResult fitRepErrorStdPlugin(
-        RepErrorStdModel scalingModel,
-        double[] logNDocsPerCluster,
-        double[] logSampleSizes,
-        double[] logErrorStd
-    ) {
-        int m = logErrorStd.length;
-        double beta1 = scalingModel.qparams().beta1();
-        double var1 = scalingModel.qparams().var1();
-
-        double sumRes = 0.0;
-        double sumX = 0.0;
-        for (int i = 0; i < m; i++) {
-            double x = logNDocsPerCluster[i] - logSampleSizes[i];
-            sumRes += logErrorStd[i] - beta1 * x;
-            sumX += x;
-        }
-        double beta0 = sumRes / m;
-        double xBar = sumX / m;
-
-        double rss = 0.0;
-        for (int i = 0; i < m; i++) {
-            double x = logNDocsPerCluster[i] - logSampleSizes[i];
-            double err = logErrorStd[i] - (beta0 + beta1 * x);
-            rss += err * err;
-        }
-        double sigmaSq = m > 1 ? rss / (m - 1) : 0.0;
-
-        return new Regression.OLSResult(beta0, beta1, (sigmaSq / m) + (xBar * xBar * var1), var1, -xBar * var1, sigmaSq);
-    }
-
-    /**
-     * Estimate the scaling of representation error using default (full) sweep parameters.
-     */
-    public static RepErrorStdModel estimateRepErrorStdScalingParameter(
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        CalibrationQueries queries,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        boolean cosine,
-        int k
-    ) {
-        return estimateRepErrorStdScalingParameter(
-            similarityFunction,
-            dim,
-            queries,
-            fvv,
-            corpusOrdinals,
-            cosine,
-            k,
-            N_DOCS_PER_CLUSTER_SCALING,
-            SAMPLE_SIZES_SCALING
-        );
-    }
-
-    /**
-     * Estimate the scaling of representation error using reduced sweep parameters for faster execution.
-     */
-    public static RepErrorStdModel estimateRepErrorStdScalingParameterFast(
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        CalibrationQueries queries,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        boolean cosine,
-        int k
-    ) {
-        return estimateRepErrorStdScalingParameter(
-            similarityFunction,
-            dim,
-            queries,
-            fvv,
-            corpusOrdinals,
-            cosine,
-            k,
-            N_DOCS_PER_CLUSTER_SCALING_FAST,
-            SAMPLE_SIZES_SCALING_FAST
-        );
-    }
-
-    /**
-     * Estimate the scaling of representation error by sweeping (nDocsPerCluster, sampleSize) pairs,
-     * clustering the corpus at each, measuring centroid and quantized error, and fitting OLS on
-     * {@code log(error_std) ~ beta0 + beta1 * (log(L) - log(N))}.
-     */
-    static RepErrorStdModel estimateRepErrorStdScalingParameter(
+    public static QuantizationErrorStdModel estimateQuantizationErrorStdModel(
         VectorSimilarityFunction similarityFunction,
         int dim,
         CalibrationQueries queries,
@@ -515,208 +269,74 @@ public final class ErrorModel {
         int[] corpusOrdinals,
         boolean cosine,
         int k,
-        int[] nDocsPerClusterArray,
-        int[] sampleSizesArray
+        int nDocsPerCluster
     ) {
-        int m = nDocsPerClusterArray.length;
-        int nDocsTotal = corpusOrdinals.length;
-
-        logger.debug("Fitting error scaling models");
+        logger.debug("Fitting error scaling model");
         long scalingStartNanos = System.nanoTime();
 
-        double[] x = new double[m];
-        double[] logCStd = new double[m];
-        double[] logQStd = new double[m];
-        double[] logNDocsRow = new double[m];
-        double[] logSampleRow = new double[m];
-        int mActual = 0;
+        double logNDocsPerCluster = Math.log(nDocsPerCluster);
+        Regression.OLSAccumulator state = new Regression.OLSAccumulator();
         float[][] warmStartCentroids = null;
+        int corpusLength = 0;
 
-        for (int i = 0; i < m; i++) {
-            int ss = sampleSizesArray[i];
-            if (ss > nDocsTotal) {
+        for (int i = 0; i < SAMPLE_SIZES_SCALING.length; i++) {
+            int sampleSize = SAMPLE_SIZES_SCALING[i];
+            if (sampleSize > corpusOrdinals.length) {
                 break;
             }
-            if (ss < 2) {
-                continue;
-            }
+            corpusLength = sampleSize;
             try {
-                RepErrorStdComputeResult computed = repErrorStdsWithCentroids(
+                QuantizedErrorComputeResult computed = quantizedRepErrorStdWithCentroids(
                     similarityFunction,
                     dim,
                     queries,
                     true,
                     fvv,
                     corpusOrdinals,
-                    ss,
+                    corpusLength,
                     cosine,
                     N_QUERY_CLUSTERS,
-                    nDocsPerClusterArray[i],
-                    1,
-                    1,
+                    nDocsPerCluster,
+                    SCALING_QBITS,
+                    SCALING_DBITS,
                     k,
                     warmStartCentroids
                 );
                 warmStartCentroids = computed.centroids();
-                double[] stds = computed.stds();
-                logNDocsRow[mActual] = Math.log(nDocsPerClusterArray[i]);
-                logSampleRow[mActual] = Math.log(sampleSizesArray[i]);
-                x[mActual] = logNDocsRow[mActual] - logSampleRow[mActual];
-                logCStd[mActual] = Math.log(Math.max(stds[0], 1e-38));
-                logQStd[mActual] = Math.log(Math.max(stds[1], 1e-38));
-                mActual++;
-                if (mActual % 5 == 0) {
-                    logger.debug("Processed {}/{} samples", mActual, m);
-                }
-                if (mActual >= MIN_SWEEP_POINTS_BEFORE_EARLY_EXIT
-                    && shouldEarlyExitScalingSweep(mActual, logNDocsRow, logSampleRow, logQStd)) {
-                    logger.debug("Early exit scaling sweep after {} points (R² >= {})", mActual, SCALING_R2_EARLY_EXIT);
-                    break;
+                double x = logNDocsPerCluster - Math.log(sampleSize);
+                double y = Math.log(Math.max(computed.std(), 1e-38));
+                state.update(new double[] { x }, new double[] { y });
+                if ((i + 1) % 4 == 0) {
+                    logger.debug("Processed {}/{} scaling samples", i + 1, SAMPLE_SIZES_SCALING.length);
                 }
             } catch (IOException e) {
-                logger.warn("failed to compute rep error stds for sample size [{}]", ss, e);
+                logger.warn("failed to compute quantization error std for sample size [{}]", sampleSize, e);
             }
         }
 
-        if (mActual < 2) {
-            return new RepErrorStdModel(Regression.OLSResult.ZERO, Regression.OLSResult.ZERO);
+        Regression.OLSResult params = state.fit();
+        if (params == Regression.OLSResult.ZERO) {
+            return new QuantizationErrorStdModel(Regression.OLSResult.ZERO);
         }
-        double[] xFit = Arrays.copyOf(x, mActual);
-        double[] logCFit = Arrays.copyOf(logCStd, mActual);
-        double[] logQFit = Arrays.copyOf(logQStd, mActual);
-        Regression.OLSResult cparams = Regression.fitOls(xFit, logCFit);
-        Regression.OLSResult qparams = Regression.fitOls(xFit, logQFit);
-
-        double[] logNDocsPerCluster = Arrays.copyOf(logNDocsRow, mActual);
-        double[] logSampleSizes = Arrays.copyOf(logSampleRow, mActual);
 
         double scalingSeconds = (System.nanoTime() - scalingStartNanos) / 1_000_000_000.0;
-        double r2c = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logCFit, cparams);
-        double r2q = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logQFit, qparams);
         logger.debug(
-            "Fit error scaling models in {}s\n" + "centroid error {} (L/N)^{} (R² = {})\n" + "quantization error ∝ (L/N)^{} (R² = {})",
+            "Fit error scaling model in {}s\nquantization error ∝ (L/N)^{} (R² = {})",
             String.format(Locale.ROOT, "%.5f", scalingSeconds),
-            String.format(Locale.ROOT, "%.4f", Math.exp(cparams.beta0())),
-            String.format(Locale.ROOT, "%.4f", cparams.beta1()),
-            String.format(Locale.ROOT, "%.4f", r2c),
-            String.format(Locale.ROOT, "%.4f", qparams.beta1()),
-            String.format(Locale.ROOT, "%.4f", r2q)
+            String.format(Locale.ROOT, "%.4f", params.beta1()),
+            String.format(Locale.ROOT, "%.4f", state.r2(params))
         );
 
-        return new RepErrorStdModel(cparams, qparams);
-    }
-
-    /** R² for log(error) ~ beta0 + beta1 * (log(L) - log(N)). */
-    private static double repErrorStdR2(
-        double[] logNDocsPerCluster,
-        double[] logSampleSizes,
-        double[] logErrorStd,
-        Regression.OLSResult res
-    ) {
-        int n = logErrorStd.length;
-        double[] x = new double[n];
-        for (int i = 0; i < n; i++) {
-            x[i] = logNDocsPerCluster[i] - logSampleSizes[i];
-        }
-        return Regression.rSquared(x, logErrorStd, res);
-    }
-
-    private static boolean shouldEarlyExitScalingSweep(int mActual, double[] logNDocsRow, double[] logSampleRow, double[] logQStd) {
-        double[] xFit = new double[mActual];
-        double[] logQFit = new double[mActual];
-        for (int i = 0; i < mActual; i++) {
-            xFit[i] = logNDocsRow[i] - logSampleRow[i];
-            logQFit[i] = logQStd[i];
-        }
-        Regression.OLSResult qparams = Regression.fitOls(xFit, logQFit);
-        return repErrorStdR2(logNDocsRow, logSampleRow, logQFit, qparams) >= SCALING_R2_EARLY_EXIT;
-    }
-
-    private static boolean shouldEarlyExitMagnitudeSweep(
-        RepErrorStdModel scalingModel,
-        int mActual,
-        double[] logNDocs,
-        double[] logSizes,
-        double[] logQStd
-    ) {
-        double[] logNDocsTrim = Arrays.copyOf(logNDocs, mActual);
-        double[] logSizesTrim = Arrays.copyOf(logSizes, mActual);
-        double[] logQTrim = Arrays.copyOf(logQStd, mActual);
-        Regression.OLSResult qparams = fitRepErrorStdPlugin(scalingModel, logNDocsTrim, logSizesTrim, logQTrim);
-        return repErrorStdR2(logNDocsTrim, logSizesTrim, logQTrim, qparams) >= SCALING_R2_EARLY_EXIT;
+        return new QuantizationErrorStdModel(params);
     }
 
     /**
-     * Estimate the magnitude of representation error using default (full) sweep parameters.
+     * Estimate the magnitude of quantization error for a specific (qbits, dbits) pair.
+     * Sweeps sample sizes at fixed {@code nDocsPerCluster} and fits a plug-in regression
+     * that reuses the slope from the scaling model.
      */
-    public static RepErrorStdModel estimateRepErrorStdMagnitudeParameter(
-        RepErrorStdModel scalingModel,
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        CalibrationQueries queries,
-        boolean usePreconditionedQueries,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        boolean cosine,
-        int k,
-        int qbits,
-        int dbits
-    ) {
-        return estimateRepErrorStdMagnitudeParameter(
-            scalingModel,
-            similarityFunction,
-            dim,
-            queries,
-            usePreconditionedQueries,
-            fvv,
-            corpusOrdinals,
-            cosine,
-            k,
-            qbits,
-            dbits,
-            N_DOCS_PER_CLUSTER_MAGNITUDE
-        );
-    }
-
-    /**
-     * Estimate the magnitude of representation error using reduced sweep parameters for faster execution.
-     */
-    public static RepErrorStdModel estimateRepErrorStdMagnitudeParameterFast(
-        RepErrorStdModel scalingModel,
-        VectorSimilarityFunction similarityFunction,
-        int dim,
-        CalibrationQueries queries,
-        boolean usePreconditionedQueries,
-        FloatVectorValues fvv,
-        int[] corpusOrdinals,
-        boolean cosine,
-        int k,
-        int qbits,
-        int dbits
-    ) {
-        return estimateRepErrorStdMagnitudeParameter(
-            scalingModel,
-            similarityFunction,
-            dim,
-            queries,
-            usePreconditionedQueries,
-            fvv,
-            corpusOrdinals,
-            cosine,
-            k,
-            qbits,
-            dbits,
-            N_DOCS_PER_CLUSTER_MAGNITUDE_FAST
-        );
-    }
-
-    /**
-     * Estimate the magnitude of representation error for a specific (qbits, dbits) pair.
-     * Sweeps cluster sizes at a fixed sample size and fits a plug-in regression that
-     * reuses the slope from the scaling model.
-     */
-    static RepErrorStdModel estimateRepErrorStdMagnitudeParameter(
-        RepErrorStdModel scalingModel,
+    public static QuantizationErrorStdModel estimateQuantizationErrorStdMagnitudeParameter(
+        QuantizationErrorStdModel scalingModel,
         VectorSimilarityFunction similarityFunction,
         int dim,
         CalibrationQueries queries,
@@ -727,21 +347,21 @@ public final class ErrorModel {
         int k,
         int qbits,
         int dbits,
-        int[] nDocsPerClusterArray
+        int nDocsPerCluster
     ) {
-        int m = nDocsPerClusterArray.length;
-        int sampleSize = Math.min(SAMPLE_SIZE_MAGNITUDE, corpusOrdinals.length);
-
         long magnitudeStartNanos = System.nanoTime();
 
-        double[] logNDocs = new double[m];
-        double[] logSizes = new double[m];
-        double[] logQStd = new double[m];
-        int mActual = 0;
+        double logNDocsPerCluster = Math.log(nDocsPerCluster);
+        Regression.OLSAccumulator state = new Regression.OLSAccumulator();
         float[][] warmStartCentroids = null;
-        for (int i = 0; i < m; i++) {
+
+        for (int i = 0; i < SAMPLE_SIZES_MAGNITUDE.length; i++) {
+            int sampleSize = SAMPLE_SIZES_MAGNITUDE[i];
+            if (sampleSize > corpusOrdinals.length) {
+                break;
+            }
             try {
-                RepErrorStdComputeResult computed = repErrorStdsWithCentroids(
+                QuantizedErrorComputeResult computed = quantizedRepErrorStdWithCentroids(
                     similarityFunction,
                     dim,
                     queries,
@@ -751,47 +371,36 @@ public final class ErrorModel {
                     sampleSize,
                     cosine,
                     N_QUERY_CLUSTERS,
-                    nDocsPerClusterArray[i],
+                    nDocsPerCluster,
                     qbits,
                     dbits,
                     k,
                     warmStartCentroids
                 );
                 warmStartCentroids = computed.centroids();
-                double[] stds = computed.stds();
-                logNDocs[mActual] = Math.log(nDocsPerClusterArray[i]);
-                logSizes[mActual] = Math.log(sampleSize);
-                logQStd[mActual] = Math.log(Math.max(stds[1], 1e-38));
-                mActual++;
-                if (mActual >= MIN_SWEEP_POINTS_BEFORE_EARLY_EXIT
-                    && shouldEarlyExitMagnitudeSweep(scalingModel, mActual, logNDocs, logSizes, logQStd)) {
-                    logger.debug("Early exit magnitude sweep after {} points (R² >= {})", mActual, SCALING_R2_EARLY_EXIT);
-                    break;
-                }
+                double x = logNDocsPerCluster - Math.log(sampleSize);
+                double y = Math.log(Math.max(computed.std(), 1e-38));
+                state.update(new double[] { x }, new double[] { y });
             } catch (IOException e) {
-                logger.warn("failed to compute rep error stds for magnitude iteration [{}]", i, e);
+                logger.warn("failed to compute quantization error std for magnitude sample size [{}]", sampleSize, e);
             }
         }
 
-        if (mActual < 2) {
+        Regression.OLSResult params = state.fitPlugin(scalingModel.params());
+        if (params == Regression.OLSResult.ZERO) {
             return scalingModel;
         }
-        double[] logNDocsTrim = Arrays.copyOf(logNDocs, mActual);
-        double[] logSizesTrim = Arrays.copyOf(logSizes, mActual);
-        double[] logQTrim = Arrays.copyOf(logQStd, mActual);
-        Regression.OLSResult qparams = fitRepErrorStdPlugin(scalingModel, logNDocsTrim, logSizesTrim, logQTrim);
 
         double magnitudeSeconds = (System.nanoTime() - magnitudeStartNanos) / 1_000_000_000.0;
-        double r2Mag = repErrorStdR2(logNDocsTrim, logSizesTrim, logQTrim, qparams);
         logger.debug(
-            "Fit error magnitude models in {}s\nquantization error {} (L/N)^{} (R² = {})",
+            "Fit error magnitude model in {}s\nquantization error {} (L/N)^{} (R² = {})",
             String.format(Locale.ROOT, "%.2f", magnitudeSeconds),
-            String.format(Locale.ROOT, "%.4f", Math.exp(qparams.beta0())),
-            String.format(Locale.ROOT, "%.4f", qparams.beta1()),
-            String.format(Locale.ROOT, "%.4f", r2Mag)
+            String.format(Locale.ROOT, "%.4f", Math.exp(params.beta0())),
+            String.format(Locale.ROOT, "%.4f", params.beta1()),
+            String.format(Locale.ROOT, "%.4f", state.r2(params))
         );
 
-        return new RepErrorStdModel(scalingModel.cparams(), qparams);
+        return new QuantizationErrorStdModel(params);
     }
 
     /**

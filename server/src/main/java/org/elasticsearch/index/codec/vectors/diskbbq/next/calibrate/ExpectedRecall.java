@@ -94,6 +94,13 @@ public final class ExpectedRecall {
     }
 
     /**
+     * Rerank count from continuous depth multiplier: {@code round(depth * k)}.
+     */
+    public static int rerankN(int k, double rerankDepth) {
+        return Math.max(1, (int) Math.round(rerankDepth * k));
+    }
+
+    /**
      * Rerank count from fraction: (k * num + den/2) / den.
      */
     public static int rerankN(int k, int num, int den) {

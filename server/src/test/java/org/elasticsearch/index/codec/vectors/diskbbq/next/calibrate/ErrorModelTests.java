@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.not;
 
 public class ErrorModelTests extends ESTestCase {
 
@@ -43,11 +42,11 @@ public class ErrorModelTests extends ESTestCase {
         assertEquals((long) 4 + 2 * 5 + 3 * 6, ErrorModel.dotInt(3, a, 0, b, 0));
     }
 
-    public void testEstimateRepErrorStdScalingParameterFastReturnsFiniteModel() throws IOException {
-        float[][] rows = AutoCalibrationVectorFixtures.syntheticClusteredRows(256, 8, 8);
+    public void testEstimateQuantizationErrorStdModelReturnsFiniteModel() throws IOException {
+        float[][] rows = AutoCalibrationVectorFixtures.syntheticClusteredRows(5200, 8, 8);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, 8);
         int[] queryOrdinals = new int[32];
-        int[] corpusOrdinals = new int[200];
+        int[] corpusOrdinals = new int[5000];
         for (int i = 0; i < queryOrdinals.length; i++) {
             queryOrdinals[i] = i;
         }
@@ -55,9 +54,7 @@ public class ErrorModelTests extends ESTestCase {
             corpusOrdinals[i] = 32 + i;
         }
         CalibrationQueries queries = new CalibrationQueries(fvv, queryOrdinals, 8, false, false, null, 8);
-        int[] nDocsPerCluster = { 64, 48, 32 };
-        int[] sampleSizes = { 128, 192, 200 };
-        RepErrorStdModel model = ErrorModel.estimateRepErrorStdScalingParameter(
+        QuantizationErrorStdModel model = ErrorModel.estimateQuantizationErrorStdModel(
             VectorSimilarityFunction.EUCLIDEAN,
             8,
             queries,
@@ -65,13 +62,11 @@ public class ErrorModelTests extends ESTestCase {
             corpusOrdinals,
             false,
             10,
-            nDocsPerCluster,
-            sampleSizes
+            128
         );
-        assertThat(model.qparams().beta0(), not(0.0));
-        assertTrue(Double.isFinite(model.qparams().beta0()));
-        assertTrue(Double.isFinite(model.qparams().beta1()));
-        assertThat(model.quantizeRepErrorStd(128, 200), greaterThan(0.0));
+        assertTrue(Double.isFinite(model.params().beta0()));
+        assertTrue(Double.isFinite(model.params().beta1()));
+        assertThat(model.errorStd(128, 5000), greaterThan(0.0));
     }
 
 }

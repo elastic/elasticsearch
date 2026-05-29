@@ -69,7 +69,7 @@ public class ManifoldModelTests extends ESTestCase {
         }
     }
 
-    public void testEstimateManifoldParametersFastReturnsFiniteCoefficients() throws IOException {
+    public void testEstimateManifoldParametersReturnsFiniteCoefficients() throws IOException {
         float[][] rows = AutoCalibrationVectorFixtures.syntheticClusteredRows(512, 8, 8);
         FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(rows), null, 8);
         int[] corpusOrdinals = new int[256];
@@ -81,14 +81,7 @@ public class ManifoldModelTests extends ESTestCase {
             queryOrdinals[i] = i;
         }
         CalibrationQueries queries = new CalibrationQueries(fvv, queryOrdinals, 8, false, false, null, 8);
-        double[] params = ManifoldModel.estimateManifoldParametersFast(
-            VectorSimilarityFunction.EUCLIDEAN,
-            8,
-            queries,
-            fvv,
-            corpusOrdinals,
-            10
-        );
+        double[] params = ManifoldModel.estimateManifoldParameters(VectorSimilarityFunction.EUCLIDEAN, 8, queries, fvv, corpusOrdinals, 10);
         assertTrue(Double.isFinite(params[0]));
         assertTrue(Double.isFinite(params[1]));
     }

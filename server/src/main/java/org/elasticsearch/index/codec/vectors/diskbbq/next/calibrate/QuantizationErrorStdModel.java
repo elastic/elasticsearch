@@ -10,35 +10,27 @@
 package org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate;
 
 /**
- * Model for the standard deviation of representation (quantization) error.
+ * Model for the standard deviation of quantization error after scalar quantization.
  * Uses OLS-predicted log(error_std) as a function of log(nDocsPerCluster) - log(sampleSize).
- * Provides centroid and quantized error std predictions; calibration uses
- * {@link #quantizeRepErrorStd} to predict recall.
  */
-public final class RepErrorStdModel {
+public final class QuantizationErrorStdModel {
 
-    private final Regression.OLSResult cparams;
-    private final Regression.OLSResult qparams;
+    private final Regression.OLSResult params;
 
-    public RepErrorStdModel(Regression.OLSResult cparams, Regression.OLSResult qparams) {
-        this.cparams = cparams;
-        this.qparams = qparams;
+    public QuantizationErrorStdModel(Regression.OLSResult params) {
+        this.params = params;
     }
 
-    public Regression.OLSResult cparams() {
-        return cparams;
-    }
-
-    public Regression.OLSResult qparams() {
-        return qparams;
+    public Regression.OLSResult params() {
+        return params;
     }
 
     /**
      * Predicted error std for quantized representation; used in the expected recall formula.
      */
-    public double quantizeRepErrorStd(int nDocsPerCluster, int sampleSize) {
+    public double errorStd(int nDocsPerCluster, int sampleSize) {
         double x = Math.log(nDocsPerCluster) - Math.log(sampleSize);
-        Regression.Prediction p = Regression.predictOls(qparams, x);
+        Regression.Prediction p = Regression.predictOls(params, x);
         return Math.exp(p.mean() + 3.0 * p.std());
     }
 }

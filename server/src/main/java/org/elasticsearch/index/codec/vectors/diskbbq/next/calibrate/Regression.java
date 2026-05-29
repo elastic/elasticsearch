@@ -84,6 +84,114 @@ public final class Regression {
     }
 
     /**
+     * Online OLS accumulator supporting batched updates and plug-in fits with a fixed slope.
+     */
+    public static final class OLSAccumulator {
+        private double weight;
+        private double sumX;
+        private double sumY;
+        private double sumX2;
+        private double sumXY;
+        private double sumY2;
+
+        public OLSAccumulator() {}
+
+        OLSAccumulator(double weight, double sumX, double sumY, double sumX2, double sumXY, double sumY2) {
+            this.weight = weight;
+            this.sumX = sumX;
+            this.sumY = sumY;
+            this.sumX2 = sumX2;
+            this.sumXY = sumXY;
+            this.sumY2 = sumY2;
+        }
+
+        public void update(double[] x, double[] y) {
+            update(x, y, 1.0);
+        }
+
+        public void update(double[] x, double[] y, double decayFactor) {
+            int n = x.length;
+            if (n == 0) {
+                return;
+            }
+            weight *= decayFactor;
+            sumX *= decayFactor;
+            sumY *= decayFactor;
+            sumX2 *= decayFactor;
+            sumXY *= decayFactor;
+            sumY2 *= decayFactor;
+
+            weight += n;
+            for (int i = 0; i < n; i++) {
+                sumX += x[i];
+                sumY += y[i];
+                sumX2 += x[i] * x[i];
+                sumXY += x[i] * y[i];
+                sumY2 += y[i] * y[i];
+            }
+        }
+
+        public OLSResult fit() {
+            if (weight <= 2.0) {
+                return OLSResult.ZERO;
+            }
+            double xBar = sumX / weight;
+            double yBar = sumY / weight;
+            double ssXx = sumX2 - (sumX * sumX) / weight;
+            if (ssXx == 0.0) {
+                return OLSResult.ZERO;
+            }
+            double ssXy = sumXY - (sumX * sumY) / weight;
+            double ssYy = sumY2 - (sumY * sumY) / weight;
+            double b1 = ssXy / ssXx;
+            double b0 = yBar - b1 * xBar;
+            double rss = ssYy - b1 * ssXy;
+            double sSq = rss / (weight - 2.0);
+            return new OLSResult(b0, b1, sSq * (sumX2 / (weight * ssXx)), sSq / ssXx, sSq * (-xBar / ssXx), sSq);
+        }
+
+        public OLSResult fitPlugin(OLSResult scalingModel) {
+            if (weight <= 1.0) {
+                return scalingModel;
+            }
+            double xBar = sumX / weight;
+            double yBar = sumY / weight;
+            double beta0 = yBar - scalingModel.beta1() * xBar;
+            double ssXx = sumX2 - (sumX * sumX) / weight;
+            double ssXy = sumXY - (sumX * sumY) / weight;
+            double ssYy = sumY2 - (sumY * sumY) / weight;
+            double rss = ssYy - 2.0 * scalingModel.beta1() * ssXy + (scalingModel.beta1() * scalingModel.beta1()) * ssXx;
+            double sigmaSq = rss / (weight - 1.0);
+            return new OLSResult(
+                beta0,
+                scalingModel.beta1(),
+                (sigmaSq / weight) + (xBar * xBar * scalingModel.var1()),
+                scalingModel.var1(),
+                -xBar * scalingModel.var1(),
+                sigmaSq
+            );
+        }
+
+        public double r2() {
+            return r2(fit());
+        }
+
+        public double r2(OLSResult model) {
+            if (weight <= 1.0) {
+                return 0.0;
+            }
+            double ssYy = sumY2 - (sumY * sumY) / weight;
+            if (ssYy == 0.0) {
+                return 1.0;
+            }
+            double ssXx = sumX2 - (sumX * sumX) / weight;
+            double ssXy = sumXY - (sumX * sumY) / weight;
+            double rss = ssYy - 2.0 * model.beta1() * ssXy + (model.beta1() * model.beta1()) * ssXx;
+            return 1.0 - (rss / ssYy);
+        }
+    }
+
+    /**
      * Coefficient of determination R² for y = beta0 + beta1 * x.
      */
     public static double rSquared(double[] x, double[] y, OLSResult res) {

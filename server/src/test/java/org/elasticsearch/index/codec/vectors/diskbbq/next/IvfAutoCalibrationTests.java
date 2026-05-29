@@ -235,13 +235,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    public void testCalibrateFastOnHeapVectors() throws IOException {
+    public void testCalibrateOnHeapVectors() throws IOException {
         FloatVectorValues vectors = randomHeapVectors(between(500, 1500), DIM);
         IvfAutoCalibration selector = new IvfAutoCalibration(VPC);
-        FieldInfo fieldInfo = vectorFieldInfo("f");
-        MergeCalibrationContext mergeCtx = new MergeCalibrationContext(1, null, false);
 
-        IvfSegmentConfig config = selector.calibrateFast(vectors, DIM, VectorSimilarityFunction.EUCLIDEAN, vectors.size(), mergeCtx);
+        IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
 
         assertThat(config.quantEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
@@ -344,20 +342,31 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    public void testSelectBoundedForceMergeSkipsFullCalibrateWhenFastMeetsTarget() throws IOException {
+    public void testSelectBoundedForceMergeRunsCalibrate() throws IOException {
+        TrackingSelector selector = new TrackingSelector(VPC);
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            42L
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], forceMergeSegmentInfo(dir));
+
+            IvfSegmentConfig config = selector.resolve(fieldInfo, vectors, mergeState);
+
+            assertThat(config.quantEncoding(), notNullValue());
+            assertThat(selector.calibrateInvocations, equalTo(1));
+            assertTrue(Float.isFinite(config.rescoreOversample()));
+        }
+    }
+
+    public void testSelectBoundedForceMergeUsesStubCalibrateResult() throws IOException {
         TrackingSelector selector = new TrackingSelector(VPC) {
             @Override
-            protected FastCalibrationOutcome runFastCalibration(
-                FloatVectorValues floatVectorValues,
-                int dim,
-                VectorSimilarityFunction similarityFunction,
-                int N,
-                MergeCalibrationContext mergeCtx
-            ) throws IOException {
-                return new FastCalibrationOutcome(
-                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f),
-                    true
-                );
+            public IvfSegmentConfig calibrate(FloatVectorValues floatVectorValues, VectorSimilarityFunction similarityFunction) {
+                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f);
             }
         };
         FieldInfo fieldInfo = vectorFieldInfo("f");
@@ -374,41 +383,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
 
             assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY));
             assertThat(config.rescoreOversample(), equalTo(2.5f));
-            assertEquals(0, selector.fullCalibrateInvocations);
-        }
-    }
-
-    public void testSelectBoundedForceMergeRunsFullCalibrateWhenFastMissesTarget() throws IOException {
-        TrackingSelector selector = new TrackingSelector(VPC) {
-            @Override
-            protected FastCalibrationOutcome runFastCalibration(
-                FloatVectorValues floatVectorValues,
-                int dim,
-                VectorSimilarityFunction similarityFunction,
-                int N,
-                MergeCalibrationContext mergeCtx
-            ) throws IOException {
-                return new FastCalibrationOutcome(
-                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f),
-                    false
-                );
-            }
-        };
-        FieldInfo fieldInfo = vectorFieldInfo("f");
-        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
-            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION,
-            DIM,
-            16,
-            43L
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], forceMergeSegmentInfo(dir));
-
-            IvfSegmentConfig config = selector.resolve(fieldInfo, vectors, mergeState);
-
-            assertThat(config.quantEncoding(), notNullValue());
-            assertThat(selector.fullCalibrateInvocations, equalTo(1));
-            assertTrue(Float.isFinite(config.rescoreOversample()));
+            assertEquals(0, selector.calibrateInvocations);
         }
     }
 
@@ -449,12 +424,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    public void testCalibrateFastOnLargeSyntheticCorpus() throws IOException {
+    public void testCalibrateOnLargeSyntheticCorpus() throws IOException {
         FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(10_500, 8, 32, 46L);
         IvfAutoCalibration selector = new IvfAutoCalibration(VPC);
-        MergeCalibrationContext mergeCtx = new MergeCalibrationContext(2, null, false);
 
-        IvfSegmentConfig config = selector.calibrateFast(vectors, 8, VectorSimilarityFunction.EUCLIDEAN, vectors.size(), mergeCtx);
+        IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
 
         assertThat(config.quantEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
@@ -479,16 +453,16 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         assertTrue(config.rescoreOversample() > 0f);
     }
 
-    public void testCalibrateFastDotProductSimilarity() throws IOException {
-        assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.DOT_PRODUCT);
+    public void testCalibrateDotProductSimilarity() throws IOException {
+        assertCalibrateProducesFiniteConfig(VectorSimilarityFunction.DOT_PRODUCT);
     }
 
-    public void testCalibrateFastMaximumInnerProductSimilarity() throws IOException {
-        assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
+    public void testCalibrateMaximumInnerProductSimilarity() throws IOException {
+        assertCalibrateProducesFiniteConfig(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
     }
 
-    public void testCalibrateFastCosineSimilarity() throws IOException {
-        assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.COSINE);
+    public void testCalibrateCosineSimilarity() throws IOException {
+        assertCalibrateProducesFiniteConfig(VectorSimilarityFunction.COSINE);
     }
 
     public void testProductionMergeResolverPersistsCalibratedConfig() throws IOException {
@@ -543,12 +517,11 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         }
     }
 
-    private void assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction similarityFunction) throws IOException {
+    private void assertCalibrateProducesFiniteConfig(VectorSimilarityFunction similarityFunction) throws IOException {
         FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(1200, DIM, 8, similarityFunction.ordinal());
         IvfAutoCalibration selector = new IvfAutoCalibration(VPC);
-        MergeCalibrationContext mergeCtx = new MergeCalibrationContext(1, null, false);
 
-        IvfSegmentConfig config = selector.calibrateFast(vectors, DIM, similarityFunction, vectors.size(), mergeCtx);
+        IvfSegmentConfig config = selector.calibrate(vectors, similarityFunction);
 
         assertThat(config.quantEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
@@ -565,7 +538,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
      * Tracks whether full {@link IvfAutoCalibration#calibrate} ran during {@link IvfAutoCalibration#resolve}.
      */
     private static class TrackingSelector extends IvfAutoCalibration {
-        int fullCalibrateInvocations;
+        int calibrateInvocations;
 
         TrackingSelector(int vectorsPerCluster) {
             super(vectorsPerCluster);
@@ -574,7 +547,7 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         @Override
         public IvfSegmentConfig calibrate(FloatVectorValues floatVectorValues, VectorSimilarityFunction similarityFunction)
             throws IOException {
-            fullCalibrateInvocations++;
+            calibrateInvocations++;
             return super.calibrate(floatVectorValues, similarityFunction);
         }
     }

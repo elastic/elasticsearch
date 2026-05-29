@@ -60,8 +60,8 @@ public final class ESNextRescoreOversampleTestFixture {
         ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
     );
 
-    /** Rescore oversample values from {@link IvfAutoCalibration} rerank ratios (5/2, 15/10, 7/4, 2/1). */
-    public static final Set<Float> CALIBRATION_RERANK_OVERSAMPLES = Set.of(2.5f, 1.5f, 1.75f, 2.0f);
+    /** Rescore oversample values from {@link IvfAutoCalibration} rerank depths. */
+    public static final Set<Float> CALIBRATION_RERANK_OVERSAMPLES = Set.of(1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f);
 
     private ESNextRescoreOversampleTestFixture() {}
 
@@ -215,7 +215,7 @@ public final class ESNextRescoreOversampleTestFixture {
 
     /**
      * Two flushed segments with disagreeing calibration metadata, merged by a background tiered/log merge
-     * (not force-merge), so {@link IvfAutoCalibration} runs {@code calibrateFast} via metadata reuse failure.
+     * (not force-merge), so {@link IvfAutoCalibration} runs calibration via metadata reuse failure.
      */
     public static DirectoryReader buildBackgroundMergedWithDisagreeingFlushCalibration(
         Directory dir,

@@ -250,7 +250,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             };
         }
 
-        private InferenceServiceResults makeGenericEmbeddingResults(List<InferenceStringGroup> input, ServiceSettings serviceSettings) {
+        private DenseEmbeddingResults<?> makeGenericEmbeddingResults(List<InferenceStringGroup> input, ServiceSettings serviceSettings) {
             List<List<Float>> averagedEmbeddings = new ArrayList<>();
             for (var inputContent : input) {
                 // For multiple inputs that generate one embedding, average the embeddings for each input

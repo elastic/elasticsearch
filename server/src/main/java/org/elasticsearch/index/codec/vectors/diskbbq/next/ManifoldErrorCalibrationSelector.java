@@ -273,107 +273,10 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      * {@link CalibrationUtils#toHeapDenseFloatVectorValues} for small inputs).
      */
     public IvfSegmentConfig calibrate(FloatVectorValues floatVectorValues, VectorSimilarityFunction similarityFunction) throws IOException {
-
-        int numVectors = floatVectorValues.size();
-        int dim = floatVectorValues.dimension();
-
-        // sample some docs as queries
-        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(floatVectorValues);
-        int[] queryOrdinals = sampled.queryOrdinals();
-        int[] corpusOrdinals = sampled.corpusOrdinals();
-
-        boolean cosine = similarityFunction == VectorSimilarityFunction.COSINE;
-
-        // for dot-product / MIPS we need to add one more dimension with max squared norm (to treat it as it was Euclidean distance)
-        boolean neyshabur = CalibrationUtils.needsNeyshaburSrebroLift(similarityFunction);
-
-        int dimWork = dim;
-        FloatVectorValues fvvForCalibration = floatVectorValues;
-        if (neyshabur) {
-            double maxNormSq = CalibrationUtils.maxSquaredNormOverCorpusSample(floatVectorValues, corpusOrdinals, dim);
-            fvvForCalibration = new CalibrationUtils.NeyshaburCorpusFloatVectorValues(floatVectorValues, dim, maxNormSq);
-            dimWork = dim + 1;
-        }
-
-        Preconditioner calibrationPreconditioner = Preconditioner.createPreconditioner(dimWork, blockDimension);
-        CalibrationQueries calibrationQueries = new CalibrationQueries(
-            floatVectorValues,
-            queryOrdinals,
-            dim,
-            cosine,
-            neyshabur,
-            calibrationPreconditioner,
-            dimWork
-        );
-
-        logger.debug("Read {} corpus vectors of dimension {}", corpusOrdinals.length, dim);
-        logger.debug("Sampled {} queries from the corpus", queryOrdinals.length);
-        logger.debug("Using {} documents per cluster", vectorsPerCluster);
-        logger.debug("Calibrating quantization parameters");
-        logger.debug("block dim: {}", blockDimension);
-
-        // manifold model uses original (un-preconditioned) data; after optional Neyshabur lift for dot/MIP.
-        double[] manifold = ManifoldModel.estimateManifoldParameters(
-            similarityFunction,
-            dimWork,
-            calibrationQueries,
-            fvvForCalibration,
-            corpusOrdinals,
-            k
-        );
-        double alpha = manifold[0];
-        double invDim = manifold[1];
-
-        // fit the error scaling model on random orthogonal transforms,
-        // independent of whether the field enables preconditioning at index time
-        FloatVectorValues fvvOrth = preconditionFvv(fvvForCalibration, calibrationPreconditioner);
-
-        RepErrorStdModel errorScalingModel = ErrorModel.estimateRepErrorStdScalingParameter(
-            similarityFunction,
-            dimWork,
-            calibrationQueries,
-            fvvOrth,
-            corpusOrdinals,
-            cosine,
-            k
-        );
-
-        SweepOutcome outcome = sweepQuantizationCandidates(
-            similarityFunction,
-            numVectors,
-            alpha,
-            invDim,
-            dimWork,
-            calibrationQueries,
-            fvvForCalibration,
-            fvvOrth,
-            corpusOrdinals,
-            cosine,
-            errorScalingModel,
-            false
-        );
-        if (outcome.metTargetRecall()) {
-            logger.info(
-                "Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%)",
-                outcome.config().quantEncoding(),
-                vectorsPerCluster,
-                outcome.config().usePrecondition(),
-                outcome.selectedQbits(),
-                outcome.selectedDbits(),
-                outcome.selectedRerankN(),
-                String.format(Locale.ROOT, "%.2f", outcome.selectedExpectedRecall() * 100.0)
-            );
-            return outcome.config();
-        }
-        logger.info(
-            "Calibration: no encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
-            targetRecall,
-            outcome.config().quantEncoding(),
-            outcome.config().rescoreOversample(),
-            outcome.config().usePrecondition(),
-            outcome.bestRecall()
-        );
-        return outcome.config();
+        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, floatVectorValues.dimension(), similarityFunction, false);
+        logCalibrationPrepared(ctx, false);
+        SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction);
+        return logCalibrationResult(outcome);
     }
 
     /**
@@ -403,10 +306,28 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
         FloatVectorValues floatVectorValues,
         int dim,
         VectorSimilarityFunction similarityFunction,
-        int N,
+        int numVectors,
         MergeCalibrationContext mergeCtx
     ) throws IOException {
-        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleDataFast(floatVectorValues);
+        CalibrationContext ctx = prepareCalibrationRun(floatVectorValues, dim, similarityFunction, true);
+        logCalibrationPrepared(ctx, true);
+        SweepOutcome outcome = runCalibrationPipeline(ctx, similarityFunction, numVectors);
+        return logFastCalibrationResult(outcome, mergeCtx);
+    }
+
+    /**
+     * Shared setup for {@link #calibrate} and {@link #runFastCalibration}: sampling, optional Neyshabur lift,
+     * {@link CalibrationQueries}, and preconditioned corpus view.
+     */
+    private CalibrationContext prepareCalibrationRun(
+        FloatVectorValues floatVectorValues,
+        int dim,
+        VectorSimilarityFunction similarityFunction,
+        boolean fast
+    ) throws IOException {
+        CalibrationUtils.SampledData sampled = fast
+            ? CalibrationUtils.sampleDataFast(floatVectorValues)
+            : CalibrationUtils.sampleData(floatVectorValues);
         int[] queryOrdinals = sampled.queryOrdinals();
         int[] corpusOrdinals = sampled.corpusOrdinals();
 
@@ -431,51 +352,117 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
             calibrationPreconditioner,
             dimWork
         );
+        FloatVectorValues fvvOrth = preconditionFvv(fvvForCalibration, calibrationPreconditioner);
 
-        logger.debug("Read {} corpus vectors of dimension {} (fast calibration sample)", corpusOrdinals.length, dim);
-        logger.debug("Sampled {} queries from the corpus", queryOrdinals.length);
-        logger.debug("Using {} documents per cluster", vectorsPerCluster);
-        logger.debug("Calibrating quantization parameters (fast)");
-        logger.debug("block dim: {}", blockDimension);
-
-        double[] manifold = ManifoldModel.estimateManifoldParametersFast(
-            similarityFunction,
+        return new CalibrationContext(
+            dim,
             dimWork,
+            floatVectorValues.size(),
+            cosine,
+            fast,
+            corpusOrdinals,
             calibrationQueries,
             fvvForCalibration,
-            corpusOrdinals,
-            k
+            fvvOrth
         );
+    }
+
+    private void logCalibrationPrepared(CalibrationContext ctx, boolean fast) {
+        logger.debug(
+            "Read {} corpus vectors of dimension {}{}",
+            ctx.corpusOrdinals().length,
+            ctx.dim(),
+            fast ? " (fast calibration sample)" : ""
+        );
+        logger.debug("Sampled {} queries from the corpus", ctx.calibrationQueries().size());
+        logger.debug("Using {} documents per cluster", vectorsPerCluster);
+        logger.debug("Calibrating quantization parameters{}", fast ? " (fast)" : "");
+        logger.debug("block dim: {}", blockDimension);
+    }
+
+    private SweepOutcome runCalibrationPipeline(CalibrationContext ctx, VectorSimilarityFunction similarityFunction) throws IOException {
+        return runCalibrationPipeline(ctx, similarityFunction, ctx.numVectors());
+    }
+
+    private SweepOutcome runCalibrationPipeline(CalibrationContext ctx, VectorSimilarityFunction similarityFunction, int numVectors)
+        throws IOException {
+        double[] manifold = ctx.fast()
+            ? ManifoldModel.estimateManifoldParametersFast(
+                similarityFunction,
+                ctx.dimWork(),
+                ctx.calibrationQueries(),
+                ctx.fvvForCalibration(),
+                ctx.corpusOrdinals(),
+                k
+            )
+            : ManifoldModel.estimateManifoldParameters(
+                similarityFunction,
+                ctx.dimWork(),
+                ctx.calibrationQueries(),
+                ctx.fvvForCalibration(),
+                ctx.corpusOrdinals(),
+                k
+            );
         double alpha = manifold[0];
         double invDim = manifold[1];
 
-        FloatVectorValues fvvOrth = preconditionFvv(fvvForCalibration, calibrationPreconditioner);
+        RepErrorStdModel errorScalingModel = ctx.fast()
+            ? ErrorModel.estimateRepErrorStdScalingParameterFast(
+                similarityFunction,
+                ctx.dimWork(),
+                ctx.calibrationQueries(),
+                ctx.fvvOrth(),
+                ctx.corpusOrdinals(),
+                ctx.cosine(),
+                k
+            )
+            : ErrorModel.estimateRepErrorStdScalingParameter(
+                similarityFunction,
+                ctx.dimWork(),
+                ctx.calibrationQueries(),
+                ctx.fvvOrth(),
+                ctx.corpusOrdinals(),
+                ctx.cosine(),
+                k
+            );
 
-        RepErrorStdModel errorScalingModel = ErrorModel.estimateRepErrorStdScalingParameterFast(
+        return sweepQuantizationCandidates(
             similarityFunction,
-            dimWork,
-            calibrationQueries,
-            fvvOrth,
-            corpusOrdinals,
-            cosine,
-            k
-        );
-
-        SweepOutcome outcome = sweepQuantizationCandidates(
-            similarityFunction,
-            N,
+            numVectors,
             alpha,
             invDim,
-            dimWork,
-            calibrationQueries,
-            fvvForCalibration,
-            fvvOrth,
-            corpusOrdinals,
-            cosine,
+            ctx.dimWork(),
+            ctx.calibrationQueries(),
+            ctx.fvvForCalibration(),
+            ctx.fvvOrth(),
+            ctx.corpusOrdinals(),
+            ctx.cosine(),
             errorScalingModel,
-            true
+            ctx.fast()
         );
+    }
+
+    private IvfSegmentConfig logCalibrationResult(SweepOutcome outcome) {
         if (outcome.metTargetRecall()) {
+            logSelectedConfig(outcome, false, null);
+            return outcome.config();
+        }
+        logBestEffortConfig(outcome, false, null);
+        return outcome.config();
+    }
+
+    private FastCalibrationOutcome logFastCalibrationResult(SweepOutcome outcome, MergeCalibrationContext mergeCtx) {
+        if (outcome.metTargetRecall()) {
+            logSelectedConfig(outcome, true, mergeCtx);
+            return new FastCalibrationOutcome(outcome.config(), true);
+        }
+        logBestEffortConfig(outcome, true, mergeCtx);
+        return new FastCalibrationOutcome(outcome.config(), false);
+    }
+
+    private void logSelectedConfig(SweepOutcome outcome, boolean fast, MergeCalibrationContext mergeCtx) {
+        String recallPct = String.format(Locale.ROOT, "%.2f", outcome.selectedExpectedRecall() * 100.0);
+        if (fast) {
             if (mergeCtx != null) {
                 logger.info(
                     "Fast calibration Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%) [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
@@ -485,7 +472,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                     outcome.selectedQbits(),
                     outcome.selectedDbits(),
                     outcome.selectedRerankN(),
-                    String.format(Locale.ROOT, "%.2f", outcome.selectedExpectedRecall() * 100.0),
+                    recallPct,
                     mergeCtx.inputSegments(),
                     mergeCtx.mergeKind(),
                     mergeCtx.mergeMaxNumSegmentsForLog()
@@ -499,26 +486,50 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                     outcome.selectedQbits(),
                     outcome.selectedDbits(),
                     outcome.selectedRerankN(),
-                    String.format(Locale.ROOT, "%.2f", outcome.selectedExpectedRecall() * 100.0)
+                    recallPct
                 );
             }
-            return new FastCalibrationOutcome(outcome.config(), true);
-        }
-        if (mergeCtx != null) {
-            logger.info(
-                "Fast calibration: no encoding met target recall [{}], selecting best [{}] oversample [{}] precondition [{}] recall [{}] [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
-                targetRecall,
-                outcome.config().quantEncoding(),
-                outcome.config().rescoreOversample(),
-                outcome.config().usePrecondition(),
-                outcome.bestRecall(),
-                mergeCtx.inputSegments(),
-                mergeCtx.mergeKind(),
-                mergeCtx.mergeMaxNumSegmentsForLog()
-            );
         } else {
             logger.info(
-                "Fast calibration: no encoding met target recall [{}], selecting best [{}] oversample [{}] precondition [{}] recall [{}]",
+                "Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates (expected recall {}%)",
+                outcome.config().quantEncoding(),
+                vectorsPerCluster,
+                outcome.config().usePrecondition(),
+                outcome.selectedQbits(),
+                outcome.selectedDbits(),
+                outcome.selectedRerankN(),
+                recallPct
+            );
+        }
+    }
+
+    private void logBestEffortConfig(SweepOutcome outcome, boolean fast, MergeCalibrationContext mergeCtx) {
+        if (fast) {
+            if (mergeCtx != null) {
+                logger.info(
+                    "Fast calibration: no encoding met target recall [{}], selecting best [{}] oversample [{}] precondition [{}] recall [{}] [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
+                    targetRecall,
+                    outcome.config().quantEncoding(),
+                    outcome.config().rescoreOversample(),
+                    outcome.config().usePrecondition(),
+                    outcome.bestRecall(),
+                    mergeCtx.inputSegments(),
+                    mergeCtx.mergeKind(),
+                    mergeCtx.mergeMaxNumSegmentsForLog()
+                );
+            } else {
+                logger.info(
+                    "Fast calibration: no encoding met target recall [{}], selecting best [{}] oversample [{}] precondition [{}] recall [{}]",
+                    targetRecall,
+                    outcome.config().quantEncoding(),
+                    outcome.config().rescoreOversample(),
+                    outcome.config().usePrecondition(),
+                    outcome.bestRecall()
+                );
+            }
+        } else {
+            logger.info(
+                "Calibration: no encoding met target recall [{}], selecting best [{}] with oversample [{}] precondition [{}] and recall [{}]",
                 targetRecall,
                 outcome.config().quantEncoding(),
                 outcome.config().rescoreOversample(),
@@ -526,8 +537,19 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 outcome.bestRecall()
             );
         }
-        return new FastCalibrationOutcome(outcome.config(), false);
     }
+
+    private record CalibrationContext(
+        int dim,
+        int dimWork,
+        int numVectors,
+        boolean cosine,
+        boolean fast,
+        int[] corpusOrdinals,
+        CalibrationQueries calibrationQueries,
+        FloatVectorValues fvvForCalibration,
+        FloatVectorValues fvvOrth
+    ) {}
 
     private static CalibrationSweep[] buildCostOrderedSweeps() {
         List<CalibrationSweep> sweeps = new ArrayList<>();

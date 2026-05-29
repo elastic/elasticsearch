@@ -13,8 +13,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class BulkIndexByScrollResponseTests extends ESTestCase {
     public void testMergeConstructor() {
         int mergeCount = between(2, 10);
-        List<BulkByScrollResponse> responses = new ArrayList<>(mergeCount);
+        List<BulkByPaginatedSearchResponse> responses = new ArrayList<>(mergeCount);
         int took = between(1000, 10000);
         int tookIndex = between(0, mergeCount - 1);
         List<BulkItemResponse.Failure> allBulkFailures = new ArrayList<>();
@@ -72,10 +72,10 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             allSearchFailures.addAll(searchFailures);
             boolean thisTimedOut = rarely();
             timedOut |= thisTimedOut;
-            responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
+            responses.add(new BulkByPaginatedSearchResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled, null, 0f);
+        BulkByPaginatedSearchResponse merged = new BulkByPaginatedSearchResponse(responses, reasonCancelled, null, 0f);
 
         assertEquals(timeValueMillis(took), merged.getTook());
         assertEquals(allBulkFailures, merged.getBulkFailures());
@@ -87,7 +87,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
     /** Verifies the merge constructor with pitId preserves the pitId in the merged response. */
     public void testMergeConstructorWithPitId() {
         BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
-        List<BulkByScrollResponse> responses = new ArrayList<>();
+        List<BulkByPaginatedSearchResponse> responses = new ArrayList<>();
         for (int i = 0; i < between(2, 5); i++) {
             BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
                 i,
@@ -105,10 +105,10 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
                 null,
                 timeValueMillis(0)
             );
-            responses.add(new BulkByScrollResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
+            responses.add(new BulkByPaginatedSearchResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId, 0f);
+        BulkByPaginatedSearchResponse merged = new BulkByPaginatedSearchResponse(responses, null, pitId, 0f);
 
         assertTrue(merged.getPitId().isPresent());
         assertThat(merged.getPitId().get(), equalTo(pitId));

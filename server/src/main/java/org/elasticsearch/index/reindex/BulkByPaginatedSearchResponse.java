@@ -32,7 +32,7 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 /**
  * Response used for actions that index many documents using a paginated search request.
  */
-public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
+public class BulkByPaginatedSearchResponse extends ActionResponse implements ToXContentFragment {
     private final TimeValue took;
     private final BulkByPaginatedSearchTask.Status status;
     private final List<Failure> bulkFailures;
@@ -47,7 +47,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     static final String TIMED_OUT_FIELD = "timed_out";
     static final String FAILURES_FIELD = "failures";
 
-    public BulkByScrollResponse(StreamInput in) throws IOException {
+    public BulkByPaginatedSearchResponse(StreamInput in) throws IOException {
         took = in.readTimeValue();
         status = new BulkByPaginatedSearchTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);
@@ -57,7 +57,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         pitId = null;
     }
 
-    public BulkByScrollResponse(
+    public BulkByPaginatedSearchResponse(
         TimeValue took,
         BulkByPaginatedSearchTask.Status status,
         List<Failure> bulkFailures,
@@ -67,7 +67,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         this(took, status, bulkFailures, searchFailures, timedOut, null);
     }
 
-    public BulkByScrollResponse(
+    public BulkByPaginatedSearchResponse(
         TimeValue took,
         BulkByPaginatedSearchTask.Status status,
         List<Failure> bulkFailures,
@@ -78,7 +78,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         this(took, status, bulkFailures, searchFailures, timedOut, resumeInfo, null);
     }
 
-    public BulkByScrollResponse(
+    public BulkByPaginatedSearchResponse(
         TimeValue took,
         BulkByPaginatedSearchTask.Status status,
         List<Failure> bulkFailures,
@@ -96,8 +96,8 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         this.pitId = pitId;
     }
 
-    public BulkByScrollResponse(
-        Iterable<BulkByScrollResponse> toMerge,
+    public BulkByPaginatedSearchResponse(
+        Iterable<BulkByPaginatedSearchResponse> toMerge,
         @Nullable String reasonCancelled,
         @Nullable BytesReference pitId,
         float requestsPerSecond
@@ -106,7 +106,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         List<BulkByPaginatedSearchTask.StatusOrException> statuses = new ArrayList<>();
         bulkFailures = new ArrayList<>();
         searchFailures = new ArrayList<>();
-        for (BulkByScrollResponse response : toMerge) {
+        for (BulkByPaginatedSearchResponse response : toMerge) {
             mergedTook = max(mergedTook, response.getTook().millis());
             statuses.add(new BulkByPaginatedSearchTask.StatusOrException(response.status));
             bulkFailures.addAll(response.getBulkFailures());

@@ -1312,6 +1312,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
+         * (from a subquery in FROM) or a {@code Fork}.
+         */
+        SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
@@ -2139,6 +2145,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for PromQL instant queries.
+         */
+        PROMQL_INSTANT_QUERY,
+
+        /**
          * Support for the {@code DATE_UNIT_COUNT} function.
          */
         ESQL_DATE_UNIT_COUNT_FN,
@@ -2918,6 +2929,14 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */
         PROMQL_LABEL_MATCHER_PARAMS,
+
+        /**
+         * Fix for PromQL scalar integer division losing the fractional part.
+         * Integer literals like {@code 4/6} were folded with integer division (result: 0)
+         * instead of float64 division (result: ~0.667).
+         * https://github.com/elastic/elasticsearch/issues/149792
+         */
+        FIX_PROMQL_SCALAR_FLOAT_DIV,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

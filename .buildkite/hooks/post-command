@@ -5,7 +5,7 @@ if [[ -f build/task-status.json ]]; then
   # But something in our build is deleting those symlinks (I'm not sure what)
   # The other files/dirs in node_modules are fine, but the symlinks disappear during the build
   # So, for now, we need to fix node_modules before we can run node scripts
-  cd .buildkite
+  cd "$WORKSPACE/.buildkite"
   rm -rf node_modules
   pnpm install
 
@@ -22,7 +22,7 @@ if [[ -f build/task-status.json ]]; then
   cd "$WORKSPACE/build"
   gzip -k task-status.json
   buildkite-agent artifact upload task-status.json.gz
-  cd "$WORKSPACE/buildkite"
+  cd "$WORKSPACE/.buildkite"
 
   echo "+++ Overall job status"
   node scripts/smart-retry/summarize-task-status.ts "$WORKSPACE/build/task-status.json"

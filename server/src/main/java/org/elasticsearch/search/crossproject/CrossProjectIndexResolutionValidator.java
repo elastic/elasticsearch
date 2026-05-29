@@ -377,11 +377,6 @@ public class CrossProjectIndexResolutionValidator {
         return checkResolutionFailure(matchingExpression, remoteExpression, indicesOptions);
     }
 
-    /**
-     * Returns {@code true} when {@code localExpressions} contains a project-wildcard exclusion targeting
-     * {@code projectAlias} in either of the two equivalent surface forms produced by the rewriter:
-     * {@code "-<projectAlias>:*"} (alias-prefix exclusion) or {@code "<projectAlias>:-*"} (index-prefix exclusion).
-     */
     private static boolean hasProjectWildcardExclusion(ResolvedIndexExpressions localExpressions, String projectAlias) {
         final String aliasPrefixForm = Strings.format("-%s:*", projectAlias);
         final String indexPrefixForm = Strings.format("%s:-*", projectAlias);
@@ -390,10 +385,6 @@ public class CrossProjectIndexResolutionValidator {
             .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.equals(aliasPrefixForm) || r.equals(indexPrefixForm)));
     }
 
-    /**
-     * Returns {@code true} when {@code localExpressions} contains any exclusion targeting {@code projectAlias}
-     * in either equivalent surface form: {@code "-<projectAlias>:..."} or {@code "<projectAlias>:-..."}.
-     */
     private static boolean hasProjectExclusionPrefix(ResolvedIndexExpressions localExpressions, String projectAlias) {
         final String aliasPrefix = "-" + projectAlias + ":";
         final String indexPrefix = projectAlias + ":-";

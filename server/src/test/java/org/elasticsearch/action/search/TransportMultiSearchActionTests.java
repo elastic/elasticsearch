@@ -323,8 +323,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertEstimateBytes(
             withFields,
             TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD + TransportMultiSearchAction.PER_HIT_OBJECT_OVERHEAD + 2L
-                * TransportMultiSearchAction.PER_FIELD_OVERHEAD
-                + TransportMultiSearchAction.estimateValueBytes("v")
+                * TransportMultiSearchAction.PER_FIELD_OVERHEAD + TransportMultiSearchAction.estimateValueBytes("v")
                 + TransportMultiSearchAction.estimateValueBytes(1)
         );
 

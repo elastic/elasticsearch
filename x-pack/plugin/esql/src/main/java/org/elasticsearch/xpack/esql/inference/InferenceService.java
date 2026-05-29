@@ -16,7 +16,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.EmbeddingAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -64,14 +63,13 @@ public class InferenceService {
     }
 
     /**
-     * Creates an inference resolver for resolving inference IDs in logical plans.
-     *
-     * @param functionRegistry the function registry to resolve functions
+     * Creates an inference resolver for resolving inference IDs
+     * collected during pre-analysis.
      *
      * @return a new inference resolver instance
      */
-    public InferenceResolver inferenceResolver(EsqlFunctionRegistry functionRegistry) {
-        return inferenceResolverFactory.create(functionRegistry);
+    public InferenceResolver inferenceResolver() {
+        return inferenceResolverFactory.create();
     }
 
     /**

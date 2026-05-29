@@ -1150,8 +1150,8 @@ public class EsqlSession {
             })
             .<PreAnalysisResult>andThen((l, r) -> {
                 executionInfo.queryProfile().inferenceResolutionMarker().start();
-                inferenceService.inferenceResolver(functionRegistry)
-                    .resolveInferenceIds(parsed, l.delegateFailureAndWrap((ll, inferenceResolution) -> {
+                inferenceService.inferenceResolver()
+                    .resolveInferenceIds(preAnalysis.inferenceIds(), l.delegateFailureAndWrap((ll, inferenceResolution) -> {
                         executionInfo.queryProfile().inferenceResolutionMarker().stop();
                         ll.onResponse(r.withInferenceResolution(inferenceResolution));
                     }));

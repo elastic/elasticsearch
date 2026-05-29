@@ -21,7 +21,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -53,12 +52,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>, ToXContentObject {
 
-    public static final FeatureFlag DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG = new FeatureFlag("dlm_searchable_snapshots");
-
     // Versions over the wire
     private static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = TransportVersion.fromName("introduce_lifecycle_template");
     public static final TransportVersion ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM = TransportVersion.fromName("add_sample_method_downsample_dlm");
+    // Superseded by DLM_FROZEN_AFTER_GA but still needed to satisfy :server:validateTransportVersionResources
     public static final TransportVersion SEARCHABLE_SNAPSHOTS_DLM_TV = TransportVersion.fromName("searchable_snapshots_dlm");
+    public static final TransportVersion DLM_FROZEN_AFTER_GA = TransportVersion.fromName("dlm_frozen_after_ga");
     public static final String EFFECTIVE_RETENTION_REST_API_CAPABILITY = "data_stream_lifecycle_effective_retention";
 
     public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
@@ -382,7 +381,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
             out.writeOptionalWriteable(downsamplingMethod);
         }
-        if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)) {
+        if (out.getTransportVersion().supports(DLM_FROZEN_AFTER_GA)) {
             out.writeOptionalTimeValue(frozenAfter);
         }
     }
@@ -403,9 +402,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         downsamplingMethod = in.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
             ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
             : null;
-        frozenAfter = DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
-            ? in.readOptionalTimeValue()
-            : null;
+        frozenAfter = in.getTransportVersion().supports(DLM_FROZEN_AFTER_GA) ? in.readOptionalTimeValue() : null;
     }
 
     /**
@@ -495,7 +492,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (downsamplingMethod != null) {
             builder.field(DOWNSAMPLING_METHOD_FIELD.getPreferredName(), downsamplingMethod.toString());
         }
-        if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && frozenAfter != null) {
+        if (frozenAfter != null) {
             builder.field(FROZEN_AFTER_FIELD.getPreferredName(), frozenAfter.getStringRep());
         }
         if (rolloverConfiguration != null) {
@@ -789,7 +786,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (out.getTransportVersion().supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)) {
                 ResettableValue.write(out, downsamplingMethod, StreamOutput::writeWriteable);
             }
-            if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && out.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)) {
+            if (out.getTransportVersion().supports(DLM_FROZEN_AFTER_GA)) {
                 ResettableValue.write(out, frozenAfter, StreamOutput::writeTimeValue);
             }
         }
@@ -852,10 +849,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 .supports(ADD_SAMPLE_METHOD_DOWNSAMPLE_DLM)
                     ? ResettableValue.read(in, DownsampleConfig.SamplingMethod::read)
                     : ResettableValue.undefined();
-            ResettableValue<TimeValue> frozenAfter = DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()
-                && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
-                    ? ResettableValue.read(in, StreamInput::readTimeValue)
-                    : ResettableValue.undefined();
+            ResettableValue<TimeValue> frozenAfter = in.getTransportVersion().supports(DLM_FROZEN_AFTER_GA)
+                ? ResettableValue.read(in, StreamInput::readTimeValue)
+                : ResettableValue.undefined();
             return new Template(lifecycleTarget, enabled, dataRetention, downsamplingRounds, downsamplingMethod, frozenAfter);
         }
 
@@ -897,9 +893,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
                 DOWNSAMPLING_METHOD_FIELD.getPreferredName(),
                 DownsampleConfig.SamplingMethod::toString
             );
-            if (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
-                frozenAfter.toXContent(builder, params, FROZEN_AFTER_FIELD.getPreferredName(), TimeValue::getStringRep);
-            }
+            frozenAfter.toXContent(builder, params, FROZEN_AFTER_FIELD.getPreferredName(), TimeValue::getStringRep);
             if (rolloverConfiguration != null) {
                 builder.field(ROLLOVER_FIELD.getPreferredName());
                 rolloverConfiguration.evaluateAndConvertToXContent(

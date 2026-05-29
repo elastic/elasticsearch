@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -41,7 +40,7 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         INDEX_TEMPLATE_TRACKING_INFO,
         SUPPORTS_DOWNSAMPLING_METHOD,
-        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? SUPPORTS_FROZEN_AFTER : ""
+        SUPPORTS_FROZEN_AFTER
     );
 
     @Override

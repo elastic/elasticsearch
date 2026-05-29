@@ -37,7 +37,4 @@ dependencies {
   clusterModules project(xpackModule('dlm-frozen-transition'))
 }
 
-testClusters.configureEach {
-  systemProperty 'es.dlm_searchable_snapshots_feature_flag_enabled', 'true'
-}
 

@@ -35,7 +35,7 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 
 ## Configure roles and users [esql-ccs-security-model-api-key]
 
-{{esql}} {{ccs}} needs some additional permissions beyond a standard DSL-based search. The following example creates a role that can query remote indices using {{esql}}. The final `remote_cluster` privilege is required for remote enrich operations.
+{{esql}} {{ccs}} requires some additional permissions beyond a standard Query DSL search. The following example creates a role that can query remote indices using {{esql}}. The final `remote_cluster` privilege is required for remote enrich operations.
 
 ```console
 POST /_security/role/remote1
@@ -124,7 +124,7 @@ FROM *:my-index-000001
 
 ## Cross-cluster metadata [ccq-cluster-details]
 
-Using the `"include_ccs_metadata": true` option, users can request that ES|QL {{ccs}} responses include metadata about the search on each cluster (when the response format is JSON). Here we show an example using the async search endpoint. {{ccs-cap}} metadata is also present in the synchronous search endpoint response when requested. If the search returns partial results and there are partial shard or remote cluster failures, `_clusters` metadata containing the failures is included in the response regardless of the `include_ccs_metadata` parameter.
+Using the `"include_ccs_metadata": true` option, you can request that ES|QL {{ccs}} responses include metadata about the search on each cluster (when the response format is JSON). Here we show an example using the async search endpoint. {{ccs-cap}} metadata is also present in the synchronous search endpoint response when requested. If the search returns partial results and there are partial shard or remote cluster failures, `_clusters` metadata containing the failures is included in the response regardless of the `include_ccs_metadata` parameter.
 
 ```console
 POST /_query/async?format=json
@@ -217,7 +217,7 @@ Which returns:
 7. The `is_partial` field is set to `true` if the search has partial results for any reason, for example due to partial shard failures,
 failures in remote clusters, or if the async query was stopped by calling the [async query stop API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-esql).
 
-The cross-cluster metadata can be used to determine whether any data came back from a cluster. For instance, in the query below, the wildcard expression for `cluster_two` did not resolve to a concrete index (or indices). The cluster is, therefore, marked as *skipped* and the total number of shards searched is set to zero.
+You can use the cross-cluster metadata to determine whether any data came back from a cluster. For instance, in the query below, the wildcard expression for `cluster_two` did not resolve to a concrete index (or indices). The cluster is, therefore, marked as *skipped* and the total number of shards searched is set to zero.
 
 ```console
 POST /_query/async?format=json
@@ -339,7 +339,7 @@ Enrich with the `_coordinator` mode usually increases inter-cluster data transfe
 
 {{esql}} also provides the enrich `_remote` mode to force {{esql}} to execute the enrich command independently on each remote cluster where the target indices reside. This mode is useful for managing different enrich data on each cluster, such as detailed information of hosts for each region where the target (main) indices contain log events from these hosts.
 
-In the following example, the `hosts` enrich policy is required to exist on all remote clusters: the `querying` cluster (as local indices are included), the remote cluster `cluster_one`, and `cluster_two`.
+In the following example, the `hosts` enrich policy is required to exist on all remote clusters: the "querying" cluster (as local indices are included), the remote cluster `cluster_one`, and `cluster_two`.
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
@@ -370,7 +370,7 @@ FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
 | LIMIT 10
 ```
 
-A `_remote` enrich command can’t be executed after a `_coordinator` enrich command. The following example would result in an error.
+A `_remote` enrich command can't be executed after a `_coordinator` enrich command. The following example would result in an error.
 
 ```esql
 FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001
@@ -431,7 +431,7 @@ For broader context on the `skip_unavailable` setting, including how it interact
 
 ## Query across clusters during an upgrade [ccq-during-upgrade]
 
-You can still search a remote cluster while performing a rolling upgrade on the local cluster. However, the local coordinating node’s "upgrade from" and "upgrade to" version must be compatible with the remote cluster’s gateway node.
+You can still search a remote cluster while performing a rolling upgrade on the local cluster. However, the local node receiving the query must have an "upgrade from" and "upgrade to" version that is compatible with the remote cluster's gateway node.
 
 ::::{warning}
 Running multiple versions of {{es}} in the same cluster beyond the duration of an upgrade is not supported.

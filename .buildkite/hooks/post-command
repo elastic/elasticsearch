@@ -17,11 +17,14 @@ if [[ -f build/task-status.json ]]; then
   cd -
 
   echo "+++ Overall job status"
+  ls -alh .
   cd .buildkite
-  pwd
   ls -alh node_modules/
+  rm -rf node_modules
   pnpm install # TODO - why is this necessary? why do the node_modules disappear?
-  node scripts/smart-retry/summarize-task-status.ts build/task-status.json
+  ls -alh node_modules/
+
+  node scripts/smart-retry/summarize-task-status.ts ../build/task-status.json
 fi
 
 # Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in

@@ -40,7 +40,10 @@ public class PrometheusStatusBuildInfoRestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_prometheus/api/v1/status/buildinfo"));
+        return List.of(
+            new Route(GET, "/_prometheus/api/v1/status/buildinfo"),
+            new Route(GET, "/_prometheus/{index}/api/v1/status/buildinfo")
+        );
     }
 
     @Override

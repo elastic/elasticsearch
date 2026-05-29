@@ -21,7 +21,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class PrometheusStatusBuildInfoRestIT extends AbstractPrometheusRestIT {
 
     public void testBuildInfoResponse() throws Exception {
-        Request request = new Request("GET", "/_prometheus/api/v1/status/buildinfo");
+        assertBuildInfo("/_prometheus/api/v1/status/buildinfo");
+    }
+
+    public void testBuildInfoResponseScopedIndex() throws Exception {
+        assertBuildInfo("/_prometheus/metrics-generic.prometheus-default/api/v1/status/buildinfo");
+    }
+
+    private void assertBuildInfo(String path) throws Exception {
+        Request request = new Request("GET", path);
         addReadAuth(request);
 
         Response response = client().performRequest(request);

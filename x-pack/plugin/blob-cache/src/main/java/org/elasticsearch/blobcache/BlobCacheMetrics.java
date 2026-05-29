@@ -40,8 +40,8 @@ public class BlobCacheMetrics {
     public static final String PREFETCH_RESULT_ATTRIBUTE_KEY = "es_prefetch_result";
     public static final String BLOB_CACHE_EVICTION_SCAN_TIME = "es.blob_cache.eviction.scan_time.histogram";
     public static final String BLOB_CACHE_EVICTION_SCANNED_ENTRIES = "es.blob_cache.eviction.scanned_entries.histogram";
-    public static final String EVICTION_MODE_ATTRIBUTE_KEY = "evict_mode";
-    public static final String EVICTION_OUTCOME_ATTRIBUTE_KEY = "outcome";
+    public static final String EVICTION_SCAN_MODE_ATTRIBUTE_KEY = "es_eviction_scan_mode";
+    public static final String EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY = "es_eviction_scan_outcome";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -89,21 +89,22 @@ public class BlobCacheMetrics {
         Failed
     }
 
-    /// Caller posture for an LFU eviction scan, used as the {@link #EVICTION_MODE_ATTRIBUTE_KEY} attribute on
-    /// {@link #BLOB_CACHE_EVICTION_SCAN_TIME} and {@link #BLOB_CACHE_EVICTION_SCANNED_ENTRIES}.
-    public enum EvictionMode {
-        /** Caller will skip the operation if no quick victim is available (e.g. non-forced prefetch). */
-        Opportunistic,
-        /** Do all you can to find a free region. */
-        Required
+    /// The scope of an LFU eviction scan
+    public enum EvictionScanMode {
+        /** Scan walks only the lowest-frequency LFU list (best-effort prefetch path). */
+        LowestFrequency,
+        /** Scan walks every frequency bucket from lowest to highest until a victim is found or the cache is exhausted. */
+        AllFrequencies
     }
 
-    /// The outcome of an LFU eviction scan, used as the {@link #EVICTION_OUTCOME_ATTRIBUTE_KEY} attribute on
-    /// {@link #BLOB_CACHE_EVICTION_SCAN_TIME} and {@link #BLOB_CACHE_EVICTION_SCANNED_ENTRIES}.
+    /// The outcome of an LFU eviction scan
     public enum EvictionScanOutcome {
-        /** Scan returned an IO slot. */
-        Found,
-        /** Scan exhausted its frequency buckets without freeing a region. */
+        /// Scan evicted a chunk and returned its IO slot.
+        Evicted,
+        /// Scan was interrupted by a free region appearing in the free-region queue mid-scan.
+        /// Currently, can't happen under {@link EvictionScanMode#LowestFrequency}.
+        Stolen,
+        /// Scan exhausted its frequency buckets without freeing a region.
         None
     }
 
@@ -163,18 +164,18 @@ public class BlobCacheMetrics {
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_EVICTION_SCAN_TIME,
                 "The time spent scanning the LFU cache for an eviction victim, broken down by ["
-                    + EVICTION_MODE_ATTRIBUTE_KEY
+                    + EVICTION_SCAN_MODE_ATTRIBUTE_KEY
                     + "] and ["
-                    + EVICTION_OUTCOME_ATTRIBUTE_KEY
+                    + EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY
                     + "]",
                 "microseconds"
             ),
             meterRegistry.registerLongHistogram(
                 BLOB_CACHE_EVICTION_SCANNED_ENTRIES,
                 "The number of LFU entries iterated during an eviction scan, broken down by ["
-                    + EVICTION_MODE_ATTRIBUTE_KEY
+                    + EVICTION_SCAN_MODE_ATTRIBUTE_KEY
                     + "] and ["
-                    + EVICTION_OUTCOME_ATTRIBUTE_KEY
+                    + EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY
                     + "]",
                 "entries"
             )
@@ -329,16 +330,18 @@ public class BlobCacheMetrics {
         prefetchCounter.incrementBy(1L, Map.of(PREFETCH_RESULT_ATTRIBUTE_KEY, result.name()));
     }
 
-    /// Record both eviction-scan histograms ({@link #BLOB_CACHE_EVICTION_SCAN_TIME} in microseconds and
-    /// {@link #BLOB_CACHE_EVICTION_SCANNED_ENTRIES}) for a single LFU eviction scan invocation. The {@code mode} and
-    /// {@code outcome} attributes let dashboards split healthy "found a victim" latency from worst-case
-    /// "exhausted all buckets" scans, which by construction walk every entry they touch.
+    /// Record both eviction-scan histograms time taken and entries scanned for a single LFU eviction scan invocation.
     /// @param elapsedNanos elapsed time of the scan in nanoseconds; converted to microseconds inside this method
     /// @param scannedEntries number of LFU list iterations performed across all frequency buckets touched
-    /// @param mode the caller's posture (see {@link EvictionMode})
-    /// @param outcome whether the scan freed a region (see {@link EvictionScanOutcome})
-    public void recordEvictionScan(long elapsedNanos, long scannedEntries, EvictionMode mode, EvictionScanOutcome outcome) {
-        Map<String, Object> attrs = Map.of(EVICTION_MODE_ATTRIBUTE_KEY, mode.name(), EVICTION_OUTCOME_ATTRIBUTE_KEY, outcome.name());
+    /// @param mode the scope of the scan (see {@link EvictionScanMode})
+    /// @param outcome whether the scan evicted, stole, or exhausted (see {@link EvictionScanOutcome})
+    public void recordEvictionScan(long elapsedNanos, long scannedEntries, EvictionScanMode mode, EvictionScanOutcome outcome) {
+        Map<String, Object> attrs = Map.of(
+            EVICTION_SCAN_MODE_ATTRIBUTE_KEY,
+            mode.name(),
+            EVICTION_SCAN_OUTCOME_ATTRIBUTE_KEY,
+            outcome.name()
+        );
         evictionScanTime.record(TimeUnit.NANOSECONDS.toMicros(elapsedNanos), attrs);
         evictionScannedEntries.record(scannedEntries, attrs);
     }

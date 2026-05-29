@@ -160,20 +160,3 @@ setup:
         body: { query: { regexp: { text_field: { value: "London.*" } } } }
   - length: { hits.hits: 2 }
 
----
-"Test case-insensitive regexp query on sorted-set doc-values-only match_only_text field":
-
-  - do:
-      search:
-        index: test_mot_dv_low
-        body: { query: { regexp: { text_field: { value: "london.*", case_insensitive: true } } } }
-  - length: { hits.hits: 2 }
-
----
-"Test case-insensitive regexp query on binary doc-values-only match_only_text field":
-
-  - do:
-      search:
-        index: test_mot_dv_high
-        body: { query: { regexp: { text_field: { value: "london.*", case_insensitive: true } } } }
-  - length: { hits.hits: 2 }

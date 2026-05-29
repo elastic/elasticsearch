@@ -14,14 +14,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 
 /**
  * Reindex test for routing.
  */
-public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<ReindexRequest, BulkByScrollResponse> {
+public class ReindexMetadataTests extends AbstractAsyncBulkByPaginatedSearchActionMetadataTestCase<
+    ReindexRequest,
+    BulkByPaginatedSearchResponse> {
     public void testRoutingCopiedByDefault() throws Exception {
         IndexRequest index = new IndexRequest();
         action().copyMetadata(AbstractAsyncBulkByPaginatedSearchAction.wrap(index), doc().setRouting("foo"));

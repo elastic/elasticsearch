@@ -1,0 +1,5 @@
+area: TSDB
+issues: []
+pr: 149713
+summary: Add TO_GAUGE() function and ::gauge cast operator
+type: enhancement

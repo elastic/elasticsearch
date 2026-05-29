@@ -12,6 +12,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -226,6 +227,11 @@ public class HistogramFieldMapper extends FieldMapper {
                                     @Override
                                     public boolean advanceExact(int doc) throws IOException {
                                         return values.advanceExact(doc);
+                                    }
+
+                                    @Override
+                                    public DocIdSetIterator docIdSetIterator() {
+                                        return values;
                                     }
 
                                     @Override

@@ -60,6 +60,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -393,7 +394,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Executor ioExecutor,
         BlobCacheMetrics blobCacheMetrics
     ) {
-        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime);
+        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime, new DefaultEvictionPolicy<>());
     }
 
     public SharedBlobCacheService(
@@ -403,6 +404,29 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Executor ioExecutor,
         BlobCacheMetrics blobCacheMetrics,
         LongSupplier relativeTimeInNanosSupplier
+    ) {
+        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, relativeTimeInNanosSupplier, new DefaultEvictionPolicy<>());
+    }
+
+    public SharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        Executor ioExecutor,
+        BlobCacheMetrics blobCacheMetrics,
+        EvictionPolicy<KeyType> evictionPolicy
+    ) {
+        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, System::nanoTime, evictionPolicy);
+    }
+
+    public SharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        Executor ioExecutor,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInNanosSupplier,
+        EvictionPolicy<KeyType> evictionPolicy
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = ioExecutor;
@@ -422,7 +446,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
         this.regionSize = regionSize;
         assert regionSize > 0L;
-        this.cache = new LFUCache(settings);
+        this.cache = new LFUCache(settings, evictionPolicy);
         try {
             sharedBytes = new SharedBytes(
                 numRegions,
@@ -605,11 +629,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
-            // no free page available and no old enough unused region to be evicted
-            logger.info("No free regions, skipping loading region [{}]", region);
-            listener.onResponse(false);
-            return;
+        if (force == false && freeRegions.isEmpty()) {
+            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(blobLength, region));
+            if (maybeEvictLeastUsed(incoming) == false) {
+                // no free page available and no old enough unused region to be evicted
+                logger.info("No free regions, skipping loading region [{}]", region);
+                listener.onResponse(false);
+                return;
+            }
         }
         try {
             ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
@@ -691,11 +718,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
-            // no free page available and no old enough unused region to be evicted
-            logger.debug("No free regions, skipping loading region [{}]", region);
-            listener.onResponse(false);
-            return;
+        if (force == false && freeRegions.isEmpty()) {
+            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(blobLength, region));
+            if (maybeEvictLeastUsed(incoming) == false) {
+                // no free page available and no old enough unused region to be evicted
+                logger.debug("No free regions, skipping loading region [{}]", region);
+                listener.onResponse(false);
+                return;
+            }
         }
         try {
             var regionRange = mapSubRangeToRegion(range, region);
@@ -765,9 +795,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
-    boolean maybeEvictLeastUsed() {
+    boolean maybeEvictLeastUsed(KeyType cacheKey, long length, int region) {
         if (cache instanceof LFUCache lfuCache) {
-            return lfuCache.maybeEvictLeastUsed();
+            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(length, region));
+            return lfuCache.maybeEvictLeastUsed(incoming);
+        }
+        return false;
+    }
+
+    private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.maybeEvictLeastUsed(incoming);
         }
         return false;
     }
@@ -915,9 +953,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     /**
      * While this class has incRef and tryIncRef methods, incRefEnsureOpen and tryIncrefEnsureOpen should
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
-     * (see {@link SharedBlobCacheService.LFUCache#maybeEvictAndTakeForFrequency(Runnable, int)})
+     * (see LFUCache#maybeEvictAndTakeForFrequency)
      */
-    static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted {
+    static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted implements CacheRegion<KeyType> {
 
         private static final VarHandle VH_IO = findIOVarHandle();
 
@@ -1046,6 +1084,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // for use in tests *only*
         SharedBytes.IO testOnlyNonVolatileIO() {
             return io;
+        }
+
+        @Override
+        public KeyType key() {
+            return regionKey.file();
         }
 
         /**
@@ -1975,8 +2018,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final AtomicLong initialFreeRegions = new AtomicLong();
         private final long initialDecayPollCount;
 
+        private final EvictionPolicy<KeyType> evictionPolicy;
+
         @SuppressWarnings("unchecked")
-        LFUCache(Settings settings) {
+        LFUCache(Settings settings, EvictionPolicy<KeyType> evictionPolicy) {
             this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
             this.freqs = (FreqLevel[]) Array.newInstance(FreqLevel.class, maxFreq);
             for (int i = 0; i < maxFreq; i++) {
@@ -1992,6 +2037,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             } else {
                 initialDecayPollCount = 0;
             }
+            // If EvictionPolicy requires access to FreqLevel[] then we could use some factory here to pass down the freqs array while
+            // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
+            this.evictionPolicy = Objects.requireNonNull(evictionPolicy);
         }
 
         @Override
@@ -2077,8 +2125,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
-                            unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey.file.shardId(), entry.chunk.regionKey, entry);
+                            unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -2093,6 +2140,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private boolean removeKeyMappingForEntry(LFUCacheEntry entry) {
             return keyMapping.remove(entry.chunk.regionKey.file().shardId(), entry.chunk.regionKey, entry);
+        }
+
+        private void unlinkAndRemoveForEviction(LFUCacheEntry entry) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            unlink(entry);
+            removeKeyMappingForEntry(entry);
+            evictionPolicy.onEvicted(entry.chunk);
         }
 
         @Override
@@ -2132,9 +2186,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
-                            unlink(entry);
                             assert shard.equals(entry.chunk.regionKey.file.shardId());
-                            keyMapping.remove(shard, entry.chunk.regionKey, entry);
+                            unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -2165,7 +2218,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 // need to evict something
                 SharedBytes.IO io;
                 synchronized (SharedBlobCacheService.this) {
-                    io = maybeEvictAndTake(evictIncrementer);
+                    io = maybeEvictAndTake(entry, evictIncrementer);
                 }
                 if (io == null) {
                     io = freeRegions.poll();
@@ -2178,7 +2231,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     throwAlreadyClosed("no free region found");
                 }
             }
-
             return entry;
         }
 
@@ -2203,6 +2255,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 pushEntryToBack(entry);
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
                 entry.chunk.volatileIO(freeSlot);
+                evictionPolicy.onCached(entry.chunk);
             }
         }
 
@@ -2372,16 +2425,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          *
          * @return a now free IO region or null if none available.
          */
-        private SharedBytes.IO maybeEvictAndTake(Runnable evictedNotification) {
+        private SharedBytes.IO maybeEvictAndTake(final LFUCacheEntry incoming, final Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             final long startNanos = relativeTimeInNanosSupplier.getAsLong();
             int entriesScanned = 0;
             SharedBytes.IO result = null;
-            long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
-            var freq0Result = maybeEvictAndTakeForFrequency(evictedNotification, 0);
+            final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
+            var freq0Result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0);
             entriesScanned += freq0Result.numberOfEntriesScanned();
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
-                // frequency 0 is running low and no free regions; schedule decay and new epoch ahead of time.
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (freq0Result.evictedIoRef() != null) {
@@ -2394,7 +2446,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         result = freeRegion;
                         break;
                     }
-                    var frequencyResult = maybeEvictAndTakeForFrequency(evictedNotification, currentFreq);
+                    var frequencyResult = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq);
                     entriesScanned += frequencyResult.numberOfEntriesScanned();
                     if (frequencyResult.evictedIoRef() != null) {
                         result = frequencyResult.evictedIoRef();
@@ -2433,11 +2485,19 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
         }
 
-        private FrequencyEvictionResult maybeEvictAndTakeForFrequency(Runnable evictedNotification, int currentFreq) {
+        private FrequencyEvictionResult maybeEvictAndTakeForFrequency(
+            final LFUCacheEntry incoming,
+            final Runnable evictedNotification,
+            final int freq
+        ) {
             int numberOfEntriesScanned = 0;
             SharedBytes.IO evictedIoRef = null;
-            for (LFUCacheEntry entry = freqs[currentFreq].head; entry != null; entry = entry.next) {
+            for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
                 numberOfEntriesScanned++;
+                if (evictionPolicy.canEvict(entry.chunk, incoming.chunk) == false) {
+                    continue;
+                }
+
                 boolean evicted = entry.chunk.tryEvictNoDecRef();
                 if (evicted) {
                     try {
@@ -2453,13 +2513,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     break;
                                 }
                             } finally {
-                                unlink(entry);
-                                removeKeyMappingForEntry(entry);
+                                unlinkAndRemoveForEviction(entry);
                             }
                         }
                     } finally {
                         entry.chunk.decRef();
-                        if (currentFreq > 0) {
+                        if (freq > 0) {
                             evictedNotification.run();
                         }
                     }
@@ -2488,17 +2547,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          *
          * @return true if an entry was evicted, false otherwise.
          */
-        public boolean maybeEvictLeastUsed() {
+        private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
             final long startNanos = relativeTimeInNanosSupplier.getAsLong();
             int entriesScanned = 0;
             boolean found = false;
             synchronized (SharedBlobCacheService.this) {
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
                     entriesScanned++;
+                    if (evictionPolicy.canEvict(entry.chunk, incoming) == false) {
+                        continue;
+                    }
+
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
-                        unlink(entry);
-                        removeKeyMappingForEntry(entry);
+                        unlinkAndRemoveForEviction(entry);
                         found = true;
                         break;
                     }

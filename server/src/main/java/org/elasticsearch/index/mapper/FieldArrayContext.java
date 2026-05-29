@@ -157,11 +157,9 @@ public class FieldArrayContext {
         // multi_value = true + columnar mode path
         // Note, stored fields and nested docs will not be allowed in columnar mode - no need to check them explicitly
         // Note, doc values cannot be disabled in columnar mode
-        if (multiValue && isColumnar && context.isSourceSynthetic()
-        // skip copy_to and multi fields for now - they wll be supported in a follow up
-            && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
-            && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false) {
-
+        // TODO: copy_to is disabled since copy_to forces _ignored_source to be used for synthetic source, recording offsets in addition
+        // to that is a big storage overhead. This will be addressed in a follow up
+        if (multiValue && isColumnar && context.isSourceSynthetic() && fieldMapperBuilder.copyTo.copyToFields().isEmpty()) {
             return context.buildFullName(offsetsFieldName(fieldMapperBuilder.leafName()));
         }
 

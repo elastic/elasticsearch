@@ -32,6 +32,7 @@ public class LookupGoldenTests extends GoldenTestCase {
 
     /**
      * Lookup on a keyword field.
+     * The bulk lookup optimization applies here.
      */
     public void testKeywordLookupOnField() {
         runGoldenTest("""
@@ -42,6 +43,7 @@ public class LookupGoldenTests extends GoldenTestCase {
 
     /**
      * Lookup on a keyword expression.
+     * The bulk lookup optimization applies here.
      */
     public void testKeywordLookupOnExpression() {
         runGoldenTest("""
@@ -51,9 +53,51 @@ public class LookupGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * Lookup on a keyword expression that is not equality.
+     * The bulk lookup optimization does not apply.
+     */
+    public void testKeywordLookupOnNonEqualExpression() {
+        runGoldenTest("""
+            ROW name = "French"
+            | LOOKUP JOIN languages_lookup ON name < language_name
+            """, STAGES);
+    }
+
+    /**
+     * Lookup on a keyword expression with and WHERE clause with a pushable right-only filter.
+     * There are two optimizations possible here
+     *
+     *  A. if we use the bulk lookup optimization, we can't push to lucene because that optimization doesn't run lucene queries
+     *  B. if we push to lucene, we can't use the bulk lookup optimization
+     *
+     * We believe in the common case we will have few matches on the right so the order of rules in LookupPhysicalPlanOptimizer
+     * prioritizes bulk lookup over lucene pushdown.  The output should show the bulk lookup optimization is applied.
+     */
+    public void testKeywordLookupWithPushableFilter() {
+        runGoldenTest("""
+            FROM employees
+            | LOOKUP JOIN test_lookup ON first_name
+            | WHERE last_name == "Facello"
+            """, STAGES);
+    }
+
+    /**
+     * Variation of above with filter in the LOOKUP JOIN condition
+     * The bulk lookup optimization applies here as well.
+     */
+    public void testKeywordLookupWithFilterInJoinCondition() {
+        runGoldenTest("""
+            FROM employees
+            | RENAME first_name as first_left, last_name as last_left
+            | LOOKUP JOIN test_lookup ON first_left == first_name AND last_name == "Facello"
+            """, STAGES);
+    }
+
+    /**
      * WHERE clause with a pushable right-only filter (equality on a keyword field).
-     * The logical optimizer pushes it into the join's right side, and the lookup physical optimizer
-     * pushes it down to ParameterizedQueryExec.query().
+     * The logical optimizer pushes it into the join's right side.
+     * The bulk lookup optimization does not apply because the join condition is on an INTEGER field.
+     * The lookup physical optimizer pushes the where condition down to ParameterizedQueryExec.query().
      */
     public void testLookupWithPushableFilter() {
         runGoldenTest("""
@@ -66,8 +110,9 @@ public class LookupGoldenTests extends GoldenTestCase {
 
     /**
      * WHERE clause with a non-pushable right-only filter (LENGTH function comparison).
-     * The logical optimizer pushes it into the join's right side, but the lookup physical optimizer
-     * cannot push it to Lucene, so it stays as a FilterExec.
+     * The logical optimizer pushes it into the join's right side
+     * The bulk lookup optimization does not apply because the join condition is on an INTEGER field.
+     * The lookup physical optimizer cannot push it to Lucene, so it stays as a FilterExec.
      */
     public void testLookupWithNonPushableFilter() {
         runGoldenTest("""
@@ -80,6 +125,7 @@ public class LookupGoldenTests extends GoldenTestCase {
 
     /**
      * WHERE clause with both pushable and non-pushable right-only filters.
+     * The bulk lookup optimization does not apply because the join condition is on an INTEGER field.
      * The pushable part goes to ParameterizedQueryExec.query(), the non-pushable stays as a FilterExec.
      */
     public void testLookupWithMixedFilters() {
@@ -93,6 +139,7 @@ public class LookupGoldenTests extends GoldenTestCase {
 
     /**
      * Two consecutive LOOKUP JOINs: first on test_lookup (by emp_no), then on languages_lookup (by language_code).
+     * The bulk lookup optimization does not apply in either case the conditions are on INTEGER fields.
      * Each join's right side is independently planned on its respective lookup node.
      */
     public void testTwoLookupJoins() {

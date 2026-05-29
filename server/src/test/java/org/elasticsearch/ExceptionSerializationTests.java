@@ -146,6 +146,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class ExceptionSerializationTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     public void testExceptionRegistration() throws IOException, URISyntaxException {
         final Set<Class<?>> notRegistered = new HashSet<>();
         final Set<Class<?>> registered = new HashSet<>();

@@ -80,6 +80,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ElasticsearchExceptionTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     public void testStatus() {
         ElasticsearchException exception = new ElasticsearchException("test");
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));

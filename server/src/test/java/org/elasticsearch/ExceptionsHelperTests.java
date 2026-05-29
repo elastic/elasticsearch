@@ -35,6 +35,8 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 public class ExceptionsHelperTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     public void testMaybeError() {
         final Error outOfMemoryError = new OutOfMemoryError();
         assertError(outOfMemoryError, outOfMemoryError);

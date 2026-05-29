@@ -28,6 +28,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     public static class CorrectFakeVersion {
         public static final TransportVersion V_0_00_01 = new TransportVersion(199);
         public static final TransportVersion V_0_000_002 = new TransportVersion(2);

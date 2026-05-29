@@ -17,6 +17,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ReleaseVersionsTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     public void testReleaseVersions() {
         IntFunction<String> versions = ReleaseVersions.generateVersionsLookup(ReleaseVersionsTests.class, 23);
 

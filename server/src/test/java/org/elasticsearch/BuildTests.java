@@ -30,6 +30,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class BuildTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     /** Asking for the jar metadata should not throw exception in tests, no matter how configured */
     public void testJarMetadata() throws IOException {
         URL url = Build.getElasticsearchCodeSourceLocation();

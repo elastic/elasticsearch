@@ -29,6 +29,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
 
+    // verification touch for flakiness parallel-fanout (#150223)
+
     public void testVersionComparison() {
         Version V_7_2_0 = Version.fromString("7.2.0");
         Version V_8_0_0 = Version.fromString("8.0.0");

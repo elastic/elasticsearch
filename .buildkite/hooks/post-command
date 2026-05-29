@@ -1,6 +1,8 @@
 #!/bin/bash
 
 if [[ -f build/task-status.json ]]; then
+  ls -alh .buildkite/node_modules
+  echo ''
   # Finalize the current run (stamp build scan URL from Buildkite metadata) and
   # merge with any previous runs (saved by smart-retry pre-command). On the first
   # attempt, build/previous-task-status.json won't exist — the script handles

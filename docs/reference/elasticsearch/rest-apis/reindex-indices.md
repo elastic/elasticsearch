@@ -123,17 +123,18 @@ To turn off throttling, set `requests_per_second` to `-1`.
 The throttling is done by waiting between batches.
 Set the underlying search keep-alive long enough that a slower batch does not expire the context before the next read.
 
-:::::{note}
-**`scroll` query parameter versus PIT keep-alive**
+:::::{admonition} Scroll query parameter versus PIT keep-alive
 
 ::::{applies-switch}
 
 :::{applies-item} { "stack": "ga 9.5+", "serverless": "ga" }
-Reindex reads the source with **point-in-time** pagination for local reindexes, and for reindex from remote when the remote cluster is **{{es}} 7.10 or later** (so a PIT can be opened there). The top-level **`scroll` parameter on the reindex request has no effect** on that path. Reindex from a remote cluster **older than {{es}} 7.10** cannot use the PIT path and **falls back to scroll**; the **`scroll`** parameter then sets scroll keep-alive (not `cluster.reindex.pit.keep_alive`). Use [`cluster.reindex.pit.keep_alive`](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings) to change how long those contexts stay open.
+Reindex reads the source with point-in-time pagination for local reindexes and for reindex from remote when the remote cluster is {{es}} 7.10 or later (so a PIT can be opened there). The top-level `scroll` parameter on the reindex request has no effect on that path.
+
+Reindex from a remote cluster older than {{es}} 7.10 cannot use the PIT path and falls back to scroll; the `scroll` parameter then sets scroll keep-alive (not `cluster.reindex.pit.keep_alive`). Use [`cluster.reindex.pit.keep_alive`](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings) to change how long those contexts stay open.
 :::
 
 :::{applies-item} { "stack": "ga 9.0-9.4" }
-Reindex uses **scroll**-based pagination for local and remote sources. The **`scroll`** parameter sets scroll keep-alive; allow enough time for throttling gaps between batches.
+Reindex uses scroll-based pagination for local and remote sources. The `scroll` parameter sets scroll keep-alive; allow enough time for throttling gaps between batches.
 :::
 
 ::::

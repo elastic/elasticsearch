@@ -59,7 +59,6 @@ public class PromqlCommand extends UnaryPlan
         PostAnalysisVerificationAware,
         TimestampAware,
         TimestampBoundsAware.OfLogicalPlan {
-    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
 
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.

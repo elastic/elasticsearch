@@ -197,11 +197,12 @@ public final class IndexSettings {
      * Index setting describing the maximum number of tokens that can be produced for any single field
      * when indexing a document. This protects against "monster documents" that can cause
      * out-of-memory errors during Lucene analysis (e.g. large text fields with n-gram analyzers).
-     * The default value of -1 means no limit is enforced.
+     * The default maximum of 1M tokens is defensive for larger texts using n-gram analyzers.
+     * Setting this to -1 will disable the check.
      */
     public static final Setting<Integer> MAX_FIELD_TOKEN_COUNT_SETTING = Setting.intSetting(
         "index.mapping.tokens_per_field.limit",
-        -1,
+        1_000_000,
         -1,
         Property.Dynamic,
         Property.IndexScope

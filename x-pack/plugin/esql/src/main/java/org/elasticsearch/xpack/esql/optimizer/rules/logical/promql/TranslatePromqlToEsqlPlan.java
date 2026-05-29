@@ -135,7 +135,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
-
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
     // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
     // Use Instant.EPOCH / MAX_MILLIS_BEFORE_9999 instead of Long.MIN/MAX to avoid time boundary handling in the engine.
@@ -193,6 +192,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         var plan = result.plan();
         var valueExpr = result.expression();
         var filter = result.pendingFilter();
+
+        // TODO: Fix selector-free PromQL evaluation to produce values even when no data
+        // See https://github.com/elastic/elasticsearch/issues/149791
 
         if (filter != null) {
             plan = applyLabelFilter(plan, filter, cmd);
@@ -446,13 +448,14 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * These produce expressions without modifying the plan.
      */
     private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
-        PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
-            ctx.promqlCommand().timestamp(),
-            null,
-            ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+        var function = scalarFunction.buildEsqlFunction(
+            new PromqlFunctionRegistry.PromqlContext(
+                ctx.promqlCommand().timestamp(),
+                null,
+                ctx.stepAttr(),
+                ctx.optimizerContext().configuration()
+            )
         );
-        Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
 
         return new TranslationResult(currentPlan, function);
     }
@@ -813,7 +816,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         // Apply source filter: {@code t >= start - max(w)} AND {@code t <= end}
         if (start.value() != null && end.value() != null) {
             var timestamp = promqlCommand.timestamp();
-            var window = promqlCommand.maxRangeSelectorWindow();
+            var window = promqlCommand.sourceFilterWindow();
             var child = promqlCommand.child();
 
             var lo = new GreaterThanOrEqual(source, timestamp, new Sub(source, start, Literal.timeDuration(source, window), configuration));
@@ -849,6 +852,14 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private static Alias createStepBucketAlias(PromqlCommand p, LogicalOptimizerContext context) {
         var cfg = context.configuration();
         var source = p.source();
+
+        if (p.isInstantQuery()) {
+            Expression stepSize = Literal.timeDuration(source, p.resolveInstantQueryWindow());
+            Expression start = new Sub(p.start().source(), p.start(), stepSize, cfg);
+            var tstep = new TStep(stepSize.source(), stepSize, start, p.end(), p.timestamp(), cfg);
+            return new Alias(tstep.source(), p.stepColumnName(), tstep, p.stepId());
+        }
+
         Expression timeBucketSize = p.resolveTimeBucketSize();
         Expression start = p.start().value() != null ? p.start() : Literal.dateTime(source, EPOCH_MIN);
         Expression end = p.end().value() != null ? p.end() : Literal.dateTime(source, EPOCH_MAX);

@@ -64,13 +64,13 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     }
 
     public void testGetMeterProviderBeforeInitReturnsNoop() {
-        assertSame(MeterProvider.noop(), new OtelSdkExportMeterSupplier(Settings.EMPTY).getMeterProvider());
+        assertSame(MeterProvider.noop(), new OtelSdkExportMeterSupplier(Settings.EMPTY, null).getMeterProvider());
     }
 
     public void testGetMeterProviderAfterGetReturnsSdkProvider() {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
         supplier.get();
         assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
         supplier.close();
@@ -84,7 +84,7 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
     public void testGetMeterProviderWithEndpointInitializesEagerlyBeforeGet() {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
-        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
         MeterProvider provider = supplier.getMeterProvider();
         assertNotSame(MeterProvider.noop(), provider);
         assertThat(provider, org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));

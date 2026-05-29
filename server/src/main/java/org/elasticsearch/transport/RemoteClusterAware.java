@@ -153,8 +153,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * remote1, remote2, remote3, and this index expression is provided: blogs,rem*:blogs,-rem*1:*. That would successfully
      * remove remote1 from the list of clusters to be included.
      *
-     * This method also supports excluding indices on remote clusters by using {@code -cluster:index} as syntactic sugar
-     * for {@code cluster:-index}. For example, {@code -remote:foo*} is equivalent to {@code remote:-foo*}.
+     * This method also supports excluding indices on remote clusters by using {@code -cluster:index} as an alternative
+     * form of {@code cluster:-index}. For example, {@code -remote:foo*} is equivalent to {@code remote:-foo*}.
      *
      * @param remoteClusterNames the remote cluster names. If a clusterAlias is preceded by a minus sign that cluster will be excluded.
      * @param requestIndices the indices in the search request to filter

@@ -1,0 +1,5 @@
+area: Infra/Logging
+issues: []
+pr: 150266
+summary: Introduce params support for query logging (ESQL & SQL)
+type: enhancement

@@ -180,7 +180,7 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
             }
 
             @Override
-            public DocIdSetIterator docIdSetIterator() {
+            public DocIdSetIterator docIdIterator() {
                 return null;
             }
         };

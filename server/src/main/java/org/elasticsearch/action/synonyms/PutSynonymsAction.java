@@ -63,7 +63,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         }
 
         private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
-        private static final TransportVersion SYNONYMS_APPEND_PARAM = TransportVersion.fromName("synonyms_append_param");
+        static final TransportVersion SYNONYMS_APPEND_PARAM = TransportVersion.fromName("synonyms_append_param");
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -127,7 +127,7 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             if (out.getTransportVersion().supports(SYNONYMS_APPEND_PARAM)) {
                 out.writeBoolean(append);
             } else if (append) {
-                throw new IllegalStateException(
+                throw new IllegalArgumentException(
                     "cannot serialize append=true to a node that does not support it (transport version " + out.getTransportVersion() + ")"
                 );
             }

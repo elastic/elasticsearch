@@ -99,4 +99,15 @@ public class PreAnalysisVerifierIT extends AbstractEsqlIntegTestCase {
             () -> run(syncEsqlQueryRequest("FROM main_index | WHERE emp_no IN (ROW x = 1)"))
         );
     }
+
+    public void testInSubqueryWithTSAsSourceCommandRejectedAtRuntime() {
+        assumeTrue("IN subquery is not enabled", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+        assumeTrue("ROW as source command is not enabled", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+
+        expectThrows(
+            VerificationException.class,
+            containsString("IN subquery is not yet supported"),
+            () -> run(syncEsqlQueryRequest("FROM main_index | WHERE emp_no IN (TS sub_index)"))
+        );
+    }
 }

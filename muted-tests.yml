@@ -466,12 +466,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testRangeQueryViaIndexSearcher
-  issue: https://github.com/elastic/elasticsearch/issues/149656
-- class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
-  method: testRangeQueryViaIndexSearcher
-  issue: https://github.com/elastic/elasticsearch/issues/149657
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN_partialCompleted
   issue: https://github.com/elastic/elasticsearch/issues/149665
@@ -685,3 +679,6 @@ tests:
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedDuringMerge
+  issue: https://github.com/elastic/elasticsearch/issues/150158

@@ -10,3 +10,5 @@ steps:
       machineType: n4-standard-32
       diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
+      preemptible: true
+      spotZones: asia-south2-a,asia-south2-b,asia-south2-c

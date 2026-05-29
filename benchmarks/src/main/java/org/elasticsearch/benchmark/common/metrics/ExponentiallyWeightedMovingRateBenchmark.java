@@ -48,7 +48,7 @@ import java.util.concurrent.TimeUnit;
 @SuppressWarnings("unused")
 public class ExponentiallyWeightedMovingRateBenchmark {
 
-    @Param({ "1", "16", "32" })
+    @Param({ "1", "4", "8", "16" })
     public int numStripes;
 
     private ExponentiallyWeightedMovingRate ewmr;
@@ -119,31 +119,17 @@ public class ExponentiallyWeightedMovingRateBenchmark {
         return ewmr.getRate(t.time);
     }
 
-    @Group("writers_016")
-    @GroupThreads(16)
+    @Group("writers_015")
+    @GroupThreads(15)
     @Benchmark
-    public void addIncrement_016(ThreadState t) {
+    public void addIncrement_015(ThreadState t) {
         ewmr.addIncrement(1.0, t.time++);
     }
 
-    @Group("writers_016")
+    @Group("writers_015")
     @GroupThreads(1)
     @Benchmark
-    public double getRate_016(ThreadState t) {
-        return ewmr.getRate(t.time);
-    }
-
-    @Group("writers_032")
-    @GroupThreads(32)
-    @Benchmark
-    public void addIncrement_032(ThreadState t) {
-        ewmr.addIncrement(1.0, t.time++);
-    }
-
-    @Group("writers_032")
-    @GroupThreads(1)
-    @Benchmark
-    public double getRate_032(ThreadState t) {
+    public double getRate_015(ThreadState t) {
         return ewmr.getRate(t.time);
     }
 }

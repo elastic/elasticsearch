@@ -27,8 +27,11 @@ dependencies {
   // GCS fixture infrastructure for mocking GCS operations
   javaRestTestImplementation project(':test:fixtures:gcs-fixture')
 
-  // Parquet support - needed for reading test fixtures
+  // Parquet support - needed for reading test fixtures and generating ClickBench fixtures at test time.
+  // hadoop-client-api provides class stubs (Path, FSDataInputStream) needed to compile against ParquetFileWriter;
+  // PlainParquetConfiguration is used at runtime to avoid requiring hadoop-client-runtime.
   javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  javaRestTestImplementation("org.apache.hadoop:hadoop-client-api:${versions.hadoop}") { exclude group: 'org.apache.logging.log4j' }
   
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')

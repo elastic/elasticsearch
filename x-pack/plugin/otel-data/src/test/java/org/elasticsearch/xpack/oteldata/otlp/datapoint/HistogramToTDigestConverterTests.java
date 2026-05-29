@@ -78,11 +78,10 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
             new Object[] { "empty", HistogramDataPoint.newBuilder().build(), List.of(), List.of(), true },
             new Object[] {
                 "single bucket",
-                HistogramDataPoint.newBuilder().addBucketCounts(10L).addExplicitBounds(5.0).build(),
+                HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(10L, 0L)).addExplicitBounds(5.0).build(),
                 List.of(10L),
                 List.of(2.5),
                 true },
-            new Object[] { "single count", HistogramDataPoint.newBuilder().addBucketCounts(10L).build(), List.of(10L), List.of(), false },
             new Object[] {
                 "two buckets",
                 HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(5L, 10L)).addExplicitBounds(5.0).build(),
@@ -124,6 +123,24 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
                     .build(),
                 List.of(5L, 10L, 15L, 20L),
                 List.of(0.5, 3.0, 12.5, 20.0),
+                true },
+            new Object[] {
+                "no explicit bounds with count and sum",
+                HistogramDataPoint.newBuilder().setCount(10L).setSum(100.0).build(),
+                List.of(10L),
+                List.of(10.0),
+                true },
+            new Object[] {
+                "no explicit bounds with single bucket count",
+                HistogramDataPoint.newBuilder().addBucketCounts(10L).setCount(10L).setSum(100.0).build(),
+                List.of(10L),
+                List.of(10.0),
+                true },
+            new Object[] {
+                "no explicit bounds with zero count",
+                HistogramDataPoint.newBuilder().setCount(0L).setSum(0.0).build(),
+                List.of(),
+                List.of(),
                 true }
         );
     }

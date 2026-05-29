@@ -24,7 +24,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -59,18 +59,18 @@ public class DataFrameAnalyticsDeleter {
         final String id = config.getId();
 
         // Step 3. Delete the config
-        ActionListener<BulkByScrollResponse> deleteStatsHandler = ActionListener.wrap(bulkByScrollResponse -> {
-            if (bulkByScrollResponse.isTimedOut()) {
+        ActionListener<BulkByPaginatedSearchResponse> deleteStatsHandler = ActionListener.wrap(bulkByPaginatedSearchResponse -> {
+            if (bulkByPaginatedSearchResponse.isTimedOut()) {
                 logger.warn("[{}] DeleteByQuery for stats timed out", id);
             }
-            if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+            if (bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false) {
                 logger.warn(
                     "[{}] {} failures and {} conflicts encountered while running DeleteByQuery for stats",
                     id,
-                    bulkByScrollResponse.getBulkFailures().size(),
-                    bulkByScrollResponse.getVersionConflicts()
+                    bulkByPaginatedSearchResponse.getBulkFailures().size(),
+                    bulkByPaginatedSearchResponse.getVersionConflicts()
                 );
-                for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                for (BulkItemResponse.Failure failure : bulkByPaginatedSearchResponse.getBulkFailures()) {
                     logger.warn("[{}] DBQ failure: {}", id, failure);
                 }
             }
@@ -81,18 +81,18 @@ public class DataFrameAnalyticsDeleter {
         });
 
         // Step 2. Delete job docs from stats index
-        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(bulkByScrollResponse -> {
-            if (bulkByScrollResponse.isTimedOut()) {
+        ActionListener<BulkByPaginatedSearchResponse> deleteStateHandler = ActionListener.wrap(bulkByPaginatedSearchResponse -> {
+            if (bulkByPaginatedSearchResponse.isTimedOut()) {
                 logger.warn("[{}] DeleteByQuery for state timed out", id);
             }
-            if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+            if (bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false) {
                 logger.warn(
                     "[{}] {} failures and {} conflicts encountered while running DeleteByQuery for state",
                     id,
-                    bulkByScrollResponse.getBulkFailures().size(),
-                    bulkByScrollResponse.getVersionConflicts()
+                    bulkByPaginatedSearchResponse.getBulkFailures().size(),
+                    bulkByPaginatedSearchResponse.getVersionConflicts()
                 );
-                for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                for (BulkItemResponse.Failure failure : bulkByPaginatedSearchResponse.getBulkFailures()) {
                     logger.warn("[{}] DBQ failure: {}", id, failure);
                 }
             }
@@ -125,7 +125,7 @@ public class DataFrameAnalyticsDeleter {
         }));
     }
 
-    private void deleteState(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteState(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<BulkByPaginatedSearchResponse> listener) {
         ActionListener<Boolean> deleteModelStateListener = listener.delegateFailureAndWrap(
             (l, r) -> executeDeleteByQuery(
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
@@ -159,7 +159,7 @@ public class DataFrameAnalyticsDeleter {
         );
     }
 
-    private void deleteStats(String jobId, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteStats(String jobId, TimeValue timeout, ActionListener<BulkByPaginatedSearchResponse> listener) {
         executeDeleteByQuery(
             MlStatsIndex.indexPattern(),
             QueryBuilders.termQuery(Fields.JOB_ID.getPreferredName(), jobId),
@@ -168,7 +168,12 @@ public class DataFrameAnalyticsDeleter {
         );
     }
 
-    private void executeDeleteByQuery(String index, QueryBuilder query, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
+    private void executeDeleteByQuery(
+        String index,
+        QueryBuilder query,
+        TimeValue timeout,
+        ActionListener<BulkByPaginatedSearchResponse> listener
+    ) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(index);
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));

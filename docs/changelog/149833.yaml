@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149833
+summary: Enlarge GZIPInputStream raw buffer to 64 KiB
+type: enhancement

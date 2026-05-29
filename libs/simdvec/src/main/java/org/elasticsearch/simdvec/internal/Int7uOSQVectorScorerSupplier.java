@@ -10,11 +10,13 @@
 package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -31,12 +33,15 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     Int7uOSQVectorScorerSupplier.MaxInnerProductSupplier {
 
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
+    // Size of the corrections trailer that follows each quantized vector in the codec's per-vector
+    // record: 3 floats (lowerInterval, upperInterval, additionalCorrection) + 1 int (quantizedComponentSum).
+    private static final int CORRECTIONS_BYTES = 3 * Float.BYTES + Integer.BYTES;
 
     protected final IndexInput input;
     protected final QuantizedByteVectorValues values;
     protected final int dims;
     protected final int maxOrd;
-    protected final long vectorPitch;
+    protected final int vectorPitch;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
     final AddressesScratch addrsScratch = new AddressesScratch();
@@ -47,14 +52,17 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         this.values = values;
         this.dims = values.dimension();
         this.maxOrd = values.size();
-        this.vectorPitch = dims + 3L * Float.BYTES + Integer.BYTES;
-        this.firstScratch = new FixedSizeScratch(dims);
-        this.secondScratch = new FixedSizeScratch(dims);
+        this.vectorPitch = dims + CORRECTIONS_BYTES;
+        // Scratches are sized to the full per-vector record (vector + corrections), so that the same
+        // backing slice can be used for both the dot product (first dims bytes) and the corrections
+        // (trailing {@code CORRECTIONS_BYTES} bytes).
+        this.firstScratch = new FixedSizeScratch(vectorPitch);
+        this.secondScratch = new FixedSizeScratch(vectorPitch);
     }
 
-    protected abstract float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException;
+    protected abstract float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) throws IOException;
 
-    protected abstract float applyCorrectionsBulk(MemorySegment scores, int[] ordinals, int numNodes, QueryContext query)
+    protected abstract float applyCorrectionsBulk(MemorySegment scores, MemorySegment addrs, int numNodes, QueryContext query)
         throws IOException;
 
     protected record QueryContext(
@@ -91,12 +99,11 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         long secondVectorOffset = (long) secondOrd * vectorPitch;
 
         input.seek(firstVectorOffset);
-        return IndexInputUtils.withSlice(input, dims, firstScratch::getScratch, firstSeg -> {
+        return IndexInputUtils.withSlice(input, vectorPitch, firstScratch::getScratch, firstSeg -> {
             input.seek(secondVectorOffset);
-            return IndexInputUtils.withSlice(input, dims, secondScratch::getScratch, secondSeg -> {
-
+            return IndexInputUtils.withSlice(input, vectorPitch, secondScratch::getScratch, secondSeg -> {
                 int rawScore = dotProductI7u(firstSeg, secondSeg, dims);
-                return applyCorrections(rawScore, secondOrd, query);
+                return applyCorrections(rawScore, secondSeg.asSlice(dims, CORRECTIONS_BYTES), query);
             });
         });
     }
@@ -110,26 +117,28 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
 
         long queryByteOffset = (long) query.ord * vectorPitch;
         input.seek(queryByteOffset);
-        return IndexInputUtils.withSlice(input, dims, firstScratch::getScratch, querySeg -> {
+        // Request vectorPitch bytes per slice (not dims): the doc-side corrections sit at offset
+        // [dims, dims+CORRECTIONS_BYTES) of the same record, and we read them in
+        // applyCorrectionsBulk via MemorySegment reinterpret.
+        return IndexInputUtils.withSlice(input, vectorPitch, firstScratch::getScratch, querySeg -> {
             long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorPitch;
             }
 
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, dims, numNodes, addrsScratch::get, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorPitch, numNodes, addrsScratch::get, addrs -> {
                 var scoresSeg = MemorySegment.ofArray(scores);
                 dotProductI7uBulkSparse(addrs, querySeg, dims, numNodes, scoresSeg);
-                maxScore[0] = applyCorrectionsBulk(scoresSeg, ordinals, numNodes, query);
+                maxScore[0] = applyCorrectionsBulk(scoresSeg, addrs, numNodes, query);
             });
             if (resolved == false) {
                 // fallback to per-vector scorer
                 for (int i = 0; i < numNodes; i++) {
                     input.seek(offsets[i]);
-                    var documentOrdinal = ordinals[i];
-                    scores[i] = IndexInputUtils.withSlice(input, dims, secondScratch::getScratch, documentSeg -> {
+                    scores[i] = IndexInputUtils.withSlice(input, vectorPitch, secondScratch::getScratch, documentSeg -> {
                         int rawScore = dotProductI7u(querySeg, documentSeg, dims);
-                        float adjustedScore = applyCorrections(rawScore, documentOrdinal, query);
+                        float adjustedScore = applyCorrections(rawScore, documentSeg.asSlice(dims, CORRECTIONS_BYTES), query);
                         maxScore[0] = Math.max(maxScore[0], adjustedScore);
                         return adjustedScore;
                     });
@@ -187,38 +196,40 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         }
 
         @Override
-        protected float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException {
-            var correctiveTerms = values.getCorrectiveTerms(ord);
-            float ax = correctiveTerms.lowerInterval();
-            float lx = (correctiveTerms.upperInterval() - ax) * LIMIT_SCALE;
+        protected float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) throws IOException {
+            float ax = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 0);
+            float ux = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, Float.BYTES);
+            float xAdditionalCorrection = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 2L * Float.BYTES);
+            int x1 = correctionsSlice.get(ValueLayout.JAVA_INT_UNALIGNED, 3L * Float.BYTES);
+            float lx = (ux - ax) * LIMIT_SCALE;
             float ay = query.lowerInterval;
             float ly = (query.upperInterval - ay) * LIMIT_SCALE;
             float y1 = query.quantizedComponentSum;
-            float x1 = correctiveTerms.quantizedComponentSum();
             float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawScore;
-            score += query.additionalCorrection + correctiveTerms.additionalCorrection() - values.getCentroidDP();
+            score += query.additionalCorrection + xAdditionalCorrection - values.getCentroidDP();
             return VectorUtil.normalizeToUnitInterval(Math.clamp(score, -1, 1));
         }
 
         @Override
-        protected float applyCorrectionsBulk(MemorySegment scoreSeg, int[] ordinals, int numNodes, QueryContext query) throws IOException {
-            float ay = query.lowerInterval;
-            float ly = (query.upperInterval - ay) * LIMIT_SCALE;
-            float y1 = query.quantizedComponentSum;
-            float max = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < numNodes; i++) {
-                float raw = scoreSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                var correctiveTerms = values.getCorrectiveTerms(ordinals[i]);
-                float ax = correctiveTerms.lowerInterval();
-                float lx = (correctiveTerms.upperInterval() - ax) * LIMIT_SCALE;
-                float x1 = correctiveTerms.quantizedComponentSum();
-                float adjustedScore = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * raw;
-                adjustedScore += query.additionalCorrection + correctiveTerms.additionalCorrection() - values.getCentroidDP();
-                float normalized = VectorUtil.normalizeToUnitInterval(Math.clamp(adjustedScore, -1, 1));
-                scoreSeg.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalized);
-                max = Math.max(max, normalized);
-            }
-            return max;
+        protected float applyCorrectionsBulk(MemorySegment scoreSeg, MemorySegment addrs, int numNodes, QueryContext query)
+            throws IOException {
+            return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                addrs,
+                numNodes,
+                dims,
+                vectorPitch,
+                dims,
+                query.lowerInterval,
+                query.upperInterval,
+                query.quantizedComponentSum,
+                query.additionalCorrection,
+                LIMIT_SCALE,
+                LIMIT_SCALE,
+                values.getCentroidDP(),
+                true,
+                scoreSeg
+            );
         }
 
     }
@@ -234,38 +245,40 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         }
 
         @Override
-        protected float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException {
-            var correctiveTerms = values.getCorrectiveTerms(ord);
-            float ax = correctiveTerms.lowerInterval();
-            float lx = (correctiveTerms.upperInterval() - ax) * LIMIT_SCALE;
+        protected float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) {
+            float ax = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 0);
+            float ux = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, Float.BYTES);
+            float xAdditionalCorrection = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 2L * Float.BYTES);
+            int x1 = correctionsSlice.get(ValueLayout.JAVA_INT_UNALIGNED, 3L * Float.BYTES);
+            float lx = (ux - ax) * LIMIT_SCALE;
             float ay = query.lowerInterval;
             float ly = (query.upperInterval - ay) * LIMIT_SCALE;
             float y1 = query.quantizedComponentSum;
-            float x1 = correctiveTerms.quantizedComponentSum();
             float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawScore;
-            score = query.additionalCorrection + correctiveTerms.additionalCorrection() - 2 * score;
+            score = query.additionalCorrection + xAdditionalCorrection - 2 * score;
             return VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
         }
 
         @Override
-        protected float applyCorrectionsBulk(MemorySegment scoreSeg, int[] ordinals, int numNodes, QueryContext query) throws IOException {
-            float ay = query.lowerInterval;
-            float ly = (query.upperInterval - ay) * LIMIT_SCALE;
-            float y1 = query.quantizedComponentSum;
-            float max = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < numNodes; i++) {
-                float raw = scoreSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                var correctiveTerms = values.getCorrectiveTerms(ordinals[i]);
-                float ax = correctiveTerms.lowerInterval();
-                float lx = (correctiveTerms.upperInterval() - ax) * LIMIT_SCALE;
-                float x1 = correctiveTerms.quantizedComponentSum();
-                float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * raw;
-                score = query.additionalCorrection + correctiveTerms.additionalCorrection() - 2 * score;
-                float normalized = VectorUtil.normalizeDistanceToUnitInterval(Math.max(score, 0f));
-                scoreSeg.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalized);
-                max = Math.max(max, normalized);
-            }
-            return max;
+        protected float applyCorrectionsBulk(MemorySegment scoreSeg, MemorySegment addrs, int numNodes, QueryContext query)
+            throws IOException {
+            return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                VectorSimilarityFunction.EUCLIDEAN,
+                addrs,
+                numNodes,
+                dims,
+                vectorPitch,
+                dims,
+                query.lowerInterval,
+                query.upperInterval,
+                query.quantizedComponentSum,
+                query.additionalCorrection,
+                LIMIT_SCALE,
+                LIMIT_SCALE,
+                values.getCentroidDP(),
+                true,
+                scoreSeg
+            );
         }
     }
 
@@ -280,38 +293,40 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         }
 
         @Override
-        protected float applyCorrections(float rawScore, int ord, QueryContext query) throws IOException {
-            var correctiveTerms = values.getCorrectiveTerms(ord);
-            float ax = correctiveTerms.lowerInterval();
-            float lx = (correctiveTerms.upperInterval() - ax) * LIMIT_SCALE;
+        protected float applyCorrections(float rawScore, MemorySegment correctionsSlice, QueryContext query) throws IOException {
+            float ax = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 0);
+            float ux = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, Float.BYTES);
+            float xAdditionalCorrection = correctionsSlice.get(ValueLayout.JAVA_FLOAT_UNALIGNED, 2L * Float.BYTES);
+            int x1 = correctionsSlice.get(ValueLayout.JAVA_INT_UNALIGNED, 3L * Float.BYTES);
+            float lx = (ux - ax) * LIMIT_SCALE;
             float ay = query.lowerInterval;
             float ly = (query.upperInterval - ay) * LIMIT_SCALE;
             float y1 = query.quantizedComponentSum;
-            float x1 = correctiveTerms.quantizedComponentSum();
             float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * rawScore;
-            score += query.additionalCorrection + correctiveTerms.additionalCorrection() - values.getCentroidDP();
+            score += query.additionalCorrection + xAdditionalCorrection - values.getCentroidDP();
             return VectorUtil.scaleMaxInnerProductScore(score);
         }
 
         @Override
-        protected float applyCorrectionsBulk(MemorySegment scoreSeg, int[] ordinals, int numNodes, QueryContext query) throws IOException {
-            float ay = query.lowerInterval;
-            float ly = (query.upperInterval - ay) * LIMIT_SCALE;
-            float y1 = query.quantizedComponentSum;
-            float max = Float.NEGATIVE_INFINITY;
-            for (int i = 0; i < numNodes; i++) {
-                float raw = scoreSeg.getAtIndex(ValueLayout.JAVA_FLOAT, i);
-                var correctiveTerms = values.getCorrectiveTerms(ordinals[i]);
-                float ax = correctiveTerms.lowerInterval();
-                float lx = (correctiveTerms.upperInterval() - ax) * LIMIT_SCALE;
-                float x1 = correctiveTerms.quantizedComponentSum();
-                float score = ax * ay * dims + ay * lx * x1 + ax * ly * y1 + lx * ly * raw;
-                score += query.additionalCorrection + correctiveTerms.additionalCorrection() - values.getCentroidDP();
-                float normalizedScore = VectorUtil.scaleMaxInnerProductScore(score);
-                scoreSeg.setAtIndex(ValueLayout.JAVA_FLOAT, i, normalizedScore);
-                max = Math.max(max, normalizedScore);
-            }
-            return max;
+        protected float applyCorrectionsBulk(MemorySegment scoreSeg, MemorySegment addrs, int numNodes, QueryContext query)
+            throws IOException {
+            return ScoreCorrections.nativeBbqApplyCorrectionsBulk(
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+                addrs,
+                numNodes,
+                dims,
+                vectorPitch,
+                dims,
+                query.lowerInterval,
+                query.upperInterval,
+                query.quantizedComponentSum,
+                query.additionalCorrection,
+                LIMIT_SCALE,
+                LIMIT_SCALE,
+                values.getCentroidDP(),
+                true,
+                scoreSeg
+            );
         }
     }
 }

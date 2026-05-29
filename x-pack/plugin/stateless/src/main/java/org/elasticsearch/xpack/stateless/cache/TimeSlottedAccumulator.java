@@ -186,6 +186,11 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * If the sum overflows or underflows {@code int}, the result saturates to {@link Integer#MAX_VALUE}
      * or {@link Integer#MIN_VALUE}.
      * <p>
+     * Note: {@link #accumulate} clamps out-of-range timestamps into the retained tail or head slot, but
+     * {@code sum} clamps the query range to retained slots first. A query window entirely before the tail
+     * therefore returns {@code 0} even though {@code accumulate} would have counted such timestamps in the
+     * tail slot. This asymmetry is intentional: counts beyond the retained window cannot be reconstructed.
+     * <p>
      * Example (1h slots, range {@code [10:37, 13:00)}):
      * <pre>
      *   includes slots 10:00, 11:00, 12:00 (each [slot, slot+granularity) intersects the range)

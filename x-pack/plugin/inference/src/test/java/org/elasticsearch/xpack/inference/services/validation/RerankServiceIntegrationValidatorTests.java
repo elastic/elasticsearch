@@ -20,7 +20,6 @@ import org.mockito.Mock;
 
 import java.util.List;
 
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -59,7 +58,7 @@ public class RerankServiceIntegrationValidatorTests extends ESTestCase {
         doThrow(ElasticsearchStatusException.class).when(mockInferenceService)
             .rerankInfer(
                 eq(mockModel),
-                eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, TEST_QUERY), null, null, null)),
+                eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), InferenceString.ofText(TEST_QUERY), null, null, null)),
                 eq(TEST_REQUEST_TIMEOUT),
                 any()
             );
@@ -72,14 +71,13 @@ public class RerankServiceIntegrationValidatorTests extends ESTestCase {
         verifyCallToService();
     }
 
-    public void testValidate_SuccessfulCallToServiceForReRankTaskType() {
+    public void testValidate_SuccessfulCallToService() {
         mockSuccessfulCallToService(mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);
         verifyCallToService();
     }
 
     private void mockSuccessfulCallToService(InferenceServiceResults result) {
-        when(mockInferenceService.supportsNewRerankCodePath()).thenReturn(true);
         doAnswer(ans -> {
             ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(result);
@@ -87,7 +85,7 @@ public class RerankServiceIntegrationValidatorTests extends ESTestCase {
         }).when(mockInferenceService)
             .rerankInfer(
                 eq(mockModel),
-                eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, TEST_QUERY), null, null, null)),
+                eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), InferenceString.ofText(TEST_QUERY), null, null, null)),
                 eq(TEST_REQUEST_TIMEOUT),
                 any()
             );
@@ -98,7 +96,7 @@ public class RerankServiceIntegrationValidatorTests extends ESTestCase {
     private void verifyCallToService() {
         verify(mockInferenceService).rerankInfer(
             eq(mockModel),
-            eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), new InferenceString(TEXT, TEST_QUERY), null, null, null)),
+            eq(new RerankRequest(InferenceString.fromStringList(TEST_INPUT), InferenceString.ofText(TEST_QUERY), null, null, null)),
             eq(TEST_REQUEST_TIMEOUT),
             any()
         );

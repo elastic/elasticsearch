@@ -717,7 +717,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
-            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("no record boundary found within"));
+            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
         } finally {
             executor.shutdownNow();
         }

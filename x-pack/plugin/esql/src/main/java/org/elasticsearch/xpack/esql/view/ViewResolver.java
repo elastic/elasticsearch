@@ -319,7 +319,11 @@ public class ViewResolver {
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
-                listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
+                listener.onResponse(
+                    crossProjectModeDecider.crossProjectEnabled()
+                        ? unresolvedRelation
+                        : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
+                );
                 return;
             }
 
@@ -678,23 +682,8 @@ public class ViewResolver {
         plans.put(firstKey, merged);
     }
 
-    /** Merge the unresolved relation unless the index patterns contain matching index names. */
     private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
-        for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
-            for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
-                if (mainPattern.equals(otherPattern)) {
-                    return null;
-                }
-            }
-        }
-        return new UnresolvedRelation(
-            main.source(),
-            new IndexPattern(main.indexPattern().source(), main.indexPattern().indexPattern() + "," + other.indexPattern().indexPattern()),
-            main.frozen(),
-            main.metadataFields(),
-            main.indexMode(),
-            main.unresolvedMessage()
-        );
+        return ViewCompaction.mergeIfPossible(main, other);
     }
 
     private static void assertNamesMatch(String message, String left, String right) {

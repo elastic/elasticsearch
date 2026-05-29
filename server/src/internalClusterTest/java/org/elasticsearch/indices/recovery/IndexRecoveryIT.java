@@ -2522,6 +2522,284 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen(thirdIndex);
     }
 
+    /// Tests that when an active peer recovery completes successfully, the next pending recovery is dispatched.
+    public void testPendingPeerRecoveryDispatchedOnSuccessfulCompletion() {
+        internalCluster().startMasterOnlyNode();
+        final var sourceNode = internalCluster().startDataOnlyNode();
+        final var indexOne = "index-one";
+        final var indexTwo = "index-two";
+        createIndex(indexOne, indexSettings(1, 0).build());
+        createIndex(indexTwo, indexSettings(1, 0).build());
+
+        // Ensure committed segments exist so FILE_CHUNK actions are issued during recovery
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexOne, Integer.toString(i), "f", randomAlphaOfLength(10));
+            indexDoc(indexTwo, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexOne);
+            refresh(indexTwo);
+        }
+        flush(indexOne);
+        flush(indexTwo);
+        ensureGreen(indexOne, indexTwo);
+
+        final var fileChunkLatch = new CountDownLatch(1);
+        final var recoveryRequestsBarrier = new CyclicBarrier(2);
+        final var transportService = MockTransportService.getInstance(sourceNode);
+
+        transportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY, (handler, request, channel, task) -> {
+            handler.messageReceived(request, channel, task);
+            safeAwait(recoveryRequestsBarrier);
+        });
+
+        // Stall file chunk transfers to keep the recovery slot occupied
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                safeAwait(fileChunkLatch);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
+        final var targetNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        // Kick off recovery of first index
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexOne).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // Wait for first recovery to reach source node
+        safeAwait(recoveryRequestsBarrier);
+        var recoveryStats = clusterAdmin().prepareNodesStats(targetNode)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+        assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
+
+        // Kick off recovery of second index — will be queued because the slot is occupied
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexTwo).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // Release the first recovery to let it complete — second should be dispatched
+        fileChunkLatch.countDown();
+
+        // Wait for second recovery to start
+        safeAwait(recoveryRequestsBarrier);
+        recoveryRequestsBarrier.reset();
+
+        ensureGreen(indexOne, indexTwo);
+    }
+
+    /// Tests that when an active primary (EMPTY_STORE) recovery completes successfully, the next pending primary recovery is dispatched.
+    public void testPendingPrimaryRecoveryDispatchedOnSuccessfulCompletion() {
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        final var indexOne = "index-one";
+        final var indexTwo = "index-two";
+
+        final var firstIndexRecoveryStarted = new CountDownLatch(1);
+        final var firstIndexBlock = new CountDownLatch(1);
+        final var secondIndexRecoveryStarted = new CountDownLatch(1);
+
+        final IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                final var name = indexShard.shardId().getIndexName();
+                if (name.equals(indexOne)) {
+                    firstIndexRecoveryStarted.countDown();
+                    safeAwait(firstIndexBlock);
+                } else if (name.equals(indexTwo)) {
+                    secondIndexRecoveryStarted.countDown();
+                }
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        // Create first index and block it in recovery to occupy the slot
+        assertAcked(prepareCreate(indexOne).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        safeAwait(firstIndexRecoveryStarted);
+
+        // Create second index — will be queued because the slot is occupied
+        assertAcked(prepareCreate(indexTwo).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+
+        // Release first recovery — second should be dispatched once first completes
+        firstIndexBlock.countDown();
+        safeAwait(secondIndexRecoveryStarted);
+
+        ensureGreen(indexOne, indexTwo);
+    }
+
+    /// Tests that all queued recoveries are eventually dispatched and complete once the throttle limit allows.
+    /// Verifies the safety property (no more than {@code limit} concurrent recoveries) and the liveness property
+    /// (all queued recoveries complete after the block is released).
+    public void testAllQueuedRecoveriesEventuallyComplete() {
+        internalCluster().startMasterOnlyNode();
+        final var sourceNode = internalCluster().startDataOnlyNode();
+        final int limit = between(2, 4);
+        final int totalIndices = limit + 2;
+        final var indexNames = IntStream.range(0, totalIndices).mapToObj(i -> "index-" + i).toList();
+
+        for (final var name : indexNames) {
+            createIndex(name, indexSettings(1, 0).build());
+            for (int i = 0; i < 50; i++) {
+                indexDoc(name, Integer.toString(i), "f", randomAlphaOfLength(10));
+                refresh(name);
+            }
+            flush(name);
+        }
+        ensureGreen(indexNames.toArray(new String[0]));
+
+        // Raise the allocation throttle so the master assigns all totalIndices shards to the target at once.
+        // Without this, ThrottlingAllocationDecider's default of 2 concurrent recoveries would prevent
+        // more than 2 shards from being INITIALIZING simultaneously, meaning ThrottlingRecoveryService
+        // would never queue more than 2 recoveries regardless of limit.
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), totalIndices)
+        );
+        final var targetNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), limit).build()
+        );
+
+        // Block recoveries inside beforeIndexShardRecovery on the target node. RecoveryTarget is created
+        // (and currentAsTarget incremented) before this listener fires, so stats reflect limit active
+        // recoveries while the extra totalIndices-limit are held in ThrottlingRecoveryService's pending queue.
+        final var limitRecoveriesStarted = new CountDownLatch(limit);
+        final var releaseRecoveries = new CountDownLatch(1);
+        final IndexEventListener recoveryListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                limitRecoveriesStarted.countDown();
+                safeAwait(releaseRecoveries, TimeValue.timeValueSeconds(60));
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, targetNode).setNewDelegate(recoveryListener);
+
+        for (final var name : indexNames) {
+            assertAcked(
+                indicesAdmin().prepareUpdateSettings(name).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            );
+        }
+
+        // Wait until exactly limit recoveries have started (proving the extra ones are queued)
+        safeAwait(limitRecoveriesStarted);
+        final var recoveryStats = clusterAdmin().prepareNodesStats(targetNode)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+        assertThat(recoveryStats.currentAsTarget(), equalTo(limit));
+
+        // Release all recoveries — queued ones should be dispatched as active ones complete
+        releaseRecoveries.countDown();
+        ensureGreen(indexNames.toArray(new String[0]));
+    }
+
+    /// Tests that dynamically increasing the recovery limit immediately dispatches previously pending recoveries.
+    /// Dynamic updates work in this test because {@link org.elasticsearch.test.InternalSettingsPlugin} — included via
+    /// {@link AbstractIndexRecoveryIntegTestCase} — registers {@link ThrottlingRecoveryService#INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING}
+    /// with the node's {@link org.elasticsearch.common.settings.ClusterSettings}, enabling live listener callbacks.
+    public void testDynamicLimitIncreaseDispatchesPendingRecoveries() {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        final var indexOne = "index-one";
+        final var indexTwo = "index-two";
+        createIndex(indexOne, indexSettings(1, 0).build());
+        createIndex(indexTwo, indexSettings(1, 0).build());
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexOne, Integer.toString(i), "f", randomAlphaOfLength(10));
+            indexDoc(indexTwo, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexOne);
+            refresh(indexTwo);
+        }
+        flush(indexOne);
+        flush(indexTwo);
+        ensureGreen(indexOne, indexTwo);
+
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
+        final var targetNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+
+        // firstRecoveryStarted signals when the first recovery is dispatched by ThrottlingRecoveryService.
+        // twoRecoveriesStarted (starting at 2) reaches zero once both recoveries are active.
+        // Both recoveries are held in beforeIndexShardRecovery so that stats are stable during the checks.
+        // RecoveryTarget is created (and currentAsTarget incremented) before this listener fires.
+        final var firstRecoveryStarted = new CountDownLatch(1);
+        final var twoRecoveriesStarted = new CountDownLatch(2);
+        final var releaseBothRecoveries = new CountDownLatch(1);
+        final IndexEventListener recoveryListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                firstRecoveryStarted.countDown();
+                twoRecoveriesStarted.countDown();
+                safeAwait(releaseBothRecoveries, TimeValue.timeValueSeconds(60));
+                listener.onResponse(null);
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, targetNode).setNewDelegate(recoveryListener);
+
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexOne).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexTwo).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // With limit=1, only the first recovery should be active
+        safeAwait(firstRecoveryStarted);
+        var recoveryStats = clusterAdmin().prepareNodesStats(targetNode)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+        assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
+
+        // Dynamically increase the limit — second pending recovery should be dispatched immediately
+        internalCluster().getInstance(ClusterService.class, targetNode)
+            .getClusterSettings()
+            .applySettings(
+                Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 2).build()
+            );
+
+        // Wait for second recovery to start, confirming it was dispatched
+        safeAwait(twoRecoveriesStarted, TimeValue.timeValueSeconds(60));
+        recoveryStats = clusterAdmin().prepareNodesStats(targetNode)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+        assertThat("expected two running recoveries", recoveryStats.currentAsTarget(), equalTo(2));
+
+        releaseBothRecoveries.countDown();
+        ensureGreen(indexOne, indexTwo);
+    }
+
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {
         assertThat(nodes, not(empty()));
 

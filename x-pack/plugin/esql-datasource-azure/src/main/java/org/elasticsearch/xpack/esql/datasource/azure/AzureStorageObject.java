@@ -243,6 +243,10 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         int len = Math.toIntExact(length);
         final DirectReadBuffer drb;
@@ -279,7 +283,16 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                     listener.onFailure(cause instanceof Exception e ? e : new RuntimeException(cause));
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
-                    listener.onResponse(drb);
+                    try {
+                        listener.onResponse(drb);
+                    } catch (Exception e) {
+                        try {
+                            drb.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
                 }
             });
     }

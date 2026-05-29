@@ -126,6 +126,10 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         // error). releaseOnFailure() is idempotent — if onError already fired it is a no-op.
         ChunkCopyingSubscriber subscriber = currentSubscriber;
         if (subscriber != null) {
+            // Mark failed before releasing so any in-flight onNext that slips past the
+            // AWS SDK's cancellation guarantee sees the flag and returns early instead of
+            // writing into the already-released buffer.
+            subscriber.failed = true;
             subscriber.releaseOnFailure();
         }
         CompletableFuture<DirectReadBuffer> f = resultFuture;
@@ -176,6 +180,13 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 DirectReadBuffer drb = factory.allocate(expectedLength);
                 this.destinationBuf.set(drb);
                 this.destination = drb.buffer();
+                // Guard against exceptionOccurred racing the window between allocate() and set()
+                // above: if it fired first it saw null in destinationBuf and could not release,
+                // so we must release now if the future was already completed exceptionally.
+                if (resultFuture.isDone()) {
+                    releaseOnFailure();
+                    return;
+                }
             } catch (IOException e) {
                 failed = true;
                 releaseOnFailure();

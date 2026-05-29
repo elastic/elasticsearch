@@ -383,7 +383,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
 
             counters.addRequest(System.nanoTime() - startNanos, buffer.buffer().remaining());
-            listener.onResponse(buffer);
+            try {
+                listener.onResponse(buffer);
+            } catch (Exception e) {
+                try {
+                    buffer.close();
+                } catch (Exception closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                throw e;
+            }
         });
     }
 

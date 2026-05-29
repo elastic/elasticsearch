@@ -153,10 +153,22 @@ public interface StorageObject {
                 try {
                     int read = Math.max(0, readBytes(position, drb.buffer()));
                     drb.buffer().position(0).limit(read);
-                    listener.onResponse(drb);
                 } catch (Exception e) {
                     drb.close();
                     listener.onFailure(e);
+                    return;
+                }
+                // Deliver outside the I/O catch so a throw from onResponse does not
+                // double-close drb or invoke listener.onFailure after listener.onResponse.
+                try {
+                    listener.onResponse(drb);
+                } catch (Exception e) {
+                    try {
+                        drb.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
+                    throw e;
                 }
             });
         } catch (RejectedExecutionException e) {

@@ -101,7 +101,7 @@ final class ColumnChunkPrefetcher {
         try {
             CoalescedRangeReader.CoalescedRangeResult fetched = ioFuture.actionGet();
             result.complete(buildPrefetched(fetched, allocator));
-        } catch (Exception e) {
+        } catch (Throwable e) {
             result.completeExceptionally(e);
         }
 
@@ -335,7 +335,7 @@ final class ColumnChunkPrefetcher {
         try {
             CoalescedRangeReader.CoalescedRangeResult fetched = ioFuture.actionGet();
             result.complete(buildPrefetched(fetched, allocator));
-        } catch (Exception e) {
+        } catch (Throwable e) {
             result.completeExceptionally(e);
         }
         return result;

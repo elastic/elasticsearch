@@ -500,6 +500,13 @@ final class PageColumnReader implements Releasable {
             if (ensurePage() == false) {
                 break;
             }
+            if (rowPositionInRowGroup >= target) {
+                // ensurePage advanced past target via a firstRowIndex jump in loadNextPage
+                // (page-filtered prefetch with a survivor-range gap wider than `count`).
+                // Falling through would compute a negative fromPage and corrupt decoder /
+                // page-consumed state.
+                break;
+            }
             int fromPage = (int) Math.min(target - rowPositionInRowGroup, availableInPage());
             int nonNullSkipped = defDecoder.skip(fromPage);
             skipValues(nonNullSkipped);
@@ -871,7 +878,8 @@ final class PageColumnReader implements Releasable {
             int pi = 0;
             for (int i = 0; i < totalRows; i++) {
                 if (nulls.get(offset + i) == false) {
-                    values[offset + i] = signed ? intPacked[i] : Integer.toUnsignedLong(intPacked[pi++]);
+                    int packed = intPacked[pi++];
+                    values[offset + i] = signed ? packed : Integer.toUnsignedLong(packed);
                 }
             }
         }

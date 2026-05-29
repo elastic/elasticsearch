@@ -129,58 +129,78 @@ class RetryableStorageObject implements StorageObject {
         int attempt,
         long startNanos
     ) {
-        delegate.readBytesAsync(position, length, factory, executor, ActionListener.wrap(result -> {
-            retryPolicy.notifySuccess();
-            listener.onResponse(result);
-        }, e -> {
-            boolean isThrottle = RetryPolicy.isThrottlingError(e);
-            int effectiveMaxRetries = isThrottle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
-
-            if (isThrottle) {
-                retryPolicy.notifyThrottled();
-            }
-
-            if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
-                retryCounters.addRetry();
-                long delay = retryPolicy.delayMillis(attempt, isThrottle);
-                long budgetMs = retryPolicy.maxTotalDurationMs();
-                if (budgetMs > 0) {
-                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-                    if (elapsedMs + delay > budgetMs) {
-                        logger.debug(
-                            "aborting async retry for [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
-                            delegate.path(),
-                            elapsedMs,
-                            delay,
-                            budgetMs
-                        );
-                        listener.onFailure(e);
-                        return;
-                    }
-                }
-                logger.debug(
-                    "retrying async read for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
-                    delegate.path(),
-                    isThrottle ? "throttle" : "transient",
-                    attempt + 1,
-                    effectiveMaxRetries,
-                    delay,
-                    e.getMessage()
-                );
-                executor.execute(() -> {
+        delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer result) {
+                retryPolicy.notifySuccess();
+                // Do NOT route a throw from listener.onResponse into onFailure — that would
+                // trigger retry logic or double-complete the downstream listener. Propagate
+                // the exception directly so the caller's uncaught-exception handler deals with it.
+                try {
+                    listener.onResponse(result);
+                } catch (Exception e) {
+                    // listener.onResponse threw before consuming the buffer; release it so the
+                    // breaker reservation does not outlive the failed delivery.
                     try {
-                        Thread.sleep(delay);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        listener.onFailure(new IOException("Retry interrupted", ie));
-                        return;
+                        result.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
                     }
-                    readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos);
-                });
-            } else {
-                listener.onFailure(e);
+                    throw e;
+                }
             }
-        }));
+
+            @Override
+            public void onFailure(Exception e) {
+                boolean isThrottle = RetryPolicy.isThrottlingError(e);
+                int effectiveMaxRetries = isThrottle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
+
+                if (isThrottle) {
+                    retryPolicy.notifyThrottled();
+                }
+
+                if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
+                    retryCounters.addRetry();
+                    long delay = retryPolicy.delayMillis(attempt, isThrottle);
+                    long budgetMs = retryPolicy.maxTotalDurationMs();
+                    if (budgetMs > 0) {
+                        long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+                        if (elapsedMs + delay > budgetMs) {
+                            logger.debug(
+                                "aborting async retry for [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
+                                delegate.path(),
+                                elapsedMs,
+                                delay,
+                                budgetMs
+                            );
+                            listener.onFailure(e);
+                            return;
+                        }
+                    }
+                    logger.debug(
+                        "retrying async read for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
+                        delegate.path(),
+                        isThrottle ? "throttle" : "transient",
+                        attempt + 1,
+                        effectiveMaxRetries,
+                        delay,
+                        e.getMessage()
+                    );
+                    executor.execute(() -> {
+                        try {
+                            Thread.sleep(delay);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            listener.onFailure(new IOException("Retry interrupted", ie));
+                            return;
+                        }
+                        readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos);
+                    });
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        });
     }
 
     @Override

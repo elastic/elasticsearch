@@ -243,7 +243,16 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                 if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
                     DirectReadBuffer body = response.body();
                     counters.addRequest(System.nanoTime() - startNanos, body.buffer().remaining());
-                    listener.onResponse(body);
+                    try {
+                        listener.onResponse(body);
+                    } catch (Exception e) {
+                        try {
+                            body.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.

@@ -204,6 +204,10 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         // Allocate up front so the breaker decision and any OOM are surfaced synchronously via
         // the listener instead of escaping the executor's Runnable as an Error.
@@ -234,18 +238,30 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                         }
                         buffer.flip();
                         payloadBytes = buffer.remaining();
-                        counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
-                        listener.onResponse(drb);
-                        return;
                     }
                 } catch (StorageException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     drb.close();
                     listener.onFailure(wrapException(e, "Failed to read bytes from"));
+                    return;
                 } catch (Exception e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     drb.close();
                     listener.onFailure(e);
+                    return;
+                }
+                // I/O succeeded; deliver outside the I/O catch blocks so a throw from
+                // onResponse does not double-close drb or invoke listener.onFailure.
+                counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
+                try {
+                    listener.onResponse(drb);
+                } catch (Exception e) {
+                    try {
+                        drb.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
+                    throw e;
                 }
             });
         } catch (RuntimeException e) {

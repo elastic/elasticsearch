@@ -1403,13 +1403,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // ignore
                 }
             }
-            UnassignedInfo.Reason reason = failedAllocations > 0 && unassignedInfo.reason() == UnassignedInfo.Reason.ALLOCATION_FAILED
-                ? UnassignedInfo.Reason.MANUAL_ALLOCATION
-                : unassignedInfo.reason();
-
             unassignedIterator.updateUnassigned(
                 new UnassignedInfo(
-                    reason,
+                    failedAllocations > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.reason(),
                     unassignedInfo.message(),
                     unassignedInfo.failure(),
                     0,

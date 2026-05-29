@@ -213,25 +213,22 @@ public class NativePrivilegeStore {
         if (projectSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
         } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            if (waitForAvailableSecurityIndex) {
-                securityIndexManager.tryAwaitIndexAvailableForSearch(
-                    ActionListener.wrap(
-                        snapshot -> snapshot.checkIndexVersionThenExecute(
-                            listener::onFailure,
-                            () -> searchPrivileges(applications, listener)
-                        ),
-                        e -> {
-                            if (e instanceof IndexNotFoundException) {
-                                listener.onResponse(Collections.emptyList());
-                            } else {
-                                listener.onFailure(e);
-                            }
-                        }
-                    )
-                );
-            } else {
+            if (false == waitForAvailableSecurityIndex) {
                 listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+                return;
             }
+            securityIndexManager.tryAwaitIndexAvailableForSearch(
+                ActionListener.wrap(
+                    latest -> latest.checkIndexVersionThenExecute(listener::onFailure, () -> searchPrivileges(applications, listener)),
+                    e -> {
+                        if (e instanceof IndexNotFoundException) {
+                            listener.onResponse(Collections.emptyList());
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                )
+            );
         } else {
             projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> searchPrivileges(applications, listener));
         }

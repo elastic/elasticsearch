@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -379,7 +378,7 @@ public class PromqlCommand extends UnaryPlan
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
-        if (hasStep == false && hasRangeAndBuckets == false) {
+        if (isInstantQuery() == false && hasStep == false && hasRangeAndBuckets == false) {
             failures.add(
                 fail(
                     this,
@@ -391,11 +390,6 @@ public class PromqlCommand extends UnaryPlan
                     sourceText()
                 )
             );
-            return;
-        }
-        // TODO(sidosera): Remove once instant query support is added.
-        if (isInstantQuery()) {
-            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
             return;
         }
 
@@ -458,7 +452,7 @@ public class PromqlCommand extends UnaryPlan
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    validateCounterSupport(functionCall, failures);
+                    // ok — counter/gauge type mismatches are coerced during translation
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok
@@ -523,51 +517,30 @@ public class PromqlCommand extends UnaryPlan
     }
 
     /**
-     * Validates that the metric field type is compatible with the function's counter support.
-     * Only checks when the function's direct child is a RangeSelector, because InstantSelectors
-     * are implicitly wrapped in LastOverTime during translation, which converts counter types
-     * to their numeric base types. RangeSelectors pass the raw field type through to the function.
+     * Returns the source-side timestamp lookback window.
+     * Explicit and implicit range selectors contribute their requested window.
+     * Instant queries extend that window to at least the Prometheus lookback delta.
      */
-    private static void validateCounterSupport(PromqlFunctionCall functionCall, Failures failures) {
-        if (functionCall.child() instanceof RangeSelector s && s.series() instanceof FieldAttribute seriesField) {
-            DataType seriesType = seriesField.dataType();
-            if (DataType.isNull(seriesType)) {
-                return;
-            }
-            var counterSupport = functionCall.definition().counterSupport();
-            if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] does not support counter metric [{}] of type [{}];"
-                            + " use rate() or increase() to convert counters first [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] requires a counter metric, but [{}] has type [{}] [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            }
+    public Duration sourceFilterWindow() {
+        Duration window = maxRangeSelectorWindow();
+        if (isInstantQuery() && DEFAULT_LOOKBACK.compareTo(window) > 0) {
+            window = DEFAULT_LOOKBACK;
         }
+        return window;
     }
 
     /**
-     * Returns the maximum explicit range-selector window across all function calls in the PromQL plan.
-     * Implicit placeholders are resolved to {@code max(step, scrape_interval)}.
-     * Returns {@link Duration#ZERO} when there are no range selectors.
+     * Returns the TSTEP bucket step for instant queries: the max range-selector window,
+     * falling back to {@link #DEFAULT_LOOKBACK} only when no range selectors are present.
+     * Unlike {@link #sourceFilterWindow()}, this does not floor explicit windows up to
+     * DEFAULT_LOOKBACK.
      */
-    public Duration maxRangeSelectorWindow() {
+    public Duration resolveInstantQueryWindow() {
+        Duration window = maxRangeSelectorWindow();
+        return window.isZero() ? DEFAULT_LOOKBACK : window;
+    }
+
+    private Duration maxRangeSelectorWindow() {
         Duration window = Duration.ZERO;
         for (var selector : promqlPlan().collect(RangeSelector.class)) {
             var r = selector.range();

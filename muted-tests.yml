@@ -697,3 +697,6 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testDimensionMismatch
   issue: https://github.com/elastic/elasticsearch/issues/150191
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSearchBoost
+  issue: https://github.com/elastic/elasticsearch/issues/150211

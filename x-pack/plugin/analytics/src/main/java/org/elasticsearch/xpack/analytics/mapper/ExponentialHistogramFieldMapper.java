@@ -854,7 +854,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
                 @Override
                 public long cost() {
-                    return valueCounts.cost();
+                    return valueCounts != null ? valueCounts.cost() : 0;
                 }
             };
         }

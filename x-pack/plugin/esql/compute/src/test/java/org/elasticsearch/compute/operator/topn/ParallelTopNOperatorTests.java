@@ -528,7 +528,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
      * This tests the {@link ParallelTopNOperator} RAM accounting directly (not the
      * sequential accumulation phase tested by the inherited {@code testRamBytesUsed}).
      */
-    public void testParallelRamBytesUsed() {
+    public void testParallelRamBytesUsed() throws Exception {
         DriverContext driverContext = driverContext();
         int workerCount = between(1, 3);
         TopNOperator.TopNOperatorFactory workerFactory = workerOnlyFactory();
@@ -536,14 +536,22 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), workerCount, 10, 0);
 
         try (ParallelTopNOperator op = new ParallelTopNOperator(config, driverContext, workerFactory, initialWorker)) {
-            long reported = op.ramBytesUsed();
             long shallowSize = RamUsageEstimator.shallowSizeOfInstance(ParallelTopNOperator.class);
-            // Must cover at least its own shallow size.
-            assertThat(reported, greaterThanOrEqualTo(shallowSize));
-            // Must cover the merge-target's accounting.
-            assertThat(reported, greaterThanOrEqualTo(initialWorker.ramBytesUsed()));
-            // With workers the total must exceed the shallow size alone.
-            assertThat(reported, greaterThanOrEqualTo(shallowSize + (long) workerCount * initialWorker.ramBytesUsed()));
+
+            // While workers are still running their state is not safe to read; ramBytesUsed
+            // must still cover at least the shallow size and the merge-target's own accounting.
+            long reportedBeforeDone = op.ramBytesUsed();
+            assertThat(reportedBeforeDone, greaterThanOrEqualTo(shallowSize));
+            assertThat(reportedBeforeDone, greaterThanOrEqualTo(initialWorker.ramBytesUsed()));
+
+            // After workers finish it is safe to include their accounting too.
+            op.finish();
+            assertBusy(() -> assertThat(op.isBlocked(), sameInstance(Operator.NOT_BLOCKED)));
+            long reportedAfterDone = op.ramBytesUsed();
+            assertThat(reportedAfterDone, greaterThanOrEqualTo(shallowSize));
+            assertThat(reportedAfterDone, greaterThanOrEqualTo(initialWorker.ramBytesUsed()));
+
+            drainAndClose(op);
         }
     }
 

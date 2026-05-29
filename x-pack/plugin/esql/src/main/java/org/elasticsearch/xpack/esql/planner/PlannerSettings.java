@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -238,7 +239,7 @@ public class PlannerSettings {
      */
     public static final Setting<Long> PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS = Setting.longSetting(
         "esql.parallel_topn_promotion_threshold_rows",
-        1_000_000L,
+        TopNOperator.DEFAULT_PROMOTION_THRESHOLD_ROWS,
         0L,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

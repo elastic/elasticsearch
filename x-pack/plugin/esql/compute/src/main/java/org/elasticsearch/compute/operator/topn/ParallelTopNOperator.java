@@ -288,9 +288,16 @@ public class ParallelTopNOperator implements Operator, Accountable {
             return null;
         }
         if (mergeDone == false) {
-            // Feed all pages produced by background workers into mergeTarget.
+            // Feed all pages produced by background workers into mergeTarget. Pages are removed
+            // from the list before addInput so that: (a) on success, the list is empty when we
+            // finish and close() has nothing to double-release; (b) on exception, the throwing
+            // page is already cleaned up by TopNOperator.addInput's finally block and the
+            // remaining pages stay in the list for close() to release.
             for (List<Page> pages : workerOutputs) {
-                for (Page p : pages) {
+                var it = pages.iterator();
+                while (it.hasNext()) {
+                    Page p = it.next();
+                    it.remove();
                     mergeTarget.addInput(p);
                 }
             }
@@ -319,8 +326,12 @@ public class ParallelTopNOperator implements Operator, Accountable {
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
         size += mergeTarget.ramBytesUsed();
-        for (TopNOperator worker : workers) {
-            size += worker.ramBytesUsed();
+        // Workers run on their own threads and own non-thread-safe mutable state; only read
+        // their accounting after they have exited and closed themselves.
+        if (allWorkersDone.isDone()) {
+            for (TopNOperator worker : workers) {
+                size += worker.ramBytesUsed();
+            }
         }
         return size;
     }

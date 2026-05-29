@@ -23,6 +23,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.xpack.inference.InferenceFeatures;
+import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
 
 import java.util.Collection;
@@ -34,7 +35,12 @@ import java.util.List;
  * The cache is invalidated via the {@link ClearInferenceEndpointCacheAction} so that every node gets the invalidation
  * message.
  */
-public class InferenceEndpointRegistry {
+public class InferenceEndpointRegistry extends DiagnosticsCache<Model> {
+
+    /**
+     * The maximum number of keys to store within the cache.
+     */
+    public static final int DEFAULT_CACHE_WEIGHT = 25;
 
     private static final Setting<Boolean> INFERENCE_ENDPOINT_CACHE_ENABLED = Setting.boolSetting(
         "xpack.inference.endpoint.cache.enabled",
@@ -45,7 +51,7 @@ public class InferenceEndpointRegistry {
 
     private static final Setting<Integer> INFERENCE_ENDPOINT_CACHE_WEIGHT = Setting.intSetting(
         "xpack.inference.endpoint.cache.weight",
-        25,
+        DEFAULT_CACHE_WEIGHT,
         Setting.Property.NodeScope
     );
 
@@ -62,11 +68,9 @@ public class InferenceEndpointRegistry {
     }
 
     private static final Logger log = LogManager.getLogger(InferenceEndpointRegistry.class);
-    private static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final ProjectResolver projectResolver;
-    private final Cache<InferenceIdAndProject, Model> cache;
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private volatile boolean cacheEnabledViaSetting;
@@ -79,19 +83,31 @@ public class InferenceEndpointRegistry {
         ProjectResolver projectResolver,
         FeatureService featureService
     ) {
+        super(buildCache(settings));
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.projectResolver = projectResolver;
-        this.cache = CacheBuilder.<InferenceIdAndProject, Model>builder()
-            .setMaximumWeight(INFERENCE_ENDPOINT_CACHE_WEIGHT.get(settings))
-            .setExpireAfterWrite(INFERENCE_ENDPOINT_CACHE_EXPIRY.get(settings))
-            .build();
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.cacheEnabledViaSetting = INFERENCE_ENDPOINT_CACHE_ENABLED.get(settings);
 
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(INFERENCE_ENDPOINT_CACHE_ENABLED, enabled -> this.cacheEnabledViaSetting = enabled);
+    }
+
+    private static Cache<InferenceIdAndProject, Model> buildCache(Settings settings) {
+        return CacheBuilder.<InferenceIdAndProject, Model>builder()
+            .setMaximumWeight(INFERENCE_ENDPOINT_CACHE_WEIGHT.get(settings))
+            .setExpireAfterWrite(INFERENCE_ENDPOINT_CACHE_EXPIRY.get(settings))
+            .removalListener(
+                notification -> log.debug(
+                    "Inference Endpoint [{}] of project [{}] was removed from endpoint cache due to [{}]",
+                    notification.getKey().inferenceEntityId(),
+                    notification.getKey().projectId(),
+                    notification.getRemovalReason()
+                )
+            )
+            .build();
     }
 
     public void getEndpoint(String inferenceEntityId, ActionListener<Model> listener) {
@@ -136,14 +152,7 @@ public class InferenceEndpointRegistry {
         }));
     }
 
-    public Cache.Stats stats() {
-        return cacheEnabled() ? cache.stats() : EMPTY;
-    }
-
-    public int cacheCount() {
-        return cacheEnabled() ? cache.count() : 0;
-    }
-
+    @Override
     public boolean cacheEnabled() {
         return cacheEnabledViaSetting && cacheEnabledViaFeature();
     }

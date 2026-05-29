@@ -445,9 +445,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149482
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search/30_limits/Request with negative from value in body}
-  issue: https://github.com/elastic/elasticsearch/issues/149556
 - class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
   method: testLimitsFileCount
   issue: https://github.com/elastic/elasticsearch/issues/149557
@@ -457,21 +454,12 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/149586
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testStatsWithMultiBucket
-  issue: https://github.com/elastic/elasticsearch/issues/149595
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
-- class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
-  method: testRangeQueryViaIndexSearcher
-  issue: https://github.com/elastic/elasticsearch/issues/149656
-- class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
-  method: testRangeQueryViaIndexSearcher
-  issue: https://github.com/elastic/elasticsearch/issues/149657
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN_partialCompleted
   issue: https://github.com/elastic/elasticsearch/issues/149665
@@ -595,6 +583,9 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testSlicesSparseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150073
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testDifferentReader
+  issue: https://github.com/elastic/elasticsearch/issues/150068
 - class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
   method: testRandomSchema
   issue: https://github.com/elastic/elasticsearch/issues/150077
@@ -679,3 +670,40 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSlicesDenseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150152
+- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
+  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
+  issue: https://github.com/elastic/elasticsearch/issues/150155
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedDuringMerge
+  issue: https://github.com/elastic/elasticsearch/issues/150158
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesDense
+  issue: https://github.com/elastic/elasticsearch/issues/150165
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicesDense
+  issue: https://github.com/elastic/elasticsearch/issues/150166
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
+  method: merge conflicts in latest files can be regenerated
+  issue: https://github.com/elastic/elasticsearch/issues/150174
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
+  issue: https://github.com/elastic/elasticsearch/issues/150187
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
+  issue: https://github.com/elastic/elasticsearch/issues/150188
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testFilterWithNoVectorMatches
+  issue: https://github.com/elastic/elasticsearch/issues/150190
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testDimensionMismatch
+  issue: https://github.com/elastic/elasticsearch/issues/150191
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSearchBoost
+  issue: https://github.com/elastic/elasticsearch/issues/150211
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/150214
+- class: org.elasticsearch.test.rest.yaml.CcsVectorsYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/150217
+- class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/150217

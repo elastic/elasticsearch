@@ -1,8 +1,8 @@
 ---
 setup:
   - requires:
-      cluster_features: ["mapper.keyword.doc_values_prefix_wildcard_regexp"]
-      reason: "prefix/wildcard/regexp queries on doc-values-only keyword fields require mapper.keyword.doc_values_prefix_wildcard_regexp"
+      cluster_features: ["mapper.keyword.store_high_cardinality_in_binary_doc_values"]
+      reason: "requires keyword doc_values cardinality mapping option"
 
   - do:
       indices.create:

@@ -106,9 +106,6 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
     static final NodeFeature STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE = new NodeFeature("mapper.columnar.store_not_allowed");
-    public static final NodeFeature KEYWORD_DOC_VALUES_PREFIX_WILDCARD_REGEXP = new NodeFeature(
-        "mapper.keyword.doc_values_prefix_wildcard_regexp"
-    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -182,8 +179,7 @@ public class MapperFeatures implements FeatureSpecification {
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
-            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
-            KEYWORD_DOC_VALUES_PREFIX_WILDCARD_REGEXP
+            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE
         );
     }
 }

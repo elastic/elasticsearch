@@ -12,6 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
@@ -25,6 +27,8 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
  * is the tail (the oldest retained slot); higher indices are progressively newer slots up to the head.
  */
 public final class TimeSlottedAccumulator implements TimestampAccumulator {
+
+    private static final Logger logger = LogManager.getLogger(TimeSlottedAccumulator.class);
 
     /** Maximum allowed memory for the per-slot counts array. */
     static final long MAX_COUNTS_ARRAY_BYTES = ByteSizeValue.ofGb(4).getBytes();
@@ -206,14 +210,17 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
             try {
                 result = Math.addExact(total, right);
             } catch (ArithmeticException e) {
+                logger.warn("sum overflowed while adding slot count [{}] to total [{}]", right, total);
                 return right > 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE;
             }
             total = result;
         }
         if (total > Integer.MAX_VALUE) {
+            logger.warn("sum result [{}] exceeds Integer.MAX_VALUE", total);
             return Integer.MAX_VALUE;
         }
         if (total < Integer.MIN_VALUE) {
+            logger.warn("sum result [{}] is below Integer.MIN_VALUE", total);
             return Integer.MIN_VALUE;
         }
         return (int) total;

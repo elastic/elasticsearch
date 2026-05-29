@@ -236,6 +236,7 @@ FROM flattened_otel_logs
 multiValuedSubkeyAsMultiValue
 required_capability: fn_field_extract
 required_capability: flattened_datatype
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
@@ -256,6 +257,7 @@ n:integer
 mvExpandOnMultiValuedExtract
 required_capability: fn_field_extract
 required_capability: flattened_datatype
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
@@ -489,6 +491,7 @@ FROM flattened_otel_logs
 multiValuedSubkeyDoesNotMatchScalarEquality
 required_capability: fn_field_extract
 required_capability: flattened_datatype
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE field_extract(resource.attributes, "host.ip") == "10.224.0.170"
@@ -593,6 +596,7 @@ multiValuedSubkeyAsMultiValueViaCase
 required_capability: fn_field_extract
 required_capability: flattened_datatype
 required_capability: fn_case_flattened
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"
@@ -610,6 +614,7 @@ mvExpandOnMultiValuedExtractViaCase
 required_capability: fn_field_extract
 required_capability: flattened_datatype
 required_capability: fn_case_flattened
+required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
 | WHERE @timestamp == "2020-01-01T00:07:43.000Z"

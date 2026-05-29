@@ -25,6 +25,7 @@ import java.util.Random;
  * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
 public class HierarchicalKMeans<V> {
+    private static final Logger logger = LogManager.getLogger(HierarchicalKMeans.class);
 
     private static final Logger logger = LogManager.getLogger(HierarchicalKMeans.class);
 
@@ -164,11 +165,22 @@ public class HierarchicalKMeans<V> {
         // partition the space
         KMeansIntermediate<V> kMeansIntermediate = clusterAndSplit(vectors, targetSize);
 
+        if (logger.isDebugEnabled()) {
+            logger.debug("Hierarchical clustering stats (pre-SOAR):");
+            logClusterQualityStatistics(vectors, kMeansIntermediate);
+        }
+
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal<V> kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("Refinement clustering stats (pre-SOAR):");
+                logClusterQualityStatistics(vectors, kMeansIntermediate);
+            }
         }
+
         return kMeansIntermediate;
     }
 
@@ -1115,5 +1127,57 @@ public class HierarchicalKMeans<V> {
 
         // number of items inserted with 1 element replaced
         return subPartitions.centroids().length - 1;
+    }
+
+    private void logClusterQualityStatistics(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate)
+        throws IOException {
+        // We assume that kMeansIntermediate.centroids().length > 0.
+        float inertia = kMeansMeanInertia(vectors, kMeansIntermediate);
+        int[] clusterSizes = kMeansIntermediate.clusterCounts();
+
+        int minClusterSize = Integer.MAX_VALUE;
+        int maxClusterSize = Integer.MIN_VALUE;
+
+        // Use Welford's algorithm to compute the variance in one pass and compute min/max in the same loop
+        int count = 0;
+        double meanClusterSize = 0.0;
+        double M2 = 0.0; // Running sum of squares of differences
+
+        for (int x : clusterSizes) {
+            count++;
+            double delta = x - meanClusterSize;
+            meanClusterSize += delta / count;
+            double delta2 = x - meanClusterSize;
+            M2 += delta * delta2;
+            minClusterSize = Math.min(minClusterSize, x);
+            maxClusterSize = Math.max(maxClusterSize, x);
+        }
+
+        // M2 / clusterSizes.length is the variance
+        double stdClusterSizes = Math.sqrt(M2 / clusterSizes.length);
+
+        logger.debug(
+            "Inertia: {}; Centroid count: {} min: {} max: {} mean: {} stdDev: {}",
+            inertia,
+            clusterSizes.length,
+            minClusterSize,
+            maxClusterSize,
+            meanClusterSize,
+            stdClusterSizes
+        );
+    }
+
+    private float kMeansMeanInertia(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
+        int[] assignments = kMeansIntermediate.assignments();
+        V[] centroids = kMeansIntermediate.centroids();
+
+        float mse = 0;
+        for (int i = 0; i < vectors.size(); i++) {
+            V vec = vectors.vectorValue(i);
+            V cent = centroids[assignments[i]];
+            float dist = this.ops.squareDistance(vec, cent);
+            mse += dist / vectors.size();
+        }
+        return mse;
     }
 }

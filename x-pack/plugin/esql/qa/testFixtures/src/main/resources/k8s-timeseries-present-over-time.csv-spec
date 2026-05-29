@@ -22,7 +22,7 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 
 present_over_time_events_received_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))
@@ -59,20 +59,37 @@ true               | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_long_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
 | SORT cluster, step | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | staging
+;
+
+present_over_time_of_long_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" is_present=(max by (cluster) (present_over_time(network.bytes_in[10m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+is_present:double  | step:datetime                                                                                  | cluster:keyword
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | prod
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | qa
+[1.0, 1.0]         | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | staging
 ;
 
 present_over_time_of_boolean
@@ -93,20 +110,21 @@ true          | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_boolean_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_date_nanos
@@ -127,20 +145,21 @@ true           | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_date_nanos_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_date
@@ -161,20 +180,21 @@ true           | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_date_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.last_up[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_version
@@ -195,20 +215,21 @@ true           | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_version_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.firmware_version[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_integer
@@ -229,20 +250,21 @@ true | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_integer_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.currently_connected_clients[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_text
@@ -263,20 +285,21 @@ true               | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_text_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_log[10m])))
 | SORT cluster, step | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_keyword
@@ -297,20 +320,21 @@ true     | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_keyword_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.eth0.up[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_aggregate_metric_double
@@ -332,6 +356,7 @@ true      | staging         | 2024-05-09T23:50:00.000Z
 
 present_over_time_of_aggregate_metric_double_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m is_present=(max by (cluster) (present_over_time(network.eth0.tx[10m])))
@@ -367,20 +392,21 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_geopoint_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_city[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_geoshape
@@ -401,20 +427,21 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_geoshape_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_city_boundary[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_shape
@@ -435,20 +462,21 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_shape_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_shape[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_of_point
@@ -469,20 +497,21 @@ true       | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_of_point_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(event_location[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_with_filtering
@@ -503,20 +532,21 @@ true      | staging         | 2024-05-10T00:20:00.000Z
 
 present_over_time_with_filtering_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (cluster) (present_over_time(network.bytes_in{pod!="three"}[10m])))
 | SORT step, cluster | LIMIT 10;
 
 is_present:double | step:datetime            | cluster:keyword
-1.0               | 2024-05-10T00:00:00.000Z | prod
-1.0               | 2024-05-10T00:00:00.000Z | qa
-1.0               | 2024-05-10T00:00:00.000Z | staging
 1.0               | 2024-05-10T00:10:00.000Z | prod
 1.0               | 2024-05-10T00:10:00.000Z | qa
 1.0               | 2024-05-10T00:10:00.000Z | staging
 1.0               | 2024-05-10T00:20:00.000Z | prod
 1.0               | 2024-05-10T00:20:00.000Z | qa
 1.0               | 2024-05-10T00:20:00.000Z | staging
+1.0               | 2024-05-10T00:30:00.000Z | prod
+1.0               | 2024-05-10T00:30:00.000Z | qa
+1.0               | 2024-05-10T00:30:00.000Z | staging
 ;
 
 present_over_time_older_than_10d
@@ -550,21 +580,22 @@ true             | two         | 2024-05-10T00:20:00.000Z | 1
 
 eval_on_present_over_time_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m is_present=(max by (pod) (present_over_time(network.bytes_in[10m])))
 | EVAL int = to_integer(is_present)
 | SORT step, pod | LIMIT 10;
 
 is_present:double | step:datetime            | pod:keyword | int:integer
-1.0               | 2024-05-10T00:00:00.000Z | one         | 1
-1.0               | 2024-05-10T00:00:00.000Z | three       | 1
-1.0               | 2024-05-10T00:00:00.000Z | two         | 1
 1.0               | 2024-05-10T00:10:00.000Z | one         | 1
 1.0               | 2024-05-10T00:10:00.000Z | three       | 1
 1.0               | 2024-05-10T00:10:00.000Z | two         | 1
 1.0               | 2024-05-10T00:20:00.000Z | one         | 1
 1.0               | 2024-05-10T00:20:00.000Z | three       | 1
 1.0               | 2024-05-10T00:20:00.000Z | two         | 1
+1.0               | 2024-05-10T00:30:00.000Z | one         | 1
+1.0               | 2024-05-10T00:30:00.000Z | three       | 1
+1.0               | 2024-05-10T00:30:00.000Z | two         | 1
 ;
 
 present_over_time_events_received_as_integer
@@ -591,7 +622,7 @@ events_received:integer | pod:keyword | time_bucket:datetime
 
 present_over_time_events_received_as_integer_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:22:00.000Z" events_received=(max by (pod) (present_over_time(events_received{cluster="prod",pod="two"}[2m])))

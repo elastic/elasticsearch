@@ -185,7 +185,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addIndex("logs2");
         addIndex("logs3");
         LogicalPlan plan = query("FROM logs*,-logs3");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM logs2,logs*,-logs3")));
+        // The view source (logs2) must remain as a separate branch from the wildcard pattern (logs*,-logs3)
+        // because logs* also matches logs2 directly — merging would deduplicate logs2 and lose one copy.
+        // The exclusion -logs3 is preserved in the wildcard branch for correct index resolution.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM (FROM logs2), logs*,-logs3")));
     }
 
     /**
@@ -487,7 +490,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         LogicalPlan plan = query("FROM *");
         // The * wildcard is preserved because concrete indices from setupTest() (emp, emp1, emp2, emp3, logs)
         // also match *, so hasNonView=true and * passes through for later field caps resolution.
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3, *")));
+        // The view sources (emp1, emp2, emp3) are kept as a separate branch from the wildcard * because
+        // * also matches emp1/emp2/emp3 directly — merging would deduplicate those indices and collapse
+        // what should be two independent data copies (one from the view, one from the direct index) into one.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM *, (FROM emp1,emp2,emp3)")));
     }
 
     public void testReplaceViewsWildcardAllNoReferencedIndices() {
@@ -517,7 +523,9 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("view2", "FROM emp2");
         addView("view3", "FROM emp3");
         LogicalPlan plan = query("FROM *");
-        assertThat(replaceViews(plan), matchesPlan(query("FROM emp1, emp2, emp3, *")));
+        // Same as testReplaceViewsWildcardAll: the view sources are kept separate from the wildcard
+        // because * also covers emp1/emp2/emp3 directly.
+        assertThat(replaceViews(plan), matchesPlan(query("FROM *, (FROM emp1,emp2,emp3)")));
     }
 
     public void testReplaceViewsWildcardWithIndex() {
@@ -1133,7 +1141,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1141,7 +1149,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -1578,6 +1586,34 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(query("FROM view2, emp1")), matchesPlan(query("FROM (FROM emp1,emp1), emp1")));
         assertThat(replaceViews(query("FROM emp1, view2, emp1")), matchesPlan(query("FROM emp1, (FROM emp1, emp1), emp1")));
         assertThat(replaceViews(query("FROM emp1, view2, emp1, emp1")), matchesPlan(query("FROM emp1, (FROM emp1, emp1), emp1, emp1")));
+    }
+
+    /**
+     * Regression test for wildcard-based view resolution where both an index and a view sourcing
+     * that same index match the wildcard. The wildcard should produce two independent copies of the
+     * underlying index data — one via the direct wildcard match and one via the view — mirroring
+     * the behaviour of an explicit {@code FROM logs-1, logs-2} query.
+     * <p>
+     * Setup: index {@code logs-1}, view {@code logs-2 = FROM logs-1}.
+     * <ul>
+     *   <li>{@code FROM logs-1, logs-2} — explicit form: the view resolves to {@code FROM logs-1},
+     *       and since the explicit pattern also names {@code logs-1}, the two share the same source
+     *       index. They must remain as separate branches to preserve the duplicate.</li>
+     *   <li>{@code FROM logs-*} — wildcard form: the wildcard matches both {@code logs-1} (index)
+     *       and {@code logs-2} (view). The view's resolved {@code UnresolvedRelation("logs-1")} must
+     *       NOT be merged with the retained {@code UnresolvedRelation("logs-*")} pattern, because
+     *       {@code logs-*} matches {@code logs-1} and merging would cause index-resolution to
+     *       deduplicate the overlap, silently dropping one copy.</li>
+     * </ul>
+     */
+    public void testWildcardAndViewSharingSourceIndexProduceTwoCopies() {
+        assumeTrue("Requires views with branching support", EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.isEnabled());
+        addIndex("logs-1");
+        addView("logs-2", "FROM logs-1");
+        // Explicit form: already worked correctly before the fix — kept as a regression guard.
+        assertThat(replaceViews(query("FROM logs-1, logs-2")), matchesPlan(query("FROM logs-1, (FROM logs-1)")));
+        // Wildcard form: was broken before the fix — wildcard and view's source were incorrectly merged.
+        assertThat(replaceViews(query("FROM logs-*")), matchesPlan(query("FROM (FROM logs-1), logs-*")));
     }
 
     /**
@@ -2523,7 +2559,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, this::parse, future);
+        resolver.replaceViews(plan, null, this::parse, future);
         return future.actionGet().plan();
     }
 

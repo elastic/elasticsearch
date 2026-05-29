@@ -226,4 +226,24 @@ public interface FormatReader extends Closeable {
         return false;
     }
 
+    /**
+     * Whether this format supports being wrapped in a whole-file, stream-only decompressor
+     * (e.g. {@code .parquet.zst} or {@code .orc.gz}). Sequential formats (CSV, NDJSON) return
+     * the default {@code true}. Tail/footer-based formats (Parquet, ORC) must override to
+     * {@code false} because they require random access and a known decompressed length. This
+     * flag does NOT affect a format's own internal compression (e.g. Parquet column-chunk zstd).
+     */
+    default boolean supportsWholeFileCompression() {
+        return true;
+    }
+
+    /**
+     * Returns a typed snapshot of format-reader I/O counters, or {@code null} when the reader
+     * tracks none. The snapshot is folded into the {@code format_reader} field of the
+     * external-source operator status.
+     */
+    default FormatReaderStatus statusSnapshot() {
+        return null;
+    }
+
 }

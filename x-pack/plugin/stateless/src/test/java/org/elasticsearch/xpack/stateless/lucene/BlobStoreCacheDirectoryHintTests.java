@@ -23,12 +23,16 @@ import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.stateless.commits.BlobLocationTestUtils.createBlobFileRanges;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
@@ -448,6 +452,27 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
         assertEquals(0, CacheFileReaderTestUtils.roundDownToRegion(REGION_SIZE - 1, REGION_SIZE));
         assertEquals(REGION_SIZE, CacheFileReaderTestUtils.roundDownToRegion(REGION_SIZE, REGION_SIZE));
         assertEquals(REGION_SIZE, CacheFileReaderTestUtils.roundDownToRegion(2L * REGION_SIZE - 1, REGION_SIZE));
+    }
+
+    // The 6-arg constructor sets regionSize=0 and desiredMAdvice=MADV_NORMAL.
+    // tryRead must not divide by regionSize in this case.
+    @SuppressWarnings("unchecked")
+    public void testTryReadWith6ArgConstructorDoesNotThrow() throws IOException {
+        var cacheFile = mock(StatelessSharedBlobCacheService.CacheFile.class);
+        when(cacheFile.tryRead(any(ByteBuffer.class), anyLong())).thenReturn(true);
+
+        var reader = new CacheFileReader(
+            cacheFile,
+            mock(CacheBlobReader.class),
+            createBlobFileRanges(1L, 0L, 0, 1024),
+            BlobCacheMetrics.NOOP,
+            System::currentTimeMillis,
+            false
+        );
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        assertTrue(reader.tryRead(buf, 0));
+        verify(cacheFile).tryRead(buf, 0);
     }
 
     private static BlobStoreCacheDirectory createCapturingDirectory(AtomicReference<IOContext> capturedContext) {

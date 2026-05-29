@@ -10,18 +10,26 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -30,10 +38,13 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isCounter;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -147,6 +158,62 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
         assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
         assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    public void testCounterRequiredFunctionWrapsPlainNumericWithToCounter() {
+        // network.eth0.tx is mapped as a gauge (k8s-mappings.json)
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.eth0.tx[5m]))");
+
+        ToCounter toCounter = as(rate.field(), ToCounter.class);
+        FieldAttribute field = as(toCounter.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.eth0.tx"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    public void testCounterRequiredFunctionSkipsWrapForCounterInput() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        Rate rate = rateFromPromql("PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in[5m]))");
+
+        FieldAttribute field = as(rate.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
+    private Rate rateFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        TimeSeriesAggregate tsAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+    }
+
+    public void testGaugeUnsupportedFunctionWrapsCounterWithToGauge() {
+        // network.total_bytes_in is mapped as a counter (k8s-mappings.json)
+        AvgOverTime avgOverTime = avgOverTimeFromPromql(
+            "PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (avg_over_time(network.total_bytes_in[10m])))"
+        );
+
+        ToGauge toGauge = as(avgOverTime.field(), ToGauge.class);
+        FieldAttribute field = as(toGauge.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.total_bytes_in"));
+        assertTrue(isCounter(field.dataType()));
+    }
+
+    public void testGaugeUnsupportedFunctionSkipsWrapForPlainNumericInput() {
+        // network.cost is mapped as a plain double (k8s-mappings.json)
+        AvgOverTime avgOverTime = avgOverTimeFromPromql("PROMQL index=k8s step=5m avg_cost=(avg_over_time(network.cost[5m]))");
+
+        FieldAttribute field = as(avgOverTime.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("network.cost"));
+        assertFalse(isCounter(field.dataType()));
+    }
+
+    private AvgOverTime avgOverTimeFromPromql(String query) {
+        LogicalPlan analyzed = planPromql(query, false);
+        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
+        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
+        TimeSeriesAggregate tsAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
+        return tsAggregate.aggregates().getFirst().collect(AvgOverTime.class).getFirst();
     }
 
     /**

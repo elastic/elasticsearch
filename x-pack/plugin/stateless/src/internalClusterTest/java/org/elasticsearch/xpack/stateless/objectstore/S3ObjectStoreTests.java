@@ -807,8 +807,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         try {
             final var objectStoreService = getCurrentMasterObjectStoreService();
 
-            final var sourceShardId = new ShardId(new Index("test", randomUUID()), 0);
-            final var destShardId = new ShardId(new Index("test", randomUUID()), 1);
+            final String indexName = randomIdentifier();
+            createIndex(indexName, indexSettings(1, 0).build());
+            final var sourceShardId = new ShardId(resolveIndex(indexName), 0);
+            final var destShardId = new ShardId(resolveIndex(indexName), 1);
             final long primaryTerm = 1L;
 
             final var blobData = randomBytesReference(between(1, 100));

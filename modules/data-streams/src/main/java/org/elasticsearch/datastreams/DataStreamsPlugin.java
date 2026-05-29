@@ -182,6 +182,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, Extensibl
         pluginSettings.add(LOOK_BACK_TIME);
         pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
         pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
+        pluginSettings.add(DataStreamIndexSettingsProvider.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);

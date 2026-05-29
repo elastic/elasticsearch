@@ -559,6 +559,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Experimental setting populated for time series data stream backing indices when the
+     * {@code cluster.time_series.experimental_all_non_metric_dimensions} cluster setting is enabled.
+     * Treats all non-metric fields that support {@code time_series_dimension} as dimensions.
+     */
+    public static final Setting<Boolean> EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS = Setting.boolSetting(
+        "index.time_series.experimental_all_non_metric_dimensions",
+        false,
+        Setting.Property.IndexScope,
+        Property.PrivateIndex
+    );
+
+    /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
      */

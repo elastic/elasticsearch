@@ -62,10 +62,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         true,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS = Setting.boolSetting(
+        "cluster.time_series.experimental_all_non_metric_dimensions",
+        true,
+        Setting.Property.NodeScope
+    );
 
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
     private final boolean supportSeqNoDisabled;
     private final boolean supportSyntheticId;
+    private final boolean experimentalAllNonMetricDimensions;
 
     DataStreamIndexSettingsProvider(CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory) {
         this(mapperServiceFactory, Settings.EMPTY);
@@ -75,6 +81,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         this.mapperServiceFactory = mapperServiceFactory;
         this.supportSeqNoDisabled = SUPPORT_SEQ_NO_DISABLED.get(settings);
         this.supportSyntheticId = SUPPORT_SYNTHETIC_ID.get(settings);
+        this.experimentalAllNonMetricDimensions = EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.get(settings);
     }
 
     @Override
@@ -150,6 +157,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         additionalSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), supportSyntheticId);
                     }
 
+                    if (experimentalAllNonMetricDimensions) {
+                        additionalSettings.put(IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.getKey(), true);
+                    }
+
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
                         List<String> dimensions = new ArrayList<>();
@@ -199,7 +210,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         }
         assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES;
         List<String> newIndexDimensions = new ArrayList<>(indexDimensions.size());
-        boolean matchesAllDimensions = findDimensionFields(newIndexDimensions, documentMapper);
+        boolean matchesAllDimensions = findDimensionFields(
+            newIndexDimensions,
+            documentMapper,
+            IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.get(indexMetadata.getSettings())
+        );
         boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()
             && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
         if (matchesAllDimensions == false) {
@@ -245,7 +260,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1
         );
         int shardReplicas = allSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-        var finalResolvedSettings = Settings.builder()
+        var settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(allSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
@@ -253,15 +268,18 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             // Avoid failing because index.routing_path is missing
-            .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"))
-            .build();
+            .putList(INDEX_ROUTING_PATH.getKey(), List.of("path"));
+        if (experimentalAllNonMetricDimensions) {
+            settingsBuilder.put(IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.getKey(), true);
+        }
+        Settings finalResolvedSettings = settingsBuilder.build();
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
             DocumentMapper documentMapper = mapperService.documentMapper();
-            return findDimensionFields(dimensions, documentMapper);
+            return findDimensionFields(dimensions, documentMapper, experimentalAllNonMetricDimensions);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -274,7 +292,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
      * @param documentMapper the document mapper from which to extract the dimension fields
      * @return true if all potential dimension fields can be matched via the dimensions in the list, false otherwise
      */
-    private static boolean findDimensionFields(List<String> dimensions, DocumentMapper documentMapper) {
+    private static boolean findDimensionFields(
+        List<String> dimensions,
+        DocumentMapper documentMapper,
+        boolean experimentalAllNonMetricDimensions
+    ) {
         for (var objectMapper : documentMapper.mappers().objectMappers().values()) {
             if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
                 if (passThroughObjectMapper.containsDimensions()) {
@@ -283,23 +305,25 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             }
         }
         boolean matchesAllDimensions = true;
-        for (var template : documentMapper.mapping().getRoot().dynamicTemplates()) {
-            if (template.isTimeSeriesDimension() == false) {
-                continue;
-            }
-            // At this point, we don't support index.dimensions when dimensions are mapped via a dynamic template.
-            // This is because more specific matches with a higher priority can exist that exclude certain fields from being mapped as a
-            // dimension. For example:
-            // - path_match: "labels.host_ip", time_series_dimension: false
-            // - path_match: "labels.*", time_series_dimension: true
-            // In this case, "labels.host_ip" is not a dimension,
-            // and adding labels.* to index.dimensions would lead to non-dimension fields being included in the tsid.
-            // Therefore, we fall back to using index.routing_path.
-            // While this also may include non-dimension fields in the routing path,
-            // it at least guarantees that the tsid only includes dimension fields and includes all dimension fields.
-            matchesAllDimensions = false;
-            if (template.pathMatch().isEmpty() == false) {
-                dimensions.addAll(template.pathMatch());
+        if (experimentalAllNonMetricDimensions == false) {
+            for (var template : documentMapper.mapping().getRoot().dynamicTemplates()) {
+                if (template.isTimeSeriesDimension() == false) {
+                    continue;
+                }
+                // At this point, we don't support index.dimensions when dimensions are mapped via a dynamic template.
+                // This is because more specific matches with a higher priority can exist that exclude certain fields from being mapped as a
+                // dimension. For example:
+                // - path_match: "labels.host_ip", time_series_dimension: false
+                // - path_match: "labels.*", time_series_dimension: true
+                // In this case, "labels.host_ip" is not a dimension,
+                // and adding labels.* to index.dimensions would lead to non-dimension fields being included in the tsid.
+                // Therefore, we fall back to using index.routing_path.
+                // While this also may include non-dimension fields in the routing path,
+                // it at least guarantees that the tsid only includes dimension fields and includes all dimension fields.
+                matchesAllDimensions = false;
+                if (template.pathMatch().isEmpty() == false) {
+                    dimensions.addAll(template.pathMatch());
+                }
             }
         }
 

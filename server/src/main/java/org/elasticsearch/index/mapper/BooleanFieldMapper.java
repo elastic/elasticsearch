@@ -132,7 +132,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 m -> toType(m).fieldType().isDimension(),
                 () -> docValuesParameters.get().enabled()
             );
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.indexed = Parameter.indexParam(
+                m -> toType(m).indexed,
+                indexSettings,
+                () -> TimeSeriesParams.resolveDimension(dimension.get(), indexSettings, docValuesParameters.get().enabled(), null)
+            );
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
@@ -186,7 +190,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 scriptValues(),
                 meta.getValue(),
-                dimension.getValue(),
+                TimeSeriesParams.resolveDimension(dimension.getValue(), indexSettings, docValuesParameters.get().enabled(), null),
                 context.isSourceSynthetic()
             );
             hasScript = script.get() != null;
@@ -551,7 +555,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
-        this.writeDimensionRouting = builder.dimension.getValue()
+        this.writeDimensionRouting = fieldType().isDimension()
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
         this.ignoreMalformed = builder.ignoreMalformed.getValue();

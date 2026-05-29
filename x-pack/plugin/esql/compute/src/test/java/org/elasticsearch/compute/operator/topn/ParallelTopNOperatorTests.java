@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -308,99 +307,6 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         }
     }
 
-    /**
-     * With 0 background workers the constructor still produces a valid
-     * {@link ParallelTopNOperator} whose {@code allWorkersDone} fires immediately.
-     */
-    public void testTryPromoteWithZeroWorkerCount() {
-        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
-            100,
-            List.of(ElementType.LONG),
-            List.of(DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, true, false)),
-            100,
-            Long.MAX_VALUE,
-            TopNOperator.InputOrdering.NOT_SORTED,
-            null,
-            new TopNOperator.ParallelWorkerConfig(workerExecutor(), 0, 10, 0)
-        );
-        DriverContext driverContext = driverContext();
-        TopNOperator op = factory.get(driverContext);
-        Page page = buildLongPage(driverContext().blockFactory(), LongStream.of(7L));
-        op.addInput(page);
-        Operator promoted = op.tryPromote(driverContext);
-        try {
-            assertThat(promoted, instanceOf(ParallelTopNOperator.class));
-        } finally {
-            promoted.finish();
-            drainAndClose(promoted);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Zero-workers edge case (kept — tests a specific pipeline completion edge case)
-    // -------------------------------------------------------------------------
-
-    /**
-     * The degenerate case of 0 background workers: the pipeline runs to completion
-     * without error. With 0 workers the exchange buffer is never drained, so only
-     * pre-promotion data (held by the merge target) reaches the output — correctness
-     * for all data is only guaranteed when {@code workerCount >= 1}.
-     */
-    public void testZeroWorkersPipelineCompletes() {
-        int topN = between(1, 30);
-        boolean ascending = randomBoolean();
-
-        // Put all data in a single page so the initial TopNOperator absorbs it all before promotion.
-        // With promotionThresholdRows=0 and a single-page input, the sequence is:
-        // addInput(page) → rowsReceived = N > 0, tryPromote() → ParallelTopNOperator(workers=0)
-        // finish() → in.finish(false), allWorkersDone already done
-        // getOutput() → feed empty workerOutputs to mergeTarget, return mergeTarget output
-        List<Long> inputValues = randomList(1, 50, () -> randomLong());
-
-        BlockFactory blockFactory = driverContext().blockFactory();
-        TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
-            topN,
-            List.of(ElementType.LONG),
-            List.of(DEFAULT_UNSORTABLE),
-            List.of(new TopNOperator.SortOrder(0, ascending, false)),
-            topN,
-            Long.MAX_VALUE,
-            TopNOperator.InputOrdering.NOT_SORTED,
-            null,
-            new TopNOperator.ParallelWorkerConfig(workerExecutor(), 0, 4, 0)
-        );
-
-        // Build single-page input to ensure all rows are in the merge target after promotion
-        List<Page> inputPages = List.of(buildLongPage(blockFactory, inputValues.stream().mapToLong(Long::longValue)));
-
-        org.elasticsearch.compute.test.TestDriverRunner runner = new org.elasticsearch.compute.test.TestDriverRunner();
-        List<Page> outputPages = runner.builder(driverContext())
-            .input(new org.elasticsearch.compute.test.CannedSourceOperator(inputPages.iterator()))
-            .run(factory);
-
-        List<Long> actual = new ArrayList<>();
-        for (Page p : outputPages) {
-            try {
-                LongBlock block = p.getBlock(0);
-                for (int i = 0; i < p.getPositionCount(); i++) {
-                    actual.add(block.getLong(i));
-                }
-            } finally {
-                p.releaseBlocks();
-            }
-        }
-
-        // The result must be sorted (whatever subset was retained).
-        for (int i = 1; i < actual.size(); i++) {
-            if (ascending) {
-                assertThat(actual.get(i - 1), lessThanOrEqualTo(actual.get(i)));
-            } else {
-                assertThat(actual.get(i - 1), greaterThanOrEqualTo(actual.get(i)));
-            }
-        }
-    }
-
     // -------------------------------------------------------------------------
     // State machine tests (construct ParallelTopNOperator directly)
     // -------------------------------------------------------------------------
@@ -565,7 +471,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
      */
     public void testToString() {
         DriverContext driverContext = driverContext();
-        int workerCount = between(0, 4);
+        int workerCount = between(1, 4);
         TopNOperator.TopNOperatorFactory workerFactory = workerOnlyFactory();
         TopNOperator initialWorker = workerFactory.get(driverContext);
         TopNOperator.ParallelWorkerConfig config = new TopNOperator.ParallelWorkerConfig(workerExecutor(), workerCount, 10, 0);

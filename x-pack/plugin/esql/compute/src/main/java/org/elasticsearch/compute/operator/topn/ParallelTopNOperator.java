@@ -119,6 +119,11 @@ public class ParallelTopNOperator implements Operator, Accountable {
         this.mergeTarget = initialWorker;
 
         int backgroundWorkerCount = config.workerCount();
+        if (backgroundWorkerCount < 1) {
+            throw new IllegalArgumentException(
+                "ParallelTopNOperator requires at least one background worker, got " + backgroundWorkerCount
+            );
+        }
         this.workers = new ArrayList<>(backgroundWorkerCount);
         this.workerOutputs = new ArrayList<>(backgroundWorkerCount);
         for (int i = 0; i < backgroundWorkerCount; i++) {
@@ -127,13 +132,9 @@ public class ParallelTopNOperator implements Operator, Accountable {
         }
 
         this.runningWorkerTasks = new AtomicInteger(backgroundWorkerCount);
-        if (backgroundWorkerCount == 0) {
-            allWorkersDone.onResponse(null);
-        } else {
-            for (int i = 0; i < workers.size(); i++) {
-                driverContext.addAsyncAction();
-                scheduleWorker(workers.get(i), workerOutputs.get(i));
-            }
+        for (int i = 0; i < workers.size(); i++) {
+            driverContext.addAsyncAction();
+            scheduleWorker(workers.get(i), workerOutputs.get(i));
         }
     }
 

@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggrega
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -2425,6 +2426,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "]";
                     Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
+                }
+                // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
+                // Strip it so union resolution can defer to implicit aggregate_metric_double casting in aggregations.
+                if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(imf)) {
+                    return fa;
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {

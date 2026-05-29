@@ -122,11 +122,13 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             sliceStatuses.set(slice, new BulkByPaginatedSearchTask.StatusOrException(sliceStatus));
 
             @SuppressWarnings("unchecked")
-            ActionListener<BulkByScrollResponse> listener = slice < slices - 1 ? neverCalledListener() : mock(ActionListener.class);
+            ActionListener<BulkByPaginatedSearchResponse> listener = slice < slices - 1
+                ? neverCalledListener()
+                : mock(ActionListener.class);
             taskState.onSliceResponse(
                 listener,
                 slice,
-                new BulkByScrollResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false)
+                new BulkByPaginatedSearchResponse(timeValueMillis(10), sliceStatus, emptyList(), emptyList(), false)
             );
 
             status = task.getStatus();
@@ -141,7 +143,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
 
             if (slice == slices - 1) {
                 // The whole thing succeeded so we should have got the success
-                status = captureResponse(BulkByScrollResponse.class, listener).getStatus();
+                status = captureResponse(BulkByPaginatedSearchResponse.class, listener).getStatus();
                 assertEquals(total, status.getTotal());
                 assertEquals(created, status.getCreated());
                 assertEquals(updated, status.getUpdated());
@@ -161,16 +163,16 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         final var leaderTask = createRelocationLeaderTask(sliceCount);
         final var leaderState = leaderTask.getLeaderState();
 
-        final BulkByScrollResponse[] sliceResponses = new BulkByScrollResponse[sliceCount];
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final BulkByPaginatedSearchResponse[] sliceResponses = new BulkByPaginatedSearchResponse[sliceCount];
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
             sliceResponses[i] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            final ActionListener<BulkByPaginatedSearchResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, sliceResponses[i]);
         }
 
         assertTrue(future.isDone());
-        final BulkByScrollResponse response = future.actionGet();
+        final BulkByPaginatedSearchResponse response = future.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
         final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
         assertNull(resumeInfo.worker());
@@ -191,18 +193,18 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         final var leaderState = leaderTask.getLeaderState();
 
         // the first slice completes normally, the rest have resume info
-        final BulkByScrollResponse completedResponse = completedSliceResponse(0);
-        final BulkByScrollResponse[] resumeResponses = new BulkByScrollResponse[sliceCount - 1];
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final BulkByPaginatedSearchResponse completedResponse = completedSliceResponse(0);
+        final BulkByPaginatedSearchResponse[] resumeResponses = new BulkByPaginatedSearchResponse[sliceCount - 1];
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         leaderState.onSliceResponse(neverCalledListener(), 0, completedResponse);
         for (int i = 1; i < sliceCount; i++) {
             resumeResponses[i - 1] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            final ActionListener<BulkByPaginatedSearchResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, resumeResponses[i - 1]);
         }
 
         assertTrue(future.isDone());
-        final BulkByScrollResponse response = future.actionGet();
+        final BulkByPaginatedSearchResponse response = future.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
         final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
         assertEquals(sliceCount, resumeInfo.slices().size());
@@ -228,14 +230,14 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         final var leaderState = leaderTask.getLeaderState();
 
         // all slices complete normally — relocation should be skipped even though requested
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            final ActionListener<BulkByPaginatedSearchResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, completedSliceResponse(i));
         }
 
         assertTrue(future.isDone());
-        final BulkByScrollResponse response = future.actionGet();
+        final BulkByPaginatedSearchResponse response = future.actionGet();
         // should be a normal merged response, no ResumeInfo
         assertFalse(response.getTaskResumeInfo().isPresent());
     }
@@ -253,13 +255,13 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         final BytesReference pitIdSlice2 = new BytesArray("pit-slice-2");
 
         // Complete slices in reverse order so slice 2 completes last — its pitId should be used
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         leaderState.onSliceResponse(neverCalledListener(), 0, completedSliceResponseWithPitId(0, pitIdSlice0));
         leaderState.onSliceResponse(neverCalledListener(), 1, completedSliceResponseWithPitId(1, pitIdSlice1));
         leaderState.onSliceResponse(future, 2, completedSliceResponseWithPitId(2, pitIdSlice2));
 
         assertTrue(future.isDone());
-        final BulkByScrollResponse response = future.actionGet();
+        final BulkByPaginatedSearchResponse response = future.actionGet();
         assertTrue(response.getPitId().isPresent());
         assertThat(response.getPitId().get(), equalTo(pitIdSlice2));
     }
@@ -279,9 +281,9 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         return task;
     }
 
-    private static BulkByScrollResponse completedSliceResponseWithPitId(final int sliceId, BytesReference pitId) {
+    private static BulkByPaginatedSearchResponse completedSliceResponseWithPitId(final int sliceId, BytesReference pitId) {
         final var sliceStatus = statusForSlice(sliceId);
-        return new BulkByScrollResponse(randomTimeValue(), sliceStatus, List.of(), List.of(), false, null, pitId);
+        return new BulkByPaginatedSearchResponse(randomTimeValue(), sliceStatus, List.of(), List.of(), false, null, pitId);
     }
 
     public void testRelocationMixedFailuresAndResumeInfo() {
@@ -291,17 +293,17 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
 
         // the first slice fails, the remaining have resume info
         final RuntimeException sliceFailure = new RuntimeException("slice 0 failed");
-        final BulkByScrollResponse[] resumeResponses = new BulkByScrollResponse[sliceCount - 1];
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final BulkByPaginatedSearchResponse[] resumeResponses = new BulkByPaginatedSearchResponse[sliceCount - 1];
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         leaderState.onSliceFailure(neverCalledListener(), 0, sliceFailure);
         for (int i = 1; i < sliceCount; i++) {
             resumeResponses[i - 1] = resumeSliceResponse(i);
-            final ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            final ActionListener<BulkByPaginatedSearchResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             leaderState.onSliceResponse(listener, i, resumeResponses[i - 1]);
         }
 
         assertTrue(future.isDone());
-        final BulkByScrollResponse response = future.actionGet();
+        final BulkByPaginatedSearchResponse response = future.actionGet();
         assertTrue(response.getTaskResumeInfo().isPresent());
         final ResumeInfo resumeInfo = response.getTaskResumeInfo().get();
         assertEquals(sliceCount, resumeInfo.slices().size());
@@ -337,7 +339,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         leaderTask.setWorkerCount(sliceCount, leaderRps);
         final LeaderBulkByPaginatedSearchTaskState state = leaderTask.getLeaderState();
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         for (int i = 0; i < sliceCount; i++) {
             float childRps = randomFloatBetween(0.1f, 50f, true);
             BulkByPaginatedSearchTask.Status childStatus = new BulkByPaginatedSearchTask.Status(
@@ -356,16 +358,16 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
                 null,
                 timeValueMillis(0)
             );
-            ActionListener<BulkByScrollResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
+            ActionListener<BulkByPaginatedSearchResponse> listener = i < sliceCount - 1 ? neverCalledListener() : future;
             state.onSliceResponse(
                 listener,
                 i,
-                new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
+                new BulkByPaginatedSearchResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
             );
         }
 
         assertTrue(future.isDone());
-        final BulkByScrollResponse response = future.actionGet();
+        final BulkByPaginatedSearchResponse response = future.actionGet();
         assertThat(response.getStatus().getRequestsPerSecond(), equalTo(leaderRps));
     }
 
@@ -407,7 +409,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             state.onSliceResponse(
                 i < sliceCount - 1 ? neverCalledListener() : ActionListener.noop(),
                 i,
-                new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
+                new BulkByPaginatedSearchResponse(timeValueMillis(randomNonNegativeLong()), childStatus, emptyList(), emptyList(), false)
             );
         }
 
@@ -536,7 +538,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
 
     }
 
-    private static BulkByScrollResponse resumeSliceResponse(final int sliceId) {
+    private static BulkByPaginatedSearchResponse resumeSliceResponse(final int sliceId) {
         final var workerStatus = statusForSlice(sliceId);
         final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
             "scroll-" + sliceId,
@@ -544,7 +546,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             workerStatus,
             null
         );
-        return new BulkByScrollResponse(
+        return new BulkByPaginatedSearchResponse(
             randomTimeValue(),
             new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
             List.of(),
@@ -554,9 +556,9 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         );
     }
 
-    private static BulkByScrollResponse completedSliceResponse(final int sliceId) {
+    private static BulkByPaginatedSearchResponse completedSliceResponse(final int sliceId) {
         final var sliceStatus = statusForSlice(sliceId);
-        return new BulkByScrollResponse(randomTimeValue(), sliceStatus, List.of(), List.of(), false);
+        return new BulkByPaginatedSearchResponse(randomTimeValue(), sliceStatus, List.of(), List.of(), false);
     }
 
     private static ResumeInfo.RelocationOrigin randomOrigin() {

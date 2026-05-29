@@ -81,7 +81,7 @@ public class ExternalDistributedSpecIT extends AbstractExternalSourceSpecTestCas
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<Object[]> backendTests = readExternalSpecTests("/external-basic.csv-spec");
+        List<Object[]> backendTests = readExternalSpecTests("/external-basic.csv-spec", "/external-multivalue.csv-spec");
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] backendTest : backendTests) {
             for (String mode : DISTRIBUTION_MODES) {

@@ -69,7 +69,8 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
     /**
      * Collects the last value observed in these field values. This implementation assumes that field values are collected
      * and sorted by descending order by time. In this case, it assumes that the last value of the time is the first value
-     * collected. By setting isDone to true, we ensure that the next values will be skipped for this bucket.
+     * collected.  By setting state to {@link org.elasticsearch.xpack.downsample.AbstractFieldDownsampler.State#BUCKET_COMPLETED}, 
+     * we ensure that the next values will be skipped for this bucket.
      */
     @Override
     public void collectCurrentValues(FormattedDocValues docValues) throws IOException {

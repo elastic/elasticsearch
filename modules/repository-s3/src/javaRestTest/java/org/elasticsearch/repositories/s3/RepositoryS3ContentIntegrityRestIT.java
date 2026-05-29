@@ -104,6 +104,6 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
 
     @Override
     protected Settings extraRepositorySettings() {
-        return chunkedEncodingConfigurationSupplier.get().apply(Settings.builder()).build();
+        return chunkedEncodingConfigurationSupplier.get().asSettings();
     }
 }

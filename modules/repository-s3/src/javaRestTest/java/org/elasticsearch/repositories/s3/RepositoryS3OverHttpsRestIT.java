@@ -113,6 +113,6 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
 
     @Override
     protected Settings extraRepositorySettings() {
-        return chunkedEncodingConfigurationSupplier.get().apply(Settings.builder()).build();
+        return chunkedEncodingConfigurationSupplier.get().asSettings();
     }
 }

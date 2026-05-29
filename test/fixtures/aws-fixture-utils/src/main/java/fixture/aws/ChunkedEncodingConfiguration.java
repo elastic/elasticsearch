@@ -22,7 +22,7 @@ public enum ChunkedEncodingConfiguration {
     /// `disable_chunked_encoding: true`
     DISABLED {
         @Override
-        public Settings.Builder apply(Settings.Builder builder) {
+        Settings.Builder apply(Settings.Builder builder) {
             return builder.put(DISABLE_CHUNKED_ENCODING, "true");
         }
     },
@@ -30,7 +30,7 @@ public enum ChunkedEncodingConfiguration {
     /// `disable_chunked_encoding: false`
     ENABLED {
         @Override
-        public Settings.Builder apply(Settings.Builder builder) {
+        Settings.Builder apply(Settings.Builder builder) {
             return builder.put(DISABLE_CHUNKED_ENCODING, "false");
         }
     },
@@ -38,14 +38,18 @@ public enum ChunkedEncodingConfiguration {
     /// `disable_chunked_encoding: null` (i.e. setting omitted, use default behaviour)
     UNSET {
         @Override
-        public Settings.Builder apply(Settings.Builder builder) {
+        Settings.Builder apply(Settings.Builder builder) {
             return builder.putNull(DISABLE_CHUNKED_ENCODING);
         }
     };
 
     private static final String DISABLE_CHUNKED_ENCODING = "disable_chunked_encoding";
 
-    public abstract Settings.Builder apply(Settings.Builder builder);
+    abstract Settings.Builder apply(Settings.Builder builder);
+
+    public Settings asSettings() {
+        return apply(Settings.builder()).build();
+    }
 
     public static Supplier<ChunkedEncodingConfiguration> randomSupplier() {
         return new RandomSupplier()::getChunkedEncodingConfiguration;

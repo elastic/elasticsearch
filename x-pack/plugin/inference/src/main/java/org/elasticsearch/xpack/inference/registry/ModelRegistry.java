@@ -50,7 +50,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.InferenceService;
@@ -1127,14 +1127,14 @@ public class ModelRegistry implements ClusterStateListener {
         );
     }
 
-    private ActionListener<BulkByScrollResponse> getDeleteModelClusterStateListener(
+    private ActionListener<BulkByPaginatedSearchResponse> getDeleteModelClusterStateListener(
         Set<String> inferenceEntityIds,
         boolean updateClusterState,
         ActionListener<Boolean> listener
     ) {
         return new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
                 if (updateClusterState == false) {
                     listener.onResponse(Boolean.TRUE);
                     return;

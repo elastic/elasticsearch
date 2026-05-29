@@ -156,11 +156,11 @@ public class HierarchicalKMeans<V> {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal<V> kMeansLocal = buildKmeansLocalFinal(vectors.size(), localSampleSize);
             kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
-        }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("Refinement clustering stats (pre-SOAR):");
-            logClusterQualityStatistics(vectors, kMeansIntermediate);
+            if (logger.isDebugEnabled()) {
+                logger.debug("Refinement clustering stats (pre-SOAR):");
+                logClusterQualityStatistics(vectors, kMeansIntermediate);
+            }
         }
 
         return kMeansIntermediate;

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.search.DocIdSetIterator;
-
 import java.io.IOException;
 
 /**

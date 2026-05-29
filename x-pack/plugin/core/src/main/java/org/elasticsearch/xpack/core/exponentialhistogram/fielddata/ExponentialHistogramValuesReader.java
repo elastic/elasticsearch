@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
 
-import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.fielddata.ProcessedDocValues;
 

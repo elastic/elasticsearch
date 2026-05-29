@@ -291,21 +291,15 @@ final class DefaultSearchContext extends SearchContext {
             });
         }
 
-        public void sumWorkerBytes() {
-            storeMetricsSupplier.get().addBytesRead(workerBytesRead.sum());
-        }
-
-        // visible for testing: bytes captured from worker threads that have not yet been drained
-        long pendingWorkerBytesRead() {
+        // bytes captured from worker threads forked through this executor
+        long workerBytesRead() {
             return workerBytesRead.sum();
         }
     }
 
     @Override
-    public void sumWorkerThreadsBytesRead() {
-        if (this.metricsAwareExecutor != null) {
-            metricsAwareExecutor.sumWorkerBytes();
-        }
+    public long getWorkerThreadsBytesRead() {
+        return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();
     }
 
     static long getFieldCardinality(String field, IndexService indexService, DirectoryReader directoryReader) {

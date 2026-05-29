@@ -82,6 +82,7 @@ import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -791,8 +792,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
             }
             DfsSearchResult result = context.dfsResult();
-            context.sumWorkerThreadsBytesRead();
-            result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+            result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.getWorkerThreadsBytesRead()));
             return result;
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
@@ -1070,8 +1070,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 context.addFetchResult();
                 QueryFetchSearchResult result = executeFetchPhase(readerContext, context, afterQueryTime);
-                context.sumWorkerThreadsBytesRead();
-                result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.getWorkerThreadsBytesRead()));
                 return result;
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
@@ -1081,8 +1080,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.setRescoreDocIds(rescoreDocIds);
                 // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                 context.queryResult().incRef();
-                context.sumWorkerThreadsBytesRead();
-                context.queryResult().setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                context.queryResult().setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.getWorkerThreadsBytesRead()));
                 return context.queryResult();
             }
         } catch (Exception e) {
@@ -1111,8 +1109,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return null;
     }
 
-    private static DirectoryMetrics getDirectoryMetricsDelta(Supplier<DirectoryMetrics> metricsDelta) {
-        return metricsDelta == null ? DirectoryMetrics.EMPTY : metricsDelta.get();
+    private static DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta, long workerBytesRead) {
+        DirectoryMetrics delta = metricsDelta == null ? DirectoryMetrics.EMPTY : metricsDelta.get();
+        if (workerBytesRead == 0L) {
+            return delta;
+        }
+        DirectoryMetrics.Builder workerMetrics = new DirectoryMetrics.Builder();
+        workerMetrics.add(StoreMetrics.NAME, new StoreMetrics(workerBytesRead));
+        return delta.merge(workerMetrics.build());
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1135,8 +1139,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (docIds == null || docIds.length == 0) {
                     searchContext.rankFeatureResult().shardResult(EMPTY_RESULT);
                     searchContext.rankFeatureResult().incRef();
-                    searchContext.sumWorkerThreadsBytesRead();
-                    searchContext.rankFeatureResult().setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                    searchContext.rankFeatureResult()
+                        .setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.getWorkerThreadsBytesRead()));
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
@@ -1144,8 +1148,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
-                searchContext.sumWorkerThreadsBytesRead();
-                rankFeatureResult.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                rankFeatureResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.getWorkerThreadsBytesRead()));
                 return rankFeatureResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1301,8 +1304,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable closeOnce
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
-            searchContext.sumWorkerThreadsBytesRead();
-            fetchResult.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.getWorkerThreadsBytesRead()));
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }
@@ -1364,8 +1366,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
                 // ScrollQuerySearchResult will incRef the QuerySearchResult when it gets constructed.
                 ScrollQuerySearchResult result = new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
-                searchContext.sumWorkerThreadsBytesRead();
-                result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.getWorkerThreadsBytesRead()));
                 return result;
             } catch (Exception e) {
                 logger.trace("Query phase failed", e);
@@ -1436,8 +1437,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     readerContext.setRescoreDocIds(rescoreDocIds);
                     // inc-ref query result because we close the SearchContext that references it in this try-with-resources block
                     queryResult.incRef();
-                    searchContext.sumWorkerThreadsBytesRead();
-                    queryResult.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                    queryResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.getWorkerThreadsBytesRead()));
                     return queryResult;
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
@@ -1503,8 +1503,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
                 ScrollQueryFetchSearchResult result = new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
-                searchContext.sumWorkerThreadsBytesRead();
-                result.setDirectoryMetrics(getDirectoryMetricsDelta(metricsDelta));
+                result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, searchContext.getWorkerThreadsBytesRead()));
                 return result;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);

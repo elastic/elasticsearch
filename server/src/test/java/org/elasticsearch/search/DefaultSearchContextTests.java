@@ -1190,13 +1190,12 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             assertTrue("forked tasks did not complete in time", latch.await(30, TimeUnit.SECONDS));
             assertEquals(0L, callerMetrics.getBytesRead());
             long expectedBytesRead = bytesPerTask * numTasks;
-            assertBusy(() -> {
-                long totalBytesRead = callerMetrics.getBytesRead() + wrapped.pendingWorkerBytesRead();
-                assertEquals("drain must aggregate every forked task's delta", expectedBytesRead, totalBytesRead);
-            });
+            assertBusy(
+                () -> assertEquals("executor must aggregate every forked task's delta", expectedBytesRead, wrapped.workerBytesRead())
+            );
 
-            wrapped.sumWorkerBytes();
-            assertEquals("drain must aggregate every forked task's delta", expectedBytesRead, callerMetrics.getBytesRead());
+            // the executor only records worker bytes; it must not mutate the caller thread's metrics, the summing happens externally
+            assertEquals(0L, callerMetrics.getBytesRead());
         } finally {
             terminate(executor);
             threadStoreMetrics.remove();
@@ -1216,7 +1215,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 throw new RuntimeException("boom");
             }));
 
-            assertEquals(bytes, wrapped.pendingWorkerBytesRead());
+            assertEquals(bytes, wrapped.workerBytesRead());
         } finally {
             threadStoreMetrics.remove();
         }

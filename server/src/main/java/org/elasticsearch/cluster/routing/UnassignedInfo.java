@@ -183,7 +183,7 @@ public record UnassignedInfo(
          * Unassigned as a result of a failed allocation. The failure counter was reset (either manually via the
          * reroute API or automatically due to topology changes such as node joins) to allow for more retries.
          */
-        ALLOCATION_FAILURE_RESET(true);
+        ALLOCATION_FAILURE_RESET(false);
 
         private final boolean isExpectedTransient;
 

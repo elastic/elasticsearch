@@ -16,16 +16,19 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -38,7 +41,9 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -48,8 +53,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -96,6 +104,19 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
             .build();
     }
 
+    /** Builds cluster state populated with a PEK per project listed in {@code pekByProject}. */
+    private static ClusterState clusterStateWithProjects(Map<ProjectId, ProjectEncryptionKeyMetadata> pekByProject, boolean isLocalMaster) {
+        Metadata.Builder metadata = Metadata.builder();
+        for (var entry : pekByProject.entrySet()) {
+            ProjectMetadata.Builder project = ProjectMetadata.builder(entry.getKey());
+            if (entry.getValue() != null) {
+                project.putCustom(ProjectEncryptionKeyMetadata.TYPE, entry.getValue());
+            }
+            metadata.put(project.build());
+        }
+        return ClusterState.builder(CLUSTER_NAME).metadata(metadata.build()).nodes(nodes(isLocalMaster)).build();
+    }
+
     private KeyRotationCoordinator coordinator;
     private MasterServiceTaskQueue taskQueue;
     private EncryptionService encryptionService;
@@ -106,7 +127,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         TimeValue rotationInterval,
         TimeValue checkInterval,
         FeatureService featureService,
-        List<EncryptedDataHandler<?>> handlers
+        List<EncryptedDataHandler<?>> handlers,
+        ProjectResolver projectResolver
     ) {
         taskQueue = mock(MasterServiceTaskQueue.class);
         ClusterService clusterService = mock(ClusterService.class);
@@ -120,7 +142,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator = KeyRotationCoordinator.create(
             clusterService,
             threadPool,
-            DefaultProjectResolver.INSTANCE,
+            projectResolver,
             featureService,
             encryptionService,
             handlers,
@@ -129,6 +151,17 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
                 .put(KeyRotationCoordinator.CHECK_INTERVAL_SETTING.getKey(), checkInterval)
                 .build()
         );
+    }
+
+    private void setup(
+        ClusterState state,
+        long now,
+        TimeValue rotationInterval,
+        TimeValue checkInterval,
+        FeatureService featureService,
+        List<EncryptedDataHandler<?>> handlers
+    ) {
+        setup(state, now, rotationInterval, checkInterval, featureService, handlers, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
     }
 
     private void setup(ClusterState state, long now, TimeValue rotationInterval, TimeValue checkInterval, FeatureService featureService) {
@@ -156,7 +189,13 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         ClusterState next = clusterStateWith(null, true);
         coordinator.onClusterStateChanged(new ClusterChangedEvent("test", next, prev));
 
-        verify(taskQueue).submitTask(eq("install-project-encryption-key"), isA(KeyRotationCoordinator.InstallKeyTask.class), any());
+        verify(taskQueue).submitTask(
+            startsWith("install-project-encryption-key"),
+            argThat(
+                t -> t instanceof KeyRotationCoordinator.InstallKeyTask install && install.projectId().equals(Metadata.DEFAULT_PROJECT_ID)
+            ),
+            any()
+        );
     }
 
     public void testInstallNotSubmittedWhenNotMaster() {
@@ -190,6 +229,56 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
     }
 
+    public void testInstallSubmittedForEachProjectMissingKey() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        ProjectId p1 = ProjectId.fromId("p1");
+        ProjectId p2 = ProjectId.fromId("p2");
+        Map<ProjectId, ProjectEncryptionKeyMetadata> none = new HashMap<>();
+        none.put(p1, null);
+        none.put(p2, null);
+        ClusterState state = clusterStateWithProjects(none, true);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state));
+
+        verify(taskQueue).submitTask(
+            startsWith("install-project-encryption-key"),
+            argThat(t -> t instanceof KeyRotationCoordinator.InstallKeyTask install && install.projectId().equals(p1)),
+            any()
+        );
+        verify(taskQueue).submitTask(
+            startsWith("install-project-encryption-key"),
+            argThat(t -> t instanceof KeyRotationCoordinator.InstallKeyTask install && install.projectId().equals(p2)),
+            any()
+        );
+    }
+
+    public void testInstallOnlySubmittedForProjectsWithoutKey() {
+        FeatureService featureService = mock(FeatureService.class);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        ProjectId p1 = ProjectId.fromId("p1");
+        ProjectId p2 = ProjectId.fromId("p2");
+        Map<ProjectId, ProjectEncryptionKeyMetadata> projects = new HashMap<>();
+        projects.put(p1, new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1"));
+        projects.put(p2, null);
+        ClusterState state = clusterStateWithProjects(projects, true);
+        setup(state, 0L, TimeValue.timeValueDays(30), TimeValue.timeValueMinutes(1), featureService);
+
+        coordinator.onClusterStateChanged(new ClusterChangedEvent("test", state, state));
+
+        verify(taskQueue).submitTask(
+            startsWith("install-project-encryption-key"),
+            argThat(t -> t instanceof KeyRotationCoordinator.InstallKeyTask install && install.projectId().equals(p2)),
+            any()
+        );
+        verify(taskQueue, never()).submitTask(
+            anyString(),
+            argThat(t -> t instanceof KeyRotationCoordinator.InstallKeyTask install && install.projectId().equals(p1)),
+            any()
+        );
+    }
+
     public void testTickIsNoopWhenRotationDisabled() {
         setup(clusterStateWith(null, true), 0L, TimeValue.ZERO);
         coordinator.tick();
@@ -217,8 +306,10 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         verify(taskQueue).submitTask(
-            eq("begin-project-encryption-key-rotation"),
-            isA(KeyRotationCoordinator.BeginRotationTask.class),
+            startsWith("begin-project-encryption-key-rotation"),
+            argThat(
+                t -> t instanceof KeyRotationCoordinator.BeginRotationTask begin && begin.projectId().equals(Metadata.DEFAULT_PROJECT_ID)
+            ),
             any()
         );
     }
@@ -232,6 +323,32 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testRotationOnlyBeginsForProjectsWithStaleActiveKey() {
+        long now = 10_000_000L;
+        long fresh = now - 1;
+        long stale = now - TimeValue.timeValueDays(30).millis() - 1;
+        ProjectId p1 = ProjectId.fromId("p1");
+        ProjectId p2 = ProjectId.fromId("p2");
+        Map<ProjectId, ProjectEncryptionKeyMetadata> projects = new HashMap<>();
+        projects.put(p1, new ProjectEncryptionKeyMetadata(Map.of("k1", entry(fresh)), "k1"));
+        projects.put(p2, new ProjectEncryptionKeyMetadata(Map.of("k2", entry(stale)), "k2"));
+        ClusterState state = clusterStateWithProjects(projects, true);
+        setup(state, now, TimeValue.timeValueDays(30));
+
+        coordinator.tick();
+
+        verify(taskQueue).submitTask(
+            startsWith("begin-project-encryption-key-rotation"),
+            argThat(t -> t instanceof KeyRotationCoordinator.BeginRotationTask begin && begin.projectId().equals(p2)),
+            any()
+        );
+        verify(taskQueue, never()).submitTask(
+            anyString(),
+            argThat(t -> t instanceof KeyRotationCoordinator.BeginRotationTask begin && begin.projectId().equals(p1)),
+            any()
+        );
     }
 
     public void testTickShortCircuitsHandlerAlreadyOnActiveKey() {
@@ -261,7 +378,11 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         assertEquals(1, calls.get());
-        verify(taskQueue).submitTask(eq("re-encrypt-" + TestCustom.TYPE), isA(KeyRotationCoordinator.ReEncryptApplyTask.class), any());
+        verify(taskQueue).submitTask(
+            contains("re-encrypt-" + TestCustom.TYPE),
+            isA(KeyRotationCoordinator.ReEncryptApplyTask.class),
+            any()
+        );
     }
 
     public void testHandlerReturningInputSkipsTaskSubmission() {
@@ -286,7 +407,51 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         assertEquals(1, calls.get());
-        verify(taskQueue, never()).submitTask(eq("re-encrypt-" + TestCustom.TYPE), any(), any());
+        verify(taskQueue, never()).submitTask(contains("re-encrypt-" + TestCustom.TYPE), any(), any());
+    }
+
+    public void testDispatchSetsProjectContextForHandler() {
+        long now = 100L;
+        ProjectId projectId = ProjectId.fromId("p-dispatch");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        TestCustom seeded = TestCustom.encryptedUnder("old-key");
+        Map<ProjectId, ProjectEncryptionKeyMetadata> projects = Map.of(projectId, metadata);
+        Metadata.Builder metaBuilder = Metadata.builder();
+        ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
+        project.putCustom(ProjectEncryptionKeyMetadata.TYPE, metadata);
+        project.putCustom(seeded.getWriteableName(), seeded);
+        metaBuilder.put(project.build());
+        ClusterState state = ClusterState.builder(CLUSTER_NAME).metadata(metaBuilder.build()).nodes(nodes(true)).build();
+
+        // Resolver that exposes the project header in the thread context; the handler observes it during reEncrypt.
+        ThreadContext threadContext = new ThreadContext(org.elasticsearch.common.settings.Settings.EMPTY);
+        ProjectResolver projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
+        List<String> observed = new ArrayList<>();
+        EncryptedDataHandler<TestCustom> handler = new EncryptedDataHandler<>() {
+            @Override
+            public String customName() {
+                return TestCustom.TYPE;
+            }
+
+            @Override
+            public TestCustom reEncrypt(TestCustom current, EncryptionService svc, String activeKeyId) {
+                observed.add(threadContext.getHeader(org.elasticsearch.tasks.Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER));
+                return TestCustom.encryptedUnder(activeKeyId);
+            }
+        };
+        setup(
+            state,
+            now,
+            TimeValue.timeValueDays(30),
+            TimeValue.timeValueMinutes(1),
+            mock(FeatureService.class),
+            List.of(handler),
+            projectResolver
+        );
+
+        coordinator.tick();
+
+        assertEquals("handler observed exactly one project context", List.of(projectId.id()), observed);
     }
 
     public void testTickSubmitsRetireForKeysOlderThanGrace() {
@@ -304,8 +469,8 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         coordinator.tick();
 
         verify(taskQueue).submitTask(
-            eq("retire-project-encryption-keys"),
-            eq(new KeyRotationCoordinator.RetireKeysTask(now - graceMillis)),
+            startsWith("retire-project-encryption-keys"),
+            eq(new KeyRotationCoordinator.RetireKeysTask(Metadata.DEFAULT_PROJECT_ID, now - graceMillis)),
             any()
         );
     }
@@ -324,11 +489,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         coordinator.tick();
 
-        verify(taskQueue, never()).submitTask(
-            eq("retire-project-encryption-keys"),
-            isA(KeyRotationCoordinator.RetireKeysTask.class),
-            any()
-        );
+        verify(taskQueue, never()).submitTask(anyString(), isA(KeyRotationCoordinator.RetireKeysTask.class), any());
     }
 
     public void testRetireGateHonorsHandlerKeyIds() {
@@ -345,11 +506,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         coordinator.tick();
 
-        verify(taskQueue, never()).submitTask(
-            eq("retire-project-encryption-keys"),
-            isA(KeyRotationCoordinator.RetireKeysTask.class),
-            any()
-        );
+        verify(taskQueue, never()).submitTask(anyString(), isA(KeyRotationCoordinator.RetireKeysTask.class), any());
     }
 
     public void testReEncryptApplyTaskUpdatesCustomAndHandlerKeyIds() throws Exception {
@@ -362,6 +519,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         SimpleBatchedExecutor<KeyRotationCoordinator.KeyRotationTask, Void> executor = newExecutor(now);
         ActionListener<Void> listener = listenerCapturingResponses(new AtomicInteger());
         KeyRotationCoordinator.ReEncryptApplyTask task = new KeyRotationCoordinator.ReEncryptApplyTask(
+            Metadata.DEFAULT_PROJECT_ID,
             TestCustom.TYPE,
             oldCustom,
             newCustom,
@@ -371,7 +529,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         Tuple<ClusterState, Void> result = executor.executeTask(task, state);
 
-        ProjectState projectState = DefaultProjectResolver.INSTANCE.getProjectState(result.v1());
+        ProjectState projectState = result.v1().projectState(Metadata.DEFAULT_PROJECT_ID);
         assertSame("new custom installed", newCustom, projectState.metadata().custom(TestCustom.TYPE));
         ProjectEncryptionKeyMetadata updated = projectState.metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
         assertEquals("handlerKeyIds entry recorded", "k1", updated.getHandlerKeyIds().get(TestCustom.TYPE));
@@ -387,6 +545,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         SimpleBatchedExecutor<KeyRotationCoordinator.KeyRotationTask, Void> executor = newExecutor(now);
         KeyRotationCoordinator.ReEncryptApplyTask task = new KeyRotationCoordinator.ReEncryptApplyTask(
+            Metadata.DEFAULT_PROJECT_ID,
             TestCustom.TYPE,
             expectedOld,
             newCustom,
@@ -408,6 +567,7 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
 
         SimpleBatchedExecutor<KeyRotationCoordinator.KeyRotationTask, Void> executor = newExecutor(now);
         KeyRotationCoordinator.ReEncryptApplyTask task = new KeyRotationCoordinator.ReEncryptApplyTask(
+            Metadata.DEFAULT_PROJECT_ID,
             TestCustom.TYPE,
             oldCustom,
             newCustomForK1,
@@ -420,10 +580,28 @@ public class KeyRotationCoordinatorTests extends ESTestCase {
         assertSame("cluster state unchanged when activeKeyId drifted", state, result.v1());
     }
 
+    public void testTaskForVanishedProjectIsDroppedAsNoop() throws Exception {
+        long now = 100L;
+        ProjectId vanished = ProjectId.fromId("vanished");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        // Cluster state contains only DEFAULT_PROJECT_ID, not `vanished`.
+        ClusterState state = clusterStateWith(metadata, true);
+        SimpleBatchedExecutor<KeyRotationCoordinator.KeyRotationTask, Void> executor = newExecutor(now);
+
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(vanished), state);
+        assertSame("install task for missing project is a no-op", state, result.v1());
+
+        result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(vanished), state);
+        assertSame("begin-rotation task for missing project is a no-op", state, result.v1());
+
+        result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(vanished, 0L), state);
+        assertSame("retire task for missing project is a no-op", state, result.v1());
+    }
+
     private static SimpleBatchedExecutor<KeyRotationCoordinator.KeyRotationTask, Void> newExecutor(long now) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.absoluteTimeInMillis()).thenReturn(now);
-        return new KeyRotationCoordinator.KeyRotationExecutor(DefaultProjectResolver.INSTANCE, threadPool);
+        return new KeyRotationCoordinator.KeyRotationExecutor(threadPool);
     }
 
     private static ActionListener<Void> listenerCapturingResponses(AtomicInteger counter) {

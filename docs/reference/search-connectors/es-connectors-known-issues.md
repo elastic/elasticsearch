@@ -141,6 +141,15 @@ The connector service has the following known issues:
     **Fix**: Tracked in [elastic/connectors#4014](https://github.com/elastic/connectors/issues/4014). The fix is to bump `python-tds` to `>=1.15.0`, where the `pkg_resources` import was removed.
 
 
+* **Content Connectors entry in Stack Management is visible to users without the `content_connectors` capability**
+
+    The Content Connectors management app was registered asynchronously inside a `core.getStartServices().then(...)` callback during the plugin's `setup()` phase. Registration resolved after Kibana's management plugin had already completed its capability-based disable sweep, so the app remained enabled regardless of the user's `management.data.content_connectors` capability. Users without that capability — for example, a role granting only `Observability > APM and User Experience: Read` — saw the **Content Connectors** entry in the Stack Management sidebar; navigating to it returned a 403.
+
+    **Affected versions**: Kibana 9.0.0 through 9.3.4 and 9.4.0. Earlier versions are unaffected because the Content Connectors UI was introduced in 9.0.
+
+    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3.5, 9.4.1, and 9.5.0. The management app is now registered synchronously in `setup()` so Kibana's capability sweep correctly hides it for users without the `content_connectors` capability.
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

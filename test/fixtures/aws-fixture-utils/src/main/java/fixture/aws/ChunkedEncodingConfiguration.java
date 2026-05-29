@@ -18,19 +18,34 @@ import static org.elasticsearch.test.ESTestCase.between;
 
 /// Specifies how the `disable_chunked_encoding` S3 client setting is configured - either `true` or `false` or omitted (default).
 public enum ChunkedEncodingConfiguration {
-    UNSET,
-    DISABLED,
-    ENABLED;
+
+    /// `disable_chunked_encoding: true`
+    DISABLED {
+        @Override
+        public Settings.Builder apply(Settings.Builder builder) {
+            return builder.put(DISABLE_CHUNKED_ENCODING, "true");
+        }
+    },
+
+    /// `disable_chunked_encoding: false`
+    ENABLED {
+        @Override
+        public Settings.Builder apply(Settings.Builder builder) {
+            return builder.put(DISABLE_CHUNKED_ENCODING, "false");
+        }
+    },
+
+    /// `disable_chunked_encoding: null` (i.e. setting omitted, use default behaviour)
+    UNSET {
+        @Override
+        public Settings.Builder apply(Settings.Builder builder) {
+            return builder.putNull(DISABLE_CHUNKED_ENCODING);
+        }
+    };
 
     private static final String DISABLE_CHUNKED_ENCODING = "disable_chunked_encoding";
 
-    public Settings.Builder asSettings() {
-        return switch (this) {
-            case UNSET -> Settings.builder().putNull(DISABLE_CHUNKED_ENCODING);
-            case DISABLED -> Settings.builder().put(DISABLE_CHUNKED_ENCODING, "true");
-            case ENABLED -> Settings.builder().put(DISABLE_CHUNKED_ENCODING, "false");
-        };
-    }
+    public abstract Settings.Builder apply(Settings.Builder builder);
 
     public static Supplier<ChunkedEncodingConfiguration> randomSupplier() {
         return new RandomSupplier()::getChunkedEncodingConfiguration;

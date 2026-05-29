@@ -128,6 +128,21 @@ public class TransportGetDatabaseConfigurationActionTests extends ESTestCase {
         assertThat(result.modifiedDate(), equalTo(downloadTime));
         assertThat(result.database(), equalTo(config));
         assertThat(result.version(), equalTo(1L));
+
+        // ipinfo provider works the same way
+        DatabaseConfiguration ipinfoConfig = new DatabaseConfiguration(
+            "my-ipinfo-id",
+            "standard_privacy",
+            new DatabaseConfiguration.Ipinfo()
+        );
+        DatabaseConfigurationMetadata ipinfoMeta = new DatabaseConfigurationMetadata(ipinfoConfig, 2, putTime);
+        long ipinfoDownloadTime = 7000L;
+        GeoIpTaskState.Metadata ipinfoTaskMeta = new GeoIpTaskState.Metadata(ipinfoDownloadTime, 0, 5, "md5", ipinfoDownloadTime, null);
+        EnterpriseGeoIpTaskState ipinfoTaskState = EnterpriseGeoIpTaskState.EMPTY.put("standard_privacy.mmdb", ipinfoTaskMeta);
+        DatabaseConfigurationMetadata ipinfoResult = TransportGetDatabaseConfigurationAction.withLastUpdate(ipinfoMeta, ipinfoTaskState);
+        assertThat(ipinfoResult.modifiedDate(), equalTo(ipinfoDownloadTime));
+        assertThat(ipinfoResult.database(), equalTo(ipinfoConfig));
+        assertThat(ipinfoResult.version(), equalTo(2L));
     }
 
     private NodeResponse generateTestNodeResponse(List<String> databaseNames) {

@@ -9,16 +9,20 @@ package org.elasticsearch.xpack.encryption;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.encryption.spi.EncryptedDataHandler;
@@ -29,6 +33,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Plugin for the project encryption key (PEK) lifecycle. Wires up the in-memory key cache, the AES-GCM encryption
@@ -36,7 +42,7 @@ import java.util.List;
  * plugins via {@link ExtensiblePlugin#loadExtensions(ExtensionLoader)}. Forwards secure-settings reloads to the components so the
  * password material is picked up on the next access.
  */
-public class EncryptionPlugin extends Plugin implements ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
+public class EncryptionPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, ReloadablePlugin, HealthPlugin {
 
     private final Settings settings;
     private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
@@ -70,6 +76,7 @@ public class EncryptionPlugin extends Plugin implements ExtensiblePlugin, Reload
         );
         AesGcmEncryptionService encryptionService = new AesGcmEncryptionService(pekService);
         List<EncryptedDataHandler<?>> handlers = encryptedDataHandlerProviders.stream().flatMap(p -> p.getHandlers().stream()).toList();
+        EncryptedDataHandlerRegistry handlerRegistry = new EncryptedDataHandlerRegistry(handlers);
         KeyRotationCoordinator coordinator = KeyRotationCoordinator.create(
             services.clusterService(),
             services.threadPool(),
@@ -94,6 +101,7 @@ public class EncryptionPlugin extends Plugin implements ExtensiblePlugin, Reload
         components.add(pekService);
         components.add(coordinator);
         components.add(healthIndicator);
+        components.add(handlerRegistry);
         return components;
     }
 
@@ -110,7 +118,7 @@ public class EncryptionPlugin extends Plugin implements ExtensiblePlugin, Reload
     }
 
     @Override
-    public void reload(Settings settings) throws Exception {
+    public void reload(Settings settings) {
         ProjectEncryptionKeyService localPekService = this.pekService.get();
         if (localPekService != null) {
             localPekService.reload(settings);
@@ -130,6 +138,26 @@ public class EncryptionPlugin extends Plugin implements ExtensiblePlugin, Reload
     @Override
     public void close() throws IOException {
         IOUtils.close(this.coordinator.get(), this.pekService.get());
+    }
+
+    @Override
+    public Collection<ActionHandler> getActions() {
+        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
+        return List.of(new ActionHandler(TransportEncryptionResetAction.TYPE, TransportEncryptionResetAction.class));
+    }
+
+    @Override
+    public Collection<RestHandler> getRestHandlers(
+        RestHandlersServices restHandlersServices,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
+        return List.of(new RestEncryptionResetAction());
     }
 
     @Override

@@ -23,6 +23,7 @@ public class Constants {
         "cluster:admin/component_template/get",
         "cluster:admin/component_template/put",
         "cluster:admin/deprecation/cache/reset",
+        "cluster:admin/encryption/reset",
         "cluster:admin/esql/data_source/delete",
         "cluster:admin/esql/data_source/get",
         "cluster:admin/esql/data_source/put",

@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -77,6 +79,7 @@ public class ReservedClusterStateService {
     private final ClusterService clusterService;
     private final ReservedStateUpdateTaskExecutor updateTaskExecutor;
     private final ReservedStateErrorTaskExecutor errorTaskExecutor;
+    private final RemoveReservedProjectStateExecutor removeReservedProjectStateExecutor = new RemoveReservedProjectStateExecutor();
 
     @SuppressWarnings("unchecked")
     private final ConstructingObjectParser<ReservedStateChunk, Void> stateChunkParser = new ConstructingObjectParser<>(
@@ -284,6 +287,30 @@ public class ReservedClusterStateService {
                 errorState -> { throw new AssertionError(); },
                 listener
             )
+        );
+    }
+
+    /**
+     * Removes all reserved cluster state associated with the given project from the {@link ProjectStateRegistry}: its
+     * project-scoped settings, the reserved-state metadata for every namespace, and any record that the project was
+     * marked for deletion. This is the counterpart to the project-scoped {@link #process} methods that create those
+     * entries, intended to be called once a project has been fully deleted and de-listed from file-based settings, to
+     * drop the now-dangling registry entry.
+     * <p>
+     * This is a no-op if the project has no entry in the registry, so it is safe to call repeatedly. It deliberately
+     * does <em>not</em> invoke the reserved-state handlers' {@code remove} methods (as processing an empty state chunk
+     * would): those operate on a still-existing project, whereas here the project is gone and we simply discard its
+     * leftover registry entry wholesale.
+     *
+     * @param projectId the project whose reserved state should be removed
+     * @param listener completed once the cluster state update has been applied
+     */
+    public void removeReservedProjectState(ProjectId projectId, ActionListener<ActionResponse.Empty> listener) {
+        var queue = clusterService.createTaskQueue("reserved state remove project", Priority.URGENT, removeReservedProjectStateExecutor);
+        queue.submitTask(
+            "remove reserved project state [" + projectId + "]",
+            new RemoveReservedProjectStateTask(projectId, listener),
+            null
         );
     }
 
@@ -767,5 +794,36 @@ public class ReservedClusterStateService {
 
     Map<String, ReservedProjectStateHandler<?>> projectHandlers() {
         return unmodifiableMap(projectHandlers);
+    }
+
+    /**
+     * Cluster state task that drops a single project's entry from the {@link ProjectStateRegistry}.
+     * See {@link #removeReservedProjectState(ProjectId, ActionListener)}.
+     */
+    record RemoveReservedProjectStateTask(ProjectId projectId, ActionListener<ActionResponse.Empty> listener)
+        implements
+            ClusterStateTaskListener {
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    static class RemoveReservedProjectStateExecutor extends SimpleBatchedExecutor<RemoveReservedProjectStateTask, Void> {
+        @Override
+        public Tuple<ClusterState, Void> executeTask(RemoveReservedProjectStateTask task, ClusterState clusterState) {
+            ProjectStateRegistry registry = ProjectStateRegistry.get(clusterState);
+            if (registry.hasProject(task.projectId()) == false) {
+                // The entry has already been removed (or never existed) - nothing to do.
+                return Tuple.tuple(clusterState, null);
+            }
+            ProjectStateRegistry updated = ProjectStateRegistry.builder(registry).removeProject(task.projectId()).build();
+            return Tuple.tuple(ClusterState.builder(clusterState).putCustom(ProjectStateRegistry.TYPE, updated).build(), null);
+        }
+
+        @Override
+        public void taskSucceeded(RemoveReservedProjectStateTask task, Void unused) {
+            task.listener().onResponse(ActionResponse.Empty.INSTANCE);
+        }
     }
 }

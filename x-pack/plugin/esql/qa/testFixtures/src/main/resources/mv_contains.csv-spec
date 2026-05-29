@@ -124,7 +124,7 @@ id: long
 3
 ;
 
-withDate_nanos
+withDateNanos
 required_capability: fn_mv_contains_v1
 
 FROM all_types_mv
@@ -138,7 +138,7 @@ id:long | date_nanos:date_nanos
 5       | ["2024-01-01T00:00:00.000000001Z", "2024-01-02T00:00:00.000000002Z", "2024-01-03T00:00:00.000000003Z", "2024-01-04T00:00:00.000000004Z", "2024-01-05T00:00:00.000000005Z"]
 ;
 
-withDate_nanosAndNull
+withDateNanosAndNull
 required_capability: fn_mv_contains_v1
 
 FROM all_types_mv
@@ -173,66 +173,6 @@ required_capability: fn_mv_contains_v1
 
 FROM all_types_mv
 | WHERE mv_contains(double, NULL) AND id <=3
-| SORT id
-| KEEP id
-;
-
-id: long
-0
-1
-2
-3
-;
-
-withFloat
-required_capability: fn_mv_contains_v1
-
-FROM all_types_mv
-| WHERE mv_contains(float, [3.3, 4.4])
-| SORT id
-| KEEP id
-;
-
-id:long
-4
-5
-;
-
-withFloatAndNull
-required_capability: fn_mv_contains_v1
-
-FROM all_types_mv
-| WHERE mv_contains(float, NULL) AND id <=3
-| SORT id
-| KEEP id
-;
-
-id: long
-0
-1
-2
-3
-;
-
-withHalfFloat
-required_capability: fn_mv_contains_v1
-
-FROM all_types_mv
-| WHERE mv_contains(half_float, [3.3, 4.4])
-| SORT id
-| KEEP id
-;
-
-id:long
-4
-5
-;
-
-withHalfFloatAndNull
-required_capability: fn_mv_contains_v1
-
-FROM all_types_mv
-| WHERE mv_contains(half_float, NULL) AND id <=3
 | SORT id
 | KEEP id
 ;

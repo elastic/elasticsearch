@@ -218,7 +218,8 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
                 MergeState mergeState = mergeState(dir, readers, liveDocs, backgroundSegmentInfo(dir));
 
                 ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
-                IvfSegmentConfig reused = selector.tryMergeMetadataReuse(fieldInfo, mergeState, null, totalDocs);
+                MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
+                IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, totalDocs);
 
                 assertThat(reused, notNullValue());
                 assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
@@ -352,11 +353,7 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         private final float oversample;
         private final boolean precondition;
 
-        StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
-            float oversample,
-            boolean precondition
-        ) {
+        StubCalibrationKnnVectorsReader(ESNextDiskBBQVectorsFormat.QuantEncoding encoding, float oversample, boolean precondition) {
             this.encoding = encoding;
             this.oversample = oversample;
             this.precondition = precondition;

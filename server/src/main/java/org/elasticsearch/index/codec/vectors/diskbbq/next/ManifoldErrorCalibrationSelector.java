@@ -23,7 +23,6 @@ import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.ManifoldMode
 import org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate.RepErrorStdModel;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -117,11 +116,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      * from the merged segment's Lucene diagnostics key {@code mergeMaxNumSegments} ({@code >= 1}).
      */
     @Override
-    public IvfSegmentConfig select(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        MergeState mergeState
-    ) {
+    public IvfSegmentConfig select(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState) {
         Objects.requireNonNull(mergeState, "mergeState");
         int dim = fieldInfo.getVectorDimension();
         VectorSimilarityFunction similarityFunction = fieldInfo.getVectorSimilarityFunction();
@@ -147,7 +142,11 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 return calibrate(floatVectorValues, similarityFunction);
             } catch (IOException e) {
                 logger.warn("calibration failed on bounded force merge, falling back to ONE_BIT_4BIT_QUERY", e);
-                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
+                return new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    false,
+                    DEFAULT_CALIBRATED_OVERSAMPLE
+                );
             }
         } else {
             IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, floatVectorValues.size());
@@ -159,7 +158,11 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 return calibrateFast(floatVectorValues, dim, similarityFunction, numVectors, mergeCtx);
             } catch (IOException e) {
                 logger.warn("fast calibration failed, falling back to ONE_BIT_4BIT_QUERY", e);
-                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
+                return new IvfSegmentConfig(
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    false,
+                    DEFAULT_CALIBRATED_OVERSAMPLE
+                );
             }
         }
     }
@@ -260,21 +263,6 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
             mergeCtx.mergeMaxNumSegmentsForLog()
         );
         return new IvfSegmentConfig(bestEncoding, doPreconditionResult, avgOversample);
-    }
-
-    /**
-     * Reuse calibration metadata from input segments when {@link MergeState} is available but merged
-     * {@link FloatVectorValues} are not yet materialized (e.g. Lucene merge entry). Uses
-     * {@code mergedVectorCount} in place of {@link FloatVectorValues#size()} for growth-ratio checks.
-     */
-    public IvfSegmentConfig tryMergeMetadataReuse(
-        FieldInfo fieldInfo,
-        MergeState mergeState,
-        float[] mergedGlobalCentroid,
-        long mergedVectorCount
-    ) {
-        MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-        return selectFromMergeState(fieldInfo, mergeState, mergeCtx, mergedVectorCount);
     }
 
     /**

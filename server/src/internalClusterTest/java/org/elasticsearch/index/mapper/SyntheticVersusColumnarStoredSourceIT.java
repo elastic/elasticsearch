@@ -136,6 +136,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
                         var mapping = new HashMap<>(delegated.mappingGenerator().get());
                         // synthetic_source_keep is not allowed in columnar index mode
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                        mapping.remove("store");
                         return mapping;
                     });
                 }

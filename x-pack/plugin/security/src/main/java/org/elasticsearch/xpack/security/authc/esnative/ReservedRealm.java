@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -262,7 +263,14 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
                 listener.onResponse(users);
             }, (e) -> {
-                logger.error("failed to retrieve reserved users", e);
+                if (e instanceof UnavailableShardsException) {
+                    logger.warn(
+                        "failed to retrieve reserved users, the security index is not available, the cluster may still be starting up",
+                        e
+                    );
+                } else {
+                    logger.error("failed to retrieve reserved users", e);
+                }
                 listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
             }));
         }
@@ -276,7 +284,16 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 consumer.accept(userInfo);
             }
         }, (e) -> {
-            logger.error((Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]", e);
+            if (e instanceof UnavailableShardsException) {
+                logger.warn(
+                    (Supplier<?>) () -> "failed to retrieve password hash for reserved user ["
+                        + username
+                        + "], the security index is not available, the cluster may still be starting up",
+                    e
+                );
+            } else {
+                logger.error((Supplier<?>) () -> "failed to retrieve password hash for reserved user [" + username + "]", e);
+            }
             consumer.accept(null);
         }));
     }

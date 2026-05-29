@@ -260,6 +260,14 @@ public class NativeUsersStore {
                         public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
                                 logger.trace(() -> "could not retrieve user [" + user + "] because security index does not exist", t);
+                            } else if (TransportActions.isShardNotAvailableException(t)) {
+                                logger.warn(
+                                    () -> "failed to retrieve user ["
+                                        + user
+                                        + "] because the security index is not available, "
+                                        + "the cluster may still be starting up",
+                                    t
+                                );
                             } else {
                                 logger.error(() -> "failed to retrieve user [" + user + "]", t);
                             }
@@ -736,6 +744,13 @@ public class NativeUsersStore {
                             if (e instanceof IndexNotFoundException) {
                                 logger.trace("could not retrieve built in users since security index does not exist", e);
                                 listener.onResponse(Collections.emptyMap());
+                            } else if (TransportActions.isShardNotAvailableException(e)) {
+                                logger.warn(
+                                    "failed to retrieve built in users, "
+                                        + "the security index is not available, the cluster may still be starting up",
+                                    e
+                                );
+                                listener.onFailure(e);
                             } else {
                                 logger.error("failed to retrieve built in users", e);
                                 listener.onFailure(e);

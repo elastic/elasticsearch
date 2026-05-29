@@ -143,7 +143,7 @@ The connector service has the following known issues:
 
 * **Content Connectors entry in Stack Management is visible to users without the `content_connectors` capability**
 
-    The Content Connectors management app was registered asynchronously inside a `core.getStartServices().then(...)` callback during the plugin's `setup()` phase. Registration resolved after Kibana's management plugin had already completed its capability-based disable sweep, so the app remained enabled regardless of the user's `management.data.content_connectors` capability. Users without that capability — for example, a role granting only `Observability > APM and User Experience: Read` — saw the **Content Connectors** entry in the Stack Management sidebar; navigating to it returned a 403.
+    Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar; navigating to it returned a 403.
 
     **Affected versions**: Kibana 9.0 through 9.4 prior to the fix. Earlier versions are unaffected because the Content Connectors UI was introduced in 9.0.
 

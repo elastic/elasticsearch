@@ -732,7 +732,7 @@ public class LocalExecutionPlanner {
             parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
                 parallelWorkerExecutor,
                 workerCount,
-                16,
+                2 * workerCount,
                 context.plannerSettings.parallelTopNPromotionThresholdRows()
             );
         }

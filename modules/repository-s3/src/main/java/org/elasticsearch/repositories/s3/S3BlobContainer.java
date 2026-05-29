@@ -477,7 +477,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     assert relativePrefix.isEmpty() == false;
                     assert currentPage.contents().stream().noneMatch(s3Object -> s3Object.key().startsWith(absolutePrefix))
                         : "Response contained children for listed common prefix " + absolutePrefix;
-                    if (results.put(relativePrefix, blobStore.blobContainer(path().add(relativePrefix))) != null) {
+                    if (results.put(relativePrefix, new S3BlobContainer(path().add(relativePrefix), blobStore)) != null) {
                         throw new IllegalStateException(
                             "listing child containers of [" + keyPath + "] yielded multiple children with key [" + relativePrefix + "]"
                         );

@@ -589,6 +589,9 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testSlicesSparseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150073
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testDifferentReader
+  issue: https://github.com/elastic/elasticsearch/issues/150068
 - class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
   method: testRandomSchema
   issue: https://github.com/elastic/elasticsearch/issues/150077
@@ -691,3 +694,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
   method: merge conflicts in latest files can be regenerated
   issue: https://github.com/elastic/elasticsearch/issues/150174
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
+  issue: https://github.com/elastic/elasticsearch/issues/150187
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
+  issue: https://github.com/elastic/elasticsearch/issues/150188

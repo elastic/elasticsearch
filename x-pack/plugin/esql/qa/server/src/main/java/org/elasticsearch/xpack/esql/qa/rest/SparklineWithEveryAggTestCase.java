@@ -111,6 +111,10 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
             if (name.equals("sparkline")) {
                 continue;
             }
+            if (name.equals("top") || name.equals("sample")) {
+                // https://github.com/elastic/elasticsearch/issues/150256
+                continue;
+            }
             String invocation = HAND_CRAFTED_INVOCATIONS.getOrDefault(name, name.toUpperCase(Locale.ROOT) + "(val_long)");
             addCases(params, info, name, invocation);
         }

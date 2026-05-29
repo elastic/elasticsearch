@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -47,8 +49,10 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -56,6 +60,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
@@ -112,7 +118,14 @@ public class IndexingPressureIT extends ESIntegTestCase {
         IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, primaryName);
 
         AtomicReference<ReplicationTask> replicationTask = new AtomicReference<>();
+        AtomicReference<TransportRequest> requestAtomicReference = new AtomicReference<>();
         final CountDownLatch waitForPreSubmissionTaskCancellation = new CountDownLatch(1);
+
+        AtomicBoolean preIndexCalled = new AtomicBoolean(false);
+        PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+            preIndexCalled.set(true);
+            fail("indexing should not run when cancelled pre-submission");
+        });
 
         primaryTransportService.addRequestHandlingBehavior(
             TransportShardBulkAction.ACTION_NAME + "[p]",
@@ -120,6 +133,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 assertThat(task, instanceOf(ReplicationTask.class));
                 assertThat(indexingPressure.stats().getTotalCancelledOps(), is(0L));
                 replicationTask.set((ReplicationTask) task);
+                requestAtomicReference.set(request);
                 taskManager.cancel(replicationTask.get(), "presubmission-cancellation", () -> {});
                 assertThat(((ReplicationTask) task).isCancelled(), is(true));
                 waitForPreSubmissionTaskCancellation.countDown();
@@ -134,16 +148,38 @@ public class IndexingPressureIT extends ESIntegTestCase {
             bulkRequest.add(request);
         }
 
-        try {
+        ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
+        Executor writeExecutor = primaryThreadPool.executor(ThreadPool.Names.WRITE);
+
+        ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
+        Executor replicaWriteExecutor = replicaThreadPool.executor(ThreadPool.Names.WRITE);
+
+        try (var mockLog = MockLog.capture(TransportShardBulkAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Pre Submission Cancellation",
+                    TransportShardBulkAction.class.getCanonicalName(),
+                    Level.WARN,
+                    Strings.format("for Index shard [[%s][0]] is cancelled pre-submission.", INDEX_NAME)
+                )
+            );
+
             final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
             waitForPreSubmissionTaskCancellation.await();
+
+            mockLog.awaitAllExpectationsMatched();
+            assertThat(indexingPressure.stats().getTotalCancelledOps(), is(1L));
 
         } finally {
             if (waitForPreSubmissionTaskCancellation.getCount() > 0) {
                 waitForPreSubmissionTaskCancellation.countDown();
             }
 
+            PreIndexListenerInstallerPlugin.resetPreIndexListener();
+
         }
+
+        assertFalse(preIndexCalled.get());
 
     }
 

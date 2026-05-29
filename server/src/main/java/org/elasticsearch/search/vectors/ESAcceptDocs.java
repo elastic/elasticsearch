@@ -101,13 +101,15 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
     }
 
+    /** A simple record to represent the range of documents accepted by a slice, from {@code starDoc}
+     * inclusive to {@code endDoc} exclusive */
     public record SliceAcceptDocs(int startDoc, int endDoc) {
         public SliceAcceptDocs {
             if (startDoc < 0) {
                 throw new IllegalArgumentException("startDoc must be non-negative");
             }
-            if (endDoc < startDoc) {
-                throw new IllegalArgumentException("endDoc must be greater than or equal to startDoc");
+            if (endDoc <= startDoc) {
+                throw new IllegalArgumentException("endDoc must be greater than startDoc");
             }
         }
     }
@@ -118,19 +120,18 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
         }
         int startDoc = slice.startDoc();
         int endDoc = slice.endDoc();
-        DocIdSetIterator sliceIterator = DocIdSetIterator.range(startDoc, endDoc + 1);
+        DocIdSetIterator sliceIterator = DocIdSetIterator.range(startDoc, endDoc);
         return ConjunctionUtils.intersectIterators(List.of(iterator, sliceIterator));
     }
 
     private static int countBitsInRange(Bits bits, SliceAcceptDocs slice) {
-        int maxDoc = bits.length() - 1;
         int startDoc = Math.max(0, slice.startDoc());
-        int endDoc = Math.min(maxDoc, slice.endDoc());
+        int endDoc = Math.min(bits.length(), slice.endDoc());
         if (bits instanceof BitSet bitSet) {
             return countBitsInRange(bitSet, startDoc, endDoc);
         }
         int count = 0;
-        for (int doc = startDoc; doc <= endDoc; doc++) {
+        for (int doc = startDoc; doc < endDoc; doc++) {
             if (bits.get(doc)) {
                 count++;
             }
@@ -140,7 +141,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
 
     private static int countBitsInRange(BitSet bitSet, int startDoc, int endDoc) {
         if (bitSet instanceof FixedBitSet fixedBitSet) {
-            return fixedBitSet.cardinality(startDoc, endDoc + 1);
+            return fixedBitSet.cardinality(startDoc, endDoc);
         }
         int count = 0;
         for (int doc = bitSet.nextSetBit(startDoc); doc != NO_MORE_DOCS && doc <= endDoc; doc = bitSet.nextSetBit(doc + 1)) {
@@ -351,7 +352,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             }
             SliceAcceptDocs slice = sliceAcceptDocsOrNull();
             if (slice != null) {
-                long sliceCost = slice.endDoc() - slice.startDoc() + 1;
+                long sliceCost = slice.endDoc() - slice.startDoc();
                 return (int) Math.min(scorerSupplier.cost(), sliceCost);
             }
             return Math.toIntExact(scorerSupplier.cost());

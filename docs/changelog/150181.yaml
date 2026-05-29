@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 150181
+summary: Refund per-iteration CB memory in percolator
+type: bug

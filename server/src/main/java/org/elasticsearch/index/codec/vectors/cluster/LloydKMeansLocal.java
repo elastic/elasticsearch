@@ -19,45 +19,48 @@ import java.util.Arrays;
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
  * with finalizing nearby pre-established clusters and generate
  * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-abstract class LloydKMeansLocal extends KMeansLocal {
+abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
 
     private final int sampleSize;
     private final int maxIterations;
 
-    LloydKMeansLocal(int sampleSize, int maxIterations) {
+    LloydKMeansLocal(CentroidOps<V> ops, int sampleSize, int maxIterations) {
+        super(ops);
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
     }
 
-    /** Number of workers to use for parallelism **/
+    /** Number of workers to use for parallelism */
     protected abstract int numWorkers();
 
-    /** assign to each vector the closest centroid **/
+    /** assign to each vector the closest centroid */
     protected abstract boolean stepLloyd(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         IntToIntFunction translateOrd,
-        float[][] centroids,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException;
 
-    /** assign to each vector the soar assignment **/
+    /** assign to each vector the soar assignment */
     protected abstract void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
+        ClusteringVectorValues<V> vectors,
+        KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException;
 
     /** compute the neighborhoods for the given centroids and clustersPerNeighborhood */
-    protected abstract NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException;
+    protected abstract NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException;
 
     @Override
-    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
+    protected void innerCluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate, NeighborHood[] neighborhoods)
         throws IOException {
-        float[][] centroids = kMeansIntermediate.centroids();
+        V[] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();
         int[] assignments = kMeansIntermediate.assignments();
@@ -67,9 +70,9 @@ abstract class LloydKMeansLocal extends KMeansLocal {
             return;
         }
         IntToIntFunction ordTranslator = i -> i;
-        ClusteringFloatVectorValues sampledVectors = vectors;
+        ClusteringVectorValues<V> sampledVectors = vectors;
         if (sampleSize < n) {
-            sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(vectors, sampleSize, 42L);
+            sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(vectors, sampleSize, 42L);
             ordTranslator = sampledVectors::ordToDoc;
         }
 
@@ -82,7 +85,15 @@ abstract class LloydKMeansLocal extends KMeansLocal {
         for (int i = 0; i < maxIterations; i++) {
             // This is potentially sampled, so we need to translate ordinals
             if (stepLloyd(sampledVectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborhoods)) {
-                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
+                CentroidAssignment.updateCentroids(
+                    sampledVectors,
+                    ops,
+                    centroids,
+                    ordTranslator,
+                    centroidChangedSlices,
+                    centroidCounts,
+                    assignments
+                );
             } else {
                 break;
             }
@@ -91,24 +102,33 @@ abstract class LloydKMeansLocal extends KMeansLocal {
         if (sampleSize < n || maxIterations == 0) {
             // No ordinal translation needed here, we are using the full set of vectors
             if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
-                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
+                CentroidAssignment.updateCentroids(
+                    sampledVectors,
+                    ops,
+                    centroids,
+                    ordTranslator,
+                    centroidChangedSlices,
+                    centroidCounts,
+                    assignments
+                );
             }
         }
     }
 
     /**
-     * helper that calls {@link LloydKMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized
+     * helper that calls {@link LloydKMeansLocal#cluster(ClusteringVectorValues, KMeansIntermediate)} given a set of initialized
      * centroids, this call is not neighbor aware
      *
      * @param vectors the vectors to cluster
+     * @param ops the type of vectors such as float and associated operations
      * @param centroids the initialized centroids to be shifted using k-means
      * @param sampleSize the subset of vectors to use when shifting centroids
      * @param maxIterations the max iterations to shift centroids
      */
-    public static void cluster(ClusteringFloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations)
+    public static <V> void cluster(ClusteringVectorValues<V> vectors, CentroidOps<V> ops, V[] centroids, int sampleSize, int maxIterations)
         throws IOException {
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, new int[vectors.size()], vectors::ordToDoc);
-        LloydKMeansLocal kMeans = new LloydKMeansLocalSerial(sampleSize, maxIterations);
+        KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, new int[vectors.size()], vectors::ordToDoc);
+        LloydKMeansLocal<V> kMeans = new LloydKMeansLocalSerial<>(ops, sampleSize, maxIterations);
         kMeans.cluster(vectors, kMeansIntermediate);
     }
 }

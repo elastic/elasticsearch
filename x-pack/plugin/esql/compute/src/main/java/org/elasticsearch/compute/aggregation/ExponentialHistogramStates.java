@@ -365,4 +365,148 @@ public final class ExponentialHistogramStates {
         }
 
     }
+
+    /**
+     * A state holding a single {@link ExponentialHistogram} without a sort key.
+     * The intermediate state contains two values in order: the histogram, and
+     * a boolean specifying if a value was set or not.
+     */
+    public static final class SeenSingleState implements AggregatorState {
+
+        private final CircuitBreaker breaker;
+        private BreakingExponentialHistogramHolder histogramValue;
+
+        public SeenSingleState(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        public boolean isSeen() {
+            return histogramValue != null;
+        }
+
+        public void set(ExponentialHistogram histogram) {
+            assert histogram != null;
+            if (histogramValue == null) {
+                histogramValue = BreakingExponentialHistogramHolder.create(breaker);
+            }
+            histogramValue.set(histogram);
+        }
+
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+            assert blocks.length >= offset + 2;
+            BlockFactory blockFactory = driverContext.blockFactory();
+            // in case of error, the blocks are closed by the caller
+            if (histogramValue == null) {
+                blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(ExponentialHistogram.empty(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(false, 1);
+            } else {
+                blocks[offset] = blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
+                blocks[offset + 1] = blockFactory.newConstantBooleanBlockWith(true, 1);
+            }
+        }
+
+        public Block evaluateFinalHistogram(DriverContext driverContext) {
+            BlockFactory blockFactory = driverContext.blockFactory();
+            if (histogramValue == null) {
+                return blockFactory.newConstantNullBlock(1);
+            } else {
+                return blockFactory.newConstantExponentialHistogramBlock(histogramValue.accessor(), 1);
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(histogramValue);
+            histogramValue = null;
+        }
+    }
+
+    /**
+     * A grouping state consisting of a single {@link ExponentialHistogram} per group,
+     * without a sort key.
+     * The intermediate state contains two values in order: the histogram, and a boolean
+     * specifying if a value was set or not.
+     */
+    public static final class SeenGroupingState implements GroupingAggregatorState {
+
+        private ObjectArray<BreakingExponentialHistogramHolder> histogramValues;
+        private final CircuitBreaker breaker;
+        private final BigArrays bigArrays;
+
+        SeenGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+            this.histogramValues = bigArrays.newObjectArray(1);
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
+        }
+
+        public void set(int groupId, ExponentialHistogram histogramValue) {
+            assert histogramValue != null;
+            ensureCapacity(groupId);
+            BreakingExponentialHistogramHolder holder = histogramValues.get(groupId);
+            if (holder == null) {
+                holder = BreakingExponentialHistogramHolder.create(breaker);
+                histogramValues.set(groupId, holder);
+            }
+            holder.set(histogramValue);
+        }
+
+        private void ensureCapacity(int groupId) {
+            histogramValues = bigArrays.grow(histogramValues, groupId + 1);
+        }
+
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+            assert blocks.length >= offset + 2;
+            try (
+                var histoBuilder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());
+                var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        seenBuilder.appendBoolean(true);
+                        histoBuilder.append(histogramValues.get(groupId).accessor());
+                    } else {
+                        seenBuilder.appendBoolean(false);
+                        histoBuilder.append(ExponentialHistogram.empty());
+                    }
+                }
+                blocks[offset] = histoBuilder.build();
+                blocks[offset + 1] = seenBuilder.build().asBlock();
+            }
+        }
+
+        public boolean seen(int groupId) {
+            return groupId < histogramValues.size() && histogramValues.get(groupId) != null;
+        }
+
+        @Override
+        public void close() {
+            for (int i = 0; i < histogramValues.size(); i++) {
+                Releasables.close(histogramValues.get(i));
+            }
+            Releasables.close(histogramValues);
+            histogramValues = null;
+        }
+
+        public Block evaluateFinalHistograms(IntVector selected, DriverContext driverContext) {
+            try (var builder = driverContext.blockFactory().newExponentialHistogramBlockBuilder(selected.getPositionCount());) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int groupId = selected.getInt(i);
+                    if (seen(groupId)) {
+                        builder.append(histogramValues.get(groupId).accessor());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+            // noop
+        }
+
+    }
 }

@@ -7,23 +7,28 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.apache.lucene.util.NumericUtils;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.compression.CompressionCodecFactory;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.hadoop.metadata.ParquetMetadata;
+import org.apache.parquet.internal.column.columnindex.ColumnIndex;
+import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.parquet.schema.PrimitiveType;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -34,10 +39,13 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -141,6 +149,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * full file or on a range. {@code null} iff {@link #rowPositionColumnIndex} is {@code -1}.
      */
     private final ParquetMetadata fullFooter;
+    private final DynamicThreshold dynamicThreshold;
+    private final ColumnDescriptor sortColumnDescriptor;
+    private final String sortColumnPath;
+    private final PrimitiveType sortColumnPrimitiveType;
     /**
      * High bits OR-ed into every emitted {@code _rowPosition} value once
      * {@link #setExtractorId(int)} has been called: {@code ((long) extractorId) << LOCAL_POSITION_BITS}.
@@ -260,6 +272,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     /** Diagnostic counter: number of row groups skipped entirely because no row survived the filter. */
     private long twoPhaseRowGroupsAllFiltered;
 
+    /** Reader-level counters shared with the owning {@link ParquetFormatReader}. */
+    private final ParquetReaderCounters counters;
+
     OptimizedParquetColumnIterator(
         ParquetFileReader reader,
         MessageType projectedSchema,
@@ -279,7 +294,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         ParquetPushedExpressions pushedExpressions,
         FilterPredicate triviallyPassesPredicate,
         ParquetFormatReader formatReader,
-        ParquetMetadata fullFooter
+        ParquetMetadata fullFooter,
+        DynamicThreshold dynamicThreshold,
+        ColumnDescriptor sortColumnDescriptor,
+        ParquetReaderCounters counters
     ) {
         this.reader = reader;
         this.projectedSchema = projectedSchema;
@@ -305,7 +323,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             : null;
         this.formatReader = formatReader;
         this.fullFooter = fullFooter;
+        this.dynamicThreshold = dynamicThreshold;
+        this.sortColumnDescriptor = sortColumnDescriptor;
+        this.sortColumnPath = sortColumnDescriptor == null ? null : String.join(".", sortColumnDescriptor.getPath());
+        this.sortColumnPrimitiveType = sortColumnDescriptor == null ? null : sortColumnDescriptor.getPrimitiveType();
         this.codecFactory = codecFactory;
+        this.counters = counters;
         this.pushedExpressions = pushedExpressions;
         this.isPredicateColumn = classifyPredicateColumns(attributes, columnInfos, pushedExpressions);
         this.lateMaterialization = pushedExpressions != null;
@@ -343,6 +366,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (storageObject == null) {
             return;
         }
+        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            return;
+        }
         int startOrdinal = nextSurvivingRowGroupOrdinal(0);
         fillPrefetchQueue(startOrdinal);
     }
@@ -362,7 +388,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         Set<String> phaseColumns = useTwoPhase ? predicateColumnPaths : projectedColumnPaths;
         int nextOrdinal = fromOrdinal;
         while (pendingPrefetches.size() < prefetchDepth && nextOrdinal < rowGroups.size()) {
+            if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+                break;
+            }
             BlockMetaData nextBlock = rowGroups.get(nextOrdinal);
+            if (rowGroupDominatedByThreshold(nextBlock)) {
+                nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+                continue;
+            }
             long prefetchBytes = ColumnChunkPrefetcher.computePrefetchBytes(nextBlock, phaseColumns);
             if (prefetchBytes <= 0) {
                 nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
@@ -381,6 +414,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             try {
                 RowRanges nextRowRanges = allRowRanges != null && nextOrdinal < allRowRanges.length ? allRowRanges[nextOrdinal] : null;
+                RowRanges thresholdRanges = thresholdRowRanges(nextOrdinal, nextBlock);
+                if (thresholdRanges != null) {
+                    if (thresholdRanges.isEmpty()) {
+                        breaker.addWithoutBreaking(-prefetchBytes);
+                        nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
+                        continue;
+                    }
+                    nextRowRanges = nextRowRanges == null ? thresholdRanges : nextRowRanges.intersect(thresholdRanges);
+                }
                 if (lateMaterialization) {
                     // Late-mat (single-phase or two-phase) handles row-level filtering itself via
                     // the survivor mask and would double-filter if ColumnIndex RowRanges were
@@ -409,6 +451,133 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             }
             nextOrdinal = nextSurvivingRowGroupOrdinal(nextOrdinal + 1);
         }
+    }
+
+    private boolean rowGroupDominatedByThreshold(BlockMetaData block) {
+        if (dynamicThreshold == null || sortColumnPath == null || sortColumnPrimitiveType == null) {
+            return false;
+        }
+        ColumnChunkMetaData sortColumn = sortColumn(block);
+        if (sortColumn == null) {
+            return false;
+        }
+        Statistics<?> statistics = sortColumn.getStatistics();
+        if (statistics == null || statistics.isEmpty()) {
+            return false;
+        }
+        if (statistics.hasNonNullValue() == false) {
+            return dynamicThreshold.dominatesNulls(statistics.getNumNulls());
+        }
+        Long rawMin = rawValueFromStats(statistics.genericGetMin());
+        Long rawMax = rawValueFromStats(statistics.genericGetMax());
+        return rawMin != null && rawMax != null && dynamicThreshold.dominates(rawMin, rawMax, statistics.getNumNulls());
+    }
+
+    private RowRanges thresholdRowRanges(int rowGroupOrdinal, BlockMetaData block) {
+        if (dynamicThreshold == null || sortColumnPath == null || sortColumnPrimitiveType == null) {
+            return null;
+        }
+        ColumnIndex columnIndex = preloadedMetadata.getColumnIndex(rowGroupOrdinal, sortColumnPath);
+        OffsetIndex offsetIndex = preloadedMetadata.getOffsetIndex(rowGroupOrdinal, sortColumnPath);
+        if (columnIndex == null || offsetIndex == null) {
+            return null;
+        }
+        int pageCount = offsetIndex.getPageCount();
+        List<ByteBuffer> minValues = columnIndex.getMinValues();
+        List<ByteBuffer> maxValues = columnIndex.getMaxValues();
+        List<Boolean> nullPages = columnIndex.getNullPages();
+        List<Long> nullCounts = columnIndex.getNullCounts();
+        if (minValues.size() != pageCount || maxValues.size() != pageCount) {
+            return null;
+        }
+        List<long[]> surviving = new ArrayList<>();
+        for (int page = 0; page < pageCount; page++) {
+            long pageStart = offsetIndex.getFirstRowIndex(page);
+            long pageEnd = (page + 1 < pageCount) ? offsetIndex.getFirstRowIndex(page + 1) : block.getRowCount();
+            if (nullPages != null && page < nullPages.size() && Boolean.TRUE.equals(nullPages.get(page))) {
+                if (dynamicThreshold.dominatesNulls(pageEnd - pageStart) == false) {
+                    surviving.add(new long[] { pageStart, pageEnd });
+                }
+                continue;
+            }
+            Long rawMin = rawValueFromPageIndex(minValues.get(page));
+            Long rawMax = rawValueFromPageIndex(maxValues.get(page));
+            boolean hasNullCount = nullCounts != null && page < nullCounts.size();
+            if (hasNullCount == false && dynamicThreshold.nullsFirst()) {
+                surviving.add(new long[] { pageStart, pageEnd });
+                continue;
+            }
+            long nullCount = hasNullCount ? nullCounts.get(page) : 0L;
+            if (rawMin == null || rawMax == null || dynamicThreshold.dominates(rawMin, rawMax, nullCount) == false) {
+                surviving.add(new long[] { pageStart, pageEnd });
+            }
+        }
+        return RowRanges.fromUnsorted(surviving, block.getRowCount());
+    }
+
+    private ColumnChunkMetaData sortColumn(BlockMetaData block) {
+        for (ColumnChunkMetaData column : block.getColumns()) {
+            if (column.getPath().toDotString().equals(sortColumnPath)) {
+                return column;
+            }
+        }
+        return null;
+    }
+
+    private Long rawValueFromStats(Object value) {
+        if (value == null) {
+            return null;
+        }
+        ElementType elementType = dynamicThreshold.elementType();
+        return switch (elementType) {
+            case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64
+                ? ((Number) value).longValue()
+                : null;
+            case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
+                ? (long) ((Number) value).intValue()
+                : null;
+            case DOUBLE -> {
+                if (sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE
+                    || sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
+                    double d = ((Number) value).doubleValue();
+                    yield Double.isNaN(d) ? null : NumericUtils.doubleToSortableLong(d);
+                }
+                yield null;
+            }
+            case BOOLEAN -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BOOLEAN
+                ? (((Boolean) value) ? 1L : 0L)
+                : null;
+            default -> null;
+        };
+    }
+
+    private Long rawValueFromPageIndex(ByteBuffer value) {
+        if (value == null || value.remaining() == 0) {
+            return null;
+        }
+        // Parquet page-index bounds use the type's plain encoding; numeric plain values are little-endian.
+        ByteBuffer ordered = value.duplicate().order(ByteOrder.LITTLE_ENDIAN);
+        return switch (dynamicThreshold.elementType()) {
+            case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64 ? ordered.getLong() : null;
+            case INT -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT32
+                ? (long) ordered.getInt()
+                : null;
+            case DOUBLE -> switch (sortColumnPrimitiveType.getPrimitiveTypeName()) {
+                case FLOAT -> {
+                    float f = ordered.getFloat();
+                    yield Float.isNaN(f) ? null : NumericUtils.doubleToSortableLong(f);
+                }
+                case DOUBLE -> {
+                    double d = ordered.getDouble();
+                    yield Double.isNaN(d) ? null : NumericUtils.doubleToSortableLong(d);
+                }
+                default -> null;
+            };
+            case BOOLEAN -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BOOLEAN
+                ? (ordered.get() != 0 ? 1L : 0L)
+                : null;
+            default -> null;
+        };
     }
 
     private static final long DEEPER_PREFETCH_BYTES = 32_000_000L;
@@ -599,6 +768,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (exhausted) {
             return false;
         }
+        if (dynamicThreshold != null && dynamicThreshold.noFurtherCandidates()) {
+            exhausted = true;
+            cancelPendingPrefetch();
+            return false;
+        }
         if (rowBudget != FormatReader.NO_LIMIT && rowBudget <= 0) {
             exhausted = true;
             return false;
@@ -617,7 +791,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         try {
             return advanceRowGroup();
         } catch (IOException e) {
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
                 e
             );
@@ -691,6 +865,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             pageBatchIndexInRowGroup = 0;
 
             BlockMetaData block = reader.getRowGroups().get(rowGroupOrdinal);
+            if (rowGroupDominatedByThreshold(block)) {
+                continue;
+            }
             // Per-row-group trivially-passes check: when stats prove every row matches the
             // filter, the late-materialization machinery (decode predicate columns → evaluate
             // filter → compact survivors) is pure overhead. Switching to the standard path
@@ -728,6 +905,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
 
                 RowRanges currentRowRanges = resolveCurrentRowRanges(block);
+                if (currentRowRanges != null && currentRowRanges.isEmpty()) {
+                    continue;
+                }
                 // When late materialization is active, skip ColumnIndex page filtering — late-mat
                 // handles row-level filtering itself via the survivor mask. Applying both
                 // ColumnIndex RowRanges AND late-mat evaluation causes double-filtering that
@@ -853,18 +1033,26 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
      * stray {@code null} just in case.
      */
     private RowRanges resolveCurrentRowRanges(BlockMetaData block) {
-        if (allRowRanges == null || rowGroupOrdinal >= allRowRanges.length || allRowRanges[rowGroupOrdinal] == null) {
+        RowRanges ranges = null;
+        if (allRowRanges != null && rowGroupOrdinal < allRowRanges.length) {
+            ranges = allRowRanges[rowGroupOrdinal];
+        }
+        RowRanges thresholdRanges = thresholdRowRanges(rowGroupOrdinal, block);
+        if (thresholdRanges != null) {
+            ranges = ranges == null ? thresholdRanges : ranges.intersect(thresholdRanges);
+        }
+        if (ranges == null) {
             return null;
         }
-        assert allRowRanges[rowGroupOrdinal].totalRows() == block.getRowCount()
+        assert ranges.totalRows() == block.getRowCount()
             : "RowRanges total rows ["
-                + allRowRanges[rowGroupOrdinal].totalRows()
+                + ranges.totalRows()
                 + "] != row group row count ["
                 + block.getRowCount()
                 + "] at ordinal ["
                 + rowGroupOrdinal
                 + "]";
-        return allRowRanges[rowGroupOrdinal];
+        return ranges;
     }
 
     /**
@@ -1043,7 +1231,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (info == null) {
                     predicateBlocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                 } else {
-                    predicateBlocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, predicateBlocks);
+                    predicateBlocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 }
                 predicateBlockMap.put(attributes.get(col).name(), predicateBlocks[col]);
             }
@@ -1134,7 +1322,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (projectionBytes > 0) {
                 breaker.addWithoutBreaking(-projectionBytes);
             }
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Trivially-passes Phase-2 fetch failed for row group ["
                     + rowGroupOrdinal
                     + "] in ["
@@ -1236,7 +1424,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (projectionBytes > 0) {
                 breaker.addWithoutBreaking(-projectionBytes);
             }
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]: " + e.getMessage(),
                 e
             );
@@ -1487,8 +1675,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Ownership invariant for the rest of this method: every predicate Block lives in EXACTLY
         // one of {predicateBlocks[col], blocks[col]} at any moment. We enforce this by nulling
         // predicateBlocks[col] the instant we hand the reference off to blocks[col], so the catch
-        // below never double-closes a transferred Block — even when a downstream call (e.g.
-        // readColumnBlockWithAttribution) closes blocks itself before re-throwing.
+        // below never double-closes a transferred Block. readColumnBlockNoCleanup leaves cleanup
+        // entirely to the outer catch (the sole owner of both arrays).
         //
         // The earlier implementation copied the reference into blocks[col] and only nulled
         // predicateBlocks[col] after the loop completed successfully. A mid-loop exception (e.g.
@@ -1609,7 +1797,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } catch (RuntimeException e) {
             Releasables.closeExpectNoException(blocks);
             Releasables.closeExpectNoException(predicateBlocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to emit two-phase Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] batch ["
@@ -1633,6 +1821,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             // or close().
             rowsRemainingInGroup = 0;
         }
+        counters.addRowsEmitted(emitCount);
         return new Page(blocks);
     }
 
@@ -1712,7 +1901,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } catch (Exception e) {
                     Releasables.closeExpectNoException(blocks);
                     Attribute attr = attributes.get(col);
-                    throw new ElasticsearchException(
+                    throw new IllegalArgumentException(
                         "Failed to read Parquet column ["
                             + attr.name()
                             + "] (type "
@@ -1737,11 +1926,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
             }
-        } catch (ElasticsearchException e) {
+        } catch (IllegalArgumentException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to create Page batch at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
@@ -1753,6 +1942,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 e
             );
         }
+        counters.addRowsEmitted(rowsToRead);
         return new Page(blocks);
     }
 
@@ -1767,7 +1957,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else {
-                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                        blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                     }
                     predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                 }
@@ -1824,11 +2014,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 } else if (positions == null) {
-                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
-                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
                     blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
                 }
             }
@@ -1840,13 +2030,14 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 }
             }
 
+            counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
-        } catch (ElasticsearchException e) {
+        } catch (IllegalArgumentException | CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to create late-materialized Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
@@ -1857,18 +2048,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + e.getMessage(),
                 e
             );
-        }
-    }
-
-    private Block readColumnBlockWithAttribution(int colIndex, ColumnInfo info, int rowsToRead, Block[] blocks) {
-        try {
-            return readColumnBlock(colIndex, info, rowsToRead);
-        } catch (CircuitBreakingException e) {
-            Releasables.closeExpectNoException(blocks);
-            throw e;
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw wrapColumnReadException(colIndex, e);
         }
     }
 
@@ -1908,13 +2087,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Variant of {@link #readColumnBlockWithAttribution} for callers that own their own
-     * cleanup loop and must not have {@code blocks} double-closed: the only failure-time work
-     * done here is exception attribution. Used by {@link #nextTwoPhaseBatch(int)} where the outer
-     * catch is the sole owner of {@code blocks[]} and {@code predicateBlocks[]} — letting the
-     * helper close {@code blocks} would double-close every slot already populated by previous
-     * loop iterations (including transferred predicate slots), which is exactly the production
-     * crash this method exists to avoid.
+     * Reads one column block with exception attribution but without any cleanup of sibling blocks.
+     * Every call site that builds a {@code blocks[]} (or {@code predicateBlocks[]}) array in a
+     * loop must use this helper rather than closing the array on failure itself, because the outer
+     * {@code catch} is the sole owner of that array: a helper that also closes it would
+     * double-close every slot populated by previous loop iterations (including transferred predicate
+     * slots), triggering {@code IllegalStateException: can't release already released object} that
+     * masks the original circuit-breaker exception and leaks block memory.
      */
     private Block readColumnBlockNoCleanup(int colIndex, ColumnInfo info, int rowsToRead) {
         try {
@@ -1926,9 +2105,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private ElasticsearchException wrapColumnReadException(int colIndex, Exception e) {
+    private IllegalArgumentException wrapColumnReadException(int colIndex, Exception e) {
         Attribute attr = attributes.get(colIndex);
-        return new ElasticsearchException(
+        return new IllegalArgumentException(
             "Failed to read Parquet column ["
                 + attr.name()
                 + "] (type "
@@ -1947,6 +2126,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {
         if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
+            // PageColumnReader handles maxDefLevel > 1 for nested-flat STRUCT leaves (e.g.
+            // `event.action`). maxRepLevel must stay 0 because LIST<STRUCT> is intentionally
+            // unsupported in this PR — see issue elastic/esql-planning#435. Enforce the invariant
+            // with a hard throw rather than an assertion so it survives production builds where
+            // assertions are disabled — a LIST<STRUCT> leaf reaching this branch would otherwise
+            // silently emit wrong data.
+            if (info.maxRepLevel() != 0) {
+                throw new IllegalStateException("PageColumnReader path expects maxRepLevel == 0 for [" + info + "]");
+            }
             return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
         }
         ColumnReader cr = columnReaders != null ? columnReaders[colIndex] : null;

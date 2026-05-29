@@ -71,8 +71,10 @@ setup:
   - do:
       indices.get_settings:
         index: test-columnar
+        include_defaults: true
 
   - match: { test-columnar.settings.index.mode: "columnar" }
+  - match: { test-columnar.defaults.index.mapping.index_disabled_by_default: "true" }
 
 ---
 "Create columnar data stream, index docs, and retrieve them":
@@ -127,6 +129,75 @@ setup:
   - match: { hits.hits.1._source.agent_id: "agent-2" }
   - match: { hits.hits.1._source.process_id: 102 }
   - match: { hits.hits.1._source.message: "Second log entry" }
+
+  - do:
+      indices.get_index_template:
+        name: columnar-template
+        include_defaults: true
+
+  - is_false: index_templates.0.index_template.template.mappings.properties.@timestamp.index
+
+---
+"Create columnar data stream with @timestamp indexed, index docs, and retrieve them":
+  - do:
+      allowed_warnings:
+        - "index template [columnar-ts-true-template] has index patterns [columnar-ts-true-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-ts-true-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-ts-true-template
+        body:
+          index_patterns: [ "columnar-ts-true-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: columnar
+                number_of_replicas: 0
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                  index: true
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                message:
+                  type: text
+
+  - do:
+      bulk:
+        index: columnar-ts-true-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "agent_id": "agent-1", "process_id": 101, "message": "First log entry" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "agent_id": "agent-2", "process_id": 102, "message": "Second log entry" }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: columnar-ts-true-logs
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.agent_id: "agent-1" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.message: "First log entry" }
+  - match: { hits.hits.1._source.agent_id: "agent-2" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.message: "Second log entry" }
+
+  - do:
+      indices.get_index_template:
+        name: columnar-ts-true-template
+        include_defaults: true
+
+  - match: { index_templates.0.index_template.template.mappings.properties.@timestamp.index: true }
 
 ---
 "Create logsdb_columnar index, index docs, and retrieve them":
@@ -196,8 +267,16 @@ setup:
   - do:
       indices.get_settings:
         index: test-columnar-logsdb
+        include_defaults: true
 
   - match: { test-columnar-logsdb.settings.index.mode: "logsdb_columnar" }
+  - match: { test-columnar-logsdb.defaults.index.mapping.index_disabled_by_default: "true" }
+
+  - do:
+      indices.get_mapping:
+        index: test-columnar-logsdb
+
+  - is_false: test-columnar-logsdb.mappings.properties.@timestamp.index
 
 ---
 "Create logsdb_columnar data stream, index docs, and retrieve them":
@@ -256,3 +335,122 @@ setup:
   - match: { hits.hits.1._source.process_id: 102 }
   - match: { hits.hits.1._source.message: "Second log entry" }
   - match: { hits.hits.1._source.host\.name: "host-b" }
+
+  - do:
+      indices.get_index_template:
+        name: columnar-logsdb-template
+        include_defaults: true
+
+  - is_false: index_templates.0.index_template.template.mappings.properties.@timestamp.index
+
+---
+"Create logsdb_columnar data stream with @timestamp indexed, index docs, and retrieve them":
+  - do:
+      allowed_warnings:
+        - "index template [columnar-logsdb-ts-true-template] has index patterns [columnar-logsdb-ts-true-logs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [columnar-logsdb-ts-true-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: columnar-logsdb-ts-true-template
+        body:
+          index_patterns: [ "columnar-logsdb-ts-true-logs*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: logsdb_columnar
+                number_of_replicas: 0
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                  index: true
+                host.name:
+                  type: keyword
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                message:
+                  type: text
+
+  - do:
+      bulk:
+        index: columnar-logsdb-ts-true-logs
+        refresh: true
+        body:
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:00:00Z", "host.name": "host-a", "agent_id": "agent-1", "process_id": 101, "message": "First log entry" }
+          - { "create": { } }
+          - { "@timestamp": "2024-06-01T10:01:00Z", "host.name": "host-b", "agent_id": "agent-2", "process_id": 102, "message": "Second log entry" }
+
+  - match: { errors: false }
+
+  - do:
+      search:
+        index: columnar-logsdb-ts-true-logs
+        body:
+          query:
+            match_all: {}
+          sort: "@timestamp"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.agent_id: "agent-1" }
+  - match: { hits.hits.0._source.process_id: 101 }
+  - match: { hits.hits.0._source.message: "First log entry" }
+  - match: { hits.hits.0._source.host\.name: "host-a" }
+  - match: { hits.hits.1._source.agent_id: "agent-2" }
+  - match: { hits.hits.1._source.process_id: 102 }
+  - match: { hits.hits.1._source.message: "Second log entry" }
+  - match: { hits.hits.1._source.host\.name: "host-b" }
+
+  - do:
+      indices.get_index_template:
+        name: columnar-logsdb-ts-true-template
+        include_defaults: true
+
+  - match: { index_templates.0.index_template.template.mappings.properties.@timestamp.index: true }
+
+---
+"store: true is rejected in columnar mode":
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Storing fields is not allowed in strict columnar index modes"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-store-rejected
+        body:
+          settings:
+            index:
+              mode: columnar
+              number_of_replicas: 0
+          mappings:
+            properties:
+              agent_id:
+                type: keyword
+                store: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [store] cannot be enabled on field [agent_id] in [columnar] index mode" }
+
+---
+"store: true is rejected in logsdb_columnar mode":
+  - requires:
+      cluster_features: [ "mapper.columnar.store_not_allowed" ]
+      reason: "Storing fields is not allowed in strict columnar index modes"
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-store-rejected-logsdb
+        body:
+          settings:
+            index:
+              mode: logsdb_columnar
+              number_of_replicas: 0
+          mappings:
+            properties:
+              agent_id:
+                type: keyword
+                store: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: [store] cannot be enabled on field [agent_id] in [logsdb_columnar] index mode" }

@@ -143,8 +143,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         // PIT searches must not set explicit indices on SearchRequest (see ReindexRequest#convertSearchRequestToUsePit)
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -238,8 +240,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -345,8 +349,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
 
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -440,8 +446,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
 
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -536,7 +544,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
             ResumeBulkByScrollResponse resumeResponse = client().execute(
                 ResumeReindexAction.INSTANCE,
-                new ResumeBulkByScrollRequest(request)
+                new ResumeBulkByPaginatedSearchRequest(request)
             ).actionGet();
             GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
                 .setWaitForCompletion(true)
@@ -623,7 +631,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         // Execute resume on data node because that's where we'll check the metrics
         final ResumeBulkByScrollResponse resumeResponse = client(dataNodeName).execute(
             ResumeReindexAction.INSTANCE,
-            new ResumeBulkByScrollRequest(request)
+            new ResumeBulkByPaginatedSearchRequest(request)
         ).actionGet();
         clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
@@ -649,7 +657,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(reindexRequest)).actionGet()
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(reindexRequest)).actionGet()
         );
 
         assertTrue(e.getMessage().contains("No resume information provided"));
@@ -664,7 +672,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(reindexRequest)).actionGet()
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(reindexRequest)).actionGet()
         );
 
         assertTrue(e.getMessage().contains("Resumed task result should be stored"));
@@ -679,7 +687,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(reindexRequest)).actionGet()
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(reindexRequest)).actionGet()
         );
 
         assertTrue(e.getMessage().contains("Resumed task should be eligible for relocation on shutdown"));

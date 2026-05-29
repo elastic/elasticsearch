@@ -9,12 +9,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 import net.shibboleth.utilities.java.support.component.ComponentInitializationException;
 import net.shibboleth.utilities.java.support.resolver.CriteriaSet;
 import net.shibboleth.utilities.java.support.resolver.ResolverException;
-import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -22,21 +17,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.watcher.FileChangesListener;
-import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -49,7 +39,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.EntitledFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
@@ -58,9 +47,6 @@ import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
 import org.opensaml.saml.metadata.resolver.MetadataResolver;
-import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
-import org.opensaml.saml.metadata.resolver.impl.FilesystemMetadataResolver;
-import org.opensaml.saml.metadata.resolver.impl.HTTPMetadataResolver;
 import org.opensaml.saml.metadata.resolver.impl.PredicateRoleDescriptorResolver;
 import org.opensaml.saml.saml2.core.AuthnRequest;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -81,11 +67,9 @@ import org.opensaml.xmlsec.keyinfo.impl.KeyInfoResolutionContext;
 import org.opensaml.xmlsec.keyinfo.impl.provider.InlineX509DataProvider;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.PublicKey;
 import java.time.Clock;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -95,7 +79,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -104,25 +87,16 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.Transports.assertNotTransportThread;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.DN_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_KEY_ALIAS;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_SETTING_KEY;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.FORCE_AUTHN;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.GROUPS_ATTRIBUTE;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_ENTITY_ID;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_HTTP_REFRESH;
-import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_METADATA_PATH;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.IDP_SINGLE_LOGOUT;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.MAIL_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.NAMEID_ALLOW_CREATE;
@@ -161,11 +135,6 @@ public final class SamlRealm extends Realm implements Releasable {
     // Although we only use this for IDP metadata loading, the SSLServer only loads configurations where "ssl." is a top-level element
     // in the realm group configuration, so it has to have this name.
 
-    // Strictly, this shouldn't be static because it means that only 1 SAML realm per node can be refreshing metadata, but there's no reason
-    // to assume that there's any relationship between SAML realms. However, because all the metadata loading code is in static methods, we
-    // live with this limitation for now.
-    private static final AtomicBoolean REFRESHING_METADATA = new AtomicBoolean(false);
-
     private final List<Releasable> releasables;
 
     private final SamlAuthenticator authenticator;
@@ -196,6 +165,7 @@ public final class SamlRealm extends Realm implements Releasable {
      */
     public static SamlRealm create(
         RealmConfig config,
+        ThreadPool threadPool,
         SSLService sslService,
         ResourceWatcherService watcherService,
         UserRoleMapper roleMapper
@@ -208,19 +178,11 @@ public final class SamlRealm extends Realm implements Releasable {
             );
         }
 
-        final Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = initializeResolver(
-            logger,
-            config,
-            sslService,
-            watcherService
-        );
-        final AbstractReloadingMetadataResolver metadataResolver = tuple.v1();
-        final Supplier<EntityDescriptor> idpDescriptor = tuple.v2();
-
+        final SamlMetadataResolver metadataResolver = SamlMetadataResolver.create(config, sslService, watcherService, threadPool);
         final SpConfiguration serviceProvider = getSpConfiguration(config);
 
         final Clock clock = Clock.systemUTC();
-        final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver, idpDescriptor);
+        final IdpConfiguration idpConfiguration = getIdpConfiguration(config, metadataResolver.getResolver(), metadataResolver);
         final TimeValue maxSkew = config.getSetting(CLOCK_SKEW);
         final SamlAuthenticator authenticator = new SamlAuthenticator(clock, idpConfiguration, serviceProvider, maxSkew);
         final SamlLogoutRequestHandler logoutHandler = new SamlLogoutRequestHandler(clock, idpConfiguration, serviceProvider, maxSkew);
@@ -237,12 +199,11 @@ public final class SamlRealm extends Realm implements Releasable {
             authenticator,
             logoutHandler,
             logoutResponseHandler,
-            idpDescriptor,
+            metadataResolver,
             serviceProvider
         );
 
-        // the metadata resolver needs to be destroyed since it runs a timer task in the background and destroying stops it!
-        realm.releasables.add(() -> metadataResolver.destroy());
+        realm.releasables.add(metadataResolver);
 
         return realm;
     }
@@ -673,224 +634,9 @@ public final class SamlRealm extends Realm implements Releasable {
         listener.onResponse(null);
     }
 
-    static Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> initializeResolver(
-        Logger logger,
-        RealmConfig config,
-        SSLService sslService,
-        ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, IOException {
-        final String metadataUrl = require(config, IDP_METADATA_PATH);
-        if (metadataUrl.startsWith("http://")) {
-            throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
-        } else if (metadataUrl.startsWith("https://")) {
-            return parseHttpMetadata(metadataUrl, config, sslService);
-        } else {
-            return parseFileSystemMetadata(logger, metadataUrl, config, watcherService);
-        }
-    }
-
-    private static Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> parseHttpMetadata(
-        String metadataUrl,
-        RealmConfig config,
-        SSLService sslService
-    ) throws ResolverException, ComponentInitializationException {
-        final String entityId = require(config, IDP_ENTITY_ID);
-
-        HttpClientBuilder builder = HttpClientBuilder.create();
-        // ssl setup
-        final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
-        builder.setSSLSocketFactory(factory);
-
-        TimeValue connectTimeout = config.getSetting(IDP_METADATA_HTTP_CONNECT_TIMEOUT);
-        TimeValue readTimeout = config.getSetting(IDP_METADATA_HTTP_READ_TIMEOUT);
-        RequestConfig requestConfig = RequestConfig.custom()
-            .setConnectTimeout(Math.toIntExact(connectTimeout.millis()))
-            .setSocketTimeout(Math.toIntExact(readTimeout.millis()))
-            .build();
-        builder.setDefaultRequestConfig(requestConfig);
-
-        TimeValue maxRefresh = config.getSetting(IDP_METADATA_HTTP_REFRESH);
-        TimeValue minRefresh = config.getSetting(IDP_METADATA_HTTP_MIN_REFRESH);
-        if (minRefresh.compareTo(maxRefresh) > 0) {
-            if (config.hasSetting(IDP_METADATA_HTTP_MIN_REFRESH)) {
-                throw new SettingsException(
-                    "the value ({}) for [{}] cannot be greater than the value ({}) for [{}]",
-                    minRefresh.getStringRep(),
-                    RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_MIN_REFRESH),
-                    maxRefresh.getStringRep(),
-                    RealmSettings.getFullSettingKey(config, IDP_METADATA_HTTP_REFRESH)
-                );
-            } else {
-                minRefresh = maxRefresh;
-            }
-        }
-
-        HTTPMetadataResolver resolver = new PrivilegedHTTPMetadataResolver(builder.build(), metadataUrl);
-        resolver.setMinRefreshDelay(Duration.ofMillis(minRefresh.millis()));
-        resolver.setMaxRefreshDelay(Duration.ofMillis(maxRefresh.millis()));
-
-        final boolean failOnError = config.getSetting(IDP_METADATA_HTTP_FAIL_ON_ERROR);
-        resolver.setFailFastInitialization(failOnError);
-
-        initialiseResolver(resolver, config);
-
-        // for some reason the resolver supports its own trust engine and custom socket factories.
-        // we do not use these as we'd rather rely on the JDK versions for TLS security!
-        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, metadataUrl, failOnError));
-    }
-
-    private static final class PrivilegedHTTPMetadataResolver extends HTTPMetadataResolver {
-
-        PrivilegedHTTPMetadataResolver(final HttpClient client, final String metadataURL) throws ResolverException {
-            super(client, metadataURL);
-        }
-
-        @Override
-        protected byte[] fetchMetadata() throws ResolverException {
-            assert assertNotTransportThread("fetching SAML metadata from a URL");
-            return super.fetchMetadata();
-        }
-
-    }
-
-    @SuppressForbidden(reason = "uses java.io.File")
-    private static final class SamlFilesystemMetadataResolver extends FilesystemMetadataResolver {
-
-        SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
-            super(metadata);
-        }
-
-        @Override
-        protected byte[] fetchMetadata() throws ResolverException {
-            assert assertNotTransportThread("fetching SAML metadata from a file");
-            return super.fetchMetadata();
-        }
-    }
-
-    @SuppressForbidden(reason = "uses toFile")
-    private static Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> parseFileSystemMetadata(
-        Logger logger,
-        String metadataPath,
-        RealmConfig config,
-        ResourceWatcherService watcherService
-    ) throws ResolverException, ComponentInitializationException, IOException {
-
-        final String entityId = require(config, IDP_ENTITY_ID);
-        final Path path = config.env().configDir().resolve(metadataPath);
-        final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
-
-        for (var httpSetting : List.of(
-            IDP_METADATA_HTTP_REFRESH,
-            IDP_METADATA_HTTP_MIN_REFRESH,
-            IDP_METADATA_HTTP_FAIL_ON_ERROR,
-            IDP_METADATA_HTTP_CONNECT_TIMEOUT,
-            IDP_METADATA_HTTP_READ_TIMEOUT
-        )) {
-            if (config.hasSetting(httpSetting)) {
-                logger.info(
-                    "Ignoring setting [{}] because the IdP metadata is being loaded from a file",
-                    RealmSettings.getFullSettingKey(config, httpSetting)
-                );
-            }
-        }
-
-        // We don't want to rely on the internal OpenSAML refresh timer, but we can't turn it off, so just set it to run once a day.
-        // @TODO : Submit a patch to OpenSAML to optionally disable the timer
-        final Duration oneDayMs = Duration.ofMillis(TimeValue.timeValueHours(24).millis());
-        resolver.setMinRefreshDelay(oneDayMs);
-        resolver.setMaxRefreshDelay(oneDayMs);
-        initialiseResolver(resolver, config);
-
-        FileWatcher watcher = new EntitledFileWatcher(path);
-        watcher.addListener(new FileListener(logger, resolver::refresh));
-        watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
-        return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));
-    }
-
-    private static EntityDescriptor resolveEntityDescriptor(
-        AbstractReloadingMetadataResolver resolver,
-        String entityId,
-        String sourceLocation,
-        boolean failOnError
-    ) {
-        try {
-            final EntityDescriptor descriptor = resolveEntityDescriptorWithPossibleRefresh(resolver, entityId);
-            if (descriptor == null) {
-                if (failOnError) {
-                    throw SamlUtils.samlException("Cannot find metadata for entity [{}] in [{}]", entityId, sourceLocation);
-                } else {
-                    logger.warn(
-                        "cannot load SAML metadata for [{}] from [{}]; SAML authentication for this realm will fail",
-                        entityId,
-                        sourceLocation
-                    );
-                    return new UnresolvedEntity(entityId, sourceLocation);
-                }
-            }
-            return descriptor;
-        } catch (ResolverException e) {
-            throw SamlUtils.samlException("Cannot resolve entity metadata", e);
-        }
-    }
-
-    private static EntityDescriptor resolveEntityDescriptorWithPossibleRefresh(AbstractReloadingMetadataResolver resolver, String entityId)
-        throws ResolverException {
-        var criteria = new CriteriaSet(new EntityIdCriterion(entityId));
-        EntityDescriptor descriptor = resolver.resolveSingle(criteria);
-        if (descriptor == null) {
-            /*
-             * If the descriptor is null, we haven't found a metadata file with that entity id in it. This could be caused by 2 things:
-             * 1. We didn't find any metadata file (e.g. the metadata is loaded over http, and the request returned an error
-             * 2. The file does exist, but doesn't contain the entity.
-             * In either case it's worth refreshing the metadata again to see if it's now correct because it's possible that the problem
-             *    has been resolved (although if metadata is loaded from a local file we monitor it for changes anyway, so this refresh
-             *    is unlikely to have any benefit).
-             * The resolver's refresh method is synchronized, and could be a choke point if there are a lot of concurrent login attempts,
-             *    so we wrap it in a check to only call it on 1 thread. The other threads will fail due to bad metadata, but that's OK
-             *    because the metadata is (was) bad, and if the refresh works, then their next login attempt will also work.
-             * Since the dynamic refresh is a saving mechanism (we have a separate regular poll for refreshes) we prefer it to be safe
-             *    (from a thread contention point of view) rather than perfect (from a user experience point of view).
-             */
-            if (REFRESHING_METADATA.compareAndSet(false, true)) {
-                try {
-                    resolver.refresh();
-                } catch (ResolverException e) {
-                    // Refresh failed. Since there could be a lot of these and it's only a saving mechanism we log as debug
-                    // The resolver itself will log a WARN with the HTTP status etc.
-                    logger.debug(() -> "Failed to refresh SAML metadata for [" + entityId + "]", e);
-                } finally {
-                    REFRESHING_METADATA.compareAndSet(true, false);
-                }
-            }
-            descriptor = resolver.resolveSingle(criteria);
-            if (descriptor != null) {
-                logger.debug(() -> "SAML metadata for [" + entityId + "] has been successfully refreshed");
-            }
-        }
-        return descriptor;
-    }
-
     @Override
     public void close() {
         Releasables.close(releasables);
-    }
-
-    private static void initialiseResolver(AbstractReloadingMetadataResolver resolver, RealmConfig config)
-        throws ComponentInitializationException {
-        resolver.setRequireValidMetadata(true);
-        BasicParserPool pool = new BasicParserPool();
-        pool.initialize();
-        resolver.setParserPool(pool);
-        resolver.setId(config.name());
-        try {
-            resolver.initialize();
-        } catch (ComponentInitializationException e) {
-            resolver.destroy();
-            throw SamlUtils.samlException("cannot load SAML metadata from [{}]", e, config.getSetting(IDP_METADATA_PATH));
-        }
     }
 
     public String serviceProviderEntityId() {
@@ -967,36 +713,6 @@ public final class SamlRealm extends Realm implements Releasable {
 
     public SamlLogoutResponseHandler getLogoutResponseHandler() {
         return logoutResponseHandler;
-    }
-
-    private static class FileListener implements FileChangesListener {
-
-        private final Logger logger;
-        private final CheckedRunnable<Exception> onChange;
-
-        private FileListener(Logger logger, CheckedRunnable<Exception> onChange) {
-            this.logger = logger;
-            this.onChange = onChange;
-        }
-
-        @Override
-        public void onFileCreated(Path file) {
-            onFileChanged(file);
-        }
-
-        @Override
-        public void onFileDeleted(Path file) {
-            onFileChanged(file);
-        }
-
-        @Override
-        public void onFileChanged(Path file) {
-            try {
-                onChange.run();
-            } catch (Exception e) {
-                logger.warn(() -> "An error occurred while reloading file [" + file + "]", e);
-            }
-        }
     }
 
     static final class AttributeParser {

@@ -20,8 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.MockLicenseState;
-import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -45,7 +43,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.opensaml.saml.common.xml.SAMLConstants;
-import org.opensaml.saml.metadata.resolver.impl.AbstractReloadingMetadataResolver;
 import org.opensaml.saml.saml2.core.LogoutRequest;
 import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.core.NameIDType;
@@ -73,7 +70,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -86,8 +82,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -113,6 +107,7 @@ public class SamlRealmTests extends SamlTestCase {
     private Settings globalSettings;
     private Environment env;
     private ThreadContext threadContext;
+    private TestThreadPool threadPool;
 
     @Before
     public void setupEnv() throws Exception {
@@ -120,147 +115,13 @@ public class SamlRealmTests extends SamlTestCase {
         globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
+        threadPool = new TestThreadPool("saml-realm-tests", globalSettings);
     }
 
-    public void testReadIdpMetadataFromFile() throws Exception {
-        final Path path = getDataPath("idp1.xml");
-        Tuple<RealmConfig, SSLService> config = buildConfig(path.toString());
-        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-        Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-            logger,
-            config.v1(),
-            config.v2(),
-            watcherService
-        );
-        try {
-            assertIdp1MetadataParsedCorrectly(tuple.v2().get());
-        } finally {
-            tuple.v1().destroy();
-        }
-    }
-
-    public void testReadIdpMetadataFromHttps() throws Exception {
-        final Path path = getDataPath("idp1.xml");
-        final String body = Files.readString(path);
-        TestsSSLService sslService = buildTestSslService();
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
-            proxyServer.start();
-            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
-            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
-            assertEquals(0, proxyServer.requests().size());
-
-            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
-            logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
-            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-                logger,
-                config.v1(),
-                config.v2(),
-                watcherService
-            );
-
-            try {
-                final int firstRequestCount = proxyServer.requests().size();
-                assertThat(firstRequestCount, greaterThanOrEqualTo(1));
-                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
-                assertBusy(() -> assertThat(proxyServer.requests().size(), greaterThan(firstRequestCount)));
-            } finally {
-                tuple.v1().destroy();
-            }
-        }
-    }
-
-    public void testFailOnErrorForInvalidHttpsMetadata() throws Exception {
-        TestsSSLService sslService = buildTestSslService();
-        try (MockWebServer webServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
-            webServer.start();
-            webServer.enqueue(
-                new MockResponse().setResponseCode(randomIntBetween(400, 405))
-                    .setBody("No metadata available")
-                    .addHeader("Content-Type", "text/plain")
-            );
-            assertEquals(0, webServer.requests().size());
-
-            var metadataPath = "https://localhost:" + webServer.getPort();
-            final Tuple<RealmConfig, SSLService> config = buildConfig(
-                metadataPath,
-                settings -> settings.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), true)
-            );
-            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            var exception = expectThrows(
-                ElasticsearchSecurityException.class,
-                () -> SamlRealm.initializeResolver(logger, config.v1(), config.v2(), watcherService)
-            );
-            assertThat(exception, throwableWithMessage("cannot load SAML metadata from [" + metadataPath + "]"));
-        }
-    }
-
-    public void testRetryFailedHttpsMetadata() throws Exception {
-        final Path path = getDataPath("idp1.xml");
-        final String body = Files.readString(path);
-        TestsSSLService sslService = buildTestSslService();
-        doTestReloadFailedHttpsMetadata(body, sslService, true);
-        doTestReloadFailedHttpsMetadata(body, sslService, false);
-    }
-
-    /**
-     * @param testBackgroundRefresh If {@code true}, the test asserts that the metadata is automatically loaded in the background.
-     *                              If {@code false}, the test triggers activity on the realm to force a reload of the metadata.
-     */
-    private void doTestReloadFailedHttpsMetadata(String metadataBody, TestsSSLService sslService, boolean testBackgroundRefresh)
-        throws Exception {
-        try (MockWebServer webServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
-            webServer.start();
-            webServer.enqueue(
-                new MockResponse().setResponseCode(randomIntBetween(400, 405))
-                    .setBody("No metadata available")
-                    .addHeader("Content-Type", "text/plain")
-            );
-            assertEquals(0, webServer.requests().size());
-
-            // Even with a long refresh we should automatically retry metadata that fails
-            final TimeValue defaultRefreshTime = TimeValue.timeValueHours(24);
-            // OpenSAML (4.0) has a bug that can attempt to set negative duration timers if the refresh is too short.
-            // Don't set this too small or we may hit "java.lang.IllegalArgumentException: Negative delay."
-            final TimeValue minimumRefreshTime = testBackgroundRefresh ? TimeValue.timeValueMillis(500) : defaultRefreshTime;
-
-            final Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + webServer.getPort(), builder -> {
-                builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), defaultRefreshTime.getStringRep());
-                builder.put(
-                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_MIN_REFRESH),
-                    minimumRefreshTime.getStringRep()
-                );
-                if (randomBoolean()) {
-                    builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
-                }
-            });
-            logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
-            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-                logger,
-                config.v1(),
-                config.v2(),
-                watcherService
-            );
-
-            try {
-                final int firstRequestCount = webServer.requests().size();
-                assertThat(firstRequestCount, greaterThanOrEqualTo(1));
-                assertThat(tuple.v2().get(), instanceOf(UnresolvedEntity.class));
-
-                webServer.enqueue(
-                    new MockResponse().setResponseCode(200).setBody(metadataBody).addHeader("Content-Type", "application/xml")
-                );
-                if (testBackgroundRefresh) {
-                    assertBusy(() -> assertThat(webServer.requests().size(), greaterThan(firstRequestCount)), 2, TimeUnit.SECONDS);
-                } else {
-                    // The Supplier.get() call will trigger a reload anyway
-                }
-                assertBusy(() -> assertIdp1MetadataParsedCorrectly(tuple.v2().get()), 3, TimeUnit.SECONDS);
-
-            } finally {
-                tuple.v1().destroy();
-            }
+    @org.junit.After
+    public void shutdownThreadPool() {
+        if (threadPool != null) {
+            terminate(threadPool);
         }
     }
 
@@ -278,7 +139,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final SettingsException settingsException = expectThrows(
             SettingsException.class,
-            () -> SamlRealm.create(config, sslService, mock(ResourceWatcherService.class), mock(UserRoleMapper.class))
+            () -> SamlRealm.create(config, threadPool, sslService, mock(ResourceWatcherService.class), mock(UserRoleMapper.class))
         );
 
         assertThat(
@@ -321,7 +182,7 @@ public class SamlRealmTests extends SamlTestCase {
 
         final IllegalArgumentException settingsException = expectThrows(
             IllegalArgumentException.class,
-            () -> SamlRealm.create(config, sslService, mock(ResourceWatcherService.class), mock(UserRoleMapper.class))
+            () -> SamlRealm.create(config, threadPool, sslService, mock(ResourceWatcherService.class), mock(UserRoleMapper.class))
         );
 
         assertThat(
@@ -1245,15 +1106,11 @@ public class SamlRealmTests extends SamlTestCase {
                 .build();
             try (ResourceWatcherService watcherService = new ResourceWatcherService(resourceWatcherSettings, testThreadPool)) {
                 Tuple<RealmConfig, SSLService> config = buildConfig(realmMetadataPath.toString());
-                Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-                    logger,
-                    config.v1(),
-                    config.v2(),
-                    watcherService
-                );
-                try {
-                    assertIdp1MetadataParsedCorrectly(tuple.v2().get());
-                    final IdpConfiguration idpConf = SamlRealm.getIdpConfiguration(realmConfig, tuple.v1(), tuple.v2());
+                try (
+                    SamlMetadataResolver resolver = SamlMetadataResolver.create(config.v1(), config.v2(), watcherService, testThreadPool)
+                ) {
+                    assertIdp1MetadataParsedCorrectly(resolver.get());
+                    final IdpConfiguration idpConf = SamlRealm.getIdpConfiguration(realmConfig, resolver.getResolver(), resolver);
 
                     // Trigger initialized log message
                     final List<PublicKey> keys1 = idpConf.getSigningCredentials().stream().map(Credential::getPublicKey).toList();
@@ -1279,12 +1136,10 @@ public class SamlRealmTests extends SamlTestCase {
                     assertThat(Files.readString(realmMetadataPath), is(equalTo(Files.readString(updatedMetadataPath))));
                     final List<PublicKey> keys3 = idpConf.getSigningCredentials().stream().map(Credential::getPublicKey).toList();
                     assertThat(keys1, is(equalTo(keys3)));
-                } finally {
-                    tuple.v1().destroy();
                 }
             }
         } finally {
-            testThreadPool.shutdown();
+            terminate(testThreadPool);
         }
     }
 
@@ -1374,112 +1229,6 @@ public class SamlRealmTests extends SamlTestCase {
             .setSecureSettings(mockSecureSettings)
             .build();
         return new TestsSSLService(TestEnvironment.newEnvironment(settings));
-    }
-
-    public void testHttpMetadataWithCustomTimeouts() throws Exception {
-        final Path path = getDataPath("idp1.xml");
-        final String body = Files.readString(path);
-        TestsSSLService sslService = buildTestSslService();
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
-            proxyServer.start();
-            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
-
-            final TimeValue customConnectTimeout = TimeValue.timeValueSeconds(3);
-            final TimeValue customReadTimeout = TimeValue.timeValueSeconds(15);
-
-            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort(), builder -> {
-                builder.put(
-                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
-                    customConnectTimeout.getStringRep()
-                );
-                builder.put(
-                    getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT),
-                    customReadTimeout.getStringRep()
-                );
-            });
-
-            // Verify settings are correctly configured
-            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT), equalTo(customConnectTimeout));
-            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(customReadTimeout));
-
-            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-                logger,
-                config.v1(),
-                config.v2(),
-                watcherService
-            );
-
-            try {
-                assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
-                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
-            } finally {
-                tuple.v1().destroy();
-            }
-        }
-    }
-
-    public void testHttpMetadataWithDefaultTimeouts() throws Exception {
-        final Path path = getDataPath("idp1.xml");
-        final String body = Files.readString(path);
-        TestsSSLService sslService = buildTestSslService();
-        try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
-            proxyServer.start();
-            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody(body).addHeader("Content-Type", "application/xml"));
-
-            Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
-
-            // Verify default timeout values are used
-            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT), equalTo(TimeValue.timeValueSeconds(5)));
-            assertThat(config.v1().getSetting(SamlRealmSettings.IDP_METADATA_HTTP_READ_TIMEOUT), equalTo(TimeValue.timeValueSeconds(10)));
-
-            final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-            Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-                logger,
-                config.v1(),
-                config.v2(),
-                watcherService
-            );
-
-            try {
-                assertThat(proxyServer.requests().size(), greaterThanOrEqualTo(1));
-                assertIdp1MetadataParsedCorrectly(tuple.v2().get());
-            } finally {
-                tuple.v1().destroy();
-            }
-        }
-    }
-
-    public void testHttpMetadataConnectionTimeout() throws Exception {
-        // Use a non-routable IP address to simulate connection timeout
-        // 192.0.2.1 is reserved for documentation and will not be routable
-        final String unreachableUrl = "https://192.0.2.1:9999/metadata.xml";
-        final TimeValue shortConnectTimeout = TimeValue.timeValueMillis(100);
-
-        Tuple<RealmConfig, SSLService> config = buildConfig(unreachableUrl, builder -> {
-            builder.put(
-                getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_CONNECT_TIMEOUT),
-                shortConnectTimeout.getStringRep()
-            );
-            builder.put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_FAIL_ON_ERROR), false);
-        });
-
-        final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
-
-        // initialization should complete even though the connection fails
-        Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple = SamlRealm.initializeResolver(
-            logger,
-            config.v1(),
-            config.v2(),
-            watcherService
-        );
-
-        try {
-            EntityDescriptor descriptor = tuple.v2().get();
-            assertThat(descriptor, instanceOf(UnresolvedEntity.class));
-        } finally {
-            tuple.v1().destroy();
-        }
     }
 
     private void assertIdp1MetadataParsedCorrectly(EntityDescriptor descriptor) {

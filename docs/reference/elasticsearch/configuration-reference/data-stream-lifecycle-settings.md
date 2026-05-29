@@ -72,7 +72,7 @@ $$$dlm-frozen-transition-max-concurrency$$$
 $$$dlm-frozen-transition-max-queue-size$$$
 
 `dlm.frozen.transition.thread_pool.queue_size`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that can be queued for frozen conversion at any given time. Indices submitted beyond this limit are skipped until the next poll cycle. Defaults to the smaller of either 20x the CPU core count of the node or `1000`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that can be queued for frozen conversion at any given time. Indices submitted beyond this limit are skipped until the next poll cycle. Defaults to the smaller of either 20 times the CPU core count of the node or `1000`.
 
 $$$dlm-frozen-cleanup-poll-interval$$$
 

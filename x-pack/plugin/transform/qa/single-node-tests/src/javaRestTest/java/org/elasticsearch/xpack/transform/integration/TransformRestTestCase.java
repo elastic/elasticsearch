@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.transform.integration.common.TransformCommonRestTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -53,6 +55,27 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
 
     protected static final String REVIEWS_INDEX_NAME = "reviews";
     protected static final String REVIEWS_DATE_NANO_INDEX_NAME = "reviews_nano";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("transform")
+        .module("x-pack-aggregate-metric")
+        .module("reindex")
+        .module("data-streams")
+        .module("ingest-common")
+        .module("lang-painless")
+        .module("aggregations")
+        .module("analysis-common")
+        .module("spatial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.license.self_generated.type", "trial")
+        .user("x_pack_rest_user", "x-pack-test-password")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected Settings restClientSettings() {

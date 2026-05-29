@@ -1,15 +1,23 @@
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
   javaRestTestImplementation project(path: xpackModule('transform:qa:common'))
-}
-
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  // the feature under test
+  clusterModules project(xpackModule('transform'))
+  // aggregate_metric_double field type used in source index mappings (TransformPivotRestIT, TransformLatestRestIT)
+  clusterModules project(xpackModule('mapper-aggregate-metric'))
+  // transform executes DeleteByQuery via the reindex module when a retention policy is active
+  clusterModules project(':modules:reindex')
+  // TransformPivotRestIT.testSimplePivotWithDataStream and TransformPivotRestSpecialCasesIT write to data streams
+  clusterModules project(':modules:data-streams')
+  // ingest pipelines with the set processor are created in several TransformPivotRestIT tests
+  clusterModules project(':modules:ingest-common')
+  // Painless is used in scripted_metric and bucket_script aggregations and in ingest pipeline script processors
+  clusterModules project(':modules:lang-painless')
+  clusterModules project(':modules:aggregations')
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(xpackModule('spatial'))
 }

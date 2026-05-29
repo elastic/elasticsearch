@@ -3573,48 +3573,43 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     // Subqueries with TS source command
 
     /*
-     * A TS subquery alongside a standard FROM index pattern. Mirrors {@link #testSubqueryInFrom} but with
-     * a TS source instead of FROM in the subquery; the right-hand branch is wrapped in {@link Subquery}
-     * over an {@link EsRelation} in {@link IndexMode#TIME_SERIES}, with counter fields demoted to their
-     * base type before union.
-     *
      * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#1090, emp_no{r}#1091, first_name{r}#1092, gender{r}#1093, hire_date{r}#1094, job{r}#1095, job.
-     * raw{r}#1096, languages{r}#1097, last_name{r}#1098, long_noidx{r}#1099, salary{r}#1100, @timestamp{r}#1101, cli
-     * ent.ip{r}#1102, cluster{r}#1103, event{r}#1104, event_city{r}#1105, event_city_boundary{r}#1106, event_locatio
-     * n{r}#1107, event_log{r}#1108, event_shape{r}#1109, events_received{r}#1110, network.bytes_in{r}#1111, network.
-     * cost{r}#1112, network.eth0.currently_connected_clients{r}#1113, network.eth0.firmware_version{r}#1114, network
-     * .eth0.last_up{r}#1115, network.eth0.rx{r}#1116, network.eth0.tx{r}#1117, network.eth0.up{r}#1118, network.tota
-     * l_bytes_in{r}#1119, network.total_cost{r}#1120, pod{r}#1121]]
-     *   |_Project[[_meta_field{f}#1029, emp_no{f}#1023, first_name{f}#1024, gender{f}#1025, hire_date{f}#1030, job{f}#1031, job.
-     * raw{f}#1032, languages{f}#1026, last_name{f}#1027, long_noidx{f}#1033, salary{f}#1028, @timestamp{r}#1058, cli
-     * ent.ip{r}#1059, cluster{r}#1060, event{r}#1061, event_city{r}#1062, event_city_boundary{r}#1063, event_locatio
-     * n{r}#1064, event_log{r}#1065, event_shape{r}#1066, events_received{r}#1067, network.bytes_in{r}#1068, network.
-     * cost{r}#1069, network.eth0.currently_connected_clients{r}#1070, network.eth0.firmware_version{r}#1071, network
-     * .eth0.last_up{r}#1072, network.eth0.rx{r}#1073, network.eth0.tx{r}#1074, network.eth0.up{r}#1075, network.tota
-     * l_bytes_in{r}#1076, network.total_cost{r}#1077, pod{r}#1078]]
-     *   | \_Eval[[null[DATETIME] AS @timestamp#1058, null[IP] AS client.ip#1059, null[KEYWORD] AS cluster#1060, null[KEYWORD] A
-     * S event#1061, null[GEO_POINT] AS event_city#1062, null[GEO_SHAPE] AS event_city_boundary#1063, null[CARTESIAN_
-     * POINT] AS event_location#1064, null[TEXT] AS event_log#1065, null[CARTESIAN_SHAPE] AS event_shape#1066, null[L
-     * ONG] AS events_received#1067, null[LONG] AS network.bytes_in#1068, null[DOUBLE] AS network.cost#1069, null[INT
-     * EGER] AS network.eth0.currently_connected_clients#1070, null[VERSION] AS network.eth0.firmware_version#1071, n
-     * ull[DATE_NANOS] AS network.eth0.last_up#1072, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#1073, null[AGGR
-     * EGATE_METRIC_DOUBLE] AS network.eth0.tx#1074, null[BOOLEAN] AS network.eth0.up#1075, null[LONG] AS network.tot
-     * al_bytes_in#1076, null[DOUBLE] AS network.total_cost#1077, null[KEYWORD] AS pod#1078]]
+     * \_UnionAll[[_meta_field{r}#1090, emp_no{r}#1091, first_name{r}#1092, gender{r}#1093, hire_date{r}#1094, job{r}#1095,
+     *             job.raw{r}#1096, languages{r}#1097, last_name{r}#1098, long_noidx{r}#1099, salary{r}#1100, @timestamp{r}#1101,
+     *             client.ip{r}#1102, cluster{r}#1103, event{r}#1104, event_city{r}#1105, event_city_boundary{r}#1106,
+     *             event_location{r}#1107, event_log{r}#1108, event_shape{r}#1109, events_received{r}#1110, network.bytes_in{r}#1111,
+     *             network.cost{r}#1112, network.eth0.currently_connected_clients{r}#1113, network.eth0.firmware_version{r}#1114,
+     *             network.eth0.last_up{r}#1115, network.eth0.rx{r}#1116, network.eth0.tx{r}#1117, network.eth0.up{r}#1118,
+     *             network.total_bytes_in{r}#1119, network.total_cost{r}#1120, pod{r}#1121]]
+     *   |_Project[[_meta_field{f}#1029, emp_no{f}#1023, first_name{f}#1024, gender{f}#1025, hire_date{f}#1030, job{f}#1031,
+     *              job.raw{f}#1032, languages{f}#1026, last_name{f}#1027, long_noidx{f}#1033, salary{f}#1028, @timestamp{r}#1058,
+     *              client.ip{r}#1059, cluster{r}#1060, event{r}#1061, event_city{r}#1062, event_city_boundary{r}#1063,
+     *              event_location{r}#1064, event_log{r}#1065, event_shape{r}#1066, events_received{r}#1067, network.bytes_in{r}#1068,
+     *              network.cost{r}#1069, network.eth0.currently_connected_clients{r}#1070, network.eth0.firmware_version{r}#1071,
+     *              network.eth0.last_up{r}#1072, network.eth0.rx{r}#1073, network.eth0.tx{r}#1074, network.eth0.up{r}#1075,
+     *              network.total_bytes_in{r}#1076, network.total_cost{r}#1077, pod{r}#1078]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#1058, null[IP] AS client.ip#1059, null[KEYWORD] AS cluster#1060,
+     *             null[KEYWORD] AS event#1061, null[GEO_POINT] AS event_city#1062, null[GEO_SHAPE] AS event_city_boundary#1063,
+     *             null[CARTESIAN_POINT] AS event_location#1064, null[TEXT] AS event_log#1065, null[CARTESIAN_SHAPE] AS event_shape#1066,
+     *             null[LONG] AS events_received#1067, null[LONG] AS network.bytes_in#1068, null[DOUBLE] AS network.cost#1069,
+     *             null[INTEGER] AS network.eth0.currently_connected_clients#1070, null[VERSION] AS network.eth0.firmware_version#1071,
+     *             null[DATE_NANOS] AS network.eth0.last_up#1072, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#1073,
+     *             null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#1074, null[BOOLEAN] AS network.eth0.up#1075,
+     *             null[LONG] AS network.total_bytes_in#1076, null[DOUBLE] AS network.total_cost#1077, null[KEYWORD] AS pod#1078]]
      *   |   \_EsRelation[test][_meta_field{f}#1029, emp_no{f}#1023, first_name{f}#..]
-     *   \_Project[[_meta_field{r}#1079, emp_no{r}#1080, first_name{r}#1081, gender{r}#1082, hire_date{r}#1083, job{r}#1084, job.
-     * raw{r}#1085, languages{r}#1086, last_name{r}#1087, long_noidx{r}#1088, salary{r}#1089, @timestamp{f}#1034, cli
-     * ent.ip{f}#1038, cluster{f}#1035, event{f}#1039, event_city{f}#1042, event_city_boundary{f}#1043, event_locatio
-     * n{f}#1045, event_log{f}#1040, event_shape{f}#1044, events_received{f}#1041, network.bytes_in{f}#1047, network.
-     * cost{f}#1049, network.eth0.currently_connected_clients{f}#1057, network.eth0.firmware_version{f}#1056, network
-     * .eth0.last_up{f}#1055, network.eth0.rx{f}#1054, network.eth0.tx{f}#1053, network.eth0.up{f}#1052, network.tota
-     * l_bytes_in{r}#1122, network.total_cost{r}#1123, pod{f}#1036]]
-     *     \_Eval[[TOLONG(network.total_bytes_in{f}#1048) AS network.total_bytes_in#1122, TODOUBLE(network.total_cost{f}#1050) A
-     * S network.total_cost#1123]]
-     *       \_Eval[[null[KEYWORD] AS _meta_field#1079, null[INTEGER] AS emp_no#1080, null[KEYWORD] AS first_name#1081, null[TEXT]
-     *  AS gender#1082, null[DATETIME] AS hire_date#1083, null[TEXT] AS job#1084, null[KEYWORD] AS job.raw#1085, null
-     * [INTEGER] AS languages#1086, null[KEYWORD] AS last_name#1087, null[LONG] AS long_noidx#1088, null[INTEGER] AS
-     * salary#1089]]
+     *   \_Project[[_meta_field{r}#1079, emp_no{r}#1080, first_name{r}#1081, gender{r}#1082, hire_date{r}#1083, job{r}#1084,
+     *              job.raw{r}#1085, languages{r}#1086, last_name{r}#1087, long_noidx{r}#1088, salary{r}#1089, @timestamp{f}#1034,
+     *              client.ip{f}#1038, cluster{f}#1035, event{f}#1039, event_city{f}#1042, event_city_boundary{f}#1043,
+     *              event_location{f}#1045, event_log{f}#1040, event_shape{f}#1044, events_received{f}#1041, network.bytes_in{f}#1047,
+     *              network.cost{f}#1049, network.eth0.currently_connected_clients{f}#1057, network.eth0.firmware_version{f}#1056,
+     *              network.eth0.last_up{f}#1055, network.eth0.rx{f}#1054, network.eth0.tx{f}#1053, network.eth0.up{f}#1052,
+     *              network.total_bytes_in{r}#1122, network.total_cost{r}#1123, pod{f}#1036]]
+     *     \_Eval[[TOLONG(network.total_bytes_in{f}#1048) AS network.total_bytes_in#1122,
+     *             TODOUBLE(network.total_cost{f}#1050) AS network.total_cost#1123]]
+     *       \_Eval[[null[KEYWORD] AS _meta_field#1079, null[INTEGER] AS emp_no#1080, null[KEYWORD] AS first_name#1081,
+     *               null[TEXT] AS gender#1082, null[DATETIME] AS hire_date#1083, null[TEXT] AS job#1084, null[KEYWORD] AS job.raw#1085,
+     *               null [INTEGER] AS languages#1086, null[KEYWORD] AS last_name#1087, null[LONG] AS long_noidx#1088,
+     *               null[INTEGER] AS salary#1089]]
      *         \_Subquery[]
      *           \_Filter[@timestamp{f}#1034 > 1759795200000[DATETIME]]
      *             \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1034, client.ip{f}#1038, cluster{f}#1..]
@@ -3661,11 +3656,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * If the only branch of FROM is a TS subquery the {@link UnionAll}/{@link Subquery} wrappers are
-     * collapsed and the TS {@link EsRelation} surfaces directly. Because the source is TS, an implicit
-     * {@code SORT @timestamp DESC} is inserted above the filter — this is the time-series default and
-     * is what distinguishes this case from {@link #testSubqueryInFromWithoutMainIndexPattern}.
-     *
      * Limit[1000[INTEGER],false,false]
      * \_OrderBy[[Order[@timestamp{f}#2430,DESC,LAST]]]
      *   \_Filter[@timestamp{f}#2430 > 1759795200000[DATETIME]]
@@ -3695,30 +3685,26 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * TS subquery with a time-series aggregation ({@code rate} inside an outer {@code MAX}) — verifies
-     * the subquery is rewritten to a {@link TimeSeriesAggregate} node that retains the
-     * {@link IndexMode#TIME_SERIES} relation underneath.
-     *
      * Limit[10000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#1281, emp_no{r}#1282, first_name{r}#1283, gender{r}#1284, hire_date{r}#1285, job{r}#1286, job.
-     * raw{r}#1287, languages{r}#1288, last_name{r}#1289, long_noidx{r}#1290, salary{r}#1291, m{r}#1292, cluster{r}#1
-     * 293, pod{r}#1294]]
-     *   |_Project[[_meta_field{f}#1237, emp_no{f}#1231, first_name{f}#1232, gender{f}#1233, hire_date{f}#1238, job{f}#1239, job.
-     * raw{f}#1240, languages{f}#1234, last_name{f}#1235, long_noidx{f}#1241, salary{f}#1236, m{r}#1267, cluster{r}#1
-     * 268, pod{r}#1269]]
+     * \_UnionAll[[_meta_field{r}#1281, emp_no{r}#1282, first_name{r}#1283, gender{r}#1284, hire_date{r}#1285, job{r}#1286,
+     *             job.raw{r}#1287, languages{r}#1288, last_name{r}#1289, long_noidx{r}#1290, salary{r}#1291, m{r}#1292,cluster{r}#1293,
+     *             pod{r}#1294]]
+     *   |_Project[[_meta_field{f}#1237, emp_no{f}#1231, first_name{f}#1232, gender{f}#1233, hire_date{f}#1238, job{f}#1239,
+     *              job.raw{f}#1240, languages{f}#1234, last_name{f}#1235, long_noidx{f}#1241, salary{f}#1236, m{r}#1267, cluster{r}#1268,
+     *              pod{r}#1269]]
      *   | \_Eval[[null[DOUBLE] AS m#1267, null[KEYWORD] AS cluster#1268, null[KEYWORD] AS pod#1269]]
      *   |   \_EsRelation[test][_meta_field{f}#1237, emp_no{f}#1231, first_name{f}#..]
-     *   \_Project[[_meta_field{r}#1270, emp_no{r}#1271, first_name{r}#1272, gender{r}#1273, hire_date{r}#1274, job{r}#1275, job.
-     * raw{r}#1276, languages{r}#1277, last_name{r}#1278, long_noidx{r}#1279, salary{r}#1280, m{r}#1229, cluster{f}#1
-     * 243, pod{f}#1244]]
-     *     \_Eval[[null[KEYWORD] AS _meta_field#1270, null[INTEGER] AS emp_no#1271, null[KEYWORD] AS first_name#1272, null[TEXT]
-     *  AS gender#1273, null[DATETIME] AS hire_date#1274, null[TEXT] AS job#1275, null[KEYWORD] AS job.raw#1276, null
-     * [INTEGER] AS languages#1277, null[KEYWORD] AS last_name#1278, null[LONG] AS long_noidx#1279, null[INTEGER] AS
-     * salary#1280]]
+     *   \_Project[[_meta_field{r}#1270, emp_no{r}#1271, first_name{r}#1272, gender{r}#1273, hire_date{r}#1274, job{r}#1275,
+     *              job.raw{r}#1276, languages{r}#1277, last_name{r}#1278, long_noidx{r}#1279, salary{r}#1280, m{r}#1229, cluster{f}#1243,
+     *              pod{f}#1244]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#1270, null[INTEGER] AS emp_no#1271, null[KEYWORD] AS first_name#1272,
+     *             null[TEXT] AS gender#1273, null[DATETIME] AS hire_date#1274, null[TEXT] AS job#1275, null[KEYWORD] AS job.raw#1276,
+     *             null[INTEGER] AS languages#1277, null[KEYWORD] AS last_name#1278, null[LONG] AS long_noidx#1279,
+     *             null[INTEGER] AS salary#1280]]
      *       \_Subquery[]
-     *         \_TimeSeriesAggregate[[cluster{f}#1243, pod{f}#1244],[MAX(RATE(network.total_bytes_in{f}#1256,
-     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1242),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1229,
-     * cluster{f}#1243, pod{f}#1244],null,null,@timestamp{f}#1242,false]
+     *         \_TimeSeriesAggregate[[cluster{f}#1243, pod{f}#1244],[MAX(RATE(network.total_bytes_in{f}#1256, true[BOOLEAN],
+     *                                PT0S[TIME_DURATION],@timestamp{f}#1242),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1229,
+     *                                cluster{f}#1243, pod{f}#1244],null,null,@timestamp{f}#1242,false]
      *           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1242, client.ip{f}#1246, cluster{f}#1..]
      */
     public void testTSSubqueryWithTimeSeriesAggregate() {
@@ -3760,38 +3746,34 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * Three subqueries mixing TS and FROM. The {@link UnionAll} has three branches: a TS subquery with
-     * a time-series aggregation, a FROM subquery with a regular {@link Aggregate}, and the standard
-     * main index pattern as the first branch.
-     *
      * Limit[10000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#2034, emp_no{r}#2035, first_name{r}#2036, gender{r}#2037, hire_date{r}#2038, job{r}#2039, job.
-     * raw{r}#2040, languages{r}#2041, last_name{r}#2042, long_noidx{r}#2043, salary{r}#2044, rate{r}#2045, cluster{r
-     * }#2046, cnt{r}#2047]]
-     *   |_Project[[_meta_field{f}#1972, emp_no{f}#1966, first_name{f}#1967, gender{f}#1968, hire_date{f}#1973, job{f}#1974, job.
-     * raw{f}#1975, languages{f}#1969, last_name{f}#1970, long_noidx{f}#1976, salary{f}#1971, rate{r}#2006, cluster{r
-     * }#2007, cnt{r}#2008]]
+     * \_UnionAll[[_meta_field{r}#2034, emp_no{r}#2035, first_name{r}#2036, gender{r}#2037, hire_date{r}#2038, job{r}#2039,
+     *             job.raw{r}#2040, languages{r}#2041, last_name{r}#2042, long_noidx{r}#2043, salary{r}#2044, rate{r}#2045,
+     *             cluster{r}#2046, cnt{r}#2047]]
+     *   |_Project[[_meta_field{f}#1972, emp_no{f}#1966, first_name{f}#1967, gender{f}#1968, hire_date{f}#1973, job{f}#1974,
+     *              job.raw{f}#1975, languages{f}#1969, last_name{f}#1970, long_noidx{f}#1976, salary{f}#1971, rate{r}#2006,
+     *              cluster{r}#2007, cnt{r}#2008]]
      *   | \_Eval[[null[DOUBLE] AS rate#2006, null[KEYWORD] AS cluster#2007, null[LONG] AS cnt#2008]]
      *   |   \_EsRelation[test][_meta_field{f}#1972, emp_no{f}#1966, first_name{f}#..]
-     *   |_Project[[_meta_field{r}#2009, emp_no{r}#2010, first_name{r}#2011, gender{r}#2012, hire_date{r}#2013, job{r}#2014, job.
-     * raw{r}#2015, languages{r}#2016, last_name{r}#2017, long_noidx{r}#2018, salary{r}#2019, rate{r}#1962, cluster{f
-     * }#1978, cnt{r}#2020]]
-     *   | \_Eval[[null[KEYWORD] AS _meta_field#2009, null[INTEGER] AS emp_no#2010, null[KEYWORD] AS first_name#2011, null[TEXT]
-     *  AS gender#2012, null[DATETIME] AS hire_date#2013, null[TEXT] AS job#2014, null[KEYWORD] AS job.raw#2015, null
-     * [INTEGER] AS languages#2016, null[KEYWORD] AS last_name#2017, null[LONG] AS long_noidx#2018, null[INTEGER] AS
-     * salary#2019, null[LONG] AS cnt#2020]]
+     *   |_Project[[_meta_field{r}#2009, emp_no{r}#2010, first_name{r}#2011, gender{r}#2012, hire_date{r}#2013, job{r}#2014,
+     *              job.raw{r}#2015, languages{r}#2016, last_name{r}#2017, long_noidx{r}#2018, salary{r}#2019, rate{r}#1962,
+     *              cluster{f}#1978, cnt{r}#2020]]
+     *   | \_Eval[[null[KEYWORD] AS _meta_field#2009, null[INTEGER] AS emp_no#2010, null[KEYWORD] AS first_name#2011,
+     *             null[TEXT] AS gender#2012, null[DATETIME] AS hire_date#2013, null[TEXT] AS job#2014, null[KEYWORD] AS job.raw#2015,
+     *             null [INTEGER] AS languages#2016, null[KEYWORD] AS last_name#2017, null[LONG] AS long_noidx#2018,
+     *             null[INTEGER] AS salary#2019, null[LONG] AS cnt#2020]]
      *   |   \_Subquery[]
-     *   |     \_TimeSeriesAggregate[[cluster{f}#1978],[MAX(RATE(network.total_bytes_in{f}#1991,
-     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1977),true[BOOLEAN],PT0S[TIME_DURATION]) AS rate#1962,
-     * cluster{f}#1978],null,null,@timestamp{f}#1977,false]
+     *   |     \_TimeSeriesAggregate[[cluster{f}#1978],[MAX(RATE(network.total_bytes_in{f}#1991, true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                @timestamp{f}#1977),true[BOOLEAN],PT0S[TIME_DURATION]) AS rate#1962,cluster{f}#1978],null,null,
+     *                                @timestamp{f}#1977,false]
      *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1977, client.ip{f}#1981, cluster{f}#1..]
-     *   \_Project[[_meta_field{r}#2021, emp_no{r}#2022, first_name{r}#2023, gender{r}#2024, hire_date{r}#2025, job{r}#2026, job.
-     * raw{r}#2027, languages{r}#2028, last_name{r}#2029, long_noidx{r}#2030, salary{r}#2031, rate{r}#2032, cluster{r
-     * }#2033, cnt{r}#1965]]
-     *     \_Eval[[null[KEYWORD] AS _meta_field#2021, null[INTEGER] AS emp_no#2022, null[KEYWORD] AS first_name#2023, null[TEXT]
-     *  AS gender#2024, null[DATETIME] AS hire_date#2025, null[TEXT] AS job#2026, null[KEYWORD] AS job.raw#2027, null
-     * [INTEGER] AS languages#2028, null[KEYWORD] AS last_name#2029, null[LONG] AS long_noidx#2030, null[INTEGER] AS
-     * salary#2031, null[DOUBLE] AS rate#2032, null[KEYWORD] AS cluster#2033]]
+     *   \_Project[[_meta_field{r}#2021, emp_no{r}#2022, first_name{r}#2023, gender{r}#2024, hire_date{r}#2025, job{r}#2026,
+     *              job.raw{r}#2027, languages{r}#2028, last_name{r}#2029, long_noidx{r}#2030, salary{r}#2031, rate{r}#2032,
+     *              cluster{r}#2033, cnt{r}#1965]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#2021, null[INTEGER] AS emp_no#2022, null[KEYWORD] AS first_name#2023,
+     *             null[TEXT] AS gender#2024, null[DATETIME] AS hire_date#2025, null[TEXT] AS job#2026, null[KEYWORD] AS job.raw#2027,
+     *             null[INTEGER] AS languages#2028, null[KEYWORD] AS last_name#2029, null[LONG] AS long_noidx#2030,
+     *             null[INTEGER] AS salary#2031, null[DOUBLE] AS rate#2032, null[KEYWORD] AS cluster#2033]]
      *       \_Subquery[]
      *         \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#1965]]
      *           \_EsRelation[sample_data][@timestamp{f}#2001, client_ip{f}#2002, event_durati..]
@@ -3836,12 +3818,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * Four subqueries mixing TS, FROM and ROW source commands alongside the main FROM index pattern.
-     * The {@link UnionAll} has four branches: main FROM test, a TS subquery with a time-series
-     * aggregation, a FROM sample_data subquery with a regular {@link Aggregate}, and a {@link Row}
-     * subquery. Verifies that all three subquery flavours coexist under one {@link UnionAll} with
-     * the expected per-branch leaf nodes.
-     *
      * Limit[1000[INTEGER],false,false]
      * \_UnionAll[[_meta_field{r}#..., emp_no{r}#..., ..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
      *   |_Project[[..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
@@ -3915,26 +3891,19 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * TS subquery with chained processing commands ({@code WHERE | EVAL | KEEP}) — verifies the subquery
-     * preserves the per-command tree and that the {@link EsRelation} remains in
-     * {@link IndexMode#TIME_SERIES}. Mirrors the pattern of FROM subqueries with processing commands.
-     *
      * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#573, emp_no{r}#574, first_name{r}#575, gender{r}#576, hire_date{r}#577, job{r}#578, job.raw{r}
-     * #579, languages{r}#580, last_name{r}#581, long_noidx{r}#582, salary{r}#583, cluster{r}#584, pod{r}#585, double
-     * d{r}#586]]
-     *   |_Project[[_meta_field{f}#530, emp_no{f}#524, first_name{f}#525, gender{f}#526, hire_date{f}#531, job{f}#532, job.raw{f}
-     * #533, languages{f}#527, last_name{f}#528, long_noidx{f}#534, salary{f}#529, cluster{r}#559, pod{r}#560, double
-     * d{r}#561]]
+     * \_UnionAll[[_meta_field{r}#573, emp_no{r}#574, first_name{r}#575, gender{r}#576, hire_date{r}#577, job{r}#578, job.raw{r}#579,
+     *             languages{r}#580, last_name{r}#581, long_noidx{r}#582, salary{r}#583, cluster{r}#584, pod{r}#585, doubled{r}#586]]
+     *   |_Project[[_meta_field{f}#530, emp_no{f}#524, first_name{f}#525, gender{f}#526, hire_date{f}#531, job{f}#532, job.raw{f}#533,
+     *              languages{f}#527, last_name{f}#528, long_noidx{f}#534, salary{f}#529, cluster{r}#559, pod{r}#560, doubled{r}#561]]
      *   | \_Eval[[null[KEYWORD] AS cluster#559, null[KEYWORD] AS pod#560, null[DOUBLE] AS doubled#561]]
      *   |   \_EsRelation[test][_meta_field{f}#530, emp_no{f}#524, first_name{f}#52..]
-     *   \_Project[[_meta_field{r}#562, emp_no{r}#563, first_name{r}#564, gender{r}#565, hire_date{r}#566, job{r}#567, job.raw{r}
-     * #568, languages{r}#569, last_name{r}#570, long_noidx{r}#571, salary{r}#572, cluster{f}#536, pod{f}#537, double
-     * d{r}#523]]
-     *     \_Eval[[null[KEYWORD] AS _meta_field#562, null[INTEGER] AS emp_no#563, null[KEYWORD] AS first_name#564, null[TEXT] AS
-     *  gender#565, null[DATETIME] AS hire_date#566, null[TEXT] AS job#567, null[KEYWORD] AS job.raw#568, null[INTEGE
-     * R] AS languages#569, null[KEYWORD] AS last_name#570, null[LONG] AS long_noidx#571, null[INTEGER] AS salary#572
-     * ]]
+     *   \_Project[[_meta_field{r}#562, emp_no{r}#563, first_name{r}#564, gender{r}#565, hire_date{r}#566, job{r}#567, job.raw{r}#568,
+     *              languages{r}#569, last_name{r}#570, long_noidx{r}#571, salary{r}#572, cluster{f}#536, pod{f}#537, doubled{r}#523]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#562, null[INTEGER] AS emp_no#563, null[KEYWORD] AS first_name#564,
+     *             null[TEXT] AS gender#565, null[DATETIME] AS hire_date#566, null[TEXT] AS job#567, null[KEYWORD] AS job.raw#568,
+     *             null[INTEGER] AS languages#569, null[KEYWORD] AS last_name#570, null[LONG] AS long_noidx#571,
+     *             null[INTEGER] AS salary#572]]
      *       \_Subquery[]
      *         \_Project[[cluster{f}#536, pod{f}#537, doubled{r}#523]]
      *           \_Eval[[network.cost{f}#550 * 2[INTEGER] AS doubled#523]]
@@ -3982,89 +3951,107 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * TS subquery nested inside an outer FROM subquery — verifies that a {@code Subquery} can host its
-     * own {@code UnionAll}, and that a TS subquery sitting inside still resolves to a
-     * {@link IndexMode#TIME_SERIES} {@link EsRelation} at the leaf.
-     *
-     * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#472, emp_no{r}#473, first_name{r}#474, gender{r}#475, hire_date{r}#476, job{r}#477, job.raw{r}
-     * #478, languages{r}#479, last_name{r}#480, long_noidx{r}#481, salary{r}#482, @timestamp{r}#483, client_ip{r}#48
-     * 4, event_duration{r}#485, message{r}#486, client.ip{r}#487, cluster{r}#488, event{r}#489, event_city{r}#490, e
-     * vent_city_boundary{r}#491, event_location{r}#492, event_log{r}#493, event_shape{r}#494, events_received{r}#495
-     * , network.bytes_in{r}#496, network.cost{r}#497, network.eth0.currently_connected_clients{r}#498, network.eth0.
-     * firmware_version{r}#499, network.eth0.last_up{r}#500, network.eth0.rx{r}#501, network.eth0.tx{r}#502, network.
-     * eth0.up{r}#503, network.total_bytes_in{r}#504, network.total_cost{r}#505, pod{r}#506]]
-     *   |_Project[[_meta_field{f}#357, emp_no{f}#351, first_name{f}#352, gender{f}#353, hire_date{f}#358, job{f}#359, job.raw{f}
-     * #360, languages{f}#354, last_name{f}#355, long_noidx{f}#361, salary{f}#356, @timestamp{r}#437, client_ip{r}#43
-     * 8, event_duration{r}#439, message{r}#440, client.ip{r}#441, cluster{r}#442, event{r}#443, event_city{r}#444, e
-     * vent_city_boundary{r}#445, event_location{r}#446, event_log{r}#447, event_shape{r}#448, events_received{r}#449
-     * , network.bytes_in{r}#450, network.cost{r}#451, network.eth0.currently_connected_clients{r}#452, network.eth0.
-     * firmware_version{r}#453, network.eth0.last_up{r}#454, network.eth0.rx{r}#455, network.eth0.tx{r}#456, network.
-     * eth0.up{r}#457, network.total_bytes_in{r}#458, network.total_cost{r}#459, pod{r}#460]]
-     *   | \_Eval[[null[DATETIME] AS @timestamp#437, null[IP] AS client_ip#438, null[LONG] AS event_duration#439, null[KEYWORD]
-     * AS message#440, null[IP] AS client.ip#441, null[KEYWORD] AS cluster#442, null[KEYWORD] AS event#443, null[GEO_
-     * POINT] AS event_city#444, null[GEO_SHAPE] AS event_city_boundary#445, null[CARTESIAN_POINT] AS event_location#
-     * 446, null[TEXT] AS event_log#447, null[CARTESIAN_SHAPE] AS event_shape#448, null[LONG] AS events_received#449,
-     *  null[LONG] AS network.bytes_in#450, null[DOUBLE] AS network.cost#451, null[INTEGER] AS network.eth0.currently
-     * _connected_clients#452, null[VERSION] AS network.eth0.firmware_version#453, null[DATE_NANOS] AS network.eth0.l
-     * ast_up#454, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#455, null[AGGREGATE_METRIC_DOUBLE] AS network.eth
-     * 0.tx#456, null[BOOLEAN] AS network.eth0.up#457, null[LONG] AS network.total_bytes_in#458, null[DOUBLE] AS netw
-     * ork.total_cost#459, null[KEYWORD] AS pod#460]]
-     *   |   \_EsRelation[test][_meta_field{f}#357, emp_no{f}#351, first_name{f}#35..]
-     *   \_Project[[_meta_field{r}#461, emp_no{r}#462, first_name{r}#463, gender{r}#464, hire_date{r}#465, job{r}#466, job.raw{r}
-     * #467, languages{r}#468, last_name{r}#469, long_noidx{r}#470, salary{r}#471, @timestamp{r}#413, client_ip{r}#41
-     * 4, event_duration{r}#415, message{r}#416, client.ip{r}#417, cluster{r}#418, event{r}#419, event_city{r}#420, e
-     * vent_city_boundary{r}#421, event_location{r}#422, event_log{r}#423, event_shape{r}#424, events_received{r}#425
-     * , network.bytes_in{r}#426, network.cost{r}#427, network.eth0.currently_connected_clients{r}#428, network.eth0.
-     * firmware_version{r}#429, network.eth0.last_up{r}#430, network.eth0.rx{r}#431, network.eth0.tx{r}#432, network.
-     * eth0.up{r}#433, network.total_bytes_in{r}#509, network.total_cost{r}#510, pod{r}#436]]
-     *     \_Eval[[$$network.total_bytes_in$converted_to$long{r$}#515 AS network.total_bytes_in#509, $$network.total_cost$conver
-     * ted_to$double{r$}#516 AS network.total_cost#510]]
-     *       \_Eval[[null[KEYWORD] AS _meta_field#461, null[INTEGER] AS emp_no#462, null[KEYWORD] AS first_name#463, null[TEXT] AS
-     *  gender#464, null[DATETIME] AS hire_date#465, null[TEXT] AS job#466, null[KEYWORD] AS job.raw#467, null[INTEGE
-     * R] AS languages#468, null[KEYWORD] AS last_name#469, null[LONG] AS long_noidx#470, null[INTEGER] AS salary#471
-     * ]]
-     *         \_Subquery[]
-     *           \_UnionAll[[@timestamp{r}#413, client_ip{r}#414, event_duration{r}#415, message{r}#416, client.ip{r}#417, cluster{r}#418,
-     *  event{r}#419, event_city{r}#420, event_city_boundary{r}#421, event_location{r}#422, event_log{r}#423, event_s
-     * hape{r}#424, events_received{r}#425, network.bytes_in{r}#426, network.cost{r}#427, network.eth0.currently_conn
-     * ected_clients{r}#428, network.eth0.firmware_version{r}#429, network.eth0.last_up{r}#430, network.eth0.rx{r}#43
-     * 1, network.eth0.tx{r}#432, network.eth0.up{r}#433, network.total_bytes_in{r}#434, $$network.total_bytes_in$con
-     * verted_to$long{r$}#515, network.total_cost{r}#435, $$network.total_cost$converted_to$double{r$}#516, pod{r}#43
-     * 6]]
-     *             |_Project[[@timestamp{f}#362, client_ip{f}#363, event_duration{f}#364, message{f}#365, client.ip{r}#390, cluster{r}#391,
-     *  event{r}#392, event_city{r}#393, event_city_boundary{r}#394, event_location{r}#395, event_log{r}#396, event_s
-     * hape{r}#397, events_received{r}#398, network.bytes_in{r}#399, network.cost{r}#400, network.eth0.currently_conn
-     * ected_clients{r}#401, network.eth0.firmware_version{r}#402, network.eth0.last_up{r}#403, network.eth0.rx{r}#40
-     * 4, network.eth0.tx{r}#405, network.eth0.up{r}#406, network.total_bytes_in{r}#407, $$network.total_bytes_in$con
-     * verted_to$long{r$}#511, network.total_cost{r}#408, $$network.total_cost$converted_to$double{r$}#512, pod{r}#40
-     * 9]]
-     *             | \_Eval[[TOLONG(network.total_bytes_in{r}#407) AS $$network.total_bytes_in$converted_to$long#511, TODOUBLE(network.tot
-     * al_cost{r}#408) AS $$network.total_cost$converted_to$double#512]]
-     *             |   \_Eval[[null[IP] AS client.ip#390, null[KEYWORD] AS cluster#391, null[KEYWORD] AS event#392, null[GEO_POINT] AS event
-     * _city#393, null[GEO_SHAPE] AS event_city_boundary#394, null[CARTESIAN_POINT] AS event_location#395, null[TEXT]
-     *  AS event_log#396, null[CARTESIAN_SHAPE] AS event_shape#397, null[LONG] AS events_received#398, null[LONG] AS
-     * network.bytes_in#399, null[DOUBLE] AS network.cost#400, null[INTEGER] AS network.eth0.currently_connected_clie
-     * nts#401, null[VERSION] AS network.eth0.firmware_version#402, null[DATE_NANOS] AS network.eth0.last_up#403, nul
-     * l[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#404, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#405, null[
-     * BOOLEAN] AS network.eth0.up#406, null[LONG] AS network.total_bytes_in#407, null[DOUBLE] AS network.total_cost#
-     * 408, null[KEYWORD] AS pod#409]]
-     *             |     \_EsRelation[sample_data][@timestamp{f}#362, client_ip{f}#363, event_duration..]
-     *             \_Project[[@timestamp{f}#366, client_ip{r}#410, event_duration{r}#411, message{r}#412, client.ip{f}#370, cluster{f}#367,
-     *  event{f}#371, event_city{f}#374, event_city_boundary{f}#375, event_location{f}#377, event_log{f}#372, event_s
-     * hape{f}#376, events_received{f}#373, network.bytes_in{f}#379, network.cost{f}#381, network.eth0.currently_conn
-     * ected_clients{f}#389, network.eth0.firmware_version{f}#388, network.eth0.last_up{f}#387, network.eth0.rx{f}#38
-     * 6, network.eth0.tx{f}#385, network.eth0.up{f}#384, network.total_bytes_in{r}#507, $$network.total_bytes_in$con
-     * verted_to$long{r$}#513, network.total_cost{r}#508, $$network.total_cost$converted_to$double{r$}#514, pod{f}#36
-     * 8]]
-     *               \_Eval[[TOLONG(network.total_bytes_in{r}#507) AS $$network.total_bytes_in$converted_to$long#513, TODOUBLE(network.tot
-     * al_cost{r}#508) AS $$network.total_cost$converted_to$double#514]]
-     *                 \_Eval[[TOLONG(network.total_bytes_in{f}#380) AS network.total_bytes_in#507, TODOUBLE(network.total_cost{f}#382) AS n
-     * etwork.total_cost#508]]
-     *                   \_Eval[[null[IP] AS client_ip#410, null[LONG] AS event_duration#411, null[KEYWORD] AS message#412]]
-     *                     \_Subquery[]
-     *                       \_Filter[@timestamp{f}#366 > 1759795200000[DATETIME]]
-     *                         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#366, client.ip{f}#370, cluster{f}#367, ..]
+     * Project[[_meta_field{r}#125, emp_no{r}#126, first_name{r}#127, gender{r}#128, hire_date{r}#129, job{r}#130, job.raw{r}#131,
+     *          languages{r}#132, last_name{r}#133, long_noidx{r}#134, salary{r}#135, @timestamp{r}#136, client_ip{r}#137,
+     *          event_duration{r}#138, message{r}#139, client.ip{r}#140, cluster{r}#141, event{r}#142, event_city{r}#143,
+     *          event_city_boundary{r}#144, event_location{r}#145, event_log{r}#146, event_shape{r}#147, events_received{r}#148,
+     *          network.bytes_in{r}#149, network.cost{r}#150, network.eth0.currently_connected_clients{r}#151,
+     *          network.eth0.firmware_version{r}#152, network.eth0.last_up{r}#153, network.eth0.rx{r}#154, network.eth0.tx{r}#155,
+     *          network.eth0.up{r}#156, network.total_bytes_in{r}#157, network.total_cost{r}#158, pod{r}#159]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_UnionAll[[_meta_field{r}#125, emp_no{r}#126, first_name{r}#127, gender{r}#128, hire_date{r}#129, job{r}#130, job.raw{r}#131,
+     *               languages{r}#132, last_name{r}#133, long_noidx{r}#134, salary{r}#135, @timestamp{r}#136, client_ip{r}#137,
+     *               event_duration{r}#138, message{r}#139, client.ip{r}#140, cluster{r}#141, event{r}#142, event_city{r}#143,
+     *               event_city_boundary{r}#144, event_location{r}#145, event_log{r}#146, event_shape{r}#147, events_received{r}#148,
+     *               network.bytes_in{r}#149, network.cost{r}#150, network.eth0.currently_connected_clients{r}#151,
+     *               network.eth0.firmware_version{r}#152, network.eth0.last_up{r}#153, network.eth0.rx{r}#154, network.eth0.tx{r}#155,
+     *               network.eth0.up{r}#156, network.total_bytes_in{r}#157, network.total_cost{r}#158, pod{r}#159,
+     *               $$network.total_bytes_in$converted_to$long{r$}#172, $$network.total_cost$converted_to$double{r$}#173]]
+     *     |_Project[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13,
+     *                languages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, @timestamp{r}#90, client_ip{r}#91,
+     *                event_duration{r}#92, message{r}#93, client.ip{r}#94, cluster{r}#95, event{r}#96, event_city{r}#97,
+     *                event_city_boundary{r}#98, event_location{r}#99, event_log{r}#100, event_shape{r}#101, events_received{r}#102,
+     *                network.bytes_in{r}#103, network.cost{r}#104, network.eth0.currently_connected_clients{r}#105,
+     *                network.eth0.firmware_version{r}#106, network.eth0.last_up{r}#107, network.eth0.rx{r}#108, network.eth0.tx{r}#109,
+     *                network.eth0.up{r}#110, network.total_bytes_in{r}#111, network.total_cost{r}#112, pod{r}#113,
+     *                $$network.total_bytes_in$converted_to$long{r}#170,$$network.total_cost$converted_to$double{r}#171]]
+     *     | \_Eval[[null[LONG] AS $$network.total_bytes_in$converted_to$long#170,
+     *               null[DOUBLE] AS $$network.total_cost$converted_to$double#171]]
+     *     |   \_Project[[_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, gender{f}#6, hire_date{f}#11, job{f}#12, job.raw{f}#13,
+     *                    languages{f}#7, last_name{f}#8, long_noidx{f}#14, salary{f}#9, @timestamp{r}#90, client_ip{r}#91,
+     *                    event_duration{r}#92, message{r}#93, client.ip{r}#94, cluster{r}#95, event{r}#96, event_city{r}#97,
+     *                    event_city_boundary{r}#98, event_location{r}#99, event_log{r}#100, event_shape{r}#101, events_received{r}#102,
+     *                    network.bytes_in{r}#103, network.cost{r}#104, network.eth0.currently_connected_clients{r}#105,
+     *                    network.eth0.firmware_version{r}#106, network.eth0.last_up{r}#107, network.eth0.rx{r}#108,
+     *                    network.eth0.tx{r}#109, network.eth0.up{r}#110, network.total_bytes_in{r}#111, network.total_cost{r}#112,
+     *                    pod{r}#113]]
+     *     |     \_Eval[[null[DATETIME] AS @timestamp#90, null[IP] AS client_ip#91, null[LONG] AS event_duration#92,
+     *                   null[KEYWORD] AS message#93, null[IP] AS client.ip#94, null[KEYWORD] AS cluster#95, null[KEYWORD] AS event#96,
+     *                   null[GEO_POINT] AS event_city#97, null[GEO_SHAPE] AS event_city_boundary#98,
+     *                   null[CARTESIAN_POINT] AS event_location#99, null[TEXT] AS event_log#100, null[CARTESIAN_SHAPE] AS event_shape#101,
+     *                   null[LONG] AS events_received#102, null[LONG] AS network.bytes_in#103, null[DOUBLE] AS network.cost#104,
+     *                   null[INTEGER] AS network.eth0.currently_connected_clients#105, null[VERSION] AS network.eth0.firmware_version#106,
+     *                   null[DATE_NANOS] AS network.eth0.last_up#107, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#108,
+     *                   null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#109, null[BOOLEAN] AS network.eth0.up#110,
+     *                   null[LONG] AS network.total_bytes_in#111, null[DOUBLE] AS network.total_cost#112, null[KEYWORD] AS pod#113]]
+     *     |       \_EsRelation[test][_meta_field{f}#10, emp_no{f}#4, first_name{f}#5, ge..]
+     *     \_Project[[_meta_field{r}#114, emp_no{r}#115, first_name{r}#116, gender{r}#117, hire_date{r}#118, job{r}#119, job.raw{r}#120,
+     *                languages{r}#121, last_name{r}#122, long_noidx{r}#123, salary{r}#124, @timestamp{r}#66, client_ip{r}#67,
+     *                event_duration{r}#68, message{r}#69, client.ip{r}#70, cluster{r}#71, event{r}#72, event_city{r}#73,
+     *                event_city_boundary{r}#74, event_location{r}#75, event_log{r}#76, event_shape{r}#77, events_received{r}#78,
+     *                network.bytes_in{r}#79, network.cost{r}#80, network.eth0.currently_connected_clients{r}#81,
+     *                network.eth0.firmware_version{r}#82, network.eth0.last_up{r}#83, network.eth0.rx{r}#84, network.eth0.tx{r}#85,
+     *                network.eth0.up{r}#86, network.total_bytes_in{r}#162, network.total_cost{r}#163, pod{r}#89,
+     *                $$network.total_bytes_in$converted_to$long{r$}#168, $$network.total_cost$converted_to$double{r$}#169]]
+     *       \_Eval[[$$network.total_bytes_in$converted_to$long{r$}#168 AS network.total_bytes_in#162,
+     *               $$network.total_cost$converted_to$double{r$}#169 AS network.total_cost#163]]
+     *         \_Eval[[null[KEYWORD] AS _meta_field#114, null[INTEGER] AS emp_no#115, null[KEYWORD] AS first_name#116,
+     *                 null[TEXT] AS gender#117, null[DATETIME] AS hire_date#118, null[TEXT] AS job#119, null[KEYWORD] AS job.raw#120,
+     *                 null[INTEGER] AS languages#121, null[KEYWORD] AS last_name#122, null[LONG] AS long_noidx#123,
+     *                 null[INTEGER] AS salary#124]]
+     *           \_Subquery[]
+     *             \_UnionAll[[@timestamp{r}#66, client_ip{r}#67, event_duration{r}#68, message{r}#69, client.ip{r}#70, cluster{r}#71,
+     *                         event{r}#72, event_city{r}#73, event_city_boundary{r}#74, event_location{r}#75, event_log{r}#76,
+     *                         event_shape{r}#77, events_received{r}#78, network.bytes_in{r}#79, network.cost{r}#80,
+     *                         network.eth0.currently_connected_clients{r}#81, network.eth0.firmware_version{r}#82,
+     *                         network.eth0.last_up{r}#83, network.eth0.rx{r}#84, network.eth0.tx{r}#85, network.eth0.up{r}#86,
+     *                         network.total_bytes_in{r}#87, $$network.total_bytes_in$converted_to$long{r$}#168, network.total_cost{r}#88,
+     *                         $$network.total_cost$converted_to$double{r$}#169, pod{r}#89]]
+     *               |_Project[[@timestamp{f}#15, client_ip{f}#16, event_duration{f}#17, message{f}#18, client.ip{r}#43, cluster{r}#44,
+     *                          event{r}#45, event_city{r}#46, event_city_boundary{r}#47, event_location{r}#48, event_log{r}#49,
+     *                          event_shape{r}#50, events_received{r}#51, network.bytes_in{r}#52, network.cost{r}#53,
+     *                          network.eth0.currently_connected_clients{r}#54, network.eth0.firmware_version{r}#55,
+     *                          network.eth0.last_up{r}#56, network.eth0.rx{r}#57, network.eth0.tx{r}#58, network.eth0.up{r}#59,
+     *                          network.total_bytes_in{r}#60, $$network.total_bytes_in$converted_to$long{r$}#164, network.total_cost{r}#61,
+     *                          $$network.total_cost$converted_to$double{r$}#165, pod{r}#62]]
+     *               | \_Eval[[TOLONG(network.total_bytes_in{r}#60) AS $$network.total_bytes_in$converted_to$long#164,
+     *                         TODOUBLE(network.total_cost{r}#61) AS $$network.total_cost$converted_to$double#165]]
+     *               |   \_Eval[[null[IP] AS client.ip#43, null[KEYWORD] AS cluster#44, null[KEYWORD] AS event#45,
+     *                           null[GEO_POINT] AS event_city#46, null[GEO_SHAPE] AS event_city_boundary#47,
+     *                           null[CARTESIAN_POINT] AS event_location#48, null[TEXT] AS event_log#49,
+     *                           null[CARTESIAN_SHAPE] AS event_shape#50, null[LONG] AS events_received#51,
+     *                           null[LONG] AS network.bytes_in#52, null[DOUBLE] AS network.cost#53,
+     *                           null[INTEGER] AS network.eth0.currently_connected_clients#54,
+     *                           null[VERSION] AS network.eth0.firmware_version#55, null[DATE_NANOS] AS network.eth0.last_up#56,
+     *                           null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#57, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#58,
+     *                           null[BOOLEAN] AS network.eth0.up#59, null[LONG] AS network.total_bytes_in#60,
+     *                           null[DOUBLE] AS network.total_cost#61, null[KEYWORD] AS pod#62]]
+     *               |     \_EsRelation[sample_data][@timestamp{f}#15, client_ip{f}#16, event_duration{f..]
+     *               \_Project[[@timestamp{f}#19, client_ip{r}#63, event_duration{r}#64, message{r}#65, client.ip{f}#23, cluster{f}#20,
+     *                          event{f}#24, event_city{f}#27, event_city_boundary{f}#28, event_location{f}#30, event_log{f}#25,
+     *                          event_shape{f}#29, events_received{f}#26, network.bytes_in{f}#32, network.cost{f}#34,
+     *                          network.eth0.currently_connected_clients{f}#42, network.eth0.firmware_version{f}#41,
+     *                          network.eth0.last_up{f}#40, network.eth0.rx{f}#39, network.eth0.tx{f}#38, network.eth0.up{f}#37,
+     *                          network.total_bytes_in{r}#160, $$network.total_bytes_in$converted_to$long{r$}#166,
+     *                          network.total_cost{r}#161, $$network.total_cost$converted_to$double{r$}#167, pod{f}#21]]
+     *                 \_Eval[[TOLONG(network.total_bytes_in{r}#160) AS $$network.total_bytes_in$converted_to$long#166,
+     *                         TODOUBLE(network.total_cost{r}#161) AS $$network.total_cost$converted_to$double#167]]
+     *                   \_Eval[[TOLONG(network.total_bytes_in{f}#33) AS network.total_bytes_in#160,
+     *                           TODOUBLE(network.total_cost{f}#35) AS network.total_cost#161]]
+     *                     \_Eval[[null[IP] AS client_ip#63, null[LONG] AS event_duration#64, null[KEYWORD] AS message#65]]
+     *                       \_Subquery[]
+     *                         \_Filter[@timestamp{f}#19 > 1759795200000[DATETIME]]
+     *                           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#19, client.ip{f}#23, cluster{f}#20, e..]
      */
     public void testNestedTSSubqueryInFrom() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
@@ -4072,13 +4059,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             FROM test, (FROM sample_data, (TS k8s | WHERE @timestamp > "2025-10-07"))
             """);
 
-        Limit limit = as(plan, Limit.class);
+        Project project = as(plan, Project.class);
+        Limit limit = as(project.child(), Limit.class);
         UnionAll outerUnion = as(limit.child(), UnionAll.class);
         assertEquals(2, outerUnion.children().size());
 
         // Left leg: test
         Project testProject = as(outerUnion.children().get(0), Project.class);
         Eval testNullEval = as(testProject.child(), Eval.class);
+        testProject = as(testNullEval.child(), Project.class);
+        testNullEval = as(testProject.child(), Eval.class);
         EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
         assertEquals("test", testRelation.indexPattern());
 
@@ -4121,40 +4111,39 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * TS subquery alongside another FROM subquery in a {@code FROM} that has no main index pattern.
-     * The {@link UnionAll} has two {@link Subquery}-wrapped branches and no standalone index pattern
-     * leg. Counter-typed fields surfaced by the TS branch are demoted to their base type before union.
-     *
      * Limit[1000[INTEGER],false,false]
-     * \_UnionAll[[@timestamp{r}#55, client.ip{r}#56, cluster{r}#57, event{r}#58, event_city{r}#59, event_city_boundary{r}#60, e
-     * vent_location{r}#61, event_log{r}#62, event_shape{r}#63, events_received{r}#64, network.bytes_in{r}#65, networ
-     * k.cost{r}#66, network.eth0.currently_connected_clients{r}#67, network.eth0.firmware_version{r}#68, network.eth
-     * 0.last_up{r}#69, network.eth0.rx{r}#70, network.eth0.tx{r}#71, network.eth0.up{r}#72, network.total_bytes_in{r
-     * }#73, network.total_cost{r}#74, pod{r}#75, client_ip{r}#76, event_duration{r}#77, message{r}#78]]
-     *   |_Project[[@timestamp{f}#4, client.ip{f}#8, cluster{f}#5, event{f}#9, event_city{f}#12, event_city_boundary{f}#13, event
-     * _location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17, network.co
-     * st{f}#19, network.eth0.currently_connected_clients{f}#27, network.eth0.firmware_version{f}#26, network.eth0.la
-     * st_up{f}#25, network.eth0.rx{f}#24, network.eth0.tx{f}#23, network.eth0.up{f}#22, network.total_bytes_in{r}#79
-     * , network.total_cost{r}#80, pod{f}#6, client_ip{r}#32, event_duration{r}#33, message{r}#34]]
-     *   | \_Eval[[TOLONG(network.total_bytes_in{f}#18) AS network.total_bytes_in#79, TODOUBLE(network.total_cost{f}#20) AS netw
-     * ork.total_cost#80]]
+     * \_UnionAll[[@timestamp{r}#55, client.ip{r}#56, cluster{r}#57, event{r}#58, event_city{r}#59, event_city_boundary{r}#60,
+     *             event_location{r}#61, event_log{r}#62, event_shape{r}#63, events_received{r}#64, network.bytes_in{r}#65,
+     *             network.cost{r}#66, network.eth0.currently_connected_clients{r}#67, network.eth0.firmware_version{r}#68,
+     *             network.eth0.last_up{r}#69, network.eth0.rx{r}#70, network.eth0.tx{r}#71, network.eth0.up{r}#72,
+     *             network.total_bytes_in{r}#73, network.total_cost{r}#74, pod{r}#75, client_ip{r}#76, event_duration{r}#77,
+     *             message{r}#78]]
+     *   |_Project[[@timestamp{f}#4, client.ip{f}#8, cluster{f}#5, event{f}#9, event_city{f}#12, event_city_boundary{f}#13,
+     *              event_location{f}#15, event_log{f}#10, event_shape{f}#14, events_received{f}#11, network.bytes_in{f}#17,
+     *              network.cost{f}#19, network.eth0.currently_connected_clients{f}#27, network.eth0.firmware_version{f}#26,
+     *              network.eth0.last_up{f}#25, network.eth0.rx{f}#24, network.eth0.tx{f}#23, network.eth0.up{f}#22,
+     *              network.total_bytes_in{r}#79, network.total_cost{r}#80, pod{f}#6, client_ip{r}#32, event_duration{r}#33,
+     *              message{r}#34]]
+     *   | \_Eval[[TOLONG(network.total_bytes_in{f}#18) AS network.total_bytes_in#79,
+     *             TODOUBLE(network.total_cost{f}#20) AS network.total_cost#80]]
      *   |   \_Eval[[null[IP] AS client_ip#32, null[LONG] AS event_duration#33, null[KEYWORD] AS message#34]]
      *   |     \_Subquery[]
      *   |       \_Filter[@timestamp{f}#4 > 1759795200000[DATETIME]]
      *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#4, client.ip{f}#8, cluster{f}#5, even..]
-     *   \_Project[[@timestamp{f}#28, client.ip{r}#35, cluster{r}#36, event{r}#37, event_city{r}#38, event_city_boundary{r}#39, e
-     * vent_location{r}#40, event_log{r}#41, event_shape{r}#42, events_received{r}#43, network.bytes_in{r}#44, networ
-     * k.cost{r}#45, network.eth0.currently_connected_clients{r}#46, network.eth0.firmware_version{r}#47, network.eth
-     * 0.last_up{r}#48, network.eth0.rx{r}#49, network.eth0.tx{r}#50, network.eth0.up{r}#51, network.total_bytes_in{r
-     * }#52, network.total_cost{r}#53, pod{r}#54, client_ip{f}#29, event_duration{f}#30, message{f}#31]]
-     *     \_Eval[[null[IP] AS client.ip#35, null[KEYWORD] AS cluster#36, null[KEYWORD] AS event#37, null[GEO_POINT] AS event_ci
-     * ty#38, null[GEO_SHAPE] AS event_city_boundary#39, null[CARTESIAN_POINT] AS event_location#40, null[TEXT] AS ev
-     * ent_log#41, null[CARTESIAN_SHAPE] AS event_shape#42, null[LONG] AS events_received#43, null[LONG] AS network.b
-     * ytes_in#44, null[DOUBLE] AS network.cost#45, null[INTEGER] AS network.eth0.currently_connected_clients#46, nul
-     * l[VERSION] AS network.eth0.firmware_version#47, null[DATE_NANOS] AS network.eth0.last_up#48, null[AGGREGATE_ME
-     * TRIC_DOUBLE] AS network.eth0.rx#49, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#50, null[BOOLEAN] AS netw
-     * ork.eth0.up#51, null[LONG] AS network.total_bytes_in#52, null[DOUBLE] AS network.total_cost#53, null[KEYWORD]
-     * AS pod#54]]
+     *   \_Project[[@timestamp{f}#28, client.ip{r}#35, cluster{r}#36, event{r}#37, event_city{r}#38, event_city_boundary{r}#39,
+     *              event_location{r}#40, event_log{r}#41, event_shape{r}#42, events_received{r}#43, network.bytes_in{r}#44,
+     *              network.cost{r}#45, network.eth0.currently_connected_clients{r}#46, network.eth0.firmware_version{r}#47,
+     *              network.eth0.last_up{r}#48, network.eth0.rx{r}#49, network.eth0.tx{r}#50, network.eth0.up{r}#51,
+     *              network.total_bytes_in{r}#52, network.total_cost{r}#53, pod{r}#54, client_ip{f}#29, event_duration{f}#30,
+     *              message{f}#31]]
+     *     \_Eval[[null[IP] AS client.ip#35, null[KEYWORD] AS cluster#36, null[KEYWORD] AS event#37, null[GEO_POINT] AS event_city#38,
+     *             null[GEO_SHAPE] AS event_city_boundary#39, null[CARTESIAN_POINT] AS event_location#40, null[TEXT] AS event_log#41,
+     *             null[CARTESIAN_SHAPE] AS event_shape#42, null[LONG] AS events_received#43, null[LONG] AS network.bytes_in#44,
+     *             null[DOUBLE] AS network.cost#45, null[INTEGER] AS network.eth0.currently_connected_clients#46,
+     *             null[VERSION] AS network.eth0.firmware_version#47, null[DATE_NANOS] AS network.eth0.last_up#48,
+     *             null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.rx#49, null[AGGREGATE_METRIC_DOUBLE] AS network.eth0.tx#50,
+     *             null[BOOLEAN] AS network.eth0.up#51, null[LONG] AS network.total_bytes_in#52, null[DOUBLE] AS network.total_cost#53,
+     *             null[KEYWORD] AS pod#54]]
      *       \_Subquery[]
      *         \_EsRelation[sample_data][@timestamp{f}#28, client_ip{f}#29, event_duration{f..]
      */
@@ -4190,24 +4179,18 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * Subquery using TS with a BY WITHOUT(...) grouping, combined with a FROM subquery.
-     * Validates that the WITHOUT(...) grouping surfaces as an attribute in the UnionAll output
-     * and is propagated as a null reference into the non-TS branch.
-     *
      * Limit[10000[INTEGER],false,false]
-     * \_UnionAll[[m{r}#2090, WITHOUT(pod){r}#2091, @timestamp{r}#2092, client_ip{r}#2093, event_duration{r}#2094, message{r}#20
-     * 95]]
-     *   |_Project[[m{r}#2052, WITHOUT(pod){r}#2049, @timestamp{r}#2084, client_ip{r}#2085, event_duration{r}#2086, message{r}#20
-     * 87]]
-     *   | \_Eval[[null[DATETIME] AS @timestamp#2084, null[IP] AS client_ip#2085, null[LONG] AS event_duration#2086, null[KEYWOR
-     * D] AS message#2087]]
+     * \_UnionAll[[m{r}#2090, WITHOUT(pod){r}#2091, @timestamp{r}#2092, client_ip{r}#2093, event_duration{r}#2094, message{r}#2095]]
+     *   |_Project[[m{r}#2052, WITHOUT(pod){r}#2049, @timestamp{r}#2084, client_ip{r}#2085, event_duration{r}#2086, message{r}#2087]]
+     *   | \_Eval[[null[DATETIME] AS @timestamp#2084, null[IP] AS client_ip#2085, null[LONG] AS event_duration#2086,
+     *             null[KEYWORD] AS message#2087]]
      *   |   \_Subquery[]
      *   |     \_TimeSeriesAggregate[[TIMESERIESWITHOUT(pod{f}#2057) AS WITHOUT(pod)#2049],
-     * [MAX(RATE(network.total_bytes_in{f}#2069,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#2055),
-     * true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2052, WITHOUT(pod){r}#2049],null,null,@timestamp{f}#2055,false]
+     *                               [MAX(RATE(network.total_bytes_in{f}#2069,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#2055),
+     *                               true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2052, WITHOUT(pod){r}#2049],null,null,
+     *                               @timestamp{f}#2055,false]
      *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2055, client.ip{f}#2059, cluster{f}#2..]
-     *   \_Project[[m{r}#2088, WITHOUT(pod){r}#2089, @timestamp{f}#2079, client_ip{f}#2080, event_duration{f}#2081, message{f}#20
-     * 82]]
+     *   \_Project[[m{r}#2088, WITHOUT(pod){r}#2089, @timestamp{f}#2079, client_ip{f}#2080, event_duration{f}#2081, message{f}#2082]]
      *     \_Eval[[null[DOUBLE] AS m#2088, null[KEYWORD] AS WITHOUT(pod)#2089]]
      *       \_Subquery[]
      *         \_EsRelation[sample_data][@timestamp{f}#2079, client_ip{f}#2080, event_durati..]
@@ -4285,40 +4268,37 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * Combines a main FROM index, a TS subquery using BY WITHOUT(...), and another FROM subquery.
-     * Validates the UnionAll surfaces the WITHOUT(...) attribute across all three branches and that
-     * the non-TS branches receive a null Eval for the WITHOUT(...) reference.
-     *
      * Limit[10000[INTEGER],false,false]
-     * \_UnionAll[[_meta_field{r}#1376, emp_no{r}#1377, first_name{r}#1378, gender{r}#1379, hire_date{r}#1380, job{r}#1381, job.
-     * raw{r}#1382, languages{r}#1383, last_name{r}#1384, long_noidx{r}#1385, salary{r}#1386, m{r}#1387, WITHOUT(pod)
-     * {r}#1388, @timestamp{r}#1389, client_ip{r}#1390, event_duration{r}#1391, message{r}#1392]]
-     *   |_Project[[_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#1303, gender{f}#1304, hire_date{f}#1309, job{f}#1310, job.
-     * raw{f}#1311, languages{f}#1305, last_name{f}#1306, long_noidx{f}#1312, salary{f}#1307, m{r}#1342, WITHOUT(pod)
-     * {r}#1343, @timestamp{r}#1344, client_ip{r}#1345, event_duration{r}#1346, message{r}#1347]]
-     *   | \_Eval[[null[DOUBLE] AS m#1342, null[KEYWORD] AS WITHOUT(pod)#1343, null[DATETIME] AS @timestamp#1344, null[IP] AS cl
-     * ient_ip#1345, null[LONG] AS event_duration#1346, null[KEYWORD] AS message#1347]]
+     * \_UnionAll[[_meta_field{r}#1376, emp_no{r}#1377, first_name{r}#1378, gender{r}#1379, hire_date{r}#1380, job{r}#1381,
+     *             job.raw{r}#1382, languages{r}#1383, last_name{r}#1384, long_noidx{r}#1385, salary{r}#1386, m{r}#1387,
+     *             WITHOUT(pod){r}#1388, @timestamp{r}#1389, client_ip{r}#1390, event_duration{r}#1391, message{r}#1392]]
+     *   |_Project[[_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#1303, gender{f}#1304, hire_date{f}#1309, job{f}#1310,
+     *              job.raw{f}#1311, languages{f}#1305, last_name{f}#1306, long_noidx{f}#1312, salary{f}#1307, m{r}#1342,
+     *              WITHOUT(pod){r}#1343, @timestamp{r}#1344, client_ip{r}#1345, event_duration{r}#1346, message{r}#1347]]
+     *   | \_Eval[[null[DOUBLE] AS m#1342, null[KEYWORD] AS WITHOUT(pod)#1343, null[DATETIME] AS @timestamp#1344,
+     *             null[IP] AS client_ip#1345, null[LONG] AS event_duration#1346, null[KEYWORD] AS message#1347]]
      *   |   \_EsRelation[test][_meta_field{f}#1308, emp_no{f}#1302, first_name{f}#..]
-     *   |_Project[[_meta_field{r}#1348, emp_no{r}#1349, first_name{r}#1350, gender{r}#1351, hire_date{r}#1352, job{r}#1353, job.
-     * raw{r}#1354, languages{r}#1355, last_name{r}#1356, long_noidx{r}#1357, salary{r}#1358, m{r}#1299, WITHOUT(pod)
-     * {r}#1296, @timestamp{r}#1359, client_ip{r}#1360, event_duration{r}#1361, message{r}#1362]]
-     *   | \_Eval[[null[KEYWORD] AS _meta_field#1348, null[INTEGER] AS emp_no#1349, null[KEYWORD] AS first_name#1350, null[TEXT]
-     *  AS gender#1351, null[DATETIME] AS hire_date#1352, null[TEXT] AS job#1353, null[KEYWORD] AS job.raw#1354, null
-     * [INTEGER] AS languages#1355, null[KEYWORD] AS last_name#1356, null[LONG] AS long_noidx#1357, null[INTEGER] AS
-     * salary#1358, null[DATETIME] AS @timestamp#1359, null[IP] AS client_ip#1360, null[LONG] AS event_duration#1361,
-     *  null[KEYWORD] AS message#1362]]
+     *   |_Project[[_meta_field{r}#1348, emp_no{r}#1349, first_name{r}#1350, gender{r}#1351, hire_date{r}#1352, job{r}#1353,
+     *              job.raw{r}#1354, languages{r}#1355, last_name{r}#1356, long_noidx{r}#1357, salary{r}#1358, m{r}#1299,
+     *              WITHOUT(pod){r}#1296, @timestamp{r}#1359, client_ip{r}#1360, event_duration{r}#1361, message{r}#1362]]
+     *   | \_Eval[[null[KEYWORD] AS _meta_field#1348, null[INTEGER] AS emp_no#1349, null[KEYWORD] AS first_name#1350,
+     *             null[TEXT] AS gender#1351, null[DATETIME] AS hire_date#1352, null[TEXT] AS job#1353, null[KEYWORD] AS job.raw#1354,
+     *             null [INTEGER] AS languages#1355, null[KEYWORD] AS last_name#1356, null[LONG] AS long_noidx#1357,
+     *             null[INTEGER] AS salary#1358, null[DATETIME] AS @timestamp#1359, null[IP] AS client_ip#1360,
+     *             null[LONG] AS event_duration#1361,null[KEYWORD] AS message#1362]]
      *   |   \_Subquery[]
      *   |     \_TimeSeriesAggregate[[TIMESERIESWITHOUT(pod{f}#1315) AS WITHOUT(pod)#1296],
-     * [MAX(RATE(network.total_bytes_in{f}#1327,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1313),
-     * true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1299, WITHOUT(pod){r}#1296],null,null,@timestamp{f}#1313,false]
+     *                                [MAX(RATE(network.total_bytes_in{f}#1327,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1313),
+     *                                true[BOOLEAN],PT0S[TIME_DURATION]) AS m#1299, WITHOUT(pod){r}#1296],null,null,
+     *                                @timestamp{f}#1313,false]
      *   |       \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1313, client.ip{f}#1317, cluster{f}#1..]
-     *   \_Project[[_meta_field{r}#1363, emp_no{r}#1364, first_name{r}#1365, gender{r}#1366, hire_date{r}#1367, job{r}#1368, job.
-     * raw{r}#1369, languages{r}#1370, last_name{r}#1371, long_noidx{r}#1372, salary{r}#1373, m{r}#1374, WITHOUT(pod)
-     * {r}#1375, @timestamp{f}#1337, client_ip{f}#1338, event_duration{f}#1339, message{f}#1340]]
-     *     \_Eval[[null[KEYWORD] AS _meta_field#1363, null[INTEGER] AS emp_no#1364, null[KEYWORD] AS first_name#1365, null[TEXT]
-     *  AS gender#1366, null[DATETIME] AS hire_date#1367, null[TEXT] AS job#1368, null[KEYWORD] AS job.raw#1369, null
-     * [INTEGER] AS languages#1370, null[KEYWORD] AS last_name#1371, null[LONG] AS long_noidx#1372, null[INTEGER] AS
-     * salary#1373, null[DOUBLE] AS m#1374, null[KEYWORD] AS WITHOUT(pod)#1375]]
+     *   \_Project[[_meta_field{r}#1363, emp_no{r}#1364, first_name{r}#1365, gender{r}#1366, hire_date{r}#1367, job{r}#1368,
+     *              job.raw{r}#1369, languages{r}#1370, last_name{r}#1371, long_noidx{r}#1372, salary{r}#1373, m{r}#1374,
+     *              WITHOUT(pod){r}#1375, @timestamp{f}#1337, client_ip{f}#1338, event_duration{f}#1339, message{f}#1340]]
+     *     \_Eval[[null[KEYWORD] AS _meta_field#1363, null[INTEGER] AS emp_no#1364, null[KEYWORD] AS first_name#1365,
+     *             null[TEXT] AS gender#1366, null[DATETIME] AS hire_date#1367, null[TEXT] AS job#1368, null[KEYWORD] AS job.raw#1369,
+     *             null[INTEGER] AS languages#1370, null[KEYWORD] AS last_name#1371, null[LONG] AS long_noidx#1372,
+     *             null[INTEGER] AS salary#1373, null[DOUBLE] AS m#1374, null[KEYWORD] AS WITHOUT(pod)#1375]]
      *       \_Subquery[]
      *         \_EsRelation[sample_data][@timestamp{f}#1337, client_ip{f}#1338, event_durati..]
      */
@@ -4398,20 +4378,16 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * TS subquery aggregates produce {@code m} as LONG while a sibling FROM subquery emits {@code m} as KEYWORD.
-     * Without an explicit cast, the analyzer marks the column as {@link UnsupportedAttribute} in the
-     * UnionAll output and rewrites both branches' {@code m} reference to a null KEYWORD eval.
-     *
      * Limit[10000[INTEGER],false,false]
      * \_UnionAll[[!m, cluster{r}#2360, @timestamp{r}#2361, client_ip{r}#2362, event_duration{r}#2363, message{r}#2364]]
      *   |_Project[[m{r}#2365, cluster{f}#2326, @timestamp{r}#2354, client_ip{r}#2355, event_duration{r}#2356, message{r}#2357]]
      *   | \_Eval[[null[KEYWORD] AS m#2365]]
-     *   |   \_Eval[[null[DATETIME] AS @timestamp#2354, null[IP] AS client_ip#2355, null[LONG] AS event_duration#2356, null[KEYWOR
-     * D] AS message#2357]]
+     *   |   \_Eval[[null[DATETIME] AS @timestamp#2354, null[IP] AS client_ip#2355, null[LONG] AS event_duration#2356,
+     *               null[KEYWORD] AS message#2357]]
      *   |     \_Subquery[]
-     *   |       \_TimeSeriesAggregate[[cluster{f}#2326],[MAX(RATE(network.total_bytes_in{f}#2339,
-     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#2325),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2321,
-     * cluster{f}#2326],null,null,@timestamp{f}#2325,false]
+     *   |       \_TimeSeriesAggregate[[cluster{f}#2326],[MAX(RATE(network.total_bytes_in{f}#2339, true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                  @timestamp{f}#2325),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#2321, cluster{f}#2326],null,null,
+     *                                  @timestamp{f}#2325,false]
      *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#2325, client.ip{f}#2329, cluster{f}#2..]
      *   \_Project[[m{r}#2366, cluster{r}#2358, @timestamp{f}#2349, client_ip{f}#2350, event_duration{f}#2351, message{f}#2352]]
      *     \_Eval[[null[KEYWORD] AS m#2366]]
@@ -4487,34 +4463,31 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * Same shape as {@link #testTSSubqueryWithConflictingTypesInUnionAll} but the conflicting {@code m}
-     * is reconciled by an explicit cast {@code EVAL m = m::string}. The cast pushes a {@code TOSTRING}
-     * eval into each UnionAll branch and exposes a {@code $$m$converted_to$keyword} reference at the top.
-     *
-     * Limit[10000[INTEGER],false,false]
-     * \_Project[[m{r}#183]]
-     *   \_Eval[[$$m$converted_to$keyword{r$}#227 AS m#183]]
-     *     \_UnionAll[[!m, $$m$converted_to$keyword{r$}#227, cluster{r}#220, @timestamp{r}#221, client_ip{r}#222, event_duration{r}#
-     * 223, message{r}#224]]
-     *       |_Project[[m{r}#228, $$m$converted_to$keyword{r$}#225, cluster{f}#186, @timestamp{r}#214, client_ip{r}#215, event_durati
-     * on{r}#216, message{r}#217]]
-     *       | \_Eval[[null[KEYWORD] AS m#228]]
-     *       |   \_Eval[[TOSTRING(m{r}#177) AS $$m$converted_to$keyword#225]]
-     *       |     \_Eval[[null[DATETIME] AS @timestamp#214, null[IP] AS client_ip#215, null[LONG] AS event_duration#216, null[KEYWORD]
-     * AS message#217]]
-     *       |       \_Subquery[]
-     *       |         \_TimeSeriesAggregate[[cluster{f}#186],[MAX(RATE(network.total_bytes_in{f}#199,
-     * true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#185),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#177,
-     * cluster{f}#186],null,null,@timestamp{f}#185,false]
-     *       |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#185, client.ip{f}#189, cluster{f}#186, ..]
-     *       \_Project[[m{r}#229, $$m$converted_to$keyword{r$}#226, cluster{r}#218, @timestamp{f}#209, client_ip{f}#210, event_durati
-     * on{f}#211, message{f}#212]]
-     *         \_Eval[[null[KEYWORD] AS m#229]]
-     *           \_Eval[[TOSTRING(m{r}#180) AS $$m$converted_to$keyword#226]]
-     *             \_Eval[[null[KEYWORD] AS cluster#218]]
-     *               \_Subquery[]
-     *                 \_Eval[[abc[KEYWORD] AS m#180]]
-     *                   \_EsRelation[sample_data][@timestamp{f}#209, client_ip{f}#210, event_duration..]
+     * Project[[m{r}#12]]
+     * \_Limit[10000[INTEGER],false,false]
+     *   \_Project[[m{r}#12, $$m$converted_to$keyword{r$}#56]]
+     *     \_Eval[[$$m$converted_to$keyword{r$}#56 AS m#12]]
+     *       \_UnionAll[[!m, $$m$converted_to$keyword{r$}#56, cluster{r}#49, @timestamp{r}#50, client_ip{r}#51, event_duration{r}#52,
+     *                   message{r}#53]]
+     *         |_Project[[m{r}#57, $$m$converted_to$keyword{r$}#54, cluster{f}#15, @timestamp{r}#43, client_ip{r}#44, event_duration{r}#45,
+     *                    message{r}#46]]
+     *         | \_Eval[[null[KEYWORD] AS m#57]]
+     *         |   \_Eval[[TOSTRING(m{r}#6) AS $$m$converted_to$keyword#54]]
+     *         |     \_Eval[[null[DATETIME] AS @timestamp#43, null[IP] AS client_ip#44, null[LONG] AS event_duration#45,
+     *                       null[KEYWORD] AS message#46]]
+     *         |       \_Subquery[]
+     *         |         \_TimeSeriesAggregate[[cluster{f}#15],[MAX(RATE(network.total_bytes_in{f}#28,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                          @timestamp{f}#14),true[BOOLEAN],PT0S[TIME_DURATION]) AS m#6, cluster{f}#15],null,null,
+     *                                          @timestamp{f}#14,TS_COMMAND]
+     *         |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#14, client.ip{f}#18, cluster{f}#15, e..]
+     *         \_Project[[m{r}#58, $$m$converted_to$keyword{r$}#55, cluster{r}#47, @timestamp{f}#38, client_ip{f}#39,
+     *                    event_duration{f}#40, message{f}#41]]
+     *           \_Eval[[null[KEYWORD] AS m#58]]
+     *             \_Eval[[TOSTRING(m{r}#9) AS $$m$converted_to$keyword#55]]
+     *               \_Eval[[null[KEYWORD] AS cluster#47]]
+     *                 \_Subquery[]
+     *                   \_Eval[[abc[KEYWORD] AS m#9]]
+     *                     \_EsRelation[sample_data][@timestamp{f}#38, client_ip{f}#39, event_duration{f..]
      */
     public void testTSSubqueryWithConflictingTypesAndExplicitCast() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
@@ -4526,9 +4499,11 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             | KEEP m
             """);
 
-        Limit limit = as(plan, Limit.class);
-        Project topProject = as(limit.child(), Project.class);
+        Project topProject = as(plan, Project.class);
         assertEquals(1, topProject.projections().size());
+        Limit limit = as(topProject.child(), Limit.class);
+        topProject = as(limit.child(), Project.class);
+        assertEquals(2, topProject.projections().size());
         assertEquals("m", topProject.projections().get(0).name());
 
         Eval topEval = as(topProject.child(), Eval.class);
@@ -4588,22 +4563,17 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
-     * TS aggregate produces {@code m} as LONG while the sibling FROM subquery emits {@code m} as DOUBLE.
-     * Even though both types are numeric, the analyzer does not implicitly promote across UnionAll
-     * branches, so {@code m} surfaces as {@link UnsupportedAttribute} (LONG vs DOUBLE). An explicit
-     * cast resolves the conflict.
-     *
      * planNoCast:
      * Limit[10000[INTEGER],false,false]
      * \_UnionAll[[!m, @timestamp{r}#1799, client_ip{r}#1800, event_duration{r}#1801, message{r}#1802]]
      *   |_Project[[m{r}#1803, @timestamp{r}#1794, client_ip{r}#1795, event_duration{r}#1796, message{r}#1797]]
      *   | \_Eval[[null[KEYWORD] AS m#1803]]
-     *   |   \_Eval[[null[DATETIME] AS @timestamp#1794, null[IP] AS client_ip#1795, null[LONG] AS event_duration#1796, null[KEYWOR
-     * D] AS message#1797]]
+     *   |   \_Eval[[null[DATETIME] AS @timestamp#1794, null[IP] AS client_ip#1795, null[LONG] AS event_duration#1796,
+     *               null[KEYWORD] AS message#1797]]
      *   |     \_Subquery[]
      *   |       \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#1778,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#1765),
-     * true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS m#1761],null,null,
-     * @timestamp{f}#1765,false]
+     *                                 true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS m#1761],
+     *                                 null,null, @timestamp{f}#1765,false]
      *   |         \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1765, client.ip{f}#1769, cluster{f}#1..]
      *   \_Project[[m{r}#1804, @timestamp{f}#1789, client_ip{f}#1790, event_duration{f}#1791, message{f}#1792]]
      *     \_Eval[[null[KEYWORD] AS m#1804]]
@@ -4612,29 +4582,29 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *           \_EsRelation[sample_data][@timestamp{f}#1789, client_ip{f}#1790, event_durati..]
      *
      * planCast:
-     * Limit[10000[INTEGER],false,false]
-     * \_Project[[m{r}#1813]]
-     *   \_Eval[[$$m$converted_to$double{r$}#1855 AS m#1813]]
-     *     \_UnionAll[[!m, $$m$converted_to$double{r$}#1855, @timestamp{r}#1849, client_ip{r}#1850, event_duration{r}#1851, message{
-     * r}#1852]]
-     *       |_Project[[m{r}#1856, $$m$converted_to$double{r$}#1853, @timestamp{r}#1844, client_ip{r}#1845, event_duration{r}#1846, m
-     * essage{r}#1847]]
-     *       | \_Eval[[null[KEYWORD] AS m#1856]]
-     *       |   \_Eval[[TODOUBLE(m{r}#1807) AS $$m$converted_to$double#1853]]
-     *       |     \_Eval[[null[DATETIME] AS @timestamp#1844, null[IP] AS client_ip#1845, null[LONG] AS event_duration#1846, null[KEYWOR
-     * D] AS message#1847]]
-     *       |       \_Subquery[]
-     *       |         \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#1828,true[BOOLEAN],PT0S[TIME_DURATION],
-     * @timestamp{f}#1815),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_throw[KEYWORD]) AS m#1807],
-     * null,null,@timestamp{f}#1815,false]
-     *       |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#1815, client.ip{f}#1819, cluster{f}#1..]
-     *       \_Project[[m{r}#1857, $$m$converted_to$double{r$}#1854, @timestamp{f}#1839, client_ip{f}#1840, event_duration{f}#1841, m
-     * essage{f}#1842]]
-     *         \_Eval[[null[KEYWORD] AS m#1857]]
-     *           \_Eval[[TODOUBLE(m{r}#1810) AS $$m$converted_to$double#1854]]
-     *             \_Subquery[]
-     *               \_Eval[[1.5[DOUBLE] AS m#1810]]
-     *                 \_EsRelation[sample_data][@timestamp{f}#1839, client_ip{f}#1840, event_durati..]
+     * Project[[m{r}#57]]
+     * \_Limit[10000[INTEGER],false,false]
+     *   \_Project[[m{r}#57, $$m$converted_to$double{r$}#99]]
+     *     \_Eval[[$$m$converted_to$double{r$}#99 AS m#57]]
+     *       \_UnionAll[[!m, $$m$converted_to$double{r$}#99, @timestamp{r}#93, client_ip{r}#94, event_duration{r}#95, message{r}#96]]
+     *         |_Project[[m{r}#100, $$m$converted_to$double{r$}#97, @timestamp{r}#88, client_ip{r}#89, event_duration{r}#90,
+     *                    message{r}#91]]
+     *         | \_Eval[[null[KEYWORD] AS m#100]]
+     *         |   \_Eval[[TODOUBLE(m{r}#51) AS $$m$converted_to$double#97]]
+     *         |     \_Eval[[null[DATETIME] AS @timestamp#88, null[IP] AS client_ip#89, null[LONG] AS event_duration#90,
+     *                       null[KEYWORD] AS message#91]]
+     *         |       \_Subquery[]
+     *         |         \_TimeSeriesAggregate[[],[SUM(LASTOVERTIME(network.bytes_in{f}#72,true[BOOLEAN],PT0S[TIME_DURATION],
+     *                                         @timestamp{f}#59),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],
+     *                                         long_overflow_throw[KEYWORD]) AS m#51],null,null,@timestamp{f}#59,TS_COMMAND]
+     *         |           \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#59, client.ip{f}#63, cluster{f}#60, e..]
+     *         \_Project[[m{r}#101, $$m$converted_to$double{r$}#98, @timestamp{f}#83, client_ip{f}#84, event_duration{f}#85,
+     *                    message{f}#86]]
+     *           \_Eval[[null[KEYWORD] AS m#101]]
+     *             \_Eval[[TODOUBLE(m{r}#54) AS $$m$converted_to$double#98]]
+     *               \_Subquery[]
+     *                 \_Eval[[1.5[DOUBLE] AS m#54]]
+     *                   \_EsRelation[sample_data][@timestamp{f}#83, client_ip{f}#84, event_duration{f..]
      */
     public void testTSSubqueryWithNumericConflictAndExplicitCast() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
@@ -4686,9 +4656,11 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             | KEEP m
             """);
 
-        Limit castLimit = as(planCast, Limit.class);
-        Project castTopProject = as(castLimit.child(), Project.class);
+        Project castTopProject = as(planCast, Project.class);
         assertEquals(1, castTopProject.projections().size());
+        Limit castLimit = as(castTopProject.child(), Limit.class);
+        castTopProject = as(castLimit.child(), Project.class);
+        assertEquals(2, castTopProject.projections().size());
         Eval castTopEval = as(castTopProject.child(), Eval.class);
         Alias mFromCast = castTopEval.fields().get(0);
         assertEquals("m", mFromCast.name());

@@ -112,11 +112,12 @@ public class LookupGoldenTests extends GoldenTestCase {
      * The bulk lookup optimization applies here as well.
      */
     public void testKeywordLookupWithFilterInJoinCondition() {
-        runGoldenTest("""
+        assumeTrue("Requires LOOKUP JOIN on expression", EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION.isEnabled());
+        builder("""
             FROM employees
             | RENAME first_name as first_left, last_name as last_left
             | LOOKUP JOIN test_lookup ON first_left == first_name AND last_name == "Facello"
-            """, STAGES);
+            """).stages(STAGES).transportVersion(ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION).run();
     }
 
     /**

@@ -9,7 +9,7 @@ applies_to:
 
 # Reindex indices examples
 
-The [Reindex API]({{es-apis}}operation/operation-reindex) copies documents from a source index, data stream, or alias to a destination, allowing for optional data modification via scripts or ingest pipelines.
+The [Reindex API]({{es-apis}}operation/operation-reindex) copies documents from a source index, data stream, or alias to a destination, allowing for optional data modification through scripts or ingest pipelines.
 
 You can learn how to:
 

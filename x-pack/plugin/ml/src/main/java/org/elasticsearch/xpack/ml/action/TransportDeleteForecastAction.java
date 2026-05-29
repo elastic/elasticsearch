@@ -29,7 +29,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -194,7 +194,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }, e -> handleFailure(e, request, listener)));
     }
 
-    private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {
+    private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByPaginatedSearchResponse response) {
         RestStatus status = RestStatus.OK;
         Throwable reason = new Exception("Unknown error");
         // Getting the max RestStatus is sort of arbitrary, would the user care about 5xx over 4xx?

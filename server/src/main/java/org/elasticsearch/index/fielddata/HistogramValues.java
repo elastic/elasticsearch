@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
+
 import java.io.IOException;
 
 /**
@@ -27,5 +29,7 @@ public abstract class HistogramValues {
      * The returned {@link HistogramValue} might be reused across calls.
      */
     public abstract HistogramValue histogram() throws IOException;
+
+    public abstract DocIdSetIterator docIdSetIterator();
 
 }

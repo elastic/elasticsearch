@@ -1193,6 +1193,11 @@ public class VerifierTests extends ESTestCase {
                 equalTo("1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment")
             );
         }
+        defaultAnalyzer().error(
+            "ROW a = NULL::time_duration",
+            equalTo("1:9: cannot use [NULL::time_duration] directly in a row assignment")
+        );
+        defaultAnalyzer().error("ROW a = NULL::date_period", equalTo("1:9: cannot use [NULL::date_period] directly in a row assignment"));
     }
 
     public void testSubtractDateTimeFromTemporal() {
@@ -1359,6 +1364,101 @@ public class VerifierTests extends ESTestCase {
                         + unit
                         + "\")]"
                 )
+            );
+        }
+        defaultAnalyzer().error(
+            "ROW x = 1 | EVAL y = NULL::time_duration",
+            equalTo("1:18: EVAL does not support type [time_duration] as the return data type of expression [NULL::time_duration]")
+        );
+        defaultAnalyzer().error(
+            "ROW x = 1 | EVAL y = NULL::date_period",
+            equalTo("1:18: EVAL does not support type [date_period] as the return data type of expression [NULL::date_period]")
+        );
+    }
+
+    public void testPeriodAndDurationInStats() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:31: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:31: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInSort() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error("ROW x = 1 | SORT 1 " + unit, equalTo("1:18: cannot sort on time_duration"));
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error("ROW x = 1 | SORT 1 " + unit, equalTo("1:18: cannot sort on date_period"));
+        }
+    }
+
+    public void testPeriodAndDurationInLimitBy() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | LIMIT 1 BY 1 " + unit,
+                equalTo("1:24: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | LIMIT 1 BY 1 " + unit,
+                equalTo("1:24: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:38: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:38: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInChangePoint() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        // Keys are qualifiedNames so we can't use literals; test via columns. The ROW assignment also
+        // fires an error but the CHANGE_POINT key error still appears in the output.
+        defaultAnalyzer().error(
+            """
+                ROW key = NULL::time_duration, value = 0
+                | CHANGE_POINT value ON key""",
+            containsString("CHANGE_POINT only supports sortable keys, found expression [key] type [TIME_DURATION]")
+        );
+        defaultAnalyzer().error(
+            """
+                ROW key = NULL::date_period, value = 0
+                | CHANGE_POINT value ON key""",
+            containsString("CHANGE_POINT only supports sortable keys, found expression [key] type [DATE_PERIOD]")
+        );
+        // BY groupings accept expressions, so literals work directly.
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW key = 0, value = 0 | CHANGE_POINT value ON key BY 1 " + unit,
+                equalTo("1:55: CHANGE_POINT grouping only supports sortable values, found expression [1 " + unit + "] type [TIME_DURATION]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW key = 0, value = 0 | CHANGE_POINT value ON key BY 1 " + unit,
+                equalTo("1:55: CHANGE_POINT grouping only supports sortable values, found expression [1 " + unit + "] type [DATE_PERIOD]")
             );
         }
     }
@@ -3839,6 +3939,14 @@ public class VerifierTests extends ESTestCase {
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
                     + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5] [@"
+            )
+        );
+
+        defaultAnalyzer().error(
+            randomFrom(sourceCommands) + "LIMIT 5 BY gender | INLINE STATS max(salary) BY gender",
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5 BY gender] [@"
             )
         );
 

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.telemetry.TelemetryProvider;
 
 public interface TelemetryPlugin {
-    TelemetryProvider getTelemetryProvider(Settings settings);
+    TelemetryProvider getTelemetryProvider(Environment environment);
 }

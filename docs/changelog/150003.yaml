@@ -1,0 +1,5 @@
+area: Query Languages
+issues: []
+pr: 150003
+summary: "EQL/SQL: enforce max expression depth checks"
+type: bug

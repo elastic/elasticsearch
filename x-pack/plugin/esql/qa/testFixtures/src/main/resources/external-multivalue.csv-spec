@@ -1,0 +1,212 @@
+// Native-multi-value external-format coverage. The pre-PR external-basic.csv-spec ran these queries
+// against {{employees}} for every external-format IT — Parquet (repetition-level decoding), ORC (list
+// columns), NDJSON (JSON arrays), Parquet-rs, and ExternalDistributedSpecIT on multi-node. After the
+// multi_value_syntax default flip those queries moved to csv-multivalue.csv-spec with an explicit
+// "brackets" opt-in, which only works for the CSV reader. Non-CSV/TSV readers reject the unknown
+// `multi_value_syntax` key (ConfigKeyValidator), so this spec carries the SAME queries WITHOUT the
+// WITH clause — each format reads its native MV representation.
+//
+// SISTER FILE: csv-multivalue.csv-spec carries the identical 9 query shapes with the brackets opt-in
+// for the CSV reader path. When adding / changing a query here, mirror it there (or vice versa).
+//
+// EsqlSpecTestCase (single-node / mixed-cluster / multi-cluster / multi-node, no AbstractExternalSource
+// resolver) is gated OUT by a fileName-based assumeFalseLogging — the local CSV reader on these clusters
+// would default to multi_value_syntax: none and misalign columns on the bracket-MV employees.csv.
+
+mvExpandFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| MV_EXPAND job_positions
+| KEEP emp_no, first_name, job_positions
+| SORT emp_no, job_positions
+| LIMIT 6;
+
+emp_no:integer | first_name:keyword | job_positions:keyword
+10001          | "Georgi"           | "Accountant"
+10001          | "Georgi"           | "Senior Python Developer"
+10002          | "Bezalel"          | "Senior Team Lead"
+10003          | "Parto"            | null
+10004          | "Chirstian"        | "Head Human Resources"
+10004          | "Chirstian"        | "Reporting Analyst"
+;
+
+mvCountFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL cnt = MV_COUNT(job_positions)
+| KEEP emp_no, job_positions, cnt
+;
+
+emp_no:integer | job_positions:keyword | cnt:integer
+10001          | [Senior Python Developer, Accountant] | 2
+;
+
+mvConcatFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| EVAL joined = MV_CONCAT(job_positions, ", ")
+| KEEP emp_no, joined
+;
+
+emp_no:integer | joined:keyword
+10001          | "Senior Python Developer, Accountant"
+;
+
+mvDedupeFromSplit2
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL deduped = MV_SORT(MV_DEDUPE(salary_change))
+| KEEP emp_no, deduped, first_name
+;
+
+emp_no:integer | deduped:double          | first_name:keyword
+10004          | [-0.35,1.13,3.65,13.48] | Chirstian
+;
+
+filterFirstRowAllColumns
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no < 10003
+| SORT emp_no
+;
+birth_date:date          | emp_no:integer | first_name:keyword | gender:keyword | hire_date:date           | languages:integer | languages.long:long | languages.short:short | languages.byte:byte | last_name:keyword | salary:integer | height:double | height.float:double | height.scaled_float:double | height.half_float:double | still_hired:boolean | avg_worked_seconds:long | job_positions:keyword                 | is_rehired:boolean | salary_change:double | salary_change.int:integer | salary_change.long:long | salary_change.keyword:keyword
+1953-09-02T00:00:00.000Z | 10001          | Georgi             | M              | 1986-06-26T00:00:00.000Z | 2                 | 2                   | 2                     | 2                   | Facello           | 57305          | 2.03          | 2.03                | 2.03                       | 2.03                     | true                | 268728049               | [Senior Python Developer, Accountant] | [false, true]      | [1.19]               | [1]                       | [1]                     | [1.19]
+1964-06-02T00:00:00.000Z | 10002          | Bezalel            | F              | 1985-11-21T00:00:00.000Z | 5                 | 5                   | 5                     | 5                   | Simmel            | 56371          | 2.08          | 2.08                | 2.08                       | 2.08                     | true                | 328922887               | [Senior Team Lead]                    | [false,false]      | [-7.23,11.17]        | [-7,11]                   | [-7,11]                 | [-7.23,11.17]
+;
+
+mvDedupeFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10002
+| EVAL deduped = MV_DEDUPE(job_positions)
+| KEEP emp_no, deduped
+;
+
+emp_no:integer | deduped:keyword
+10002          | [Senior Team Lead]
+;
+
+mvMinFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL mn = MV_MIN(job_positions)
+| KEEP emp_no, mn
+;
+
+emp_no:integer | mn:keyword
+10004          | "Head Human Resources"
+;
+
+mvMaxFromSplit
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10004
+| EVAL mx = MV_MAX(job_positions)
+| KEEP emp_no, mx
+;
+
+emp_no:integer | mx:keyword
+10004          | "Tech Lead"
+;
+
+mvAppendFromScalars
+required_capability: external_command
+
+EXTERNAL "{{employees}}"
+| WHERE emp_no == 10001
+| KEEP emp_no, job_positions
+;
+
+emp_no:integer | job_positions:keyword
+10001          | [Senior Python Developer, Accountant]
+;
+
+// ---- Relocated from external-basic.csv-spec ----
+// These RERANK / TOP_SNIPPETS / SCORE queries read {{books}} which has a bracket-MV `author` column.
+// Native-MV format readers (Parquet repetition levels / ORC list columns / NDJSON arrays) decode it
+// directly; CSV reader under the new multi_value_syntax: none default cannot. The opt-in
+// `multi_value_syntax: brackets` would let CSV read it, but is rejected by non-CSV readers
+// (ConfigKeyValidator). So these stay external-multi-value-only, gated out of EsqlSpecTestCase
+// by the fileName-based assumeFalseLogging on this spec.
+
+# requires further guards, TODO
+completion-Ignore
+required_capability: external_command
+required_capability: completion
+required_capability: match_operator_colon
+required_capability: routing_function_update
+
+EXTERNAL "{{books}}"
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| LIMIT 2
+| COMPLETION title WITH { "inference_id" : "test_completion" }
+| KEEP title, completion
+;
+
+title:keyword                      | completion:keyword
+War and Peace                      | WAR AND PEACE
+War and Peace: A Novel (6 Volumes) | WAR AND PEACE: A NOVEL (6 VOLUMES)
+;
+
+externalRerankBooks
+required_capability: external_command
+required_capability: rerank
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{books}}"
+| WHERE book_no IN ("5327", "9032", "4536", "2776")
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
+| EVAL _score=ROUND(_score, 2)
+| SORT _score DESC, book_no ASC
+| KEEP book_no, title, author, _score
+;
+
+book_no:keyword | title:keyword                                         | author:keyword                              | _score:double
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.08
+4536            | War and Peace (Signet Classics)                       | [Leo Tolstoy, Pat Conroy, John Hockenberry] | 0.03
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.03
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.02
+;
+
+topSnippetsFunction
+required_capability: external_command
+required_capability: top_snippets_function
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{books}}"
+| EVAL snippets = TOP_SNIPPETS(description, "Tolkien")
+| KEEP book_no, title, description, snippets
+| WHERE book_no::INTEGER == 9607
+;
+
+book_no:keyword|title:keyword                        |description:keyword                                                                                 |snippets:keyword
+9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature
+;
+
+scoreFunction
+required_capability: external_command
+required_capability: top_snippets_function
+required_capability: score_function
+required_capability: datasource_file_readers_no_text_type
+
+EXTERNAL "{{books}}"
+| EVAL score = SCORE(TOP_SNIPPETS(description, "Tolkien"))
+| KEEP book_no, title, description, score
+| WHERE book_no::INTEGER == 9607
+;
+
+book_no:keyword|title:keyword                        |description:keyword                                                                                 |score:double
+9607           |Beowolf: The monsters and the critics|A collection of seven essays by J.R.R. Tolkien arising out of Tolkien's work in medieval literature|0.0
+;

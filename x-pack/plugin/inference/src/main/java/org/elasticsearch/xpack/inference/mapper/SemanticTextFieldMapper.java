@@ -599,11 +599,6 @@ public class SemanticTextFieldMapper extends SemanticFieldMapper {
         }
 
         @Override
-        public String getDefaultHighlighter() {
-            return SemanticTextHighlighter.NAME;
-        }
-
-        @Override
         protected ValueFetcher valueFetcher(SearchExecutionContext context) {
             return useLegacyFormat
                 ? SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, null)

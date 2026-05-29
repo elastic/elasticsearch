@@ -21,12 +21,12 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 
 ## Prerequisites [esql-ccs-prerequisites]
 
-* {{esql}} {{ccs}} requires an [Enterprise subscription](https://www.elastic.co/subscriptions) on both the local (querying) cluster and every remote cluster. The legacy TLS certificate-based CCS model available at lower tiers is deprecated in 9.0 and does not support {{esql}}.
-* The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
+* {{esql}} {{ccs}} requires an [Enterprise subscription](https://www.elastic.co/subscriptions) on both the local (querying) cluster and every remote cluster.
 * [Remote clusters](docs-content://deploy-manage/remote-clusters.md) must be configured before running {{esql}} across clusters.
 
     The destination cluster must be configured as a remote cluster on the local cluster, and the remote cluster connection must be correctly established. For setup instructions, refer to [Set up remote clusters](docs-content://deploy-manage/remote-clusters.md#setup).
 
+* The local node receiving the query must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role to connect to the remote clusters.
 * {{esql}} across clusters requires the remote cluster connection to use the [API key-based security model](docs-content://deploy-manage/remote-clusters/security-models.md#api-key).
 
     To verify which security model is active, run `GET _remote/info`. When API key authentication is in use, the response includes `"cluster_credentials"`.

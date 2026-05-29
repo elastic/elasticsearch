@@ -49,7 +49,7 @@ public final class BulkByScrollWireSerializingTestUtils {
 
     /**
      * Registry sufficient for {@link ReindexRequest}, {@link UpdateByQueryRequest}, {@link DeleteByQueryRequest},
-     * and {@link ResumeBulkByScrollRequest} when the delegate carries {@link ResumeInfo}.
+     * and {@link ResumeBulkByPaginatedSearchRequest} when the delegate carries {@link ResumeInfo}.
      */
     public static NamedWriteableRegistry bulkScrollRequestNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
@@ -310,9 +310,12 @@ public final class BulkByScrollWireSerializingTestUtils {
                     ESTestCase.randomValueOtherThan(originalRequest.getSearchRequest().source().size(), () -> ESTestCase.between(1, 2000))
                 );
             case 2 -> mutatedRequest.setAbortOnVersionConflict(originalRequest.isAbortOnVersionConflict() == false);
-            case 3 -> mutatedRequest.setMaxDocs(
-                ESTestCase.randomValueOtherThan(originalRequest.getMaxDocs(), () -> ESTestCase.between(10, 50000))
-            );
+            case 3 -> {
+                final int minMaxDocs = Math.max(10, mutatedRequest.getSlices());
+                mutatedRequest.setMaxDocs(
+                    ESTestCase.randomValueOtherThan(originalRequest.getMaxDocs(), () -> ESTestCase.between(minMaxDocs, 50_000))
+                );
+            }
             case 4 -> mutatedRequest.setRefresh(originalRequest.isRefresh() == false);
             case 5 -> mutatedRequest.setTimeout(ESTestCase.randomValueOtherThan(originalRequest.getTimeout(), ESTestCase::randomTimeValue));
             case 6 -> mutatedRequest.setWaitForActiveShards(
@@ -333,9 +336,14 @@ public final class BulkByScrollWireSerializingTestUtils {
                     () -> ESTestCase.randomFloatBetween(0.001f, 2000f, true)
                 )
             );
-            case 10 -> mutatedRequest.setSlices(
-                ESTestCase.randomValueOtherThan(originalRequest.getSlices(), () -> ESTestCase.between(1, 100))
-            );
+            case 10 -> {
+                final int maxSlices = mutatedRequest.getMaxDocs() == AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
+                    ? 100
+                    : mutatedRequest.getMaxDocs();
+                mutatedRequest.setSlices(
+                    ESTestCase.randomValueOtherThan(originalRequest.getSlices(), () -> ESTestCase.between(1, maxSlices))
+                );
+            }
             case 11 -> mutatedRequest.setShouldStoreResult(originalRequest.getShouldStoreResult() == false);
             case 12 -> mutatedRequest.setEligibleForRelocationOnShutdown(originalRequest.isEligibleForRelocationOnShutdown() == false);
             case 13 -> mutatedRequest.setResumeInfo(
@@ -357,10 +365,6 @@ public final class BulkByScrollWireSerializingTestUtils {
                 }
             }
             default -> throw new AssertionError();
-        }
-        if (mutatedRequest.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
-            && mutatedRequest.getMaxDocs() < mutatedRequest.getSlices()) {
-            mutatedRequest.setMaxDocs(mutatedRequest.getSlices());
         }
     }
 

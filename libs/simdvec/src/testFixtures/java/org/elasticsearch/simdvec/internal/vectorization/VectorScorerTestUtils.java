@@ -252,7 +252,9 @@ public class VectorScorerTestUtils {
             centroid
         );
         final byte[] quantizeQuery = new byte[queryVectorPackedLengthInBytes];
-        if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
+        if (indexBits == 1 && queryBits == 1) {
+            ESVectorUtil.packAsBinary(scratch, quantizeQuery);
+        } else if ((indexBits == 2 || indexBits == 4) && bitEncoding == ES940OSQVectorsScorer.BitEncoding.STRIPED) {
             ESVectorUtil.transposeHalfByte(scratch, quantizeQuery);
         } else {
             ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).packQuery(scratch, quantizeQuery);

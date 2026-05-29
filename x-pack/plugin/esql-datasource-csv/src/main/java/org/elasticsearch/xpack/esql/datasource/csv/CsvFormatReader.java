@@ -110,7 +110,9 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
  *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
- *   <tr><td>{@code multi_value_syntax}</td><td>{@code brackets}</td><td>Multi-value field syntax</td></tr>
+ *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td>
+ *       <td>Multi-value field syntax; see "Bracket multi-value syntax" below for the
+ *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
  *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
  *       <td>When {@code false}, no header row is read; column names are synthesized from

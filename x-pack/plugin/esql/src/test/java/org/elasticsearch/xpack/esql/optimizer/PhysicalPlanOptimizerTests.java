@@ -10506,10 +10506,13 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         branchProject = as(branchExchange.child(), ProjectExec.class);
         assertThat(names(branchProject.projections()), equalTo(List.of("x")));
 
-        branchTopN = as(branchProject.child(), TopNExec.class);
-        assertThat(branchTopN.limit(), is(l(10)));
+        // Below the exchange, x is provably the constant 1 (sitting right above the EVAL), so the constant sort key
+        // is pruned and the data-node TopN becomes a plain Limit. The coordinator TopN above keeps its sort, since
+        // there x arrives through the exchange as an opaque column reference and can't be proven constant.
+        var branchLimit = as(branchProject.child(), LimitExec.class);
+        assertThat(branchLimit.limit(), is(l(10)));
 
-        var branchEval = as(branchTopN.child(), EvalExec.class);
+        var branchEval = as(branchLimit.child(), EvalExec.class);
         var branchEsQuery = as(branchEval.child(), EsQueryExec.class);
         assertThat(names(branchEsQuery.output()), equalTo(List.of("_doc")));
     }

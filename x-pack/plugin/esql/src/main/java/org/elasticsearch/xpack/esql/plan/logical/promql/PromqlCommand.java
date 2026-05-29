@@ -59,7 +59,6 @@ public class PromqlCommand extends UnaryPlan
         PostAnalysisVerificationAware,
         TimestampAware,
         TimestampBoundsAware.OfLogicalPlan {
-
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */

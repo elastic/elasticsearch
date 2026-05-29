@@ -11,7 +11,7 @@
  * Statistical models used by disk BBQ IVF auto-calibration at merge time.
  *
  * <p>When {@code auto_calibrate} is enabled on {@code bbq_disk} index options, the codec
- * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector}
+ * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration}
  * runs on merged vectors to choose quantization encoding, preconditioning, and rescore oversample.
  * Classes in this package implement the numerical models; they do not perform I/O beyond
  * {@link org.apache.lucene.index.FloatVectorValues} access.

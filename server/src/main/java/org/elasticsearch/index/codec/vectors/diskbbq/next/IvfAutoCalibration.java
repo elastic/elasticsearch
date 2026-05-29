@@ -35,15 +35,19 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Selects a {@link IvfSegmentConfig} on
- * <strong>merge</strong> by reusing persisted segment metadata when possible, otherwise running fast or full
- * calibration on merged vectors. {@link #select} requires a non-null {@link MergeState}.
- * Segments with fewer than {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get
- * {@link AutoCalibrationSelector#DEFAULT_CALIBRATED_OVERSAMPLE}.
+ * Resolves a {@link IvfSegmentConfig} on <strong>merge</strong> when {@code auto_calibrate} is enabled: reuses
+ * persisted segment metadata when possible, otherwise runs fast or full calibration on merged vectors.
+ * {@link #resolve} requires a non-null {@link MergeState}. Segments with fewer than
+ * {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get {@link #DEFAULT_CALIBRATED_OVERSAMPLE}.
  */
-public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector {
+public class IvfAutoCalibration {
 
-    private static final Logger logger = LogManager.getLogger(ManifoldErrorCalibrationSelector.class);
+    private static final Logger logger = LogManager.getLogger(IvfAutoCalibration.class);
+
+    /**
+     * Default oversample used when the segment is too small for calibration.
+     */
+    public static final float DEFAULT_CALIBRATED_OVERSAMPLE = 3f;
 
     static final double DEFAULT_TARGET_RECALL = 0.9;
     static final int DEFAULT_K = 10;
@@ -92,19 +96,30 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
     private final double targetRecall;
     private final int k;
 
-    public ManifoldErrorCalibrationSelector(int vectorsPerCluster) {
+    public IvfAutoCalibration(int vectorsPerCluster) {
         this(vectorsPerCluster, ESNextDiskBBQVectorsFormat.DEFAULT_PRECONDITIONING_BLOCK_DIMENSION);
     }
 
-    public ManifoldErrorCalibrationSelector(int vectorsPerCluster, int blockDimension) {
+    public IvfAutoCalibration(int vectorsPerCluster, int blockDimension) {
         this(vectorsPerCluster, blockDimension, DEFAULT_TARGET_RECALL, DEFAULT_K);
     }
 
-    public ManifoldErrorCalibrationSelector(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
+    public IvfAutoCalibration(int vectorsPerCluster, int blockDimension, double targetRecall, int k) {
         this.vectorsPerCluster = vectorsPerCluster;
         this.blockDimension = blockDimension;
         this.targetRecall = targetRecall;
         this.k = k;
+    }
+
+    /**
+     * Returns an {@link IvfMergeConfigResolver} that runs merge-time auto-calibration for the given cluster size.
+     */
+    public static IvfMergeConfigResolver mergeConfigResolver(int vectorsPerCluster) {
+        return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> new IvfAutoCalibration(vectorsPerCluster).resolve(
+            fieldInfo,
+            floatVectorValues,
+            mergeState
+        );
     }
 
     /**
@@ -115,8 +130,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      * meet the configured target recall. Bounded merges are detected
      * from the merged segment's Lucene diagnostics key {@code mergeMaxNumSegments} ({@code >= 1}).
      */
-    @Override
-    public IvfSegmentConfig select(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState) {
+    public IvfSegmentConfig resolve(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState) {
         Objects.requireNonNull(mergeState, "mergeState");
         int dim = fieldInfo.getVectorDimension();
         VectorSimilarityFunction similarityFunction = fieldInfo.getVectorSimilarityFunction();
@@ -593,7 +607,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
     ) throws IOException {
         double bestRecall = -1;
         ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-        float bestOversample = AutoCalibrationSelector.DEFAULT_CALIBRATED_OVERSAMPLE;
+        float bestOversample = DEFAULT_CALIBRATED_OVERSAMPLE;
         boolean bestPrecondition = false;
 
         Map<Integer, RepErrorStdModel> errorModelCache = new HashMap<>();

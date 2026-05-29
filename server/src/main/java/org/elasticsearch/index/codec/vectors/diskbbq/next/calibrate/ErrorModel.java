@@ -594,7 +594,7 @@ public final class ErrorModel {
         double r2c = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logCFit, cparams);
         double r2q = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logQFit, qparams);
         logger.debug(
-            "--------------------------------------\nFit error scaling models in {}s\n"
+            "Fit error scaling models in {}s\n"
                 + "centroid error {} (L/N)^{} (R² = {})\n"
                 + "quantization error ∝ (L/N)^{} (R² = {})",
             String.format(Locale.ROOT, "%.5f", scalingSeconds),
@@ -786,7 +786,7 @@ public final class ErrorModel {
         double magnitudeSeconds = (System.nanoTime() - magnitudeStartNanos) / 1_000_000_000.0;
         double r2Mag = repErrorStdR2(logNDocsTrim, logSizesTrim, logQTrim, qparams);
         logger.debug(
-            "--------------------------------------\nFit error magnitude models in {}s\nquantization error {} (L/N)^{} (R² = {})",
+            "Fit error magnitude models in {}s\nquantization error {} (L/N)^{} (R² = {})",
             String.format(Locale.ROOT, "%.2f", magnitudeSeconds),
             String.format(Locale.ROOT, "%.4f", Math.exp(qparams.beta0())),
             String.format(Locale.ROOT, "%.4f", qparams.beta1()),

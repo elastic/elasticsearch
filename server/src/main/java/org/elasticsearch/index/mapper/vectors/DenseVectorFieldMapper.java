@@ -52,9 +52,9 @@ import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -2706,10 +2706,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         flatIndexThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        (fieldInfo, floatVectorValues, mergeState, codecDefault) -> {
-                            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(clusterSize);
-                            return selector.select(fieldInfo, floatVectorValues, mergeState);
-                        }
+                        IvfAutoCalibration.mergeConfigResolver(clusterSize)
                     );
                 }
                 return new ESNextDiskBBQVectorsFormat(

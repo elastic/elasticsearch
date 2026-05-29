@@ -57,11 +57,7 @@ public final class ESNextRescoreOversampleTestFixture {
      * {@code auto_calibrate} is enabled.
      */
     public static IvfMergeConfigResolver productionMergeResolver(int vectorsPerCluster) {
-        return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> new ManifoldErrorCalibrationSelector(vectorsPerCluster).select(
-            fieldInfo,
-            floatVectorValues,
-            mergeState
-        );
+        return IvfAutoCalibration.mergeConfigResolver(vectorsPerCluster);
     }
 
     /** Shared codec helpers for IVF writer + merge replay. */

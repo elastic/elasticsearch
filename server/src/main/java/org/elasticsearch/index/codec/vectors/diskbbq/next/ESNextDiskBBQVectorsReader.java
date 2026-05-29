@@ -108,10 +108,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     public float getOversampleFactor(FieldInfo fieldInfo) {
         final NextFieldEntry e = fields.get(fieldInfo.number);
         if (e == null) {
-            return AutoCalibrationSelector.DEFAULT_CALIBRATED_OVERSAMPLE;
+            return IvfAutoCalibration.DEFAULT_CALIBRATED_OVERSAMPLE;
         }
         float r = e.rescoreOversample();
-        return Float.isFinite(r) ? r : AutoCalibrationSelector.DEFAULT_CALIBRATED_OVERSAMPLE;
+        return Float.isFinite(r) ? r : IvfAutoCalibration.DEFAULT_CALIBRATED_OVERSAMPLE;
     }
 
     @Override

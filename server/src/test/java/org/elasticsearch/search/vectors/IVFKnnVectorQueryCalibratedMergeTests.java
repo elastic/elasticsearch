@@ -33,9 +33,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * <p>
  * Indexes are built with {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource}
  * injecting per-segment oversample values and {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver#useCodecDefault()}
- * (no {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector} on merge).
+ * (no {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration} on merge).
  * For codec merge calibration, see
- * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelectorTests}
+ * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibrationTests}
  */
 public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 

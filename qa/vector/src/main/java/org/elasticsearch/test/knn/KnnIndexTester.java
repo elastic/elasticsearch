@@ -40,7 +40,7 @@ import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
@@ -233,14 +233,7 @@ public class KnnIndexTester {
                         flatVectorThreshold,
                         sliceField,
                         IvfFlushConfigSource.empty(),
-                        (fieldInfo, floatVectorValues, mergeState,  codecDefault) -> {
-                            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(args.ivfClusterSize());
-                            return selector.select(
-                                fieldInfo,
-                                floatVectorValues,
-                                mergeState
-                            );
-                        }
+                        IvfAutoCalibration.mergeConfigResolver(args.ivfClusterSize())
                     );
                 }
                 yield new ESNextDiskBBQVectorsFormat(

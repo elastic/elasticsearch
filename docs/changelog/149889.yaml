@@ -1,0 +1,5 @@
+area: Engine
+issues: []
+pr: 149889
+summary: Wire internal refresh listeners on `SearchEngine`
+type: enhancement

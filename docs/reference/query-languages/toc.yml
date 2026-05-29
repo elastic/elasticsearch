@@ -332,6 +332,7 @@ toc:
                   - file: esql/functions-operators/dense-vector-functions/v_hamming.md
                   - file: esql/functions-operators/dense-vector-functions/v_l1_norm.md
                   - file: esql/functions-operators/dense-vector-functions/v_l2_norm.md
+                  - hidden: esql/functions-operators/dense-vector-functions/v_magnitude.md
               - file: esql/functions-operators/type-conversion-functions.md
                 children:
                   - file: esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md
@@ -346,6 +347,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
                   - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
+                  - file: esql/functions-operators/type-conversion-functions/to_gauge.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohex.md
                   - file: esql/functions-operators/type-conversion-functions/to_geopoint.md
@@ -437,24 +439,24 @@ toc:
       - file: sql/sql-cli.md
       - file: sql/sql-jdbc.md
         children:
-            - file: sql/sql-jdbc-api-usage.md
+          - file: sql/sql-jdbc-api-usage.md
       - file: sql/sql-odbc.md
         children:
-            - file: sql/sql-odbc-installation.md
-            - file: sql/sql-odbc-setup.md
+          - file: sql/sql-odbc-installation.md
+          - file: sql/sql-odbc-setup.md
       - file: sql/sql-client-apps.md
         children:
-            - file: sql/sql-client-apps-dbeaver.md
-            - file: sql/sql-client-apps-dbvis.md
-            - file: sql/sql-client-apps-excel.md
-            - file: sql/sql-client-apps-powerbi.md
-            - file: sql/sql-client-apps-ps1.md
-            - file: sql/sql-client-apps-microstrat.md
-            - file: sql/sql-client-apps-qlik.md
-            - file: sql/sql-client-apps-squirrel.md
-            - file: sql/sql-client-apps-workbench.md
-            - file: sql/sql-client-apps-tableau-desktop.md
-            - file: sql/sql-client-apps-tableau-server.md
+          - file: sql/sql-client-apps-dbeaver.md
+          - file: sql/sql-client-apps-dbvis.md
+          - file: sql/sql-client-apps-excel.md
+          - file: sql/sql-client-apps-powerbi.md
+          - file: sql/sql-client-apps-ps1.md
+          - file: sql/sql-client-apps-microstrat.md
+          - file: sql/sql-client-apps-qlik.md
+          - file: sql/sql-client-apps-squirrel.md
+          - file: sql/sql-client-apps-workbench.md
+          - file: sql/sql-client-apps-tableau-desktop.md
+          - file: sql/sql-client-apps-tableau-server.md
       - file: sql/sql-spec.md
         children:
           - file: sql/sql-lexical-structure.md

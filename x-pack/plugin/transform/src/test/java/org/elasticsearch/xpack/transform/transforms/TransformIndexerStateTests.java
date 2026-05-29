@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -181,9 +181,9 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse> responseListener) {
             responseListener.onResponse(
-                new BulkByScrollResponse(
+                new BulkByPaginatedSearchResponse(
                     TimeValue.ZERO,
                     new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),
@@ -381,9 +381,9 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByPaginatedSearchResponse> responseListener) {
             responseListener.onResponse(
-                new BulkByScrollResponse(
+                new BulkByPaginatedSearchResponse(
                     TimeValue.ZERO,
                     new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
                     Collections.emptyList(),

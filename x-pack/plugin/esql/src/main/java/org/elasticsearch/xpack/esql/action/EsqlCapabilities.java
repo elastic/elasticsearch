@@ -1368,6 +1368,7 @@ public class EsqlCapabilities {
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+
         /**
          * Support for views in cluster state (and REST API).
          */
@@ -2601,6 +2602,11 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/145353">#145353</a>.
          */
         DATASOURCE_FILE_READERS_NO_TEXT_TYPE,
+
+        /**
+         * Support external data source in subquery from command
+         */
+        SUBQUERY_WITH_EXTERNAL_DATA_SOURCE(DATASET_IN_FROM_COMMAND.isEnabled()),
 
         /**
          * https://github.com/elastic/elasticsearch/issues/142219

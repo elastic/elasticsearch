@@ -269,26 +269,161 @@ public class FixtureUtils {
     }
 
     /**
-     * Find the first pipe character that's not inside a quoted string.
-     * Used by fixture injectParams methods to locate where to insert WITH clauses.
+     * Inject (or merge) {@code entries} into the {@code WITH &#123; ... &#125;} clause of <em>every</em>
+     * {@code EXTERNAL} command in the query, wherever it appears — including {@code EXTERNAL} sources
+     * nested inside a {@code FROM} subquery (e.g. {@code FROM idx, (EXTERNAL "uri" | WHERE ...)}) and
+     * queries with multiple {@code EXTERNAL} sources. This is the multi-occurrence counterpart to
+     * {@link #injectWithEntries(String, String)}, which only handles a single leading {@code EXTERNAL}
+     * fragment.
+     *
+     * <p>For each occurrence the {@code EXTERNAL <string-literal> [WITH &#123; ... &#125;]} fragment is
+     * isolated and passed to {@link #injectWithEntries(String, String)}, so the per-fragment merge
+     * semantics (append a fresh {@code WITH} or merge into an existing one) are identical. {@code EXTERNAL}
+     * whose source is a parameter rather than a string literal is left untouched. The scan is quote-aware
+     * so an {@code EXTERNAL} keyword embedded in a quoted path is ignored.
      */
-    public static int findFirstPipeAfterExternal(String query) {
+    public static String injectWithEntriesForEachExternal(String query, String entries) {
+        if (entries.isEmpty()) {
+            return query;
+        }
+        List<int[]> fragments = new ArrayList<>();
+        int n = query.length();
         boolean inQuotes = false;
         char quoteChar = 0;
-
-        for (int i = 0; i < query.length(); i++) {
+        int i = 0;
+        while (i < n) {
             char c = query.charAt(i);
-
-            if (inQuotes == false && (c == '"' || c == '\'')) {
+            if (inQuotes) {
+                if (c == '\\') {
+                    i += 2;
+                    continue;
+                }
+                if (c == quoteChar) {
+                    inQuotes = false;
+                }
+                i++;
+                continue;
+            }
+            if (c == '"' || c == '\'') {
                 inQuotes = true;
                 quoteChar = c;
-            } else if (inQuotes && c == quoteChar) {
-                inQuotes = false;
-            } else if (inQuotes == false && c == '|') {
-                return i;
+                i++;
+                continue;
+            }
+            if (isKeywordAt(query, i, "EXTERNAL")) {
+                int start = i;
+                int j = i + "EXTERNAL".length();
+                while (j < n && Character.isWhitespace(query.charAt(j))) {
+                    j++;
+                }
+                int argEnd = stringLiteralEnd(query, j);
+                if (argEnd < 0) {
+                    // EXTERNAL whose source is a parameter (not a string literal): nothing to inject into.
+                    i = i + "EXTERNAL".length();
+                    continue;
+                }
+                int end = argEnd;
+                int k = argEnd;
+                while (k < n && Character.isWhitespace(query.charAt(k))) {
+                    k++;
+                }
+                if (isKeywordAt(query, k, "WITH")) {
+                    int b = k + "WITH".length();
+                    while (b < n && Character.isWhitespace(query.charAt(b))) {
+                        b++;
+                    }
+                    if (b < n && query.charAt(b) == '{') {
+                        int close = matchingCloseBrace(query, b);
+                        if (close >= 0) {
+                            end = close + 1;
+                        }
+                    }
+                }
+                fragments.add(new int[] { start, end });
+                i = end;
+                continue;
+            }
+            i++;
+        }
+        StringBuilder sb = new StringBuilder(query);
+        // Apply right-to-left so earlier fragment offsets stay valid as we splice.
+        for (int f = fragments.size() - 1; f >= 0; f--) {
+            int start = fragments.get(f)[0];
+            int end = fragments.get(f)[1];
+            sb.replace(start, end, injectWithEntries(query.substring(start, end), entries));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Whether {@code keyword} appears at {@code index} in {@code s} as a standalone, case-insensitive
+     * token (not surrounded by identifier characters). Assumes the caller has already established that
+     * {@code index} is outside any quoted string.
+     */
+    private static boolean isKeywordAt(String s, int index, String keyword) {
+        int len = keyword.length();
+        return index + len <= s.length()
+            && s.regionMatches(true, index, keyword, 0, len)
+            && (index == 0 || isIdentPart(s.charAt(index - 1)) == false)
+            && (index + len == s.length() || isIdentPart(s.charAt(index + len)) == false);
+    }
+
+    /**
+     * If a string literal starts at {@code start}, return the index just past its closing quote;
+     * otherwise return {@code -1}. Handles single- and double-quoted literals (with backslash escapes)
+     * and triple-quoted ({@code """..."""}) literals.
+     */
+    private static int stringLiteralEnd(String s, int start) {
+        if (start >= s.length()) {
+            return -1;
+        }
+        char q = s.charAt(start);
+        if (q != '"' && q != '\'') {
+            return -1;
+        }
+        if (q == '"' && s.regionMatches(false, start, "\"\"\"", 0, 3)) {
+            int end = s.indexOf("\"\"\"", start + 3);
+            return end < 0 ? -1 : end + 3;
+        }
+        for (int i = start + 1; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\') {
+                i++;
+            } else if (c == q) {
+                return i + 1;
             }
         }
+        return -1;
+    }
 
+    /**
+     * Given the index of an opening {@code &#123;}, return the index of its matching closing
+     * {@code &#125;}, skipping over quoted strings, or {@code -1} if unbalanced.
+     */
+    private static int matchingCloseBrace(String s, int open) {
+        int depth = 0;
+        boolean inQuotes = false;
+        char quoteChar = 0;
+        for (int i = open; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (inQuotes) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == quoteChar) {
+                    inQuotes = false;
+                }
+            } else if (c == '"' || c == '\'') {
+                inQuotes = true;
+                quoteChar = c;
+            } else if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
         return -1;
     }
 

@@ -40,6 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class AllocationFailuresResetTests extends ESTestCase {
 
     private ThreadPool threadPool;
@@ -124,35 +126,35 @@ public class AllocationFailuresResetTests extends ESTestCase {
     /**
      * Create state with two nodes and allocation failures, and does <b>not</b> reset counter after node removal
      */
-    public void testRemoveNodeDoesNotResetCounter() throws Exception {
-        var initState = clusterService.state();
-        var stateWithNewNode = addNode(initState, "node-2");
+    public void testRemoveNodeDoesNotResetCounter() {
+        final var initState = clusterService.state();
+        final var stateWithNewNode = addNode(initState, "node-2");
         clusterService.getClusterApplierService().onNewClusterState("add node", () -> stateWithNewNode, ActionListener.noop());
 
-        var stateWithFailures = addShardWithFailures(stateWithNewNode);
+        final var stateWithFailures = addShardWithFailures(stateWithNewNode);
         clusterService.getClusterApplierService().onNewClusterState("add failures", () -> stateWithFailures, ActionListener.noop());
 
-        assertBusy(() -> {
-            var resultState = clusterService.state();
-            assertEquals(2, resultState.nodes().size());
-            assertEquals(1, resultState.getRoutingTable().allShards().count());
-            assertTrue(resultState.getRoutingNodes().hasAllocationFailures());
-        });
+        ClusterServiceUtils.awaitClusterState(
+            state -> state.nodes().size() == 2
+                && state.getRoutingTable().allShards().count() == 1L
+                && state.getRoutingNodes().hasAllocationFailures(),
+            clusterService
+        );
 
-        var stateWithRemovedNode = removeNode(stateWithFailures, "node-2");
+        final var stateWithRemovedNode = removeNode(stateWithFailures, "node-2");
         clusterService.getClusterApplierService().onNewClusterState("remove node", () -> stateWithRemovedNode, ActionListener.noop());
-        assertBusy(() -> {
-            var resultState = clusterService.state();
-            assertEquals(1, resultState.nodes().size());
-            assertEquals(1, resultState.getRoutingTable().allShards().count());
-            assertTrue(resultState.getRoutingNodes().hasAllocationFailures());
-        });
+        ClusterServiceUtils.awaitClusterState(
+            state -> state.getRoutingTable().allShards().count() == 1L
+                && state.nodes().size() == 1
+                && state.getRoutingNodes().hasAllocationFailures(),
+            clusterService
+        );
     }
 
     /**
      * Create state with one node and allocation failures, and reset counter after node addition
      */
-    public void testAddNodeResetsCounter() throws Exception {
+    public void testAddNodeResetsCounter() {
         var initState = clusterService.state();
         var stateWithFailures = addShardWithFailures(initState);
         clusterService.getClusterApplierService().onNewClusterState("add failures", () -> stateWithFailures, ActionListener.noop());
@@ -160,11 +162,12 @@ public class AllocationFailuresResetTests extends ESTestCase {
         var stateWithNewNode = addNode(stateWithFailures, "node-2");
         clusterService.getClusterApplierService().onNewClusterState("add node", () -> stateWithNewNode, ActionListener.noop());
 
-        assertBusy(() -> {
-            var resultState = clusterService.state();
-            assertEquals(2, resultState.nodes().size());
-            assertEquals(1, resultState.getRoutingTable().allShards().count());
-            assertFalse(resultState.getRoutingNodes().hasAllocationFailures());
-        });
+        ClusterServiceUtils.awaitClusterState(state -> {
+            assertThat(state.getRoutingTable().allShards().count(), equalTo(1L));
+            final var shard = state.getRoutingTable().allShards().findFirst().get();
+            return state.nodes().size() == 2
+                && state.getRoutingNodes().hasAllocationFailures() == false
+                && UnassignedInfo.Reason.ALLOCATION_FAILURE_RESET.equals(shard.unassignedInfo().reason());
+        }, clusterService);
     }
 }

@@ -698,7 +698,7 @@ public class AllocationService {
 
     private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {
         RoutingAllocation allocation = createMutableRoutingAllocation(clusterState, currentNanoTime());
-        allocation.routingNodes().resetFailedCounter(allocation);
+        allocation.routingNodes().resetFailedCounter(allocation, false);
         reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
     }

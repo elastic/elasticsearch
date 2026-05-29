@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { renderMarkdown, severity } from "./render";
+import { describe, expect, test } from "vitest";
+import { renderMarkdown, severity } from "./render.ts";
 
 describe("renderMarkdown / severity", () => {
   test("renders the failures table when there are real failures", () => {

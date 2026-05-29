@@ -1,14 +1,8 @@
 import { dirname } from "path";
 
-import {
-  BatchingConfig,
-  ClassifiedTest,
-  KIND_KEYS,
-  KIND_LABELS,
-  KIND_ORDER,
-  RunnableCommand,
-  TestKind,
-} from "./domain";
+import type { BatchingConfig, ClassifiedTest, RunnableCommand, TestKind } from "./domain.ts";
+
+import { KIND_KEYS, KIND_LABELS, KIND_ORDER } from "./domain.ts";
 
 export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   const seen = new Set<string>();
@@ -91,7 +85,7 @@ function tasksWithFilters(
   batch: ClassifiedTest[],
   taskName: string,
   toFilter: (t: ClassifiedTest) => string,
-  perTaskSuffix?: string
+  perTaskSuffix?: string,
 ): string {
   const byTask = new Map<string, string[]>();
   for (const t of batch) {
@@ -163,10 +157,7 @@ export function generateBatchCommand(batch: ClassifiedTest[], cfg: BatchingConfi
   }
 }
 
-export function buildCommands(
-  tests: ClassifiedTest[],
-  cfg: BatchingConfig
-): RunnableCommand[] {
+export function buildCommands(tests: ClassifiedTest[], cfg: BatchingConfig): RunnableCommand[] {
   let staged = dedupeTests(tests);
   staged = collapseYamlSuites(staged);
   staged = deduplicateYamlRunners(staged);

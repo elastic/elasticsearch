@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "vitest";
 
-import { generatePipelines } from "./pipeline.js";
-import { setBwcVersionsPath, setSnapshotBwcVersionsPath } from "./bwc-versions.js";
+import { generatePipelines } from "./pipeline.ts";
+import { setBwcVersionsPath, setSnapshotBwcVersionsPath } from "./bwc-versions.ts";
 
 describe("generatePipelines", () => {
   beforeEach(() => {

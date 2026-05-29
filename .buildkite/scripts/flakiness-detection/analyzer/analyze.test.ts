@@ -1,9 +1,9 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join, dirname } from "path";
 
-import { analyzeReports, classifyFailure } from "./analyze";
+import { analyzeReports, classifyFailure } from "./analyze.ts";
 
 describe("classifyFailure", () => {
   test("classifies AssertionError messages as 'assertion'", () => {

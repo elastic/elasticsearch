@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test";
-import { locateTest } from "./locator";
-import type { TestRef } from "../domain";
+import { describe, expect, test } from "vitest";
+import { locateTest } from "./locator.ts";
+import type { TestRef } from "../domain.ts";
 
 describe("locateTest", () => {
   const repoFiles = [

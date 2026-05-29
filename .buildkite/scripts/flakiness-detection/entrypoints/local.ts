@@ -1,14 +1,14 @@
 import { execSync } from "child_process";
 import { resolve } from "path";
 
-import { classifyExplicitList } from "../detectors/explicit-list";
-import { buildCommands } from "../commands";
-import { runLocally } from "../runners/local";
-import { DEFAULT_BATCHING_CONFIG } from "../domain";
-import { analyzeReports } from "../analyzer/analyze";
-import { renderMarkdown } from "../analyzer/render";
+import { classifyExplicitList } from "../detectors/explicit-list.ts";
+import { buildCommands } from "../commands.ts";
+import { runLocally } from "../runners/local.ts";
+import { DEFAULT_BATCHING_CONFIG } from "../domain.ts";
+import { analyzeReports } from "../analyzer/analyze.ts";
+import { renderMarkdown } from "../analyzer/render.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 export async function run(): Promise<void> {
   const args = process.argv.slice(2);
@@ -25,7 +25,7 @@ export async function run(): Promise<void> {
   }
   const specs = args.filter((a) => a.trim() !== "");
   if (specs.length === 0) {
-    console.error("Usage: bun .buildkite/scripts/flakiness-detection/entrypoints/local.ts [--iters N] <Class>[ <Class>...]");
+    console.error("Usage: node .buildkite/scripts/flakiness-detection/entrypoints/local.ts [--iters N] <Class>[ <Class>...]");
     process.exit(2);
   }
 

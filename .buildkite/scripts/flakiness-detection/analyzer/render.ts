@@ -1,4 +1,4 @@
-import { FlakinessReport } from "./analyze";
+import type { FlakinessReport } from "./analyze.ts";
 
 export function renderMarkdown(report: FlakinessReport): string {
   const { totals } = report;

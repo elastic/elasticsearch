@@ -2145,6 +2145,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for PromQL instant queries.
+         */
+        PROMQL_INSTANT_QUERY,
+
+        /**
          * Support for the {@code DATE_UNIT_COUNT} function.
          */
         ESQL_DATE_UNIT_COUNT_FN,

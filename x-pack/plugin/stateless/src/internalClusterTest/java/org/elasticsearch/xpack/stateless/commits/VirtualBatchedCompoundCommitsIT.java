@@ -344,6 +344,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessPluginInte
     private long getDirectorySize(Directory directory) throws IOException {
         long size = 0;
         for (String file : directory.listAll()) {
+            // Don't count .tmp files from ongoing merges, they can and will disappear
+            if (file.endsWith(".tmp")) {
+                continue;
+            }
             size += directory.fileLength(file);
         }
         return size;

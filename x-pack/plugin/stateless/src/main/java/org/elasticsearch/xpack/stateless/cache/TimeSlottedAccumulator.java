@@ -94,7 +94,8 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * @param granularity duration of each time slot
      * @param pastSlots number of past slots retained, including the anchor slot
      * @param futureSlots number of future slots retained beyond the anchor slot
-     * @param timeProvider source of time in milliseconds
+     * @param timeProvider source of time in milliseconds; {@code absoluteTimeInMillis()} must be large enough that
+     *                     {@code (pastSlots - 1) * granularity} past slots fit after epoch
      */
     public TimeSlottedAccumulator(TimeValue granularity, int pastSlots, int futureSlots, TimeProvider timeProvider) {
         if (granularity.millis() <= 0) {
@@ -132,7 +133,19 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         try {
             long minAnchorSlotStartMillis = Math.multiplyExact(pastSlots - 1, granularityMillis);
             if (anchorSlotStartMillis < minAnchorSlotStartMillis) {
-                anchorSlotStartMillis = minAnchorSlotStartMillis;
+                throw new IllegalArgumentException(
+                    "timeProvider.absoluteTimeInMillis() ["
+                        + timeProvider.absoluteTimeInMillis()
+                        + "] is too early for pastSlots ["
+                        + pastSlots
+                        + "] at granularity ["
+                        + granularity
+                        + "]; anchor slot start ["
+                        + anchorSlotStartMillis
+                        + "] must be >= ["
+                        + minAnchorSlotStartMillis
+                        + "]"
+                );
             }
             this.tailSlotStartMillis = Math.subtractExact(anchorSlotStartMillis, minAnchorSlotStartMillis);
             this.headSlotStartMillis = Math.addExact(anchorSlotStartMillis, Math.multiplyExact(futureSlots, granularityMillis));

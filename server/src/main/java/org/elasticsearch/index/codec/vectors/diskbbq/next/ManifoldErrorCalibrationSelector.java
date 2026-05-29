@@ -67,6 +67,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      * {@link ESNextDiskBBQVectorsFormat.QuantEncoding} and the query/doc bit widths used during recall estimation.
      */
     private static final CandidateEncoding[] CANDIDATES = {
+        new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_1BIT_QUERY, 1, 1),
         new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, 4, 1),
         new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, 4, 2),
         new CandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC, 4, 4),

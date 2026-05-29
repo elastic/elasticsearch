@@ -163,7 +163,6 @@ public final class ErrorModel {
         int[] docAssignments,
         float[][] docCentroids,
         int nQueryClusters,
-        int nDocsPerCluster,
         int qbits,
         int dbits,
         int k
@@ -357,7 +356,6 @@ public final class ErrorModel {
             flatAssignments,
             centroids,
             nQueryClusters,
-            nDocsPerCluster,
             qbits,
             dbits,
             k
@@ -500,7 +498,7 @@ public final class ErrorModel {
                     cosine,
                     N_QUERY_CLUSTERS,
                     nDocsPerClusterArray[i],
-                    4,
+                    1,
                     1,
                     k
                 );

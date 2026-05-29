@@ -96,8 +96,6 @@ public final class ManifoldModel {
 
     static final int[] SAMPLE_SIZES_FAST = { 4096, 5632, 7168, 8704, 10240, 11776, 13312, 16384 };
 
-    private static final int PARALLEL_QUERY_THRESHOLD = Integer.MAX_VALUE;
-
     private ManifoldModel() {}
 
     /**

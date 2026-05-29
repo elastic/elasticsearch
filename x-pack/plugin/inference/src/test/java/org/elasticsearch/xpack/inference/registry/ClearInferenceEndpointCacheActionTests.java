@@ -106,9 +106,6 @@ public class ClearInferenceEndpointCacheActionTests extends ESSingleNodeTestCase
             new InferenceAction.Request(
                 TaskType.SPARSE_EMBEDDING,
                 INFERENCE_ENDPOINT_ID,
-                null,
-                null,
-                null,
                 List.of("hello"),
                 null,
                 InputType.INTERNAL_SEARCH,

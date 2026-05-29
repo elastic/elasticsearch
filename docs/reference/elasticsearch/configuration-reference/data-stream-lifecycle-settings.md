@@ -8,7 +8,6 @@ applies_to:
 
 # Data stream lifecycle settings in {{es}} [data-stream-lifecycle-settings]
 
-
 These are the settings available for configuring [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md).
 
 ## Cluster level settings [_cluster_level_settings]
@@ -21,12 +20,12 @@ $$$data-streams-lifecycle-retention-max$$$
 $$$data-streams-lifecycle-retention-default$$$
 
 `data_streams.lifecycle.retention.default`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The retention period that will apply to all user data streams managed by the data stream lifecycle that do not have retention configured. It should be greater than `10s` and less or equals than [`data_streams.lifecycle.retention.max`](#data-streams-lifecycle-retention-max).
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) The retention period that will apply to all user data streams managed by the data stream lifecycle that do not have retention configured. It should be greater than `10s` and less than or equal to [`data_streams.lifecycle.retention.max`](#data-streams-lifecycle-retention-max).
 
 $$$data-streams-lifecycle-poll-interval$$$
 
 `data_streams.lifecycle.poll_interval`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks what is the next action for all data streams with a built-in lifecycle. Defaults to `5m`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often {{es}} checks what the next action is for all data streams with a built-in lifecycle. Defaults to `5m`.
 
 $$$cluster-lifecycle-default-rollover$$$
 
@@ -34,26 +33,51 @@ $$$cluster-lifecycle-default-rollover$$$
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), string) This property accepts a key value pair formatted string and configures the conditions that would trigger a data stream to [rollover](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md) when it has `lifecycle` configured. This property is an implementation detail and subject to change. Currently, it defaults to `max_age=auto,max_primary_shard_size=50gb,min_docs=1,max_primary_shard_docs=200000000`, this means that your data stream will rollover if any of the following conditions are met:
 
     * Either any primary shard reaches the size of 50GB,
-    * or any primary shard contains 200.000.000 documents
+    * or any primary shard contains 200,000,000 documents
     * or the index reaches a certain age which depends on the retention time of your data stream,
     * **and** has at least one document.
-
 
 $$$data-streams-lifecycle-target-merge-factor$$$
 
 `data_streams.lifecycle.target.merge.policy.merge_factor`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the lucene merge policy factor for the target backing index. The merge factor is both the number of segments that should be merged together, and the maximum number of segments that we expect to find on a given tier. This setting controls what value does [Data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `16`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy factor for the target backing index. The merge factor is both the number of segments that should be merged together, and the maximum number of segments that we expect to find on a given tier. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `16`. The value will be visible under the `index.merge.policy.merge_factor` index setting on the target index.
 
 $$$data-streams-lifecycle-target-floor-segment$$$
 
 `data_streams.lifecycle.target.merge.policy.floor_segment`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the lucene merge policy floor segment for the target backing index. This floor segment size is a way to prevent indices from having a long tail of very small segments. This setting controls what value does [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `100MB`.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Data stream lifecycle implements [tail merging](docs-content://manage-data/lifecycle/data-stream.md#data-streams-lifecycle-how-it-works) by updating the Lucene merge policy floor segment for the target backing index. This floor segment size is a way to prevent indices from having a long tail of very small segments. This setting controls which value [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) configures on the target index. It defaults to `100MB`.
 
 $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 
 `data_streams.lifecycle.signalling.error_retry_interval`
-:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) Represents the number of retries data stream lifecycle has to perform for an index in an error step in order to signal that the index is not progressing (i.e. it’s stuck in an error step). The current signalling mechanism is a log statement at the `error` level however, the signalling mechanism can be extended in the future. Defaults to 10 retries.
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), integer) The number of retries the data stream lifecycle has to perform for an index in an error step to signal that the index is not progressing (for example, it's stuck in an error step). The current signalling mechanism is a log statement at the `error` level. However, the signalling mechanism can be extended in the future. Defaults to 10 retries.
 
+## Frozen tier transition settings [_frozen_tier_transition_settings]
+```{applies_to}
+stack: ga 9.5
+```
+
+The following settings control the behavior of the frozen tier transition, which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier. Note that the conversions happen on the currently elected master node.
+
+$$$dlm-frozen-transition-poll-interval$$$
+
+`dlm.frozen_transition.poll_interval`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node checks for data stream backing indices that are ready to be converted to the frozen tier. Must be at least `1m`. Defaults to `5m`.
+
+$$$dlm-frozen-transition-max-concurrency$$$
+
+`dlm.frozen.transition.thread_pool.size`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that the frozen transition service converts concurrently. Defaults to the smaller of either two times the CPU core count of the node or `100`.
+
+$$$dlm-frozen-transition-max-queue-size$$$
+
+`dlm.frozen.transition.thread_pool.queue_size`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that can be queued for frozen conversion at any given time. Indices submitted beyond this limit are skipped until the next poll cycle. Defaults to the smaller of either 20 times the CPU core count of the node or `1000`.
+
+$$$dlm-frozen-cleanup-poll-interval$$$
+
+`dlm.frozen_cleanup.poll_interval`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
 
 ## Index level settings [_index_level_settings]
 
@@ -65,12 +89,17 @@ The following index-level settings are typically configured on the backing indic
 $$$index-lifecycle-prefer-ilm$$$
 
 `index.lifecycle.prefer_ilm`
-:   ([Dynamic](../index-settings/index.md#index-modules-settings-description), boolean) This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index has an [{{ilm}}](docs-content://manage-data/lifecycle/index-lifecycle-management.md) ({{ilm-init}}) policy and the data stream has also a built-in lifecycle. When `true` this index is managed by {{ilm-init}}, when `false` the backing index is managed by the data stream lifecycle. Defaults to `true`.
+:   ([Dynamic](../index-settings/index.md#index-modules-settings-description), boolean) This setting determines which feature is managing the backing index of a data stream if, and only if, the backing index has an [{{ilm}}](docs-content://manage-data/lifecycle/index-lifecycle-management.md) ({{ilm-init}}) policy and the data stream also has a built-in lifecycle. When `true` this index is managed by {{ilm-init}}. When `false`, the backing index is managed by the data stream lifecycle. Defaults to `true`.
 
 $$$index-data-stream-lifecycle-origination-date$$$
 
-`index.lifecycle.origination_date` {applies_to}`serverless: all`
-:   ([Dynamic](../index-settings/index.md#index-modules-settings-description), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data’s original timestamp and not the timestamp they got indexed. Specified as a Unix epoch value in milliseconds.
+`index.lifecycle.origination_date` {applies_to}`serverless: ga all`
+:   ([Dynamic](../index-settings/index.md#index-modules-settings-description), long) If specified, this is the timestamp used to calculate the backing index generation age after this backing index has been [rolled over](docs-content://manage-data/lifecycle/index-lifecycle-management/rollover.md). The generation age is used to determine data retention, consequently, you can use this setting if you create a backing index that contains older data and want to ensure that the retention period or other parts of the lifecycle will be applied based on the data's original timestamp and not the timestamp when it was indexed. Specified as a Unix epoch value in milliseconds.
+
+$$$index-dlm-frozen-created$$$
+
+`index.dlm.frozen.created`
+:   ([Static](../index-settings/index.md#index-modules-settings-description), boolean) An internal marker set on indices created by the data stream lifecycle during frozen tier conversion (clone indices and mounted searchable snapshots). This setting is not user-configurable. It is surfaced here for diagnostics and tooling purposes only.
 
 ## Reindex settings [reindex-data-stream-settings]
 

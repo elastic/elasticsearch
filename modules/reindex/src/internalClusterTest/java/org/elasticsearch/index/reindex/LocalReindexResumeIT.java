@@ -274,7 +274,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 .setSourceBatchSize(batchSize);
             sliceRequest.getSearchRequest()
                 .source(new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)));
-            BulkByScrollResponse sliceResponse = client().execute(ReindexAction.INSTANCE, sliceRequest).actionGet();
+            BulkByPaginatedSearchResponse sliceResponse = client().execute(ReindexAction.INSTANCE, sliceRequest).actionGet();
             assertTrue(sliceResponse.getCreated() > 0);
             sliceStatus.put(sliceId, new SliceStatus(sliceId, null, new WorkerResult(sliceResponse, null)));
         }

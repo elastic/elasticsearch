@@ -3225,4 +3225,5 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(iterator.hasNext());
         }
     }
+
 }

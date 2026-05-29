@@ -57,7 +57,7 @@ public class SparklineWithEveryAggIT extends SparklineWithEveryAggTestCase {
     }
 
     @Override
-    public void ensureIndex() throws IOException {
+    protected void doEnsureIndex() throws IOException {
         createIndexAndData(client());
         createIndexAndData(remoteClient());
     }

@@ -51,17 +51,20 @@ import static org.hamcrest.Matchers.instanceOf;
  *     {@code HAND_CRAFTED_INVOCATIONS} to build the agg in another way.
  * </p>
  * <p>
- *     Each agg runs three times:
+ *     Each agg runs six times:
  * </p>
  * <ul>
  *     <li>{@link Mode#INSIDE}: {@code SPARKLINE(THE_AGG(input), ...)}</li>
  *     <li>{@link Mode#ALONGSIDE}: {@code SPARKLINE(SUM(1), ...), THE_AGG(input)}</li>
  *     <li>{@link Mode#INSIDE_AND_ALONGSIDE}: {@code SPARKLINE(THE_AGG(input), ...), THE_AGG(input)}</li>
+ *     <li>{@link Mode#INSIDE_BY}: {@code SPARKLINE(THE_AGG(input), ...) BY group}</li>
+ *     <li>{@link Mode#ALONGSIDE_BY}: {@code SPARKLINE(SUM(1), ...), THE_AGG(input) BY group}</li>
+ *     <li>{@link Mode#INSIDE_AND_ALONGSIDE_BY}: {@code SPARKLINE(THE_AGG(input), ...), THE_AGG(input) BY group}</li>
  * </ul>
  */
 public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
 
-    protected static final String INDEX_NAME = "sparkline_test_2";
+    protected static final String INDEX_NAME = "sparkline_test";
     private static final String FROM_DATE = "2020-01-01";
     private static final String TO_DATE = "2020-12-31";
     private static final int BUCKETS = 12;
@@ -120,18 +123,21 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
     }
 
     private static void addCases(List<AggTestCase> params, FunctionInfo info, String name, String invocation) {
-        // Every agg supports running ALONGSIDE
+        // Every agg supports running ALONGSIDE and ALONGSIDE_BY
         params.add(new AggTestCase(invocation, Mode.ALONGSIDE, null));
+        params.add(new AggTestCase(invocation, Mode.ALONGSIDE_BY, null));
 
-        // Non-numeric aggs will fail when INSIDE and INSIDE_AND_ALONGSIDE
+        // Non-numeric aggs will fail when INSIDE, INSIDE_AND_ALONGSIDE, INSIDE_BY, INSIDE_AND_ALONGSIDE_BY
         boolean numericReturn = Arrays.stream(info.returnType()).anyMatch(List.of("integer", "long", "double")::contains);
         String typeError = numericReturn ? null : "must be [integer or long or double]";
         params.add(new AggTestCase(invocation, Mode.INSIDE, typeError));
+        params.add(new AggTestCase(invocation, Mode.INSIDE_BY, typeError));
         if (name.equals("weighted_avg")) {
             // https://github.com/elastic/elasticsearch/issues/150224
             return;
         }
         params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE, typeError));
+        params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE_BY, typeError));
     }
 
     private final AggTestCase testCase;
@@ -168,7 +174,8 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
                 "val_long":      { "type": "long" },
                 "val_int":       { "type": "integer" },
                 "val_double":    { "type": "double" },
-                "val_geo_point": { "type": "geo_point" }
+                "val_geo_point": { "type": "geo_point" },
+                "group":         { "type": "keyword" }
               }
             }
             """);
@@ -176,15 +183,15 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
         bulk.addParameter("refresh", "true");
         bulk.setJsonEntity("""
             {"index":{}}
-            {"@timestamp":"2020-02-01T00:00:00Z","val_long":10,"val_int":1,"val_double":1.5,"val_geo_point":"40.0,-70.0"}
+            {"@timestamp":"2020-02-01T00:00:00Z","val_long":10,"val_int":1,"val_double":1.5,"val_geo_point":"40.0,-70.0","group":"a"}
             {"index":{}}
-            {"@timestamp":"2020-04-01T00:00:00Z","val_long":20,"val_int":2,"val_double":2.5,"val_geo_point":"41.0,-71.0"}
+            {"@timestamp":"2020-04-01T00:00:00Z","val_long":20,"val_int":2,"val_double":2.5,"val_geo_point":"41.0,-71.0","group":"b"}
             {"index":{}}
-            {"@timestamp":"2020-06-01T00:00:00Z","val_long":30,"val_int":3,"val_double":3.5,"val_geo_point":"42.0,-72.0"}
+            {"@timestamp":"2020-06-01T00:00:00Z","val_long":30,"val_int":3,"val_double":3.5,"val_geo_point":"42.0,-72.0","group":"a"}
             {"index":{}}
-            {"@timestamp":"2020-08-01T00:00:00Z","val_long":40,"val_int":4,"val_double":4.5,"val_geo_point":"43.0,-73.0"}
+            {"@timestamp":"2020-08-01T00:00:00Z","val_long":40,"val_int":4,"val_double":4.5,"val_geo_point":"43.0,-73.0","group":"b"}
             {"index":{}}
-            {"@timestamp":"2020-10-01T00:00:00Z","val_long":50,"val_int":5,"val_double":5.5,"val_geo_point":"44.0,-74.0"}
+            {"@timestamp":"2020-10-01T00:00:00Z","val_long":50,"val_int":5,"val_double":5.5,"val_geo_point":"44.0,-74.0","group":"a"}
             """);
         Response response = restClient.performRequest(bulk);
         Map<String, Object> result = entityToMap(response.getEntity(), XContentType.JSON);
@@ -192,7 +199,15 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
     }
 
     @Before
-    public void ensureIndex() throws IOException {
+    public final void ensureIndex() throws IOException {
+        doEnsureIndex();
+    }
+
+    /**
+     * Called by {@link #ensureIndex()} to set up the test index before each test.
+     * Override in multi-cluster subclasses to also seed remote clusters.
+     */
+    protected void doEnsureIndex() throws IOException {
         createIndexAndData(client());
     }
 
@@ -224,8 +239,7 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");
 
-        assertThat(values, hasSize(1));
-        testCase.mode().assertResult(columns, values.getFirst());
+        testCase.mode().assertResult(columns, values);
     }
 
     /**
@@ -244,9 +258,10 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
             }
 
             @Override
-            public void assertResult(List<Map<String, Object>> columns, List<Object> row) {
+            public void assertResult(List<Map<String, Object>> columns, List<List<Object>> values) {
+                assertThat(values, hasSize(1));
                 assertMap(columns, matchesList().item(Map.of("name", "s", "type", any(String.class))));
-                assertMap(row, matchesList().item(instanceOf(List.class)));
+                assertMap(values.getFirst(), matchesList().item(instanceOf(List.class)));
             }
         },
         /**
@@ -262,12 +277,13 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
             }
 
             @Override
-            public void assertResult(List<Map<String, Object>> columns, List<Object> row) {
+            public void assertResult(List<Map<String, Object>> columns, List<List<Object>> values) {
+                assertThat(values, hasSize(1));
                 assertMap(
                     columns,
                     matchesList().item(Map.of("name", "s", "type", "long")).item(Map.of("name", "a", "type", any(String.class)))
                 );
-                assertMap(row, matchesList().item(instanceOf(List.class)).item(anything()));
+                assertMap(values.getFirst(), matchesList().item(instanceOf(List.class)).item(anything()));
             }
         },
         /**
@@ -283,12 +299,89 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
             }
 
             @Override
-            public void assertResult(List<Map<String, Object>> columns, List<Object> row) {
+            public void assertResult(List<Map<String, Object>> columns, List<List<Object>> values) {
+                assertThat(values, hasSize(1));
                 assertMap(
                     columns,
                     matchesList().item(Map.of("name", "s", "type", any(String.class))).item(Map.of("name", "a", "type", any(String.class)))
                 );
-                assertMap(row, matchesList().item(instanceOf(List.class)).item(anything()));
+                assertMap(values.getFirst(), matchesList().item(instanceOf(List.class)).item(anything()));
+            }
+        },
+        /**
+         * {@code STATS s = SPARKLINE(THE_AGG(input), @timestamp, 10, "2020-01-01", "2020-12-31") BY group}
+         * <p>
+         * Like {@link #INSIDE} but grouped by {@code group}; the result has one row per group value.
+         * The parameterized agg must return integer, long, or double.
+         */
+        INSIDE_BY {
+            @Override
+            public String buildQuery(String invocation, String sparklineArgs) {
+                return String.format(Locale.ROOT, "STATS s = SPARKLINE(%s%s) BY group", invocation, sparklineArgs);
+            }
+
+            @Override
+            public void assertResult(List<Map<String, Object>> columns, List<List<Object>> values) {
+                assertThat(values, hasSize(2));
+                assertMap(
+                    columns,
+                    matchesList().item(Map.of("name", "s", "type", any(String.class))).item(Map.of("name", "group", "type", "keyword"))
+                );
+                for (List<Object> row : values) {
+                    assertMap(row, matchesList().item(instanceOf(List.class)).item(instanceOf(String.class)));
+                }
+            }
+        },
+        /**
+         * {@code STATS s = SPARKLINE(SUM(1), @timestamp, 10, "2020-01-01", "2020-12-31"), a = THE_AGG(input) BY group}
+         * <p>
+         * Like {@link #ALONGSIDE} but grouped by {@code group}; the result has one row per group value.
+         * Any registered aggregation can appear here, regardless of return type.
+         */
+        ALONGSIDE_BY {
+            @Override
+            public String buildQuery(String invocation, String sparklineArgs) {
+                return String.format(Locale.ROOT, "STATS s = SPARKLINE(SUM(1)%s), a = %s BY group", sparklineArgs, invocation);
+            }
+
+            @Override
+            public void assertResult(List<Map<String, Object>> columns, List<List<Object>> values) {
+                assertThat(values, hasSize(2));
+                assertMap(
+                    columns,
+                    matchesList().item(Map.of("name", "s", "type", "long"))
+                        .item(Map.of("name", "a", "type", any(String.class)))
+                        .item(Map.of("name", "group", "type", "keyword"))
+                );
+                for (List<Object> row : values) {
+                    assertMap(row, matchesList().item(instanceOf(List.class)).item(anything()).item(instanceOf(String.class)));
+                }
+            }
+        },
+        /**
+         * {@code STATS s = SPARKLINE(THE_AGG(input), @timestamp, 10, "2020-01-01", "2020-12-31"), a = THE_AGG(input) BY group}
+         * <p>
+         * Like {@link #INSIDE_AND_ALONGSIDE} but grouped by {@code group}; the result has one row per group value.
+         * The parameterized agg must return integer, long, or double.
+         */
+        INSIDE_AND_ALONGSIDE_BY {
+            @Override
+            public String buildQuery(String invocation, String sparklineArgs) {
+                return String.format(Locale.ROOT, "STATS s = SPARKLINE(%s%s), a = %s BY group", invocation, sparklineArgs, invocation);
+            }
+
+            @Override
+            public void assertResult(List<Map<String, Object>> columns, List<List<Object>> values) {
+                assertThat(values, hasSize(2));
+                assertMap(
+                    columns,
+                    matchesList().item(Map.of("name", "s", "type", any(String.class)))
+                        .item(Map.of("name", "a", "type", any(String.class)))
+                        .item(Map.of("name", "group", "type", "keyword"))
+                );
+                for (List<Object> row : values) {
+                    assertMap(row, matchesList().item(instanceOf(List.class)).item(anything()).item(instanceOf(String.class)));
+                }
             }
         };
 
@@ -301,11 +394,11 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
         public abstract String buildQuery(String invocation, String sparklineArgs);
 
         /**
-         * Asserts the shape of the result columns and the type of the first sparkline value.
+         * Asserts the shape of the result columns and the values returned by the query.
          *
          * @param columns the {@code columns} list from the ES|QL response
-         * @param row the first (and only) row from the {@code values} list
+         * @param values the {@code values} list from the ES|QL response
          */
-        public abstract void assertResult(List<Map<String, Object>> columns, List<Object> row);
+        public abstract void assertResult(List<Map<String, Object>> columns, List<List<Object>> values);
     }
 }

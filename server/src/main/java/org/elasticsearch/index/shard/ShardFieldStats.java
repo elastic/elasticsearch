@@ -32,8 +32,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  *                              -1 if unavailable
  * @param postingsInMemoryBytes the total bytes in memory used for postings across all fields
  * @param liveDocsBytes         the total bytes in memory used for live docs
+ * @param pointsInMemoryBytes   the total bytes in memory used for points across all fields
  */
-public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages, long postingsInMemoryBytes, long liveDocsBytes)
+public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages, long postingsInMemoryBytes, long liveDocsBytes, long pointsInMemoryBytes)
     implements
         ToXContentFragment {
 
@@ -48,6 +49,8 @@ public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages
         static final String POSTINGS_IN_MEMORY = "postings_in_memory";
         static final String LIVE_DOCS_BYTES = "live_docs_bytes";
         static final String LIVE_DOCS = "live_docs";
+        static final String POINTS_IN_MEMORY = "points_in_memory";
+        static final String POINTS_IN_MEMORY_BYTES = "points_in_memory_bytes";
     }
 
     public static final ConstructingObjectParser<ShardFieldStats, Void> PARSER = new ConstructingObjectParser<>(
@@ -59,7 +62,7 @@ public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages
     protected static final ConstructingObjectParser<ShardFieldStats, Void> SHARD_FIELD_STATS_PARSER = new ConstructingObjectParser<>(
         "shard_field_stats_fields",
         true,
-        args -> new ShardFieldStats((int) args[0], (int) args[1], (long) args[2], (long) args[3], (long) args[4])
+        args -> new ShardFieldStats((int) args[0], (int) args[1], (long) args[2], (long) args[3], (long) args[4], (long) args[5])
     );
 
     static {
@@ -72,6 +75,7 @@ public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages
         SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.FIELD_USAGES));
         SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.POSTINGS_IN_MEMORY_BYTES));
         SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.LIVE_DOCS_BYTES));
+        SHARD_FIELD_STATS_PARSER.declareLong(constructorArg(), new ParseField(Fields.POINTS_IN_MEMORY_BYTES));
     }
 
     @Override
@@ -86,6 +90,7 @@ public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages
             ByteSizeValue.ofBytes(postingsInMemoryBytes)
         );
         builder.humanReadableField(Fields.LIVE_DOCS_BYTES, Fields.LIVE_DOCS, ByteSizeValue.ofBytes(liveDocsBytes));
+        builder.humanReadableField(Fields.POINTS_IN_MEMORY_BYTES, Fields.POINTS_IN_MEMORY, ByteSizeValue.ofBytes(pointsInMemoryBytes));
         builder.endObject();
         return builder;
     }

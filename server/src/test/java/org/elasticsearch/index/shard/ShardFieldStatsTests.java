@@ -23,6 +23,7 @@ public class ShardFieldStatsTests extends AbstractXContentTestCase<ShardFieldSta
             randomNonNegativeInt(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }

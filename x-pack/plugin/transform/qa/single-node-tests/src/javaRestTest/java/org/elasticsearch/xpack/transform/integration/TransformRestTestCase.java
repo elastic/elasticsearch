@@ -69,7 +69,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         .module("spatial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
-        .user("x_pack_rest_user", "x-pack-test-password")
+        .user("x_pack_rest_user", TEST_PASSWORD)
         .build();
 
     @Override

@@ -1842,7 +1842,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
                     perFileReadSchema,
-                    maxConcurrentOpenSegments
+                    maxConcurrentOpenSegments,
+                    maxRecordBytes
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

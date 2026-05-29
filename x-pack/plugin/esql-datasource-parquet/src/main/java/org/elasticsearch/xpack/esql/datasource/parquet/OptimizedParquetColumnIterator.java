@@ -23,7 +23,6 @@ import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -792,7 +791,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         try {
             return advanceRowGroup();
         } catch (IOException e) {
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
                 e
             );
@@ -1323,7 +1322,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (projectionBytes > 0) {
                 breaker.addWithoutBreaking(-projectionBytes);
             }
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Trivially-passes Phase-2 fetch failed for row group ["
                     + rowGroupOrdinal
                     + "] in ["
@@ -1425,7 +1424,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (projectionBytes > 0) {
                 breaker.addWithoutBreaking(-projectionBytes);
             }
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]: " + e.getMessage(),
                 e
             );
@@ -1798,7 +1797,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } catch (RuntimeException e) {
             Releasables.closeExpectNoException(blocks);
             Releasables.closeExpectNoException(predicateBlocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to emit two-phase Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] batch ["
@@ -1902,7 +1901,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } catch (Exception e) {
                     Releasables.closeExpectNoException(blocks);
                     Attribute attr = attributes.get(col);
-                    throw new ElasticsearchException(
+                    throw new IllegalArgumentException(
                         "Failed to read Parquet column ["
                             + attr.name()
                             + "] (type "
@@ -1927,11 +1926,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
             }
-        } catch (ElasticsearchException e) {
+        } catch (IllegalArgumentException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to create Page batch at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
@@ -2033,12 +2032,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
-        } catch (ElasticsearchException e) {
+        } catch (IllegalArgumentException | CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to create late-materialized Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
@@ -2118,9 +2117,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private ElasticsearchException wrapColumnReadException(int colIndex, Exception e) {
+    private IllegalArgumentException wrapColumnReadException(int colIndex, Exception e) {
         Attribute attr = attributes.get(colIndex);
-        return new ElasticsearchException(
+        return new IllegalArgumentException(
             "Failed to read Parquet column ["
                 + attr.name()
                 + "] (type "

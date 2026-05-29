@@ -75,6 +75,12 @@ public final class ConcatenatedClusteringFloatVectorValues extends ClusteringFlo
     }
 
     @Override
+    public int ordToDoc(int ord) {
+        int p = partFor(ord);
+        return parts[p].ordToDoc(ord - offsets[p]);
+    }
+
+    @Override
     public ConcatenatedClusteringFloatVectorValues copy() throws IOException {
         ClusteringFloatVectorValues[] copies = new ClusteringFloatVectorValues[parts.length];
         for (int i = 0; i < parts.length; i++) {

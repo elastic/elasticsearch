@@ -17,9 +17,8 @@ import java.io.IOException;
  * A {@link FloatVectorValues} that also implements {@link ClusteringVectorValues} for {@code float[]},
  * so that the same instance can be used with the generic k-means infrastructure.
  */
-//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
-public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues permits KMeansFloatVectorValues,
-    ClusteringFloatVectorValuesSlice, ConcatenatedClusteringFloatVectorValues {
+public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues implements ClusteringVectorValues<float[]> permits
+    KMeansFloatVectorValues, ClusteringFloatVectorValuesSlice, ConcatenatedClusteringFloatVectorValues {
 
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
     // For vectors that are closer than this distance to the centroid don't get spilled because they are well represented
@@ -31,10 +30,6 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
     // we require all prefixes to be a multiple 64, we want to take best advantage of vectorization
     private static final int PREFIX_MULTIPLE = 64;
     private static final int PREFIX_TOPK_SIZE = 4;
-//=======
-public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues implements ClusteringVectorValues<float[]> permits
-    KMeansFloatVectorValues, ClusteringFloatVectorValuesSlice {
-//>>>>>>> main
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;

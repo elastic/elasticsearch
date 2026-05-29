@@ -70,7 +70,8 @@ public class TieredMergeStrategy {
         Strategy strategy();
 
         // Execute the merge action, returning the clustering result
-        KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster) throws IOException;
+        KMeansResult<float[]> execute(HierarchicalKMeans<float[]> kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+            throws IOException;
     }
 
     public record FullRebuild() implements MergeAction {
@@ -80,7 +81,7 @@ public class TieredMergeStrategy {
         }
 
         @Override
-        public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+        public KMeansResult<float[]> execute(HierarchicalKMeans<float[]> kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
             throws IOException {
             return kmeans.cluster(vectors, vectorsPerCluster);
         }
@@ -93,7 +94,7 @@ public class TieredMergeStrategy {
         }
 
         @Override
-        public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+        public KMeansResult<float[]> execute(HierarchicalKMeans<float[]> kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
             throws IOException {
             return kmeans.clusterByInsertion(vectors, seedCentroids, vectorsPerCluster);
         }
@@ -119,7 +120,7 @@ public class TieredMergeStrategy {
         }
 
         @Override
-        public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
+        public KMeansResult<float[]> execute(HierarchicalKMeans<float[]> kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
             throws IOException {
             return kmeans.clusterByConcatenation(vectors, seedCentroids, clusterSizes, coveredVectorCount, vectorsPerCluster);
         }

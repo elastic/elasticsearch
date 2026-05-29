@@ -140,11 +140,6 @@ public class AzureAiStudioService extends SenderService<AzureAiStudioModel> impl
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

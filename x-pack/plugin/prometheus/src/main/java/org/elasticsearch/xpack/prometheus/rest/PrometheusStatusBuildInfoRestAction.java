@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
  * REST handler for {@code GET /_prometheus/api/v1/status/buildinfo}.
@@ -32,6 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusStatusBuildInfoRestAction extends BaseRestHandler {
+
+    private static final String INDEX_PARAM = "index";
 
     @Override
     public String getName() {
@@ -48,6 +51,8 @@ public class PrometheusStatusBuildInfoRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        // Consume optional {index} path segment; response does not depend on index scope.
+        request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         Build build = Build.current();
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

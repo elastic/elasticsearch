@@ -221,8 +221,8 @@ public final class ManifoldModel {
         Regression.OLSResult res = Regression.fitOls(x, y);
         double r2 = Regression.rSquared(x, y, res); // coefficient of determination for the fitted model
         double elapsed = (System.nanoTime() - startNanos) / 1_000_000_000.0;
-        logger.info(
-            "------------------------------------------\nEstimated manifold parameters in [{}]s\ndist(k) = [{}] * (k/N)^[{}] (R² = [{}])",
+        logger.debug(
+            "Estimated manifold parameters in [{}]s\ndist(k) = [{}] * (k/N)^[{}] (R² = [{}])",
             String.format(Locale.ROOT, "%.4f", elapsed),
             String.format(Locale.ROOT, "%.4f", Math.exp(res.beta0())),
             String.format(Locale.ROOT, "%.4f", res.beta1()),

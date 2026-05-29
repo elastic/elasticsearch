@@ -35,8 +35,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  * injecting per-segment oversample values and {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver#useCodecDefault()}
  * (no {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector} on merge).
  * For codec merge calibration, see
- * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelectorTests} and
- * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextMergeCalibrationTests}.
+ * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelectorTests}
  */
 public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 

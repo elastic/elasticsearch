@@ -127,12 +127,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
     }
 
     @Override
-    public float[] getGlobalCentroid(FieldInfo fieldInfo) {
-        final NextFieldEntry e = fields.get(fieldInfo.number);
-        return e == null ? null : e.globalCentroid();
-    }
-
-    @Override
     public CentroidIterator getCentroidIterator(
         FieldInfo fieldInfo,
         int numCentroids,

@@ -37,9 +37,8 @@ public interface AutoCalibrationSelector {
      *
      * @param fieldInfo          field metadata (dimension, similarity)
      * @param floatVectorValues  merged vectors (typically after merge-time preconditioning)
-     * @param globalCentroid    global centroid
      * @param mergeState         Lucene merge state (required; bounded force-merge merges are detected from diagnostics)
      * @return calibration      result containing the encoding and oversample (never null)
      */
-    IvfSegmentConfig select(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, float[] globalCentroid, MergeState mergeState);
+    IvfSegmentConfig select(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState);
 }

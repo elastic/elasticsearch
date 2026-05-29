@@ -60,7 +60,6 @@ public final class ESNextRescoreOversampleTestFixture {
         return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> new ManifoldErrorCalibrationSelector(vectorsPerCluster).select(
             fieldInfo,
             floatVectorValues,
-            null,
             mergeState
         );
     }

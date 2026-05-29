@@ -470,7 +470,7 @@ public final class ErrorModel {
         int m = nDocsPerClusterArray.length;
         int nDocsTotal = corpusOrdinals.length;
 
-        logger.info("Fitting error scaling models");
+        logger.debug("Fitting error scaling models");
         long scalingStartNanos = System.nanoTime();
 
         double[] x = new double[m];
@@ -511,7 +511,7 @@ public final class ErrorModel {
                 logQStd[mActual] = Math.log(Math.max(stds[1], 1e-38));
                 mActual++;
                 if (mActual % 5 == 0) {
-                    logger.info("Processed {}/{} samples", mActual, m);
+                    logger.debug("Processed {}/{} samples", mActual, m);
                 }
             } catch (IOException e) {
                 logger.warn("failed to compute rep error stds for sample size [{}]", ss, e);
@@ -533,7 +533,7 @@ public final class ErrorModel {
         double scalingSeconds = (System.nanoTime() - scalingStartNanos) / 1_000_000_000.0;
         double r2c = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logCFit, cparams);
         double r2q = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logQFit, qparams);
-        logger.info(
+        logger.debug(
             "--------------------------------------\nFit error scaling models in {}s\n"
                 + "centroid error {} (L/N)^{} (R² = {})\n"
                 + "quantization error ∝ (L/N)^{} (R² = {})",
@@ -691,7 +691,7 @@ public final class ErrorModel {
 
         double magnitudeSeconds = (System.nanoTime() - magnitudeStartNanos) / 1_000_000_000.0;
         double r2Mag = repErrorStdR2(logNDocsTrim, logSizesTrim, logQTrim, qparams);
-        logger.info(
+        logger.debug(
             "--------------------------------------\nFit error magnitude models in {}s\nquantization error {} (L/N)^{} (R² = {})",
             String.format(Locale.ROOT, "%.2f", magnitudeSeconds),
             String.format(Locale.ROOT, "%.4f", Math.exp(qparams.beta0())),

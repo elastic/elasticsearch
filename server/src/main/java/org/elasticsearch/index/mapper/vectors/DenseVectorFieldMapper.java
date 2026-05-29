@@ -2708,7 +2708,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         IvfFlushConfigSource.empty(),
                         (fieldInfo, floatVectorValues, mergeState, codecDefault) -> {
                             ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(clusterSize);
-                            return selector.select(fieldInfo, floatVectorValues, null, mergeState);
+                            return selector.select(fieldInfo, floatVectorValues, mergeState);
                         }
                     );
                 }

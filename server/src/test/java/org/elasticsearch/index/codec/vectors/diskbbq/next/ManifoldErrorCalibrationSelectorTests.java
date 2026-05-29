@@ -47,8 +47,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Unit tests for {@link ManifoldErrorCalibrationSelector} merge decision logic.
- * Recall-quality calibration at production scale ({@link ManifoldErrorCalibrationSelector#MIN_VECTORS_FOR_CALIBRATION}+
- * vectors) is covered by {@code qa/vector} with {@code auto_calibrate: true}.
  */
 public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
 
@@ -62,7 +60,7 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], backgroundSegmentInfo(dir));
 
-            IvfSegmentConfig config = selector.select(fieldInfo, vectors, null, mergeState);
+            IvfSegmentConfig config = selector.select(fieldInfo, vectors, mergeState);
 
             assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
             assertFalse(config.usePrecondition());
@@ -107,20 +105,15 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
 
     public void testSelectFromMergeStateReusesWeightedOversample() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        float[] centroid = unitVector(new float[] { 1f, 0f, 0f, 0f });
         StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
             ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
             2f,
-            false,
-            centroid,
-            40
+            false
         );
         StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
             ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
             4f,
-            false,
-            centroid,
-            60
+            false
         );
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
@@ -132,7 +125,7 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
             MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
 
             ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
-            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, centroid, mergeState, mergeCtx, 100);
+            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, 100);
 
             assertThat(reused, notNullValue());
             assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
@@ -141,40 +134,12 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         }
     }
 
-    public void testSelectFromMergeStateReturnsNullOnCentroidDrift() throws IOException {
-        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        float[] mergedCentroid = unitVector(new float[] { 1f, 0f, 0f, 0f });
-        float[] driftedCentroid = unitVector(new float[] { 0f, 1f, 0f, 0f });
-        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            2f,
-            false,
-            driftedCentroid,
-            50
-        );
-        try (Directory dir = newDirectory()) {
-            MergeState mergeState = mergeState(
-                dir,
-                new KnnVectorsReader[] { segA },
-                new Bits[] { liveDocs(50) },
-                backgroundSegmentInfo(dir)
-            );
-            MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-
-            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
-            assertThat(selector.selectFromMergeState(fieldInfo, mergedCentroid, mergeState, mergeCtx, 50), nullValue());
-        }
-    }
-
     public void testSelectFromMergeStateReturnsNullOnGrowthRatio() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        float[] centroid = unitVector(new float[] { 1f, 0f, 0f, 0f });
         StubCalibrationKnnVectorsReader seg = new StubCalibrationKnnVectorsReader(
             ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
             2f,
-            false,
-            centroid,
-            10
+            false
         );
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
@@ -187,26 +152,21 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
 
             ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
             long mergedCount = (long) (ManifoldErrorCalibrationSelector.RECALIBRATE_GROWTH_RATIO * 10) + 1;
-            assertThat(selector.selectFromMergeState(fieldInfo, centroid, mergeState, mergeCtx, mergedCount), nullValue());
+            assertThat(selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, mergedCount), nullValue());
         }
     }
 
     public void testSelectFromMergeStateReturnsNullOnEncodingDisagreement() throws IOException {
         FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-        float[] centroid = unitVector(new float[] { 1f, 0f, 0f, 0f });
         StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
             ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
             2f,
-            false,
-            centroid,
-            50
+            false
         );
         StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
             ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
             2f,
-            false,
-            centroid,
-            50
+            false
         );
         try (Directory dir = newDirectory()) {
             MergeState mergeState = mergeState(
@@ -218,7 +178,7 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
             MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
 
             ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
-            assertThat(selector.selectFromMergeState(fieldInfo, centroid, mergeState, mergeCtx, 100), nullValue());
+            assertThat(selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, 100), nullValue());
         }
     }
 
@@ -383,11 +343,6 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         return CalibrationUtils.toHeapDenseFloatVectorValues(KMeansFloatVectorValues.build(vecs, null, dim));
     }
 
-    private static float[] unitVector(float[] v) {
-        org.apache.lucene.util.VectorUtil.l2normalize(v);
-        return v;
-    }
-
     /**
      * Minimal {@link KnnVectorsReader} exposing calibration metadata for merge reuse tests.
      */
@@ -396,19 +351,15 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         private final ESNextDiskBBQVectorsFormat.QuantEncoding encoding;
         private final float oversample;
         private final boolean precondition;
-        private final float[] globalCentroid;
 
         StubCalibrationKnnVectorsReader(
             ESNextDiskBBQVectorsFormat.QuantEncoding encoding,
             float oversample,
-            boolean precondition,
-            float[] globalCentroid,
-            int docCount
+            boolean precondition
         ) {
             this.encoding = encoding;
             this.oversample = oversample;
             this.precondition = precondition;
-            this.globalCentroid = globalCentroid;
         }
 
         @Override
@@ -424,11 +375,6 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         @Override
         public ESNextDiskBBQVectorsFormat.QuantEncoding getQuantEncoding(FieldInfo fieldInfo) {
             return encoding;
-        }
-
-        @Override
-        public float[] getGlobalCentroid(FieldInfo fieldInfo) {
-            return globalCentroid;
         }
 
         @Override

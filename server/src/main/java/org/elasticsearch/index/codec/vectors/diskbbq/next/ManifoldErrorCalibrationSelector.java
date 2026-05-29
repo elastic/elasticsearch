@@ -38,12 +38,9 @@ import java.util.Objects;
 /**
  * Selects a {@link IvfSegmentConfig} on
  * <strong>merge</strong> by reusing persisted segment metadata when possible, otherwise running fast or full
- * calibration on merged vectors. {@link #select} requires a non-null {@link MergeState}; flush-time calibration is not
- * supported here (flush uses codec defaults when auto_calibrate is enabled).
- * <p>
+ * calibration on merged vectors. {@link #select} requires a non-null {@link MergeState}.
  * Segments with fewer than {@link #MIN_VECTORS_FOR_CALIBRATION} merged vectors get
- * {@link AutoCalibrationSelector#DEFAULT_CALIBRATED_OVERSAMPLE}. Recall-quality calibration on large corpora is
- * exercised via {@code qa/vector} ({@code auto_calibrate: true}).
+ * {@link AutoCalibrationSelector#DEFAULT_CALIBRATED_OVERSAMPLE}.
  */
 public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector {
 
@@ -128,7 +125,6 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
     public IvfSegmentConfig select(
         FieldInfo fieldInfo,
         FloatVectorValues floatVectorValues,
-        float[] globalCentroid,
         MergeState mergeState
     ) {
         Objects.requireNonNull(mergeState, "mergeState");
@@ -142,25 +138,24 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
 
         MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
         if (mergeCtx.boundedForceMerge()) {
-            logger.info(
+            logger.debug(
                 "Merge calibration: bounded force merge (mergeMaxNumSegments=[{}], inputSegments=[{}]), skipping metadata reuse; running fast calibration",
                 mergeCtx.mergeMaxNumSegmentsForLog(),
                 mergeCtx.inputSegments()
             );
             try {
                 // TODO : use fast if met target recall AND with good quantization error OLS fit
-                // FastCalibrationOutcome fastOutcome = runFastCalibration(floatVectorValues, dim, similarityFunction, numVectors,
-                // mergeCtx);
-                // if (fastOutcome.metTargetRecall()) {
-                // return fastOutcome.result();
-                // }
+                FastCalibrationOutcome fastOutcome = runFastCalibration(floatVectorValues, dim, similarityFunction, numVectors, mergeCtx);
+                if (fastOutcome.metTargetRecall()) {
+                    return fastOutcome.result();
+                }
                 return calibrate(floatVectorValues, similarityFunction);
             } catch (IOException e) {
                 logger.warn("calibration failed on bounded force merge, falling back to ONE_BIT_4BIT_QUERY", e);
                 return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, NO_CALIBRATED_OVERSAMPLE);
             }
         } else {
-            IvfSegmentConfig reused = selectFromMergeState(fieldInfo, globalCentroid, mergeState, mergeCtx, floatVectorValues.size());
+            IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, floatVectorValues.size());
             if (reused != null) {
                 return reused;
             }
@@ -183,7 +178,6 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      */
     IvfSegmentConfig selectFromMergeState(
         FieldInfo fieldInfo,
-        float[] mergedGlobalCentroid,
         MergeState mergeState,
         MergeCalibrationContext mergeCtx,
         long mergedVectorCount
@@ -219,25 +213,6 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 } else {
                     preconditionFalseDocs += docs;
                 }
-
-                if (mergedGlobalCentroid != null) {
-                    float[] segmentCentroid = car.getGlobalCentroid(fieldInfo);
-                    if (segmentCentroid != null) {
-                        float drift = ESVectorUtil.squareDistance(segmentCentroid, mergedGlobalCentroid) / dim;
-                        if (drift > RECALIBRATE_DRIFT_THRESHOLD) {
-                            logger.info(
-                                "Merge calibration: centroid drift [{}] exceeds threshold [{}] for segment [{}], re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
-                                drift,
-                                RECALIBRATE_DRIFT_THRESHOLD,
-                                i,
-                                mergeCtx.inputSegments(),
-                                mergeCtx.mergeKind(),
-                                mergeCtx.mergeMaxNumSegmentsForLog()
-                            );
-                            return null;
-                        }
-                    }
-                }
             }
         }
 
@@ -246,7 +221,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
         }
 
         if (mergedVectorCount > RECALIBRATE_GROWTH_RATIO * largestSegmentDocs) {
-            logger.info(
+            logger.debug(
                 "Merge calibration: growth ratio [{}] exceeds threshold [{}], re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
                 (double) mergedVectorCount / largestSegmentDocs,
                 RECALIBRATE_GROWTH_RATIO,
@@ -260,7 +235,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
         if (encodingDocCounts.size() > 1) {
             long maxEncDocs = encodingDocCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
             if (maxEncDocs < ENCODING_AGREEMENT_THRESHOLD * totalDocs) {
-                logger.info(
+                logger.debug(
                     "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
                     (100.0 * maxEncDocs / totalDocs),
                     mergeCtx.inputSegments(),
@@ -297,9 +272,14 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
      * {@link FloatVectorValues} are not yet materialized (e.g. Lucene merge entry). Uses
      * {@code mergedVectorCount} in place of {@link FloatVectorValues#size()} for growth-ratio checks.
      */
-    public IvfSegmentConfig tryMergeMetadataReuse(FieldInfo fieldInfo, MergeState mergeState, float[] mergedGlobalCentroid, long mergedVectorCount) {
+    public IvfSegmentConfig tryMergeMetadataReuse(
+        FieldInfo fieldInfo,
+        MergeState mergeState,
+        float[] mergedGlobalCentroid,
+        long mergedVectorCount
+    ) {
         MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
-        return selectFromMergeState(fieldInfo, mergedGlobalCentroid, mergeState, mergeCtx, mergedVectorCount);
+        return selectFromMergeState(fieldInfo, mergeState, mergeCtx, mergedVectorCount);
     }
 
     /**
@@ -343,11 +323,11 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
             dimWork
         );
 
-        logger.info("Read {} corpus vectors of dimension {}", corpusOrdinals.length, dim);
-        logger.info("Sampled {} queries from the corpus", queryOrdinals.length);
-        logger.info("Using {} documents per cluster", vectorsPerCluster);
-        logger.info("Calibrating quantization parameters");
-        logger.info("block dim: {}", blockDimension);
+        logger.debug("Read {} corpus vectors of dimension {}", corpusOrdinals.length, dim);
+        logger.debug("Sampled {} queries from the corpus", queryOrdinals.length);
+        logger.debug("Using {} documents per cluster", vectorsPerCluster);
+        logger.debug("Calibrating quantization parameters");
+        logger.debug("block dim: {}", blockDimension);
 
         // manifold model uses original (un-preconditioned) data; after optional Neyshabur lift for dot/MIP.
         double[] manifold = ManifoldModel.estimateManifoldParameters(
@@ -469,11 +449,11 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
             dimWork
         );
 
-        logger.info("Read {} corpus vectors of dimension {} (fast calibration sample)", corpusOrdinals.length, dim);
-        logger.info("Sampled {} queries from the corpus", queryOrdinals.length);
-        logger.info("Using {} documents per cluster", vectorsPerCluster);
-        logger.info("Calibrating quantization parameters (fast)");
-        logger.info("block dim: {}", blockDimension);
+        logger.debug("Read {} corpus vectors of dimension {} (fast calibration sample)", corpusOrdinals.length, dim);
+        logger.debug("Sampled {} queries from the corpus", queryOrdinals.length);
+        logger.debug("Using {} documents per cluster", vectorsPerCluster);
+        logger.debug("Calibrating quantization parameters (fast)");
+        logger.debug("block dim: {}", blockDimension);
 
         double[] manifold = ManifoldModel.estimateManifoldParametersFast(
             similarityFunction,
@@ -659,7 +639,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 double errorStd = errorModel.quantizeRepErrorStd(vectorsPerCluster, numVectors);
                 double expected = ExpectedRecall.expectedRecallAtK(similarityFunction, numVectors, alpha, invDim, errorStd, k, rerankVal);
 
-                logger.info(
+                logger.debug(
                     "Quantization recall(({}, {}) | {}, {}) = {}%",
                     candidate.qbits(),
                     candidate.dbits(),

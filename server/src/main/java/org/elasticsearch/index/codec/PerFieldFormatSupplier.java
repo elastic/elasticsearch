@@ -94,8 +94,9 @@ public class PerFieldFormatSupplier {
         this.defaultPostingsFormat = getDefaultPostingsFormat(mapperService);
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
-        // NOTE: built once per supplier; the factory's static cache cannot serve this
-        // path because the resolver closes over per-index `mapperService` state.
+        // NOTE: built once per supplier and reused across every getDocValuesFormatForField
+        // call; the resolver closes over per-index mapperService state, so the format
+        // cannot be globally cached.
         this.tsdbDocValuesFormat = mapperService == null
             ? null
             : TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings(), this::resolveFieldContext);
@@ -237,9 +238,6 @@ public class PerFieldFormatSupplier {
             return new FieldContext(blockSize, fieldName, dataType, metricRole);
         }
         if (mapper instanceof DateFieldMapper) {
-            // NOTE: date fields are stored as long-domain doc values; carrying the data
-            // type here lets the pipeline resolver route non-@timestamp date fields if
-            // future selection rules grow to consider them.
             return new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, null);
         }
         return new FieldContext(blockSize, fieldName, null, null);

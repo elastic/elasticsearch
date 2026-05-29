@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141596
+pr: 150220
+summary: Rewire FUSE to use FIRST for passthrough columns
+type: enhancement

@@ -158,35 +158,6 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     /**
-     * putSynonymsSet with append=true rejects on a cluster that predates append support to prevent silent data loss.
-     */
-    public void testTransportVersionGateRejectsAppendOnOldCluster() {
-        ClusterState oldClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .putCompatibilityVersions(
-                "node1",
-                TransportVersionUtils.randomVersionNotSupporting(SynonymsManagementAPIService.SYNONYMS_APPEND_PARAM),
-                SystemIndices.SERVER_SYSTEM_MAPPINGS_VERSIONS
-            )
-            .build();
-
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterService oldClusterService = ClusterServiceUtils.createClusterService(oldClusterState, threadPool, clusterSettings);
-        try {
-            var countingClient = new BulkCountingClient(threadPool);
-            var service = buildService(countingClient, oldClusterService, 100, SynonymsManagementAPIService.BULK_CHUNK_SIZE);
-
-            var future = new PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult>();
-            service.putSynonymsSet("my-set", randomSynonymsSet(1), false, true, future);
-
-            Exception ex = expectThrows(ElasticsearchException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
-            assertThat(ex.getMessage(), containsString("all nodes in the cluster have been upgraded"));
-            assertThat(countingClient.bulkRequestCount.get(), equalTo(0));
-        } finally {
-            oldClusterService.close();
-        }
-    }
-
-    /**
      * putSynonymRule rejects a rule that would push the count above PRE_LARGE_SETS_LIMIT on a cluster that predates
      * large synonym set support.
      */

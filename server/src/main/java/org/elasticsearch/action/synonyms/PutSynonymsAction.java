@@ -126,6 +126,10 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             }
             if (out.getTransportVersion().supports(SYNONYMS_APPEND_PARAM)) {
                 out.writeBoolean(append);
+            } else if (append) {
+                throw new IllegalStateException(
+                    "cannot serialize append=true to a node that does not support it (transport version " + out.getTransportVersion() + ")"
+                );
             }
         }
 

@@ -9,9 +9,12 @@
 
 package org.elasticsearch.action.synonyms;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.synonyms.SynonymRule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
 
@@ -43,5 +46,18 @@ public class PutSynonymsActionRequestSerializingTests extends AbstractWireSerial
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PutSynonymsAction.Request(synonymsSetId, synonymRules, refresh, append);
+    }
+
+    /**
+     * Serializing append=true to a node that does not support it must throw rather than silently
+     * dropping the flag and defaulting to replace behaviour.
+     */
+    public void testWriteToThrowsWhenAppendTrueAndVersionNotSupporting() throws IOException {
+        TransportVersion oldVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.fromName("synonyms_append_param"));
+        PutSynonymsAction.Request request = new PutSynonymsAction.Request(randomIdentifier(), randomSynonymsSet(), randomBoolean(), true);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(oldVersion);
+            expectThrows(IllegalStateException.class, () -> request.writeTo(out));
+        }
     }
 }

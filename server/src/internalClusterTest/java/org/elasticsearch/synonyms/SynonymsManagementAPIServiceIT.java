@@ -455,8 +455,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         String setA = randomIdentifier();
         String setB = randomIdentifier();
-        putSynonymsSet(service, setA, randomSynonymsSet(rulesPerSet, rulesPerSet), false);
-        putSynonymsSet(service, setB, randomSynonymsSet(rulesPerSet, rulesPerSet), false);
+        putSynonymsSet(service, setA, randomSynonymsSet(rulesPerSet), false);
+        putSynonymsSet(service, setB, randomSynonymsSet(rulesPerSet), false);
 
         try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
             mockLog.addExpectation(

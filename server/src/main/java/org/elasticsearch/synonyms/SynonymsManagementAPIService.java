@@ -130,9 +130,6 @@ public class SynonymsManagementAPIService {
     static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");
     // Limit enforced by nodes that do not support large synonym sets
     static final int PRE_LARGE_SETS_LIMIT = 10_000;
-    // Gate append=true behind this version to prevent silent data loss (append silently becoming
-    // replace) when forwarded to old nodes during rolling upgrades
-    static final TransportVersion SYNONYMS_APPEND_PARAM = TransportVersion.fromName("synonyms_append_param");
 
     private static final int MAX_SYNONYM_RULES = 100_000;
     public static final Setting<Integer> MAX_SYNONYM_RULES_SETTING = Setting.intSetting(
@@ -604,9 +601,6 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         if (append) {
-            if (checkClusterSupportsAppend(listener) == false) {
-                return;
-            }
             addToSynonymsSet(synonymSetId, synonymsSet, refresh, listener);
             return;
         }
@@ -700,10 +694,10 @@ public class SynonymsManagementAPIService {
             .setSize(0)
             .setPreference(Preference.LOCAL.type())
             .setTrackTotalHits(true)
-            .execute(ActionListener.wrap(searchResponse -> {
+            .execute(listener.delegateFailureAndWrap((l, searchResponse) -> {
                 long existingCount = searchResponse.getHits().getTotalHits().value();
-                bulkAddToSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, listener);
-            }, listener::onFailure));
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, l);
+            }));
     }
 
     private void bulkAddToSynonymsSet(
@@ -930,16 +924,6 @@ public class SynonymsManagementAPIService {
                 new ElasticsearchException(
                     "Cannot write more than " + PRE_LARGE_SETS_LIMIT + " synonym rules until all nodes in the cluster have been upgraded"
                 )
-            );
-            return false;
-        }
-        return true;
-    }
-
-    private boolean checkClusterSupportsAppend(ActionListener<?> listener) {
-        if (clusterService.state().getMinTransportVersion().supports(SYNONYMS_APPEND_PARAM) == false) {
-            listener.onFailure(
-                new ElasticsearchException("Cannot append to synonym sets until all nodes in the cluster have been upgraded")
             );
             return false;
         }

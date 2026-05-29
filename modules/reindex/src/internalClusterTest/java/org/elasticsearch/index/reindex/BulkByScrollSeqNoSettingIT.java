@@ -138,7 +138,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
-        BulkByScrollResponse response = updateByQuery.get();
+        BulkByPaginatedSearchResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(1));
         safeAwait(searchLatch);
         safeAwait(bulkLatch);
@@ -159,7 +159,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         if (randomBoolean()) {
             deleteByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
-        BulkByScrollResponse response = deleteByQuery.get();
+        BulkByPaginatedSearchResponse response = deleteByQuery.get();
         assertThat(response, matcher().deleted(1));
         refresh("test-index");
         safeAwait(searchLatch);
@@ -182,7 +182,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
-        BulkByScrollResponse response = updateByQuery.get();
+        BulkByPaginatedSearchResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(2));
         safeAwait(bulkLatch);
         safeAwait(searchLatch);
@@ -203,7 +203,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
-        BulkByScrollResponse response = updateByQuery.get();
+        BulkByPaginatedSearchResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(numDocs));
         safeAwait(searchLatch);
         safeAwait(bulkLatch);
@@ -232,7 +232,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
-        BulkByScrollResponse response = updateByQuery.get();
+        BulkByPaginatedSearchResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(numDocs + numDocs2));
         safeAwait(searchLatch);
         safeAwait(bulkLatch);
@@ -263,7 +263,7 @@ public class BulkByScrollSeqNoSettingIT extends ReindexTestCase {
         if (randomBoolean()) {
             updateByQuery.source().seqNoAndPrimaryTerm(randomBoolean());
         }
-        BulkByScrollResponse response = updateByQuery.get();
+        BulkByPaginatedSearchResponse response = updateByQuery.get();
         assertThat(response, matcher().updated(1 + numDocs + numDocs2));
         safeAwait(searchLatch);
         safeAwait(bulkLatch);

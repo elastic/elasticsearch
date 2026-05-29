@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -24,7 +25,10 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -32,6 +36,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +51,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
@@ -66,7 +75,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      *   <li>Miscellaneous padding and amortised per-response allocations ≈ 140 B</li>
      * </ul>
      * Rounds to 512 B as a conservative upper bound; intentionally over-estimates the structural
-     * shell to account for fields not explicitly tracked (highlights, explain, profile, suggest).
+     * shell to account for amortised per-response allocations not sized individually.
      */
     static final long BASE_RESPONSE_OVERHEAD = 512L;
 
@@ -102,10 +111,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      *   <li>{@code ArrayList} for values — 16 B header + elementData ref + size int ≈ 32 B</li>
      *   <li>Minimum {@code Object[]} backing array (capacity 1) ≈ 24 B</li>
      * </ul>
-     * Rounds to 200 B as a conservative upper bound. Stored field values are not sized:
-     * their content varies widely (a large keyword from doc values may exceed {@code _source}),
-     * and walking the value list for every field on every hit would add non-trivial cost on the
-     * response path for a gain that is difficult to calibrate reliably.
+     * Rounds to 200 B as a conservative upper bound. Stored field values are sized separately
+     * via {@link #estimateValueBytes} for each value in {@link DocumentField#getValues()}.
      */
     static final long PER_FIELD_OVERHEAD = 200L;
 
@@ -210,27 +217,45 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * {@link AtomicArray}. Used with {@link CircuitBreaker#REQUEST} in post-receipt reservation: the estimate is taken
      * when the response arrives, not from request metadata alone.
      * <p>
-     * Included: response shell ({@link #BASE_RESPONSE_OVERHEAD}), top-level and nested hits ({@link #estimateHitBytes}),
-     * and merged aggregations via {@link DelayableWriteable#getUncompressedSerializedSize} (same counting approach as
-     * {@code QueryPhaseResultConsumer}, without materialising a serialised buffer).
-     * A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be counted both there
-     * and in top-level hits — a known over-estimate.
-     * <p>
-     * Not included (known underestimate for atypical queries): {@link SearchHit} highlight fragments and explanations,
-     * {@link org.elasticsearch.search.suggest.Suggest}, {@link org.elasticsearch.search.profile.SearchProfileResults},
-     * and stored values inside {@link org.elasticsearch.common.document.DocumentField} (only field-entry structure is
-     * counted via {@link #PER_FIELD_OVERHEAD}). {@link #BASE_RESPONSE_OVERHEAD} is padded for untracked shell
-     * components but does not size their payload — large highlights or profile results are a known gap.
+     * Included:
+     * <ul>
+     *   <li>Response shell ({@link #BASE_RESPONSE_OVERHEAD}).</li>
+     *   <li>Top-level and nested hits ({@link #estimateHitBytes}).</li>
+     *   <li>Merged aggregations via {@link DelayableWriteable#getUncompressedSerializedSize} (same counting
+     *       approach as {@code QueryPhaseResultConsumer}, without materialising a serialised buffer).
+     *       A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be
+     *       counted both there and in top-level hits — a known over-estimate.</li>
+     *   <li>Shard failures (serialised via {@link CountingStreamOutput}; stack-trace strings are counted,
+     *       making this accurate for the OOM-relevant case where many large failures are buffered).</li>
+     *   <li>Suggest results ({@link Suggest}) and Profile results ({@link SearchProfileResults}) —
+     *       serialised via {@link CountingStreamOutput} when present.</li>
+     *   <li>CCS Clusters metadata ({@link SearchResponse.Clusters}) — serialised via
+     *       {@link CountingStreamOutput} only when per-cluster tracking is active
+     *       ({@link SearchResponse.Clusters#hasClusterObjects()} is true). For non-CCS searches the
+     *       Clusters object holds only three integers, already absorbed by {@link #BASE_RESPONSE_OVERHEAD}.
+     *       For CCS, per-cluster {@link ShardSearchFailure} entries serialised under Clusters may overlap
+     *       with top-level shard failures, resulting in a known over-estimate.</li>
+     *   <li>Highlight fragments ({@link HighlightField}) — serialised via {@link CountingStreamOutput}
+     *       per hit when present.</li>
+     *   <li>Explanations ({@link org.apache.lucene.search.Explanation}) — serialised via
+     *       {@link CountingStreamOutput} per hit when present.</li>
+     *   <li>Stored {@link DocumentField} values — sized via {@link #estimateValueBytes}
+     *       per value per hit; complements the structural overhead in {@link #PER_FIELD_OVERHEAD}.</li>
+     * </ul>
      * Estimates use stored {@link SearchHit#rawSourceLength()} and never call
      * {@link SearchHit#getSourceRef()}, which can decompress and mutate {@code _source}.
      */
     static long estimateActualBytes(SearchResponse response) {
         long bytes = BASE_RESPONSE_OVERHEAD;
 
+        // One CountingStreamOutput for the entire estimation: reset() before each use.
+        CountingStreamOutput counter = new CountingStreamOutput();
+        counter.setTransportVersion(TransportVersion.current());
+
         SearchHit[] hits = response.getHits().getHits();
         if (hits != null) {
             for (SearchHit hit : hits) {
-                bytes += estimateHitBytes(hit);
+                bytes += estimateHitBytes(hit, counter);
             }
         }
 
@@ -242,28 +267,106 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             }
         }
 
+        ShardSearchFailure[] failures = response.getShardFailures();
+        if (failures.length > 0) {
+            bytes += tryCountSerializedBytes(counter, out -> out.writeArray(failures), "shard failures");
+        }
+
+        Suggest suggest = response.getSuggest();
+        if (suggest != null) {
+            bytes += tryCountSerializedBytes(counter, suggest, "suggest");
+        }
+
+        SearchProfileResults profileResults = response.getSearchProfileResults();
+        if (profileResults != null) {
+            bytes += tryCountSerializedBytes(counter, profileResults, "profile results");
+        }
+
+        // CCS only: for non-CCS responses the Clusters object holds just three integers, already
+        // absorbed by BASE_RESPONSE_OVERHEAD. Only serialize when per-cluster tracking is active.
+        SearchResponse.Clusters clusters = response.getClusters();
+        if (clusters.hasClusterObjects()) {
+            bytes += tryCountSerializedBytes(counter, clusters, "clusters");
+        }
+
         return bytes;
     }
 
     /**
-     * Estimates the heap cost of a single {@link SearchHit}, including its stored
-     * source bytes, doc-value / stored field entry shells, and any nested {@code inner_hits}.
+     * Counts bytes that {@code writeable} would occupy when serialised to the transport wire format.
+     * Resets {@code counter} before writing and reads {@link CountingStreamOutput#position()} after.
+     * Returns {@code 0} and logs a warning if serialisation raises an unexpected exception;
+     * in that case {@code counter} is reset so the next call starts from a clean state.
+     */
+    private static long tryCountSerializedBytes(CountingStreamOutput counter, Writeable writeable, String label) {
+        try {
+            counter.reset();
+            writeable.writeTo(counter);
+            return counter.position();
+        } catch (Exception e) {
+            counter.reset();
+            logger.warn("msearch circuit breaker: failed to estimate {} bytes", label, e);
+            return 0L;
+        }
+    }
+
+    /**
+     * Estimates the heap cost of a single {@link SearchHit}, including its stored source bytes,
+     * doc-value / stored field entry shells and their values, highlight fragments, explanations,
+     * and any nested {@code inner_hits} (recursive).
      * Uses {@link SearchHit#getDocumentFields()} and {@link SearchHit#getMetadataFields()} rather than
      * {@link SearchHit#getFields()}, which allocates a new {@code HashMap} on every call.
      */
-    private static long estimateHitBytes(SearchHit hit) {
+    private static long estimateHitBytes(SearchHit hit, CountingStreamOutput counter) {
         long bytes = PER_HIT_OBJECT_OVERHEAD;
         bytes += hit.rawSourceLength();
         bytes += (long) (hit.getDocumentFields().size() + hit.getMetadataFields().size()) * PER_FIELD_OVERHEAD;
+        for (DocumentField field : hit.getDocumentFields().values()) {
+            for (Object value : field.getValues()) {
+                bytes += estimateValueBytes(value);
+            }
+        }
+        for (DocumentField field : hit.getMetadataFields().values()) {
+            for (Object value : field.getValues()) {
+                bytes += estimateValueBytes(value);
+            }
+        }
+        Map<String, HighlightField> highlights = hit.getHighlightFields();
+        if (highlights.isEmpty() == false) {
+            bytes += tryCountSerializedBytes(counter, out -> out.writeCollection(highlights.values()), "highlights");
+        }
+        if (hit.getExplanation() != null) {
+            bytes += tryCountSerializedBytes(counter, out -> writeExplanation(out, hit.getExplanation()), "explanation");
+        }
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
             for (SearchHits innerHitsValue : innerHits.values()) {
                 for (SearchHit innerHit : innerHitsValue.getHits()) {
-                    bytes += estimateHitBytes(innerHit);
+                    bytes += estimateHitBytes(innerHit, counter);
                 }
             }
         }
         return bytes;
+    }
+
+    /**
+     * Estimates the heap cost of a single value stored in a {@link DocumentField}.
+     * Uses type-based sizing rather than serialisation to avoid encoding overhead on
+     * the response path.
+     * <ul>
+     *   <li>{@code String}: 32 B object shell + 1 B per character (Java compact-string encoding)</li>
+     *   <li>{@code byte[]}: 16 B array header + the byte count</li>
+     *   <li>Boxed number ({@code Long}, {@code Integer}, {@code Double}, etc.) or {@code Boolean}: 16 B</li>
+     * </ul>
+     */
+    static long estimateValueBytes(Object value) {
+        if (value instanceof String s) {
+            return 32L + s.length();
+        }
+        if (value instanceof byte[] b) {
+            return 16L + b.length;
+        }
+        return 16L;
     }
 
     /**

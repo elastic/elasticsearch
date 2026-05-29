@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -41,6 +43,10 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.suggest.SortBy;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +55,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -305,7 +312,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertEstimateBytes(
             oneDocField,
             TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD + TransportMultiSearchAction.PER_HIT_OBJECT_OVERHEAD
-                + TransportMultiSearchAction.PER_FIELD_OVERHEAD
+                + TransportMultiSearchAction.PER_FIELD_OVERHEAD + TransportMultiSearchAction.estimateValueBytes("v")
         );
 
         SearchHit withFields = new SearchHit(0, "id");
@@ -317,6 +324,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             withFields,
             TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD + TransportMultiSearchAction.PER_HIT_OBJECT_OVERHEAD + 2L
                 * TransportMultiSearchAction.PER_FIELD_OVERHEAD
+                + TransportMultiSearchAction.estimateValueBytes("v")
+                + TransportMultiSearchAction.estimateValueBytes(1)
         );
 
         SearchResponse emptyHits = SearchResponse.emptyResponseBuilder().build();
@@ -379,6 +388,165 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             assertThat(TransportMultiSearchAction.estimateActualBytes(combined), equalTo(expected));
         } finally {
             combined.decRef();
+        }
+    }
+
+    public void testEstimateShardFailures() throws Exception {
+        ShardSearchFailure failure = new ShardSearchFailure(new RuntimeException("shard failure message"));
+        SearchResponse withFailure = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).shardFailures(failure).build();
+        SearchResponse withoutFailure = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).build();
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withFailure);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutFailure);
+
+            // The failure estimate must be strictly larger.
+            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+
+            // The exact delta matches what CountingStreamOutput reports for the failure array.
+            long expectedFailureBytes;
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                out.writeArray(new ShardSearchFailure[] { failure });
+                expectedFailureBytes = out.position();
+            }
+            assertThat(withBytes - withoutBytes, equalTo(expectedFailureBytes));
+        } finally {
+            withFailure.decRef();
+            withoutFailure.decRef();
+        }
+    }
+
+    public void testEstimateSuggest() throws Exception {
+        TermSuggestion termSuggestion = new TermSuggestion("my-suggest", 5, SortBy.SCORE);
+        // Suggest sorts the list in-place, so it must be mutable.
+        Suggest suggest = new Suggest(new ArrayList<>(List.of(termSuggestion)));
+        SearchResponse withSuggest = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).suggest(suggest).build();
+        SearchResponse withoutSuggest = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).build();
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withSuggest);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutSuggest);
+
+            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+
+            long expectedSuggestBytes;
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                suggest.writeTo(out);
+                expectedSuggestBytes = out.position();
+            }
+            assertThat(withBytes - withoutBytes, equalTo(expectedSuggestBytes));
+        } finally {
+            withSuggest.decRef();
+            withoutSuggest.decRef();
+        }
+    }
+
+    public void testEstimateProfileResults() throws Exception {
+        SearchProfileResults profileResults = new SearchProfileResults(Map.of());
+        SearchResponse withProfile = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).profileResults(profileResults).build();
+        SearchResponse withoutProfile = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).build();
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withProfile);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutProfile);
+
+            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+
+            long expectedProfileBytes;
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                profileResults.writeTo(out);
+                expectedProfileBytes = out.position();
+            }
+            assertThat(withBytes - withoutBytes, equalTo(expectedProfileBytes));
+        } finally {
+            withProfile.decRef();
+            withoutProfile.decRef();
+        }
+    }
+
+    public void testEstimateFieldValues() throws Exception {
+        SearchHit withValues = new SearchHit(0, "id");
+        withValues.addDocumentFields(
+            Map.of("foo", new DocumentField("foo", List.of("a long keyword value stored in doc values"))),
+            Map.of()
+        );
+        SearchHit withoutValues = new SearchHit(0, "id");
+        withoutValues.addDocumentFields(Map.of("foo", new DocumentField("foo", List.of())), Map.of());
+        SearchResponse withResponse = responseWithHits(withValues);
+        SearchResponse withoutResponse = responseWithHits(withoutValues);
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
+
+            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+
+            long expectedValueBytes = TransportMultiSearchAction.estimateValueBytes("a long keyword value stored in doc values");
+            assertThat(withBytes - withoutBytes, equalTo(expectedValueBytes));
+        } finally {
+            withResponse.decRef();
+            withoutResponse.decRef();
+        }
+    }
+
+    public void testEstimateHighlights() throws Exception {
+        SearchHit withHighlight = new SearchHit(0, "id");
+        withHighlight.highlightFields(
+            Map.of(
+                "body",
+                new org.elasticsearch.search.fetch.subphase.highlight.HighlightField(
+                    "body",
+                    new org.elasticsearch.xcontent.Text[] { new org.elasticsearch.xcontent.Text("this is a <em>highlighted</em> fragment") }
+                )
+            )
+        );
+        SearchHit withoutHighlight = new SearchHit(0, "id");
+        SearchResponse withResponse = responseWithHits(withHighlight);
+        SearchResponse withoutResponse = responseWithHits(withoutHighlight);
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
+
+            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+
+            long expectedHighlightBytes;
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                out.writeCollection(withHighlight.getHighlightFields().values());
+                expectedHighlightBytes = out.position();
+            }
+            assertThat(withBytes - withoutBytes, equalTo(expectedHighlightBytes));
+        } finally {
+            withResponse.decRef();
+            withoutResponse.decRef();
+        }
+    }
+
+    public void testEstimateExplanation() throws Exception {
+        org.apache.lucene.search.Explanation explanation = org.apache.lucene.search.Explanation.match(
+            1.5f,
+            "weight(body:foo in 42) [PerFieldSimilarity], result of:"
+        );
+        SearchHit withExplanation = new SearchHit(0, "id");
+        withExplanation.explanation(explanation);
+        SearchHit withoutExplanation = new SearchHit(0, "id");
+        SearchResponse withResponse = responseWithHits(withExplanation);
+        SearchResponse withoutResponse = responseWithHits(withoutExplanation);
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
+
+            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+
+            long expectedExplanationBytes;
+            try (CountingStreamOutput out = new CountingStreamOutput()) {
+                out.setTransportVersion(TransportVersion.current());
+                org.elasticsearch.common.lucene.Lucene.writeExplanation(out, explanation);
+                expectedExplanationBytes = out.position();
+            }
+            assertThat(withBytes - withoutBytes, equalTo(expectedExplanationBytes));
+        } finally {
+            withResponse.decRef();
+            withoutResponse.decRef();
         }
     }
 

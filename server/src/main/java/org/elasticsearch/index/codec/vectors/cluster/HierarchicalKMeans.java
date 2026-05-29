@@ -347,7 +347,7 @@ public class HierarchicalKMeans<V> {
             maxClusterSize = Math.max(maxClusterSize, x);
         }
 
-        // Divide by (count - 1) for sample SD, or (count) for population SD
+        // M2 / clusterSizes.length is the variance
         double stdClusterSizes = Math.sqrt(M2 / clusterSizes.length);
 
         logger.debug(

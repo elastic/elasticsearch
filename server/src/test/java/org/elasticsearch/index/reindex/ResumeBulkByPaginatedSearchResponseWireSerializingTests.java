@@ -18,8 +18,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ResumeBulkByScrollResponseWireSerializingTests extends AbstractWireSerializingTestCase<
-    ResumeBulkByScrollResponseWireSerializingTests.Wrapper> {
+public class ResumeBulkByPaginatedSearchResponseWireSerializingTests extends AbstractWireSerializingTestCase<
+    ResumeBulkByPaginatedSearchResponseWireSerializingTests.Wrapper> {
 
     @Override
     protected Writeable.Reader<Wrapper> instanceReader() {

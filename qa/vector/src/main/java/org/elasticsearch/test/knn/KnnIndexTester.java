@@ -238,7 +238,6 @@ public class KnnIndexTester {
                             return selector.select(
                                 fieldInfo,
                                 floatVectorValues,
-                                null,
                                 mergeState
                             );
                         }

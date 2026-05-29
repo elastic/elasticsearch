@@ -614,7 +614,13 @@ public class TwoPhaseBlockLifecycleTests extends ESTestCase {
             }
 
             @Override
-            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+            public void readBytesAsync(
+                long position,
+                long length,
+                DirectBufferFactory factory,
+                Executor executor,
+                ActionListener<DirectReadBuffer> listener
+            ) {
                 throw new UnsupportedOperationException("syncStorage does not support native async");
             }
         };

@@ -2858,6 +2858,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         */
+        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
+
+        /**
          * Fix for column pruning when FORK branches return no columns.
          */
         FORK_PROJECT_AWAY_COLUMNS_FIX,

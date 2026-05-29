@@ -21,9 +21,14 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -45,9 +51,11 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,6 +65,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
@@ -401,8 +410,7 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     protected boolean isRuntimeSearch() {
         return EsqlCapabilities.Cap.MATCH_SUPPORT_RUNTIME_TEXT.isEnabled()
             && configuration.pragmas().runtimeLexicalSearch()
-            && fieldAsFieldAttribute() == null
-            && field.dataType() == TEXT;
+            && fieldAsFieldAttribute() == null;
     }
 
     @Override
@@ -415,15 +423,54 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (isRuntimeSearch()) {
+        if (false == isRuntimeSearch()) {
+            // we push down match to the shards as a Lucene query.
+            return super.toEvaluator(toEvaluator);
+        }
+
+        if (field.dataType() == TEXT) {
             return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), queryAsObject().toString(), new StandardAnalyzer());
         }
 
-        return super.toEvaluator(toEvaluator);
+        Object queryObject = Foldables.queryAsObject(query(), sourceText());
+        String queryString = queryObject instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : null;
+
+        return switch (PlannerUtils.toElementType(field.dataType())) {
+            case BYTES_REF -> {
+                assert queryObject instanceof BytesRef;
+                yield new MatchBytesRefEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(field()),
+                    (BytesRef) queryObject,
+                    context -> new BytesRef()
+                );
+            }
+            case BOOLEAN -> new MatchBooleanEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryString != null ? EsqlDataTypeConverter.stringToBoolean(queryString) : (Boolean) queryObject
+            );
+            case DOUBLE -> new MatchDoubleEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryString != null ? EsqlDataTypeConverter.stringToDouble(queryString) : ((Number) queryObject).doubleValue()
+            );
+            case LONG -> new MatchLongEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryString != null ? EsqlDataTypeConverter.stringToLong(queryString) : ((Number) queryObject).longValue()
+            );
+            case INT -> new MatchIntegerEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                queryString != null ? EsqlDataTypeConverter.stringToInt(queryString) : ((Number) queryObject).intValue()
+            );
+            default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
+        };
     }
 
     @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
-    static boolean process(@Position int position, BytesRefBlock fieldBlock, @Fixed String queryString, @Fixed Analyzer analyzer)
+    static boolean processText(@Position int position, BytesRefBlock fieldBlock, @Fixed String queryString, @Fixed Analyzer analyzer)
         throws IOException {
         if (fieldBlock == null) {
             return false;
@@ -450,6 +497,53 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
             }
         }
         return false;
+    }
+
+    @Evaluator(extraName = "BytesRef", allNullsIsNull = false)
+    static boolean processBytesRef(
+        @Position int position,
+        BytesRefBlock fieldBlock,
+        @Fixed BytesRef queryStringBytesRef,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
+    ) {
+        if (fieldBlock == null) {
+            return false;
+        }
+
+        return fieldBlock.hasValue(position, queryStringBytesRef, scratch);
+    }
+
+    @Evaluator(extraName = "Boolean", allNullsIsNull = false)
+    static boolean processBoolean(@Position int position, BooleanBlock fieldBlock, @Fixed Boolean query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "Double", allNullsIsNull = false)
+    static boolean processDouble(@Position int position, DoubleBlock fieldBlock, @Fixed Double query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "Long", allNullsIsNull = false)
+    static boolean processLong(@Position int position, LongBlock fieldBlock, @Fixed Long query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+        return fieldBlock.hasValue(position, query);
+    }
+
+    @Evaluator(extraName = "Integer", allNullsIsNull = false)
+    static boolean processInteger(@Position int position, IntBlock fieldBlock, @Fixed Integer query) {
+        if (fieldBlock == null) {
+            return false;
+        }
+        return fieldBlock.hasValue(position, query);
     }
 
     @Override

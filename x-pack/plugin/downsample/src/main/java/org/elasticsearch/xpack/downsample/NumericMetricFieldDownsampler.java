@@ -243,7 +243,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             return temporalityCollector;
         }
 
-        public double downsampledValue() {
+        double downsampledValue() {
             return temporalityCollector != null ? temporalityCollector.downsampledValue() : Double.NaN;
         }
 
@@ -266,12 +266,11 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Update {@link CounterResetDataPoints} which contains all reset counter values,
-         * with the latest reset points of this counter field.
-         *
+         * When the active temporality is {@link Temporality#CUMULATIVE}, we delegate to the {@link CumulativeCollector}
+         * to update the {@link CounterResetDataPoints}
          * @param counterResetDataPoints the extra reset data values for every counter for this bucket
          */
-        public void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+        void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
             if (temporalityCollector == cumulativeCollector) {
                 cumulativeCollector.updateResetDataPoints(counterResetDataPoints);
             }
@@ -395,10 +394,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
             /**
              * Update {@link CounterResetDataPoints} which contains all reset counter values,
              * with the latest reset points of this counter field.
-             *
              * @param counterResetDataPoints the extra reset data values for every counter for this bucket
              */
-            public void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
+            void updateResetDataPoints(CounterResetDataPoints counterResetDataPoints) {
                 if (resetStack.isEmpty()) {
                     return;
                 }

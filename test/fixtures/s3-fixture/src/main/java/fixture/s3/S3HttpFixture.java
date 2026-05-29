@@ -11,35 +11,56 @@ package fixture.s3;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import com.sun.net.httpserver.HttpsConfigurator;
+import com.sun.net.httpserver.HttpsServer;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.security.SecureRandom;
+import java.security.cert.Certificate;
 import java.util.Objects;
 import java.util.function.BiPredicate;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
 
 import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.checkAuthorization;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static fixture.aws.AwsFixtureUtils.getLocalFixtureAddress;
 
 public class S3HttpFixture extends ExternalResource {
 
     private HttpServer server;
 
     private final boolean enabled;
+    @Nullable // if using HTTP
+    private final TestTlsCertificate tlsCertificate;
     private final String bucket;
     private final String basePath;
     private final BiPredicate<String, String> authorizationPredicate;
 
     public S3HttpFixture(boolean enabled) {
-        this(enabled, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
+        this(enabled, null, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", ANY_REGION, "s3"));
     }
 
-    public S3HttpFixture(boolean enabled, String bucket, String basePath, BiPredicate<String, String> authorizationPredicate) {
+    public S3HttpFixture(
+        boolean enabled,
+        @Nullable /* to use HTTP */ TestTlsCertificate tlsCertificate,
+        String bucket,
+        String basePath,
+        BiPredicate<String, String> authorizationPredicate
+    ) {
         this.enabled = enabled;
+        this.tlsCertificate = tlsCertificate;
         this.bucket = bucket;
         this.basePath = basePath;
         this.authorizationPredicate = authorizationPredicate;
@@ -63,8 +84,14 @@ public class S3HttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        String host = InetAddresses.toUriString(server.getAddress().getAddress());
-        return "http://" + host + ":" + server.getAddress().getPort();
+        return Strings.format(
+            "%s://%s:%d",
+            tlsCertificate == null ? "http" : "https",
+            tlsCertificate == null
+                ? InetAddresses.toUriString(server.getAddress().getAddress())
+                : server.getAddress().getAddress().getHostName(),
+            server.getAddress().getPort()
+        );
     }
 
     public void stop(int delay) {
@@ -73,7 +100,24 @@ public class S3HttpFixture extends ExternalResource {
 
     protected void before() throws Throwable {
         if (enabled) {
-            this.server = HttpServer.create(getLocalFixtureAddress(), 0);
+            if (tlsCertificate == null) {
+                this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            } else {
+                final SSLContext sslContext = SSLContext.getInstance("TLS");
+                sslContext.init(
+                    new KeyManager[] {
+                        KeyStoreUtil.createKeyManager(
+                            new Certificate[] { tlsCertificate.certificate() },
+                            tlsCertificate.privateKey(),
+                            null
+                        ) },
+                    null,
+                    new SecureRandom()
+                );
+                final var httpsServer = HttpsServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+                this.server = httpsServer;
+                httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
+            }
             this.server.createContext("/", Objects.requireNonNull(createHandler()));
             server.start();
         }

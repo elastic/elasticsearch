@@ -35,6 +35,7 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(
         USE_FIXTURE,
+        null,
         "bucket",
         "base_path_integration_tests",
         fixedAccessKey("s3_test_access_key", regionSupplier, "s3")

@@ -140,7 +140,14 @@ public class CsvRecordSplitterTests extends ESTestCase {
 
             int parserRecords = 0;
             try (BufferedReader br = new BufferedReader(new StringReader(data))) {
-                while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), delim, bracketAware) != null) {
+                CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                    br,
+                    options.quoteChar(),
+                    delim,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    options.encoding()
+                );
+                while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
                 }
             }
@@ -164,7 +171,14 @@ public class CsvRecordSplitterTests extends ESTestCase {
 
         int parserRecords = 0;
         try (BufferedReader br = new BufferedReader(new StringReader(data))) {
-            while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), options.delimiter(), false) != null) {
+            CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                br,
+                options.quoteChar(),
+                options.delimiter(),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                options.encoding()
+            );
+            while (recordReader.readRecord(false) != null) {
                 parserRecords++;
             }
         }

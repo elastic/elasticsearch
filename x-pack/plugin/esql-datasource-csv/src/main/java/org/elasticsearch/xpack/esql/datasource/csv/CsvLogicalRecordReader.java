@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.csv;
 import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Reads one logical CSV record at a time while enforcing the query's byte-sized record cap.
@@ -21,6 +22,7 @@ final class CsvLogicalRecordReader {
     private final char delimiter;
     private final int maxRecordBytes;
     private final Charset charset;
+    private final boolean utf8;
 
     CsvLogicalRecordReader(Reader reader, char quoteChar, char delimiter, int maxRecordBytes, Charset charset) {
         if (reader.markSupported() == false) {
@@ -34,6 +36,7 @@ final class CsvLogicalRecordReader {
         this.delimiter = delimiter;
         this.maxRecordBytes = maxRecordBytes;
         this.charset = charset;
+        this.utf8 = StandardCharsets.UTF_8.equals(charset);
     }
 
     String readRecord(boolean bracketAware) throws IOException {
@@ -93,7 +96,7 @@ final class CsvLogicalRecordReader {
                 reader.mark(1);
                 int next = reader.read();
                 if (next == '\n') {
-                    addBytes(recordBytes, next);
+                    recordBytes = addBytes(recordBytes, next);
                 } else if (next != -1) {
                     reader.reset();
                 }
@@ -122,11 +125,31 @@ final class CsvLogicalRecordReader {
     }
 
     private int addBytes(int recordBytes, int ch) throws CsvRecordTooLargeException {
-        int next = recordBytes + String.valueOf((char) ch).getBytes(charset).length;
+        int next = recordBytes + encodedLength(ch);
         if (next > maxRecordBytes) {
             throw new CsvRecordTooLargeException(maxRecordBytes);
         }
         return next;
+    }
+
+    private int encodedLength(int ch) {
+        if (utf8) {
+            return utf8Length(ch);
+        }
+        return String.valueOf((char) ch).getBytes(charset).length;
+    }
+
+    private static int utf8Length(int ch) {
+        if (ch <= 0x7f) {
+            return 1;
+        }
+        if (ch <= 0x7ff) {
+            return 2;
+        }
+        if (Character.isSurrogate((char) ch)) {
+            return 2;
+        }
+        return 3;
     }
 
     static final class CsvRecordTooLargeException extends IOException {

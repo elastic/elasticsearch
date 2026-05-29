@@ -251,16 +251,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 return consumed;
             }
             if (b == '\r') {
-                bis.mark(1);
-                int next = bis.read();
-                if (next == '\n') {
-                    consumed++;
-                    return consumed > maxRecordBytes ? RECORD_TOO_LARGE : consumed;
-                }
-                if (next != -1) {
-                    bis.reset();
-                }
-                return consumed;
+                return consumeCrTerminator(bis, consumed);
             }
             if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
@@ -348,16 +339,7 @@ final class CsvRecordSplitter implements RecordSplitter {
                 return consumed;
             }
             if (b == '\r') {
-                bis.mark(1);
-                int next = bis.read();
-                if (next == '\n') {
-                    consumed++;
-                    return consumed > maxRecordBytes ? RECORD_TOO_LARGE : consumed;
-                }
-                if (next != -1) {
-                    bis.reset();
-                }
-                return consumed;
+                return consumeCrTerminator(bis, consumed);
             }
             if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
@@ -367,5 +349,18 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = true;
             }
         }
+    }
+
+    private long consumeCrTerminator(BufferedInputStream bis, long consumed) throws IOException {
+        bis.mark(1);
+        int next = bis.read();
+        if (next == '\n') {
+            long consumedWithLf = consumed + 1;
+            return consumedWithLf > maxRecordBytes ? RECORD_TOO_LARGE : consumedWithLf;
+        }
+        if (next != -1) {
+            bis.reset();
+        }
+        return consumed;
     }
 }

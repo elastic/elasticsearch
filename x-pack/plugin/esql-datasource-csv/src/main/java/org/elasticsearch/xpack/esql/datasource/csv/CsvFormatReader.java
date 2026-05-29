@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
@@ -56,7 +57,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -1140,13 +1140,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * @return the logical record (without trailing line terminator), or {@code null} at EOF
      */
     static String readCsvRecord(Reader reader, char quoteChar, char delimiter, boolean bracketAware) throws IOException {
-        return new CsvLogicalRecordReader(
-            reader,
-            quoteChar,
-            delimiter,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
-            java.nio.charset.StandardCharsets.UTF_8
-        ).readRecord(bracketAware);
+        return readCsvRecord(reader, quoteChar, delimiter, bracketAware, CsvFormatOptions.DEFAULT.encoding());
+    }
+
+    static String readCsvRecord(Reader reader, char quoteChar, char delimiter, boolean bracketAware, Charset encoding) throws IOException {
+        return new CsvLogicalRecordReader(reader, quoteChar, delimiter, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES, encoding)
+            .readRecord(bracketAware);
     }
 
     /**
@@ -1382,13 +1381,30 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private List<?> readNextParsedRecord() throws IOException {
             String record;
             while ((record = recordReader.readRecord(false)) != null) {
-                try (var iterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(new StringReader(record))) {
-                    if (iterator.hasNext()) {
-                        return (List<?>) iterator.next();
-                    }
+                List<?> row = parseRecord(record);
+                if (row != null) {
+                    return row;
                 }
             }
             return null;
+        }
+
+        private List<String> parseRecord(String record) throws IOException {
+            try (CsvParser parser = sharedCsvMapper.getFactory().createParser(record)) {
+                parser.setSchema(csvSchema);
+                List<String> row = new ArrayList<>();
+                JsonToken token;
+                while ((token = parser.nextToken()) != null) {
+                    if (token == JsonToken.VALUE_NULL) {
+                        row.add(null);
+                    } else if (token.isScalarValue()) {
+                        row.add(parser.getValueAsString());
+                    } else if (token != JsonToken.START_ARRAY && token != JsonToken.END_ARRAY) {
+                        throw new IOException("Unexpected CSV token [" + token + "] while parsing record");
+                    }
+                }
+                return row.isEmpty() ? null : row;
+            }
         }
     }
 

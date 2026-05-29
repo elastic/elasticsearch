@@ -2461,50 +2461,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
         when(inner.metadata(any())).thenReturn(null);
         when(inner.read(any(), any())).thenReturn(emptyPageIterator());
-        when(inner.recordSplitter(anyInt())).thenAnswer(invocation -> newlineSplitter(invocation.getArgument(0)));
+        when(inner.recordSplitter(anyInt())).thenAnswer(invocation -> TestRecordSplitters.newlineSplitter(invocation.getArgument(0)));
         return inner;
-    }
-
-    private static RecordSplitter newlineSplitter(int maxRecordBytes) {
-        return new RecordSplitter() {
-            @Override
-            public long findNextRecordBoundary(InputStream stream) throws IOException {
-                long consumed = 0;
-                int b;
-                while ((b = stream.read()) != -1) {
-                    consumed++;
-                    if (consumed > maxRecordBytes) {
-                        return RECORD_TOO_LARGE;
-                    }
-                    if (b == '\n') {
-                        return consumed;
-                    }
-                }
-                return -1L;
-            }
-
-            @Override
-            public int findLastRecordBoundary(byte[] buf, int offset, int length) {
-                int end = offset + length;
-                int recordStart = offset;
-                int lastBoundary = -1;
-                for (int i = offset; i < end; i++) {
-                    if (buf[i] == '\n') {
-                        if (i - recordStart + 1 > maxRecordBytes) {
-                            return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
-                        }
-                        lastBoundary = i;
-                        recordStart = i + 1;
-                    }
-                }
-                return end - recordStart > maxRecordBytes && lastBoundary < 0 ? (int) RECORD_TOO_LARGE : lastBoundary;
-            }
-
-            @Override
-            public int maxRecordBytes() {
-                return maxRecordBytes;
-            }
-        };
     }
 
     private static FormatReader dummyFormatReaderForOpenParallelismTests() {
@@ -3029,7 +2987,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
 
         @Override
         public RecordSplitter recordSplitter(int maxRecordBytes) {
-            return newlineSplitter(maxRecordBytes);
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override

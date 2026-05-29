@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -1550,7 +1551,14 @@ public class CsvFormatReaderTests extends ESTestCase {
             // Oracle: records produced by the real tokenizer.
             int parserRecords = 0;
             try (BufferedReader br = new BufferedReader(new StringReader(data))) {
-                while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), delim, bracketAware) != null) {
+                CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                    br,
+                    options.quoteChar(),
+                    delim,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    options.encoding()
+                );
+                while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
                 }
             }

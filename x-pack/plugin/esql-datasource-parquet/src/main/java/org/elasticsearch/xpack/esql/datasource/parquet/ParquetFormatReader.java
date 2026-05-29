@@ -1172,19 +1172,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             boolean[] survivingRowGroups;
             try {
                 blocks = reader.getRowGroups();
-                logger.info(
-                    "[DBG-ZSTD][filter] enter file={} rowGroups={} hasFilter={}",
-                    storageObject.path(),
-                    blocks.size(),
-                    recordFilter != null
-                );
-                try {
-                    survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
-                    logger.info("[DBG-ZSTD][filter] exit-ok file={}", storageObject.path());
-                } catch (Throwable t) {
-                    logger.info("[DBG-ZSTD][filter] exit-fail file={} ex={}", storageObject.path(), t.toString());
-                    throw t;
-                }
+                survivingRowGroups = computeSurvivingRowGroups(reader, blocks, recordFilter, projectedSchema, counters);
             } finally {
                 // Detach the pre-warmed chunks from the adapter so subsequent reads on any
                 // WindowedSeekableInputStream skip the cache lookup. The ByteBuffers themselves remain

@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -123,7 +122,6 @@ final class PreloadedRowGroupMetadata implements Releasable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        logger.info("[DBG-ZSTD][metadata-close] releasing preWarmedChunks={}", preWarmedChunks.size());
         releasable.close();
     }
 
@@ -289,21 +287,9 @@ final class PreloadedRowGroupMetadata implements Releasable {
                         // not 0. PrefetchedSource.slice() treats offsetInChunk as 0-based, so
                         // normalise here via slice() — same fix as buildPrefetched in
                         // ColumnChunkPrefetcher.
-                        ByteBuffer slice = buf.slice();
-                        logger.info(
-                            "[DBG-ZSTD][preload] kind={} rg={} col={} offset={} length={} sliceRem={} sliceDirect={} head={}",
-                            meta.kind(),
-                            meta.rowGroupIdx(),
-                            meta.col().getPath().toDotString(),
-                            meta.range().offset(),
-                            meta.range().length(),
-                            slice.remaining(),
-                            slice.isDirect(),
-                            DirectMemoryDebug.hex(slice, 16)
-                        );
                         preWarmedChunks.put(
                             meta.range().offset(),
-                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), slice)
+                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf.slice())
                         );
                     }
                 }
@@ -318,13 +304,6 @@ final class PreloadedRowGroupMetadata implements Releasable {
             }
         }
 
-        logger.info(
-            "[DBG-ZSTD][preload] summary file={} preWarmedChunks={} columnIndexes={} offsetIndexes={}",
-            storageObject.path(),
-            preWarmedChunks.size(),
-            columnIndexes.size(),
-            offsetIndexes.size()
-        );
         return new PreloadedRowGroupMetadata(
             columnIndexes,
             offsetIndexes,

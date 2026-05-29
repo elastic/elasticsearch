@@ -17,10 +17,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasource.compress.PanamaZstd;
-import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
@@ -87,8 +84,6 @@ import java.util.zip.GZIPOutputStream;
  * to clear. The method exists only because the {@link CompressionCodecFactory} SPI requires it.
  */
 final class PlainCompressionCodecFactory implements CompressionCodecFactory {
-
-    private static final Logger logger = LogManager.getLogger(PlainCompressionCodecFactory.class);
 
     private final Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> decompressors;
     private final Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> compressors;
@@ -300,32 +295,14 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
             int written;
-            // Materialise the BytesInput once so the diagnostic logs and the libzstd call see the
-            // same bytes. BytesInput.toByteArray() may copy or alias depending on the BytesInput
-            // implementation; we accept whatever parquet-mr hands us.
-            byte[] in = bytes.toByteArray();
-            int tailOff = Math.max(0, in.length - 16);
-            logger.info(
-                "[DBG-ZSTD][decomp] heap-in inputLen={} decompressedSize={} head={} tail={}",
-                in.length,
-                decompressedSize,
-                DirectMemoryDebug.hex(in, 0, 32),
-                DirectMemoryDebug.hex(in, tailOff, 16)
-            );
             try {
-                // The PanamaZstd.decompressHeap downcall is critical(true), so the heap segments
+                // BytesInput.toByteArray() may copy or alias depending on the BytesInput
+                // implementation; we accept whatever parquet-mr hands us. The
+                // PanamaZstd.decompressHeap downcall is critical(true), so the heap segments
                 // cross into libzstd with no off-heap staging copy — same behavior as zstd-jni's
                 // GetPrimitiveArrayCritical path, minus the G1 region pinning.
-                written = panamaZstd.decompressHeap(out, in);
+                written = panamaZstd.decompressHeap(out, bytes.toByteArray());
             } catch (RuntimeException e) {
-                logger.info(
-                    "[DBG-ZSTD][decomp] heap-fail inputLen={} decompressedSize={} head={} tail={} msg={}",
-                    in.length,
-                    decompressedSize,
-                    DirectMemoryDebug.hex(in, 0, 32),
-                    DirectMemoryDebug.hex(in, tailOff, 16),
-                    e.getMessage()
-                );
                 throw new IOException("Zstd decompression failed", e);
             }
             // Guard against silent corruption: out is allocated via UninitializedArrays so any
@@ -335,7 +312,6 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
                     "Zstd decompression produced " + written + " bytes, expected " + decompressedSize + " from page header"
                 );
             }
-            logger.info("[DBG-ZSTD][decomp] heap-ok inputLen={} written={}", in.length, written);
             return BytesInput.from(out);
         }
 

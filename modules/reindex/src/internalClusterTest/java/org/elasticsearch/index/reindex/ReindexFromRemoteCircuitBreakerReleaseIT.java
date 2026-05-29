@@ -112,7 +112,7 @@ public class ReindexFromRemoteCircuitBreakerReleaseIT extends ESSingleNodeTestCa
         SearchRequest searchRequest = request.getSearchRequest();
         searchRequest.source(new SearchSourceBuilder().size(batchSize));
 
-        BulkByScrollResponse response = client().execute(ReindexAction.INSTANCE, request).get();
+        BulkByPaginatedSearchResponse response = client().execute(ReindexAction.INSTANCE, request).get();
 
         assertThat("bulk failures: " + response.getBulkFailures(), response.getBulkFailures(), empty());
         assertThat("search failures: " + response.getSearchFailures(), response.getSearchFailures(), empty());

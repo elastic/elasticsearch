@@ -1,6 +1,0 @@
-area: Aggregations
-issues:
- - 147190
-pr: 148885
-summary: "Aggs: Account aggs uncompressed size on coordinator reduction"
-type: bug

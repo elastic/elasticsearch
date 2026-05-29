@@ -76,7 +76,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-    private PromqlFunctionRegistry promqlFunctionRegistry = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
     private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
@@ -793,7 +792,7 @@ public class TestAnalyzer {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
-            promqlFunctionRegistry,
+            PromqlFunctionRegistry.INSTANCE,
             null,
             indexResolutions,
             lookupResolution,

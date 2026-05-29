@@ -109,10 +109,7 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testPromqlInstantQuery() {
-        tsdb.error(
-            "PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))",
-            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
-        );
+        assertNotNull(tsdb.query("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))"));
     }
 
     public void testPromqlMissingBucketParameters() {

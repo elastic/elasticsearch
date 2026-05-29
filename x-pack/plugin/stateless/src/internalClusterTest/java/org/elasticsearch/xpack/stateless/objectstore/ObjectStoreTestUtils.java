@@ -27,6 +27,15 @@ public final class ObjectStoreTestUtils {
 
     public static <T> T getObjectStoreMockRepository(ObjectStoreService service, Class<T> repoClass) {
         var objectStore = ESTestCase.randomBoolean() ? service.getClusterObjectStore() : service.getProjectObjectStore(ProjectId.DEFAULT);
+        return getMockRepository(objectStore, repoClass);
+    }
+
+    public static StatelessMockRepository getProjectObjectStoreStatelessMockRepository(ProjectId projectId, ObjectStoreService service) {
+        var objectStore = service.getProjectObjectStore(projectId);
+        return getMockRepository(objectStore, StatelessMockRepository.class);
+    }
+
+    private static <T> T getMockRepository(BlobStoreRepository objectStore, Class<T> repoClass) {
         if (repoClass.isInstance(objectStore)) {
             return repoClass.cast(objectStore);
         } else {

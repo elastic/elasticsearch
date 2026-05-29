@@ -28,6 +28,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -146,10 +147,76 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
         assertThat("subsequent listeners must still run after a peer throws", secondCount.get(), greaterThan(0));
     }
 
+    /**
+     * A listener registered before {@link WorkloadIdentitySslConfig#start()} must observe the
+     * initial publish exactly once. That edge is what populates the
+     * {@link WorkloadIdentityHttpClientManager}'s SSL strategy in production.
+     */
+    public void testListenerRegisteredBeforeStartObservesInitialPublish() {
+        final Settings settings = settingsWithCaFile(caFile);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+        final AtomicInteger publishCount = new AtomicInteger();
+        sslConfig.addReloadListener(publishCount::incrementAndGet);
+
+        sslConfig.start();
+
+        assertThat("listener registered before start() must observe the initial publish", publishCount.get(), equalTo(1));
+        assertThat(sslConfig.getStrategy(), notNullValue());
+    }
+
+    /**
+     * Listeners registered after {@code start()} must not retroactively observe the initial
+     * publish; one notification per publish edge.
+     */
+    public void testListenerRegisteredAfterStartDoesNotObserveInitialPublish() {
+        final Settings settings = settingsWithCaFile(caFile);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+
+        sslConfig.start();
+
+        final AtomicInteger publishCount = new AtomicInteger();
+        sslConfig.addReloadListener(publishCount::incrementAndGet);
+        assertThat("listener registered after start() must NOT see the initial publish", publishCount.get(), equalTo(0));
+    }
+
+    /**
+     * {@link WorkloadIdentitySslConfig#start()} is not idempotent: a second call surfaces the
+     * programming error rather than silently re-registering watchers or re-publishing.
+     */
+    public void testStartTwiceThrows() {
+        final Settings settings = settingsWithCaFile(caFile);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+
+        sslConfig.start();
+
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, sslConfig::start);
+        assertThat(ex.getMessage(), containsString("already been started"));
+        assertThat(sslConfig.getStrategy(), notNullValue());
+    }
+
+    /**
+     * {@link WorkloadIdentitySslConfig#getStrategy()} must fail loudly if called before
+     * {@link WorkloadIdentitySslConfig#start()} rather than dereferencing a null context.
+     */
+    public void testGetStrategyBeforeStartThrows() {
+        final Settings settings = settingsWithCaFile(caFile);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, sslConfig::getStrategy);
+        assertThat(ex.getMessage(), containsString("not been started"));
+    }
+
     private WorkloadIdentitySslConfig newSslConfig(Path caCertPath) {
         final Settings settings = settingsWithCaFile(caCertPath);
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        return new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+        final WorkloadIdentitySslConfig config = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+        // Tests using this helper add listeners after start(); tests that need to observe the
+        // initial publish inline the construction instead.
+        config.start();
+        return config;
     }
 
     private static Settings settingsWithCaFile(Path caCertPath) {

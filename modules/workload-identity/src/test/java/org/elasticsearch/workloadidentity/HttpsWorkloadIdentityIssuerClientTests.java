@@ -1009,21 +1009,31 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             threadPool
         );
 
-        // The handshake-stamp and stale-connection-retire logs live at DEBUG (low-volume in
-        // production, but useful when triaging a rotation). Bump those two loggers to DEBUG for
-        // the duration of this test and restore them in the finally below.
+        // The handshake-stamp, stale-connection-retire, manager-publish, and ssl-config reload
+        // logs all live at DEBUG (low-volume in production, but useful when triaging a rotation).
+        // Bump those loggers to DEBUG for the duration of this test and restore them in the
+        // finally below.
         final Logger stampLogger = LogManager.getLogger(ReloadableSchemeIoSessionStrategy.class);
         final Logger reuseLogger = LogManager.getLogger(RotationAwareReuseStrategy.class);
+        final Logger managerLogger = LogManager.getLogger(WorkloadIdentityHttpClientManager.class);
+        final Logger sslConfigLogger = LogManager.getLogger(WorkloadIdentitySslConfig.class);
         final Level previousStampLevel = stampLogger.getLevel();
         final Level previousReuseLevel = reuseLogger.getLevel();
+        final Level previousManagerLevel = managerLogger.getLevel();
+        final Level previousSslConfigLevel = sslConfigLogger.getLevel();
         Loggers.setLevel(stampLogger, Level.DEBUG);
         Loggers.setLevel(reuseLogger, Level.DEBUG);
+        Loggers.setLevel(managerLogger, Level.DEBUG);
+        Loggers.setLevel(sslConfigLogger, Level.DEBUG);
 
         try {
             final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
             try (WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool)) {
-                // Mirror the production wiring: swap the scheme strategy delegate on SSL reload.
+                // Mirror the plugin's wiring: the initial setDelegate happens via sslConfig.start()
+                // firing the manager listener, which advances the epoch from 0 to 1 — hence the
+                // first TLS handshake below is stamped at epoch 1.
                 sslConfig.addReloadListener(manager::reload);
+                sslConfig.start();
                 manager.start();
                 final HttpsWorkloadIdentityIssuerClient client = new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool);
 
@@ -1041,26 +1051,26 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
                     // expectations.
                     mockLog.addExpectation(
                         new MockLog.SeenEventExpectation(
-                            "first TLS handshake stamped at epoch 0",
+                            "first TLS handshake stamped at epoch 1",
                             ReloadableSchemeIoSessionStrategy.class.getCanonicalName(),
                             Level.DEBUG,
-                            "*stamped new workload-identity TLS connection*epoch [0]*"
+                            "*stamped new workload-identity TLS connection*epoch [1]*"
                         )
                     );
                     mockLog.addExpectation(
                         new MockLog.SeenEventExpectation(
                             "ssl config reloaded",
                             WorkloadIdentitySslConfig.class.getCanonicalName(),
-                            Level.INFO,
-                            "reloaded workload-identity SSL context"
+                            Level.DEBUG,
+                            "loaded workload-identity SSL context"
                         )
                     );
                     mockLog.addExpectation(
                         new MockLog.SeenEventExpectation(
-                            "manager rotated SSL material",
+                            "manager published SSL strategy",
                             WorkloadIdentityHttpClientManager.class.getCanonicalName(),
-                            Level.INFO,
-                            "*rotated workload-identity SSL material*"
+                            Level.DEBUG,
+                            "*published workload-identity SSL strategy*"
                         )
                     );
                     mockLog.addExpectation(
@@ -1068,34 +1078,41 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
                             "stale-epoch connection retired",
                             RotationAwareReuseStrategy.class.getCanonicalName(),
                             Level.DEBUG,
-                            "*retiring workload-identity HTTP connection: stamped epoch [0] differs from current [1]*"
+                            "*retiring workload-identity HTTP connection: stamped epoch [1] differs from current [2]*"
                         )
                     );
                     mockLog.addExpectation(
                         new MockLog.SeenEventExpectation(
-                            "post-rotation handshake stamped at epoch 1",
+                            "post-rotation handshake stamped at epoch 2",
                             ReloadableSchemeIoSessionStrategy.class.getCanonicalName(),
                             Level.DEBUG,
-                            "*stamped new workload-identity TLS connection*epoch [1]*"
+                            "*stamped new workload-identity TLS connection*epoch [2]*"
                         )
                     );
 
                     // --- Phase 1: first issuance warms up the pool. The TLS handshake fires the
-                    // "stamped...epoch [0]" log. After the response, the reuse strategy sees
-                    // stamped==current==0 and the connection returns to the pool.
+                    // "stamped...epoch [1]" log (epoch is 1 not 0: the initial setDelegate during
+                    // sslConfig.start() advanced it from the construction-time 0). After the
+                    // response, the reuse strategy sees stamped==current==1 and the connection
+                    // returns to the pool.
                     final PlainActionFuture<IssueTokenResponse> firstFuture = new PlainActionFuture<>();
                     client.issueToken(new IssueTokenRequest("aud-1"), firstFuture);
                     assertEquals("header.payload.sig", firstFuture.get(10, TimeUnit.SECONDS).token());
-                    assertEquals("initial rotation epoch must be zero", 0, manager.getSslStrategy().currentEpoch());
+                    assertEquals(
+                        "rotation epoch after the initial sslConfig.start() publish must be one",
+                        1,
+                        manager.getSslStrategy().currentEpoch()
+                    );
 
                     final CloseableHttpAsyncClient httpClientBefore = manager.getHttpClient();
                     final SSLIOSessionStrategy delegateBefore = manager.getSslStrategy().getDelegate();
 
                     // --- Phase 2: rotate. Appending a trailing newline to the watched CA fires
-                    // the FileWatcher → sslConfig.reload() → manager.reload() chain, which logs
-                    // "reloaded..." then "rotated..." and advances the wrapper epoch from 0 to 1.
-                    // The HC client instance itself is untouched, mirroring the in-place rotation
-                    // contract: in-flight requests on the previous strategy continue undisturbed.
+                    // the FileWatcher → sslConfig.loadAndPublish() → manager.reload() chain,
+                    // which logs "reloaded..." then "rotated..." and advances the wrapper epoch
+                    // from 1 to 2. The HC client instance itself is untouched, mirroring the
+                    // in-place rotation contract: in-flight requests on the previous strategy
+                    // continue undisturbed.
                     Files.writeString(watchedCa, Files.readString(watchedCa) + "\n", StandardCharsets.US_ASCII);
                     resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
@@ -1105,12 +1122,12 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
                         delegateBefore,
                         manager.getSslStrategy().getDelegate()
                     );
-                    assertEquals("rotation must advance the rotation epoch by one", 1, manager.getSslStrategy().currentEpoch());
+                    assertEquals("rotation must advance the rotation epoch by one", 2, manager.getSslStrategy().currentEpoch());
 
                     // --- Phase 3: post-rotation issuance. HC reuses the still-idle connection
-                    // from Phase 1 (stamped at epoch 0) because no handshake is needed. The
+                    // from Phase 1 (stamped at epoch 1) because no handshake is needed. The
                     // request completes successfully against the unchanged HC client, then the
-                    // reuse strategy compares stamped=0 against current=1, logs the retire line,
+                    // reuse strategy compares stamped=1 against current=2, logs the retire line,
                     // and closes the connection rather than returning it to the pool. Distinct
                     // audience so the request bypasses the issuer-client token cache and crosses
                     // the network.
@@ -1120,7 +1137,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
 
                     // --- Phase 4: subsequent issuance. The pool is empty (the retire above
                     // closed the only connection), so HC opens a fresh one. The handshake hits
-                    // the post-rotation delegate and stamps the new connection at epoch 1. This
+                    // the post-rotation delegate and stamps the new connection at epoch 2. This
                     // confirms the rotation actually reached the connection-establishment path,
                     // not just the wrapper's internal state.
                     final PlainActionFuture<IssueTokenResponse> thirdFuture = new PlainActionFuture<>();
@@ -1138,6 +1155,8 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         } finally {
             Loggers.setLevel(stampLogger, previousStampLevel);
             Loggers.setLevel(reuseLogger, previousReuseLevel);
+            Loggers.setLevel(managerLogger, previousManagerLevel);
+            Loggers.setLevel(sslConfigLogger, previousSslConfigLevel);
             try {
                 resourceWatcher.close();
             } finally {
@@ -1339,9 +1358,10 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             );
             this.sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
             this.manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool);
-            // Apache HC's async client and the connection evictor must be started explicitly
-            // before requests are dispatched (mirrors the production WorkloadIdentityPlugin
-            // lifecycle, which starts the manager from createComponents).
+            // Mirror WorkloadIdentityPlugin's wiring: listener before sslConfig.start() so the
+            // initial publish populates the manager's SSL strategy; manager.start() comes last.
+            this.sslConfig.addReloadListener(manager::reload);
+            this.sslConfig.start();
             this.manager.start();
             this.client = new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool, maxCacheEntries);
         }

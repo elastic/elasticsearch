@@ -35,6 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -60,8 +61,13 @@ import static org.elasticsearch.common.settings.Setting.stringListSetting;
  *
  * <p>Consumers wire up reload reactions via {@link #addReloadListener(Runnable)}. Listeners are
  * invoked on the {@link ResourceWatcherService} polling thread after the new {@link SSLContext}
- * has been published, and after every other listener has had a chance to observe the swap; a
- * listener that throws is logged and isolated so it cannot prevent later listeners from running.
+ * has been published; a listener that throws is logged and isolated.
+ *
+ * <p>Lifecycle: construct &rarr; {@link #addReloadListener(Runnable) addReloadListener} &rarr;
+ * {@link #start()}. The constructor parses settings only. {@code start()} is one-shot (a second
+ * call throws); it registers the file watchers <em>before</em> loading the initial
+ * {@link SSLContext}, so a concurrent cert change is either reflected in the initial load or
+ * detected as a diff against the watcher baseline on the next poll.
  *
  * @see SslConfigurationLoader
  */
@@ -98,13 +104,14 @@ public final class WorkloadIdentitySslConfig {
     }
 
     private final SslConfiguration configuration;
+    private final ResourceWatcherService resourceWatcher;
     /**
-     * Reassigned in-place by {@link #reload()} when a watched file changes. Reads from
-     * {@link #getStrategy()} always sees the most-recently-successfully-loaded context; readers
-     * performing a single field read are sufficient because the strategy and engine derived from
-     * a context capture it by reference.
+     * Reassigned in-place by {@link #loadAndPublish(boolean)}; {@code null} until {@link #start()}
+     * runs. A single volatile read is sufficient because consumers capture the context by
+     * reference into the strategy they hold.
      */
     private volatile SSLContext context;
+    private final AtomicBoolean started = new AtomicBoolean(false);
     private final CopyOnWriteArrayList<Runnable> reloadListeners = new CopyOnWriteArrayList<>();
 
     /**
@@ -146,8 +153,19 @@ public final class WorkloadIdentitySslConfig {
             }
         };
         this.configuration = loader.load(environment.configDir());
-        this.context = configuration.createSslContext();
-        registerFileWatchers(resourceWatcher);
+        this.resourceWatcher = resourceWatcher;
+    }
+
+    /**
+     * Register file watchers, then load and publish the initial {@link SSLContext}. Valid only
+     * once; a second call throws {@link IllegalStateException}.
+     */
+    public void start() {
+        if (started.compareAndSet(false, true) == false) {
+            throw new IllegalStateException("workload-identity SSL config has already been started");
+        }
+        registerFileWatchers();
+        loadAndPublish(true);
     }
 
     /**
@@ -157,7 +175,7 @@ public final class WorkloadIdentitySslConfig {
      * requires updating {@code workload_identity.ssl.*} and restarting the node (those settings
      * are {@link Setting.Property#NodeScope NodeScope}).
      */
-    private void registerFileWatchers(ResourceWatcherService resourceWatcher) {
+    private void registerFileWatchers() {
         final FileChangesListener listener = new FileChangesListener() {
             @Override
             public void onFileCreated(Path file) {
@@ -171,7 +189,7 @@ public final class WorkloadIdentitySslConfig {
 
             @Override
             public void onFileChanged(Path file) {
-                WorkloadIdentitySslConfig.this.reload();
+                WorkloadIdentitySslConfig.this.loadAndPublish(false);
             }
         };
         for (Path file : configuration.getDependentFiles()) {
@@ -186,49 +204,57 @@ public final class WorkloadIdentitySslConfig {
     }
 
     /**
-     * Rebuild the {@link SSLContext} from the current contents of the watched files and republish
-     * it for subsequent {@link #getStrategy()} callers, then notify reload listeners.
+     * Rebuild the {@link SSLContext} from the current contents of the watched files, republish
+     * it, and notify reload listeners.
+     *
+     * @param initial {@code true} for the {@link #start()}-driven load (propagate failures so a
+     *                bad initial configuration fails the node); {@code false} for watcher-driven
+     *                reloads (log {@code WARN} and retain the previous context).
      */
-    private void reload() {
+    private void loadAndPublish(boolean initial) {
         final SSLContext newContext;
         try {
             newContext = configuration.createSslContext();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            if (initial) {
+                throw e;
+            }
             logger.warn("failed to reload workload-identity SSL context; continuing with the previously loaded material", e);
             return;
         }
         this.context = newContext;
-        logger.info("reloaded workload-identity SSL context");
+        logger.debug("loaded workload-identity SSL context");
         for (Runnable l : reloadListeners) {
             try {
                 l.run();
             } catch (Exception e) {
-                // Isolate listener failures: one badly-behaved consumer must not prevent the
-                // others from observing the swap, and the watcher thread must not propagate.
+                // Isolate listener failures so one consumer cannot block others or the watcher thread.
                 logger.warn("workload-identity SSL reload listener threw", e);
             }
         }
     }
 
     /**
-     * Subscribe to reload events. Listeners run on the {@link ResourceWatcherService} polling
-     * thread, after the volatile {@link SSLContext} field has been swapped, so a listener that
-     * calls {@link #getStrategy()} sees the new context. Listeners are not removable; the plugin
-     * owns the {@code WorkloadIdentitySslConfig} for its lifetime so there is no de-registration
-     * path to maintain.
+     * Subscribe to reload events. Listeners run after the volatile {@link SSLContext} field has
+     * been swapped, on the {@link ResourceWatcherService} polling thread or, for the initial
+     * load, on the {@link #start()} thread. Listeners registered before {@code start()} are
+     * invoked once during it; listeners registered later miss the initial publish. Listeners
+     * are not removable; the plugin owns this object for its lifetime.
      */
     public void addReloadListener(Runnable listener) {
         this.reloadListeners.add(listener);
     }
 
     /**
-     * @return an {@link SSLIOSessionStrategy} for Apache HC's async client. A fresh strategy is
-     *         returned each call over whatever {@link SSLContext} is currently published; callers
-     *         that need to react to rotation should fetch a new strategy via a
-     *         {@link #addReloadListener(Runnable) reload listener} rather than caching the
-     *         returned object.
+     * @return an {@link SSLIOSessionStrategy} over the currently-published {@link SSLContext}. A
+     *         fresh strategy is returned each call; rotation-aware callers should re-fetch via
+     *         {@link #addReloadListener(Runnable)} rather than cache the result.
+     * @throws IllegalStateException if {@link #start()} has not yet completed.
      */
     public SSLIOSessionStrategy getStrategy() {
+        if (started.get() == false) {
+            throw new IllegalStateException("workload-identity SSL config has not been started");
+        }
         final HostnameVerifier hostnameVerifier = configuration.verificationMode().isHostnameVerificationEnabled()
             ? new DefaultHostnameVerifier()
             : new NoopHostnameVerifier();

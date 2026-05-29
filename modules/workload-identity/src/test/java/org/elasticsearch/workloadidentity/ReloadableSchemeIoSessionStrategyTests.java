@@ -15,6 +15,7 @@ import org.apache.http.nio.reactor.IOSession;
 import org.apache.http.nio.reactor.ssl.SSLIOSession;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -24,8 +25,7 @@ import static org.mockito.Mockito.when;
 public class ReloadableSchemeIoSessionStrategyTests extends ESTestCase {
 
     public void testEpochStartsAtZeroAndAdvancesOnSetDelegate() {
-        final SSLIOSessionStrategy initial = mock(SSLIOSessionStrategy.class);
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(initial);
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
 
         assertThat("initial rotation epoch", wrapper.currentEpoch(), equalTo(0));
 
@@ -45,8 +45,9 @@ public class ReloadableSchemeIoSessionStrategyTests extends ESTestCase {
         final HttpHost host = new HttpHost("issuer.example", 8443, "https");
         when(delegate.upgrade(any(), any())).thenReturn(upgraded);
 
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(delegate);
-        // Rotate once before exercising upgrade() so the assertion is unambiguous (epoch != 0).
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
+        // Publish the initial delegate (mirrors the production WorkloadIdentitySslConfig.start()
+        // → listener edge) so upgrade() has something to dispatch to.
         wrapper.setDelegate(delegate);
         assertThat(wrapper.currentEpoch(), equalTo(1));
 
@@ -55,6 +56,21 @@ public class ReloadableSchemeIoSessionStrategyTests extends ESTestCase {
         assertSame("upgrade must return whatever the delegate returned", upgraded, returned);
         // The attribute name and value together are the contract observed by RotationAwareReuseStrategy.
         verify(upgraded).setAttribute(ReloadableSchemeIoSessionStrategy.ROTATION_EPOCH_ATTR, 1);
+    }
+
+    /**
+     * Guards against a future wiring regression: {@link ReloadableSchemeIoSessionStrategy#upgrade upgrade()}
+     * must reject dispatch before {@link ReloadableSchemeIoSessionStrategy#setDelegate setDelegate()}
+     * has published a delegate. Unreachable in production because
+     * {@link WorkloadIdentitySslConfig#start()} sequences the initial publish ahead of
+     * {@link WorkloadIdentityHttpClientManager#start()}.
+     */
+    public void testUpgradeBeforeSetDelegateFails() {
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
+        final HttpHost host = new HttpHost("issuer.example", 8443, "https");
+        final IOSession raw = mock(IOSession.class);
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, () -> wrapper.upgrade(host, raw));
+        assertThat(ex.getMessage(), containsString("setDelegate"));
     }
 
 }

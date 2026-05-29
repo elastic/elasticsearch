@@ -96,7 +96,7 @@ public class WorkloadIdentityPluginTests extends ESTestCase {
         final WorkloadIdentityPlugin plugin = new WorkloadIdentityPlugin();
         plugin.createComponents(mockServices(settings));
 
-        final WorkloadIdentityHttpClientManager manager = plugin.getHttpClientManagerForTesting();
+        final WorkloadIdentityHttpClientManager manager = plugin.getHttpClientManager();
         assertNotNull("plugin should retain the HTTP client manager when workload-identity is enabled", manager);
 
         // Sanity-check that the manager was actually started during createComponents, so the
@@ -106,7 +106,7 @@ public class WorkloadIdentityPluginTests extends ESTestCase {
         plugin.close();
 
         final IllegalStateException ex = expectThrows(IllegalStateException.class, manager::getHttpClient);
-        assertThat(ex.getMessage(), containsString("is closed"));
+        assertThat(ex.getMessage(), containsString("[CLOSED]"));
     }
 
     /**

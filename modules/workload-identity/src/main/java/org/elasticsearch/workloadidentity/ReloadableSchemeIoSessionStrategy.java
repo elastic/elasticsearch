@@ -39,14 +39,15 @@ final class ReloadableSchemeIoSessionStrategy implements SchemeIOSessionStrategy
 
     /**
      * Atomic snapshot pairing the published delegate with the epoch at which it was published.
-     *
-     * <p>Epoch wraparound is irrelevant: the reuse strategy compares with {@code !=}, not
-     * {@code <}, so 2^32 rotations is comfortably unbounded.
+     * The delegate is {@code null} until the first {@link #setDelegate(SSLIOSessionStrategy)},
+     * which the plugin sequences via {@link WorkloadIdentitySslConfig#start()} before any TLS
+     * upgrade can be dispatched. Epoch wraparound is irrelevant: the reuse strategy compares
+     * with {@code !=}, not {@code <}.
      */
     private final AtomicReference<State> state;
 
-    ReloadableSchemeIoSessionStrategy(SSLIOSessionStrategy initial) {
-        this.state = new AtomicReference<>(new State(initial, 0));
+    ReloadableSchemeIoSessionStrategy() {
+        this.state = new AtomicReference<>(new State(null, 0));
     }
 
     /**
@@ -81,6 +82,9 @@ final class ReloadableSchemeIoSessionStrategy implements SchemeIOSessionStrategy
     @Override
     public IOSession upgrade(HttpHost host, IOSession ioSession) throws IOException {
         final State captured = state.get();
+        if (captured.delegate == null) {
+            throw new IllegalStateException("ReloadableSchemeIoSessionStrategy upgrade() called before initial setDelegate()");
+        }
         final IOSession upgraded = captured.delegate.upgrade(host, ioSession);
         upgraded.setAttribute(ROTATION_EPOCH_ATTR, captured.epoch);
         logger.debug("stamped new workload-identity TLS connection to [{}] at rotation epoch [{}]", host, captured.epoch);

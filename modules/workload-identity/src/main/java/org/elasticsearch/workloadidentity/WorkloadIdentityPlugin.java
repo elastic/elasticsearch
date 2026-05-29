@@ -56,9 +56,9 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
         WorkloadIdentityRegistry.reset();
     }
 
-    // Test-only access to the manager wired in createComponents; the manager is intentionally not
-    // exported through createComponents' DI return list (only the issuer client interface is).
-    WorkloadIdentityHttpClientManager getHttpClientManagerForTesting() {
+    // Package-private accessor for tests; the manager is intentionally not exported through
+    // createComponents' DI return list (only the issuer client interface is).
+    WorkloadIdentityHttpClientManager getHttpClientManager() {
         return httpClientManager;
     }
 
@@ -69,6 +69,9 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
         final WorkloadIdentityIssuerClient client;
 
         if (WorkloadIdentityIssuerSettings.isEnabled(settings)) {
+            // Register the manager as a reload listener before sslConfig.start() so the initial
+            // SSLContext publish reaches the manager; sslConfig.start() must precede
+            // manager.start() so the SSL delegate is in place before the HC client comes up.
             final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(
                 settings,
                 services.environment(),
@@ -79,19 +82,11 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
                 sslConfig,
                 services.threadPool()
             );
-            // Wire the manager's in-place SSL rotation to the SSL config's reload event: the
-            // manager swaps the SSLIOSessionStrategy registered against "https" on the connection
-            // manager rather than rebuilding the HC client, so in-flight requests are undisturbed
-            // and the next TLS handshake picks up the rotated material. Wired before start() so
-            // the listener is in place no later than the first request can be served; the
-            // listener itself short-circuits if start() has not yet run.
             sslConfig.addReloadListener(manager::reload);
-            // Construct the issuer client (which validates the configured URL) before starting the
-            // manager, so a malformed workload_identity.issuer.url throws without booting the IO
-            // reactor thread and the periodic eviction task. Once that synchronous validation has
-            // passed, publish the manager to the field before start() so a partial start (e.g.
-            // httpClient.start() succeeds but connectionEvictor.start() throws) is still cleaned
-            // up by close() on the normal node-shutdown path.
+            sslConfig.start();
+            // Build the issuer client (which validates the URL) before storing the manager: a
+            // malformed URL throws synchronously without leaking the unstarted manager. Store
+            // before manager.start() so a partial start is still released by close().
             client = new HttpsWorkloadIdentityIssuerClient(settings, manager, services.threadPool());
             this.httpClientManager = manager;
             manager.start();

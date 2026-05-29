@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 public class RotationAwareReuseStrategyTests extends ESTestCase {
 
     public void testFallbackVetoesReuseRegardlessOfEpoch() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(mock(SSLIOSessionStrategy.class));
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> false);
 
         // Even with a context that would otherwise pass (matching epoch), the fallback's veto
@@ -36,7 +36,7 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
     }
 
     public void testMatchingEpochKeepsConnectionAlive() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(mock(SSLIOSessionStrategy.class));
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
 
         wrapper.setDelegate(mock(SSLIOSessionStrategy.class)); // epoch -> 1
@@ -46,7 +46,7 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
     }
 
     public void testStaleEpochClosesConnection() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(mock(SSLIOSessionStrategy.class));
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
 
         // Stamp the connection at the construction-time epoch (0), then advance the wrapper to
@@ -61,7 +61,7 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
     }
 
     public void testMissingManagedConnectionAttributeKeepsAliveByDefault() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(mock(SSLIOSessionStrategy.class));
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
 
         // A context without HTTP_CONNECTION should never happen for a real exchange, but the
@@ -70,7 +70,7 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
     }
 
     public void testUnstampedConnectionKeepsAliveByDefault() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(mock(SSLIOSessionStrategy.class));
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
 
         // A connection that we did not stamp (e.g. plain HTTP, or somehow upgraded via a path
@@ -88,7 +88,7 @@ public class RotationAwareReuseStrategyTests extends ESTestCase {
     }
 
     public void testStampAttributeOfWrongTypeKeepsAliveByDefault() {
-        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy(mock(SSLIOSessionStrategy.class));
+        final ReloadableSchemeIoSessionStrategy wrapper = new ReloadableSchemeIoSessionStrategy();
         final RotationAwareReuseStrategy strategy = new RotationAwareReuseStrategy(wrapper, (response, context) -> true);
 
         final ManagedNHttpClientConnection conn = mock(ManagedNHttpClientConnection.class);

@@ -79,6 +79,7 @@ public class InferenceResolver {
      * @param plan The logical plan to scan for inference operations
      */
     List<String> collectInferenceIds(LogicalPlan plan) {
+        // TODO: remove this once we have a proper way to collect inference IDs from PreAnalyzer.
         List<String> inferenceIds = new ArrayList<>();
         collectInferenceIdsFromInferencePlans(plan, inferenceIds::add);
         collectInferenceIdsFromInferenceFunctions(plan, inferenceIds::add);
@@ -140,6 +141,7 @@ public class InferenceResolver {
      * @param c    Consumer function to receive each discovered inference ID
      */
     private void collectInferenceIdsFromInferencePlans(LogicalPlan plan, Consumer<String> c) {
+        // TODO: remove this once we have a proper way to collect inference IDs from PreAnalyzer.
         plan.forEachUp(InferencePlan.class, inferencePlan -> c.accept(inferenceId(inferencePlan)));
     }
 
@@ -150,6 +152,7 @@ public class InferenceResolver {
      * @param c    Consumer function to receive each discovered inference ID
      */
     private void collectInferenceIdsFromInferenceFunctions(LogicalPlan plan, Consumer<String> c) {
+        // TODO: remove this once we have a proper way to collect inference IDs from PreAnalyzer.
         EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
         plan.forEachExpressionUp(UnresolvedFunction.class, f -> {
             String functionName = snapshotRegistry.resolveAlias(f.name());

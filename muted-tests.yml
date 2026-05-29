@@ -685,3 +685,6 @@ tests:
 - class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
   method: testSlicesDense
   issue: https://github.com/elastic/elasticsearch/issues/150165
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicesDense
+  issue: https://github.com/elastic/elasticsearch/issues/150166

@@ -520,9 +520,6 @@ tests:
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
-- class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
-  method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
-  issue: https://github.com/elastic/elasticsearch/issues/149874
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
@@ -637,9 +634,6 @@ tests:
 - class: org.elasticsearch.index.query.IntervalQueryBuilderTests
   method: testCacheability
   issue: https://github.com/elastic/elasticsearch/issues/150117
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150120
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/150123
@@ -668,3 +662,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/150217
 - class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/150217
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
+  issue: https://github.com/elastic/elasticsearch/issues/150226

@@ -116,11 +116,8 @@ final class DefaultSearchContext extends SearchContext {
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
     @Nullable
-    private final StoreMetrics callerStoreMetrics;
-    @Nullable
-    private final LongAdder pendingWorkerBytesRead;
+    private StoreMetricsAwareExecutor metricsAwareExecutor;
     private final long memoryAccountingBufferSize;
-    private final boolean requiresTrackingExecutorBytes;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
     private RankFeatureResult rankFeatureResult;
@@ -212,9 +209,6 @@ final class DefaultSearchContext extends SearchContext {
             );
             boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
             if (searcherRequiresExecutor == false) {
-                this.requiresTrackingExecutorBytes = false;
-                this.callerStoreMetrics = null;
-                this.pendingWorkerBytesRead = null;
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -223,14 +217,10 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                this.requiresTrackingExecutorBytes = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() && currentThreadStoreMetrics != null;
-                if (requiresTrackingExecutorBytes) {
-                    this.pendingWorkerBytesRead = new LongAdder();
-                    this.callerStoreMetrics = currentThreadStoreMetrics.get();
-                    executor = wrapExecutorForBytesTracking(executor, currentThreadStoreMetrics, pendingWorkerBytesRead);
-                } else {
-                    this.callerStoreMetrics = null;
-                    this.pendingWorkerBytesRead = null;
+                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() && currentThreadStoreMetrics != null;
+                if (trackExecutorBytesRead) {
+                    this.metricsAwareExecutor = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+                    executor = this.metricsAwareExecutor;
                 }
 
                 this.searcher = new ContextIndexSearcher(
@@ -273,34 +263,48 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Wraps the search executor so that bytes read by collection worker threads accumulate
-     * into the supplied LongAdder.
-     * <p>
-     * Slices that Lucene's TaskExecutor runs on the caller thread go through {@code invokeAll}
-     * but not through Executor#execute, so their bytes naturally stay on the caller and are
-     * picked up by the surrounding directory metrics delta in SearchService without any extra
-     * bookkeeping here.
+     * helper class to ensure that tasks executes within the passed executor are accounted properly into a
+     * long adder
      */
-    static Executor wrapExecutorForBytesTracking(
-        Executor executor,
-        Supplier<StoreMetrics> currentThreadStoreMetrics,
-        LongAdder pendingWorkerBytesRead
-    ) {
-        return r -> executor.execute(() -> {
-            final StoreMetrics workerStoreMetrics = currentThreadStoreMetrics.get();
-            final long before = workerStoreMetrics.getBytesRead();
-            try {
-                r.run();
-            } finally {
-                pendingWorkerBytesRead.add(workerStoreMetrics.getBytesRead() - before);
-            }
-        });
+    static final class StoreMetricsAwareExecutor implements Executor {
+
+        private final Executor executor;
+        private final Supplier<StoreMetrics> storeMetricsSupplier;
+        private final LongAdder workerBytesRead;
+
+        StoreMetricsAwareExecutor(Executor executor, Supplier<StoreMetrics> storeMetricsSupplier) {
+            this.executor = executor;
+            this.storeMetricsSupplier = storeMetricsSupplier;
+            this.workerBytesRead = new LongAdder();
+        }
+
+        @Override
+        public void execute(Runnable runnable) {
+            executor.execute(() -> {
+                final StoreMetrics workerStoreMetrics = storeMetricsSupplier.get();
+                final long before = workerStoreMetrics.getBytesRead();
+                try {
+                    runnable.run();
+                } finally {
+                    workerBytesRead.add(workerStoreMetrics.getBytesRead() - before);
+                }
+            });
+        }
+
+        public void sumWorkerBytes() {
+            storeMetricsSupplier.get().addBytesRead(workerBytesRead.sum());
+        }
+
+        // visible for testing: bytes captured from worker threads that have not yet been drained
+        long pendingWorkerBytesRead() {
+            return workerBytesRead.sum();
+        }
     }
 
     @Override
     public void sumWorkerThreadsBytesRead() {
-        if (this.requiresTrackingExecutorBytes) {
-            callerStoreMetrics.addBytesRead(pendingWorkerBytesRead.sumThenReset());
+        if (this.metricsAwareExecutor != null) {
+            metricsAwareExecutor.sumWorkerBytes();
         }
     }
 

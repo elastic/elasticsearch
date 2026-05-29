@@ -37,7 +37,7 @@ abstract class SearchPhaseResults<Result extends SearchPhaseResult> implements R
         this.directoryMetricsSink = sink;
     }
 
-protected void publishDirectoryMetrics(DirectoryMetrics m) {
+    protected void publishDirectoryMetrics(DirectoryMetrics m) {
         if (m.isEmpty() == false) {
             directoryMetricsSink.accept(m);
         }

@@ -94,7 +94,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
@@ -1166,48 +1165,49 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
     }
 
-    public void testWrapExecutorForBytesTrackingAccumulatesForkedTaskBytes() throws Exception {
+    public void testStoreMetricsAwareExecutorAccumulatesForkedTaskBytes() throws Exception {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
         Supplier<StoreMetrics> currentThreadStoreMetrics = threadStoreMetrics::get;
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 3));
-        LongAdder accumulator = new LongAdder();
         try {
             StoreMetrics callerMetrics = threadStoreMetrics.get();
-            Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, currentThreadStoreMetrics, accumulator);
-            assertNotSame(executor, wrapped);
+            var wrapped = new DefaultSearchContext.StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
 
             final long bytesPerTask = randomLongBetween(1L, 10_000L);
             int numTasks = randomIntBetween(2, 10);
-            CountDownLatch done = new CountDownLatch(numTasks);
+            CountDownLatch latch = new CountDownLatch(numTasks);
             for (int i = 0; i < numTasks; i++) {
                 wrapped.execute(() -> {
                     try {
                         threadStoreMetrics.get().addBytesRead(bytesPerTask);
                     } finally {
-                        done.countDown();
+                        latch.countDown();
                     }
                 });
             }
 
-            assertTrue("forked tasks did not complete in time", done.await(30, TimeUnit.SECONDS));
-            // wrapped in assert busy because the latch countdown happens before the accumulation
-            assertBusy(
-                () -> { assertEquals("accumulator must aggregate every forked task's delta", bytesPerTask * numTasks, accumulator.sum()); }
-            );
-            assertEquals("caller StoreMetrics must remain untouched until drain runs", 0L, callerMetrics.getBytesRead());
+            assertTrue("forked tasks did not complete in time", latch.await(30, TimeUnit.SECONDS));
+            assertEquals(0L, callerMetrics.getBytesRead());
+            long expectedBytesRead = bytesPerTask * numTasks;
+            assertBusy(() -> {
+                long totalBytesRead = callerMetrics.getBytesRead() + wrapped.pendingWorkerBytesRead();
+                assertEquals("drain must aggregate every forked task's delta", expectedBytesRead, totalBytesRead);
+            });
+
+            wrapped.sumWorkerBytes();
+            assertEquals("drain must aggregate every forked task's delta", expectedBytesRead, callerMetrics.getBytesRead());
         } finally {
             terminate(executor);
             threadStoreMetrics.remove();
         }
     }
 
-    public void testWrapExecutorForBytesTrackingPropagatesExceptionsAndStillAccumulates() {
+    public void testStoreMetricsAwareExecutorPropagatesExceptionsAndStillAccumulates() {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
         Executor executor = Runnable::run;
-        LongAdder accumulator = new LongAdder();
-        Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, threadStoreMetrics::get, accumulator);
+        var wrapped = new DefaultSearchContext.StoreMetricsAwareExecutor(executor, threadStoreMetrics::get);
         final long bytes = randomLongBetween(1L, 1000L);
 
         try {
@@ -1216,7 +1216,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                 throw new RuntimeException("boom");
             }));
 
-            assertEquals(bytes, accumulator.sum());
+            assertEquals(bytes, wrapped.pendingWorkerBytesRead());
         } finally {
             threadStoreMetrics.remove();
         }

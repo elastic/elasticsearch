@@ -35,8 +35,8 @@ public class SparklineWithEveryAggIT extends SparklineWithEveryAggTestCase {
     @Before
     public void assumeSparklineSupported() throws IOException {
         assumeTrue(
-            "fn_sparkline not supported by all nodes in this mixed-version cluster",
-            clusterHasCapability("POST", "/_query", List.of(), List.of("fn_sparkline")).orElse(false)
+            requiredCapabilities() + " not supported by all nodes in this mixed-version cluster",
+            clusterHasCapability("POST", "/_query", List.of(), requiredCapabilities()).orElse(false)
         );
     }
 }

@@ -74,7 +74,7 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
      *
      * @param error null if the query is expected to succeed; otherwise a substring of the expected error message.
      */
-    public record AggTestCase(String invocation, Mode mode, String error) {
+    public record AggTestCase(String invocation, Mode mode, String error, List<String> capabilitiesRequired) {
         @Override
         public String toString() {
             return mode.buildQuery(invocation, "");
@@ -99,7 +99,7 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
 
     @ParametersFactory(argumentFormatting = "%s")
     public static List<Object[]> parameters() {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry().snapshotRegistry();
         List<AggTestCase> params = new ArrayList<>();
 
         for (FunctionDefinition def : registry.listFunctions()) {
@@ -127,27 +127,39 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
     }
 
     private static void addCases(List<AggTestCase> params, FunctionInfo info, String name, String invocation) {
+        List<String> capabilitiesRequired = new ArrayList<>();
+        capabilitiesRequired.add("fn_sparkline");
+        capabilitiesRequired.add("fn_" + name);
+        if (name.equals("avg")) {
+            // https://github.com/elastic/elasticsearch/issues/150265
+            capabilitiesRequired.add("fn_sparkline_complex");
+        }
+
         // Every agg supports running ALONGSIDE and ALONGSIDE_BY
-        params.add(new AggTestCase(invocation, Mode.ALONGSIDE, null));
-        params.add(new AggTestCase(invocation, Mode.ALONGSIDE_BY, null));
+        params.add(new AggTestCase(invocation, Mode.ALONGSIDE, null, capabilitiesRequired));
+        params.add(new AggTestCase(invocation, Mode.ALONGSIDE_BY, null, capabilitiesRequired));
 
         // Non-numeric aggs will fail when INSIDE, INSIDE_AND_ALONGSIDE, INSIDE_BY, INSIDE_AND_ALONGSIDE_BY
         boolean numericReturn = Arrays.stream(info.returnType()).anyMatch(List.of("integer", "long", "double")::contains);
         String typeError = numericReturn ? null : "must be [integer or long or double]";
-        params.add(new AggTestCase(invocation, Mode.INSIDE, typeError));
-        params.add(new AggTestCase(invocation, Mode.INSIDE_BY, typeError));
-        if (name.equals("weighted_avg")) {
+        params.add(new AggTestCase(invocation, Mode.INSIDE, typeError, capabilitiesRequired));
+        params.add(new AggTestCase(invocation, Mode.INSIDE_BY, typeError, capabilitiesRequired));
+        if (name.equals("weighted_avg") || name.equals("avg")) {
             // https://github.com/elastic/elasticsearch/issues/150224
             return;
         }
-        params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE, typeError));
-        params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE_BY, typeError));
+        params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE, typeError, capabilitiesRequired));
+        params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE_BY, typeError, capabilitiesRequired));
     }
 
     private final AggTestCase testCase;
 
     public SparklineWithEveryAggTestCase(AggTestCase testCase) {
         this.testCase = testCase;
+    }
+
+    protected List<String> requiredCapabilities() {
+        return testCase.capabilitiesRequired();
     }
 
     @Override

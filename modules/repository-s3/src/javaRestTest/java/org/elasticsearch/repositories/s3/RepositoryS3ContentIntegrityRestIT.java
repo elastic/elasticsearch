@@ -9,43 +9,71 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.ChunkedEncodingConfiguration;
+import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3HttpFixture;
+import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
-import static fixture.aws.AwsCredentialsUtils.fixedAccessKeyAndToken;
+import java.util.function.Supplier;
+
+import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
+public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3SessionCredentialsRestIT");
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3ContentIntegrityRestIT");
     private static final String BUCKET = PREFIX + "bucket";
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
-    private static final String SESSION_TOKEN = PREFIX + "session-token";
-    private static final String CLIENT = "session_credentials_client";
+    private static final String CLIENT = "content_integrity_client";
 
+    private static final Supplier<ChunkedEncodingConfiguration> chunkedEncodingConfigurationSupplier = ChunkedEncodingConfiguration
+        .randomSupplier();
+
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         null,
         BUCKET,
         BASE_PATH,
-        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN, ANY_REGION, "s3")
-    );
+        fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
+    ) {
+        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
+        @Override
+        protected HttpHandler createHandler() {
+            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
+            return exchange -> {
+                delegate.assertContentSha256Header(
+                    exchange,
+                    equalTo(
+                        chunkedEncodingConfigurationSupplier.get() == ChunkedEncodingConfiguration.DISABLED
+                            ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
+                            : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"
+                    )
+                );
+                delegate.handle(exchange);
+            };
+        }
+    };
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", regionSupplier)
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
-        .keystore("s3.client." + CLIENT + ".session_token", SESSION_TOKEN)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .build();
 
@@ -70,5 +98,10 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
     @Override
     protected String getClientName() {
         return CLIENT;
+    }
+
+    @Override
+    protected Settings extraRepositorySettings() {
+        return chunkedEncodingConfigurationSupplier.get().asSettings();
     }
 }

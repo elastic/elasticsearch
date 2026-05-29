@@ -101,7 +101,7 @@ public class AddPurposeCustomQueryParameterTests extends ESSingleNodeTestCase {
         Settings extraRepositorySettings,
         Matcher<Iterable<? super String>> queryParamMatcher
     ) throws Throwable {
-        final var httpFixture = new S3HttpFixture(true, bucket, basePath, (key, token) -> true) {
+        final var httpFixture = new S3HttpFixture(true, null, bucket, basePath, (key, token) -> true) {
 
             @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
             class AssertingHandler extends S3HttpHandler {

@@ -442,7 +442,13 @@ final class PrefetchedRowGroupBuilder {
     private static DictionaryPage makeDictionaryPage(PageHeader header, ByteBuffer payload) {
         DictionaryPageHeader dph = header.dictionary_page_header;
         Encoding encoding = METADATA_CONVERTER.getEncoding(dph.encoding);
-        return new DictionaryPage(bytesInputFrom(payload), header.uncompressed_page_size, dph.num_values, encoding);
+        // Eagerly copy compressed bytes to a heap byte[]. The payload may alias a PrefetchedChunk's
+        // direct buffer, which can be released before PrefetchedPageReader.readDictionaryPage()
+        // decompresses it. Reading from a freed buffer produces garbage bytes; zstd then sees a
+        // srcSize that doesn't match the actual frame and returns ZSTD_error_srcSize_wrong.
+        byte[] compressedBytes = new byte[payload.remaining()];
+        payload.get(compressedBytes);
+        return new DictionaryPage(BytesInput.from(compressedBytes), header.uncompressed_page_size, dph.num_values, encoding);
     }
 
     private static ColumnPageBytesSource sourceFor(

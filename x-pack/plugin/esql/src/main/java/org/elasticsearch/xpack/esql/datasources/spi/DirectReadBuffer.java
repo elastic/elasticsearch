@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -59,7 +58,7 @@ public final class DirectReadBuffer implements Releasable {
     private final ByteBuffer buffer;
     private final Releasable release;
 
-    // Assertions-only lifecycle tracking; all null/false when -ea is off.
+    // Lifecycle tracking; gated by es.arrow.debug_buffers (defaults to -ea). All null/false when off.
     private final Throwable allocSite;
     private volatile boolean released;
     private volatile Throwable freeSite;
@@ -67,7 +66,7 @@ public final class DirectReadBuffer implements Releasable {
     public DirectReadBuffer(ByteBuffer buffer, Releasable release) {
         this.buffer = buffer;
         this.release = release;
-        this.allocSite = Assertions.ENABLED ? new Throwable("DirectReadBuffer allocated here") : null;
+        this.allocSite = DirectMemoryDebug.trackingEnabled() ? new Throwable("DirectReadBuffer allocated here") : null;
     }
 
     /**
@@ -99,11 +98,13 @@ public final class DirectReadBuffer implements Releasable {
 
     /**
      * The bytes. Must not be accessed after {@link #close()}; doing so reads freed (and possibly
-     * recycled) native memory. When assertions are enabled, a post-close access throws with the
-     * allocation and free stack traces attached.
+     * recycled) native memory. When {@code es.arrow.debug_buffers} is on, a post-close access throws
+     * with the allocation and free stack traces attached.
      */
     public ByteBuffer buffer() {
-        assert assertLive("DirectReadBuffer.buffer() accessed after close() (use-after-free)");
+        if (DirectMemoryDebug.trackingEnabled() && released) {
+            throw useAfterFree();
+        }
         return buffer;
     }
 
@@ -114,29 +115,30 @@ public final class DirectReadBuffer implements Releasable {
 
     @Override
     public void close() {
-        if (Assertions.ENABLED) {
+        if (DirectMemoryDebug.trackingEnabled()) {
             // A second close would double-free the ArrowBuf. Surface it here with both stacks
             // rather than letting Arrow throw a context-free IllegalReferenceCountException.
-            assert released == false : doubleFree();
+            if (released) {
+                throw doubleFree();
+            }
             freeSite = new Throwable("DirectReadBuffer freed here");
             released = true;
-            DirectMemoryDebug.poison(buffer);
         }
+        // Poison before releasing (self-gated by es.arrow.* knobs) so any surviving alias that
+        // reads this region after free fails deterministically instead of flakily.
+        DirectMemoryDebug.poison(buffer);
         release.close();
     }
 
-    private boolean assertLive(String message) {
-        if (released) {
-            AssertionError e = new AssertionError(message);
-            if (allocSite != null) {
-                e.addSuppressed(allocSite);
-            }
-            if (freeSite != null) {
-                e.addSuppressed(freeSite);
-            }
-            throw e;
+    private AssertionError useAfterFree() {
+        AssertionError e = new AssertionError("DirectReadBuffer.buffer() accessed after close() (use-after-free)");
+        if (allocSite != null) {
+            e.addSuppressed(allocSite);
         }
-        return true;
+        if (freeSite != null) {
+            e.addSuppressed(freeSite);
+        }
+        return e;
     }
 
     private AssertionError doubleFree() {

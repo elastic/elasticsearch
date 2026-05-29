@@ -20,100 +20,42 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.IntFunction;
 
 public class SplitDeltaCounterStorageComparisonTests extends ESTestCase {
 
-    // NOTE: BS=128 is the non-TSDB default; BS=512 is the production block size for
-    // metric fields in TSDB indices; BS=1024 and BS=2048 capture the larger block sizes
-    // SplitDelta unlocks by neutralizing the boundary block payload penalty.
     private static final int[] BLOCK_SIZES = { 128, 512, 1024, 2048 };
 
-    // NOTE: a realistic accumulated packet/byte counter for a long-running process sits
-    // in the billions; STEP_COUNT models the per-sample increment. TSID_RESET_VALUE is
-    // the small value the counter restarts from at a tsid boundary.
     private static final long BASE_COUNTER = 1_000_000_000L;
     private static final long STEP_COUNT = 10_000L;
-    private static final long TSID_RESET_VALUE = 100L;
+    private static final long TSID_RESET_VALUE = 100_000L;
+    private static final long SLOW_STEP = 1L;
 
-    public void testSingleBoundaryBlock() throws IOException {
-        final long[] expectedDelta = { 387, 1539, 3075, 6147 };
-        final long[] expectedSplitDelta = { 15, 16, 16, 16 };
-        for (int i = 0; i < BLOCK_SIZES.length; i++) {
-            final int blockSize = BLOCK_SIZES[i];
-            final long[] values = counterBoundaryBlock(blockSize, blockSize / 2);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testSingleBoundaryBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(expectedDelta[i], deltaSize);
-            assertEquals(expectedSplitDelta[i], splitDeltaSize);
-        }
+    public void testAscendingSingleBoundaryBlock() throws IOException {
+        assertSizes(bs -> counterBoundaryBlock(bs, bs / 2), new long[] { 276, 1092, 2180, 4356 }, new long[] { 15, 16, 16, 16 });
     }
 
-    public void testFourFlipBlock() throws IOException {
-        final long[] expectedDelta = { 515, 2051, 4099, 8195 };
-        final long[] expectedSplitDelta = { 33, 36, 37, 37 };
-        for (int i = 0; i < BLOCK_SIZES.length; i++) {
-            final int blockSize = BLOCK_SIZES[i];
-            final long[] values = counterMultiFlipBlock(blockSize, 4);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testFourFlipBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(expectedDelta[i], deltaSize);
-            assertEquals(expectedSplitDelta[i], splitDeltaSize);
-        }
+    public void testAscendingFourFlipBlock() throws IOException {
+        assertSizes(bs -> counterMultiFlipBlock(bs, 4), new long[] { 308, 1220, 2436, 4868 }, new long[] { 33, 36, 37, 37 });
     }
 
-    public void testKMaxFlipBlock() throws IOException {
-        final long[] expectedDelta = { 515, 2051, 4099, 8195 };
-        final long[] expectedSplitDelta = { 105, 117, 119, 120 };
-        for (int i = 0; i < BLOCK_SIZES.length; i++) {
-            final int blockSize = BLOCK_SIZES[i];
-            final long[] values = counterMultiFlipBlock(blockSize, 16);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testKMaxFlipBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(expectedDelta[i], deltaSize);
-            assertEquals(expectedSplitDelta[i], splitDeltaSize);
-        }
+    public void testAscendingKMaxFlipBlock() throws IOException {
+        assertSizes(bs -> counterMultiFlipBlock(bs, 16), new long[] { 340, 1348, 2692, 5380 }, new long[] { 105, 117, 119, 120 });
     }
 
-    public void testFullyMonotonicBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = counterAscendingBlock(blockSize);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testFullyMonotonicBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(10, deltaSize);
-            assertEquals("fully monotonic block must not regress under SplitDelta (bs=" + blockSize + ")", deltaSize, splitDeltaSize);
-        }
+    public void testAscendingAboveKMaxFlipBlock() throws IOException {
+        assertDeclinesAt(bs -> counterMultiFlipBlock(bs, 17), new long[] { 340, 1348, 2692, 5380 });
+    }
+
+    public void testAscendingFullyMonotonicBlock() throws IOException {
+        assertDeclines(SplitDeltaCounterStorageComparisonTests::counterAscendingBlock);
     }
 
     public void testConstantBlock() throws IOException {
-        for (int blockSize : BLOCK_SIZES) {
-            final long[] values = new long[blockSize];
-            Arrays.fill(values, BASE_COUNTER);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testConstantBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(7, deltaSize);
-            assertEquals("constant block must not regress under SplitDelta (bs=" + blockSize + ")", deltaSize, splitDeltaSize);
-        }
+        assertDeclines(SplitDeltaCounterStorageComparisonTests::counterConstantBlock);
     }
 
-    public void testTooManyFlipsBlock() throws IOException {
-        final long[] expected = { 515, 2051, 4099, 8195 };
-        for (int i = 0; i < BLOCK_SIZES.length; i++) {
-            final int blockSize = BLOCK_SIZES[i];
-            final long[] values = counterMultiFlipBlock(blockSize, 17);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testTooManyFlipsBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(expected[i], deltaSize);
-            assertEquals("block with k>kMax flips must decline and match the baseline (bs=" + blockSize + ")", deltaSize, splitDeltaSize);
-        }
-    }
-
-    public void testBoundaryPositionSweep() throws IOException {
+    public void testAscendingBoundaryPositionSweep() throws IOException {
         for (int blockSize : BLOCK_SIZES) {
             for (int split = 2; split < blockSize - 1; split++) {
                 final long[] values = counterBoundaryBlock(blockSize, split);
@@ -135,41 +77,99 @@ public class SplitDeltaCounterStorageComparisonTests extends ESTestCase {
         }
     }
 
-    public void testDescendingSingleBoundaryBlock() throws IOException {
-        final long[] expectedDelta = { 281, 1097, 2185, 4361 };
-        final long[] expectedSplitDelta = { 17, 18, 18, 18 };
-        for (int i = 0; i < BLOCK_SIZES.length; i++) {
-            final int blockSize = BLOCK_SIZES[i];
-            final long[] values = counterDescendingBoundaryBlock(blockSize, blockSize / 2);
-            final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
-            final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testDescendingSingleBoundaryBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(expectedDelta[i], deltaSize);
-            assertEquals(expectedSplitDelta[i], splitDeltaSize);
+    public void testDescendingBoundaryPositionSweep() throws IOException {
+        for (int blockSize : BLOCK_SIZES) {
+            for (int split = 2; split < blockSize - 1; split++) {
+                final long[] values = counterDescendingBoundaryBlock(blockSize, split);
+                final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
+                final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
+                assertTrue(
+                    "SplitDelta must beat baseline at split="
+                        + split
+                        + " bs="
+                        + blockSize
+                        + " (splitDelta="
+                        + splitDeltaSize
+                        + ", delta="
+                        + deltaSize
+                        + ")",
+                    splitDeltaSize < deltaSize
+                );
+            }
         }
+    }
+
+    public void testDescendingSingleBoundaryBlock() throws IOException {
+        assertSizes(bs -> counterDescendingBoundaryBlock(bs, bs / 2), new long[] { 281, 1097, 2185, 4361 }, new long[] { 17, 18, 18, 18 });
     }
 
     public void testDescendingFourFlipBlock() throws IOException {
-        final long[] expectedDelta = { 515, 2051, 4099, 8195 };
-        final long[] expectedSplitDelta = { 33, 36, 38, 38 };
+        assertSizes(bs -> counterDescendingMultiFlipBlock(bs, 4), new long[] { 308, 1220, 2436, 4868 }, new long[] { 33, 37, 38, 38 });
+    }
+
+    public void testDescendingKMaxFlipBlock() throws IOException {
+        assertSizes(bs -> counterDescendingMultiFlipBlock(bs, 16), new long[] { 340, 1348, 2692, 5380 }, new long[] { 105, 117, 119, 121 });
+    }
+
+    public void testDescendingAboveKMaxFlipBlock() throws IOException {
+        assertDeclinesAt(bs -> counterDescendingMultiFlipBlock(bs, 17), new long[] { 340, 1348, 2692, 5380 });
+    }
+
+    public void testDescendingFullyMonotonicBlock() throws IOException {
+        assertDeclines(SplitDeltaCounterStorageComparisonTests::counterDescendingBlock);
+    }
+
+    public void testSlowAscendingSingleBoundaryBlock() throws IOException {
+        assertSizes(bs -> slowCounterBoundaryBlock(bs, bs / 2), new long[] { 514, 2050, 4098, 8194 }, new long[] { 13, 14, 14, 14 });
+    }
+
+    public void testSlowAscendingFourFlipBlock() throws IOException {
+        assertSizes(bs -> slowCounterMultiFlipBlock(bs, 4), new long[] { 514, 2050, 4098, 8194 }, new long[] { 31, 34, 35, 35 });
+    }
+
+    public void testSlowAscendingKMaxFlipBlock() throws IOException {
+        assertSizes(bs -> slowCounterMultiFlipBlock(bs, 16), new long[] { 642, 2562, 5122, 10242 }, new long[] { 103, 115, 117, 118 });
+    }
+
+    public void testSlowDescendingSingleBoundaryBlock() throws IOException {
+        assertDeclinesAt(bs -> slowDescendingCounterBoundaryBlock(bs, bs / 2), new long[] { 33, 81, 145, 273 });
+    }
+
+    public void testSlowDescendingFourFlipBlock() throws IOException {
+        assertSizes(bs -> slowDescendingCounterMultiFlipBlock(bs, 4), new long[] { 514, 2050, 4098, 8194 }, new long[] { 31, 34, 35, 35 });
+    }
+
+    public void testSlowDescendingKMaxFlipBlock() throws IOException {
+        assertSizes(
+            bs -> slowDescendingCounterMultiFlipBlock(bs, 16),
+            new long[] { 642, 2562, 5122, 10242 },
+            new long[] { 103, 115, 117, 118 }
+        );
+    }
+
+    private void assertSizes(IntFunction<long[]> factory, long[] expectedDelta, long[] expectedSplitDelta) throws IOException {
         for (int i = 0; i < BLOCK_SIZES.length; i++) {
             final int blockSize = BLOCK_SIZES[i];
-            final long[] values = counterDescendingMultiFlipBlock(blockSize, 4);
+            final long[] values = factory.apply(blockSize);
             final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
             final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testDescendingFourFlipBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals(expectedDelta[i], deltaSize);
-            assertEquals(expectedSplitDelta[i], splitDeltaSize);
+            logger.info("bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
+            assertEquals("delta bs=" + blockSize, expectedDelta[i], deltaSize);
+            assertEquals("splitDelta bs=" + blockSize, expectedSplitDelta[i], splitDeltaSize);
         }
     }
 
-    public void testFullyDescendingBlock() throws IOException {
+    private void assertDeclinesAt(IntFunction<long[]> factory, long[] expectedDelta) throws IOException {
+        assertSizes(factory, expectedDelta, expectedDelta);
+    }
+
+    private void assertDeclines(IntFunction<long[]> factory) throws IOException {
         for (int blockSize : BLOCK_SIZES) {
-            final long[] values = counterDescendingBlock(blockSize);
+            final long[] values = factory.apply(blockSize);
             final long deltaSize = encodeBlockSize(deltaPipeline(blockSize), values);
             final long splitDeltaSize = encodeBlockSize(splitDeltaPipeline(blockSize), values);
-            logger.info("[testFullyDescendingBlock] bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
-            assertEquals("fully descending block must not regress under SplitDelta (bs=" + blockSize + ")", deltaSize, splitDeltaSize);
+            logger.info("bs={} delta={} splitDelta={}", blockSize, deltaSize, splitDeltaSize);
+            assertEquals("SplitDelta must not regress (bs=" + blockSize + ")", deltaSize, splitDeltaSize);
         }
     }
 
@@ -202,14 +202,6 @@ public class SplitDeltaCounterStorageComparisonTests extends ESTestCase {
         return values;
     }
 
-    private static long[] counterAscendingBlock(int blockSize) {
-        final long[] values = new long[blockSize];
-        for (int i = 0; i < blockSize; i++) {
-            values[i] = BASE_COUNTER + (long) i * STEP_COUNT;
-        }
-        return values;
-    }
-
     private static long[] counterMultiFlipBlock(int blockSize, int flips) {
         final long[] values = new long[blockSize];
         final int subRunCount = flips + 1;
@@ -223,6 +215,20 @@ public class SplitDeltaCounterStorageComparisonTests extends ESTestCase {
                 values[pos++] = subBase + (long) i * STEP_COUNT;
             }
         }
+        return values;
+    }
+
+    private static long[] counterAscendingBlock(int blockSize) {
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = BASE_COUNTER + (long) i * STEP_COUNT;
+        }
+        return values;
+    }
+
+    private static long[] counterConstantBlock(int blockSize) {
+        final long[] values = new long[blockSize];
+        Arrays.fill(values, BASE_COUNTER);
         return values;
     }
 
@@ -259,6 +265,62 @@ public class SplitDeltaCounterStorageComparisonTests extends ESTestCase {
             final long subBase = TSID_RESET_VALUE + (long) s * BASE_COUNTER + (long) (subRunLen - 1) * STEP_COUNT;
             for (int i = 0; i < subRunLen; i++) {
                 values[pos++] = subBase - (long) i * STEP_COUNT;
+            }
+        }
+        return values;
+    }
+
+    private static long[] slowCounterBoundaryBlock(int blockSize, int split) {
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < split; i++) {
+            values[i] = BASE_COUNTER + (long) i * SLOW_STEP;
+        }
+        for (int i = split; i < blockSize; i++) {
+            values[i] = TSID_RESET_VALUE + (long) (i - split) * SLOW_STEP;
+        }
+        return values;
+    }
+
+    private static long[] slowCounterMultiFlipBlock(int blockSize, int flips) {
+        final long[] values = new long[blockSize];
+        final int subRunCount = flips + 1;
+        final int baseSubRunLen = blockSize / subRunCount;
+        final int remainder = blockSize % subRunCount;
+        int pos = 0;
+        for (int s = 0; s < subRunCount; s++) {
+            final int subRunLen = baseSubRunLen + (s < remainder ? 1 : 0);
+            final long subBase = TSID_RESET_VALUE + (long) (subRunCount - 1 - s) * BASE_COUNTER;
+            for (int i = 0; i < subRunLen; i++) {
+                values[pos++] = subBase + (long) i * SLOW_STEP;
+            }
+        }
+        return values;
+    }
+
+    private static long[] slowDescendingCounterBoundaryBlock(int blockSize, int split) {
+        final long[] values = new long[blockSize];
+        final long firstTsidTop = BASE_COUNTER + (long) (split - 1) * SLOW_STEP;
+        for (int i = 0; i < split; i++) {
+            values[i] = firstTsidTop - (long) i * SLOW_STEP;
+        }
+        final long secondTsidTop = TSID_RESET_VALUE + (long) (blockSize - split - 1) * SLOW_STEP;
+        for (int i = split; i < blockSize; i++) {
+            values[i] = secondTsidTop - (long) (i - split) * SLOW_STEP;
+        }
+        return values;
+    }
+
+    private static long[] slowDescendingCounterMultiFlipBlock(int blockSize, int flips) {
+        final long[] values = new long[blockSize];
+        final int subRunCount = flips + 1;
+        final int baseSubRunLen = blockSize / subRunCount;
+        final int remainder = blockSize % subRunCount;
+        int pos = 0;
+        for (int s = 0; s < subRunCount; s++) {
+            final int subRunLen = baseSubRunLen + (s < remainder ? 1 : 0);
+            final long subBase = TSID_RESET_VALUE + (long) s * BASE_COUNTER + (long) (subRunLen - 1) * SLOW_STEP;
+            for (int i = 0; i < subRunLen; i++) {
+                values[pos++] = subBase - (long) i * SLOW_STEP;
             }
         }
         return values;

@@ -167,11 +167,6 @@ public class CohereService extends SenderService<CohereModel> implements Reranki
     }
 
     @Override
-    public boolean supportsNewRerankCodePath() {
-        return true;
-    }
-
-    @Override
     protected void doChunkedInfer(
         Model model,
         List<ChunkInferenceInput> inputs,

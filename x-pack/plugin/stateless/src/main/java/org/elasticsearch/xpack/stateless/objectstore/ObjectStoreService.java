@@ -1566,31 +1566,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         }
     }
 
-    /**
-     * Invokes a callback at most once after {@link #close()} completes (including when the delegate is closed more than once).
-     */
-    private static final class RunOnCloseInputStream extends FilterInputStream {
-
-        private final Runnable onClose;
-        private final AtomicBoolean onCloseExecuted = new AtomicBoolean();
-
-        RunOnCloseInputStream(InputStream in, Runnable onClose) {
-            super(Objects.requireNonNull(in, "in"));
-            this.onClose = Objects.requireNonNull(onClose, "onClose");
-        }
-
-        @Override
-        public void close() throws IOException {
-            try {
-                super.close();
-            } finally {
-                if (onCloseExecuted.compareAndSet(false, true)) {
-                    onClose.run();
-                }
-            }
-        }
-    }
-
     private class BatchedCommitFileUploadTask extends ObjectStoreTask {
         private final VirtualBatchedCompoundCommit virtualBatchedCompoundCommit;
         private final BlobContainer blobContainer;
@@ -1624,10 +1599,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             boolean success = false;
             final long objectStoreQueueWaitMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - timeInNanos);
             final long uploadIoStartNanos = threadPool.relativeTimeInNanos();
-            final boolean useConcurrentMultipartUploads = concurrentMultipartUploads && blobContainer.supportsConcurrentMultipartUploads();
             try {
                 final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
-                if (useConcurrentMultipartUploads) {
+                if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
+                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload();) {
+                        blobContainer.writeBlobAtomic(
+                            OperationPurpose.INDICES,
+                            virtualBatchedCompoundCommit.getBlobName(),
+                            new LocalIOInputStream(vbccInputStream),
+                            totalSizeInBytes,
+                            false
+                        );
+                    }
+                } else {
                     virtualBatchedCompoundCommit.mustIncRef();
                     try {
                         blobContainer.writeBlobAtomic(
@@ -1642,22 +1626,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     } finally {
                         virtualBatchedCompoundCommit.decRef();
                     }
-                } else {
-                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload();) {
-                        blobContainer.writeBlobAtomic(
-                            OperationPurpose.INDICES,
-                            virtualBatchedCompoundCommit.getBlobName(),
-                            new LocalIOInputStream(vbccInputStream),
-                            totalSizeInBytes,
-                            false
-                        );
-                    }
                 }
                 if (isDebugEnabled) {
                     final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
                     logger.debug(
                         () -> format(
-                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms (object store queue [%s] ms)",
+                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms" +
+                                " (object store queue [%s] ms)",
                             shardId,
                             blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
                             totalSizeInBytes,

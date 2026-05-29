@@ -22,7 +22,7 @@ cost:double       | time_bucket:datetime
 
 avg_over_time_of_double_no_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 PROMQL index=k8s step=1m cost=(sum(avg_over_time(network.cost[1m])))
 | EVAL cost = round(cost, 4)
 | KEEP cost, step
@@ -56,7 +56,7 @@ cost:double       | time_bucket:datetime
 
 avg_over_time_of_double_no_grouping_single_bucket_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 PROMQL index=k8s step=1h cost=(sum(avg_over_time(network.cost[1h])))
 | EVAL cost = round(cost, 4)
 | KEEP cost, step;
@@ -67,7 +67,7 @@ cost:double | step:datetime
 
 avg_over_time_of_double_no_grouping_promql_expanded
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
@@ -83,7 +83,7 @@ cost:double | step:datetime
 avg_over_time_of_double_no_grouping_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))

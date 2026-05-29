@@ -8,7 +8,7 @@
 
 sum_without_prefix_syntax
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod, region) (avg_over_time(network.cost[1h])))
@@ -24,7 +24,7 @@ result:double      | step:datetime            | _timeseries:keyword
 // Postfix form of `without`; equivalent to prefix syntax.
 sum_without_postfix_syntax
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])) without (pod, region))
@@ -40,7 +40,7 @@ result:double      | step:datetime            | _timeseries:keyword
 // Accepts a trailing comma in the `without` label list.
 sum_without_trailing_comma
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod, region,) (avg_over_time(network.cost[1h])))
@@ -56,7 +56,7 @@ result:double      | step:datetime            | _timeseries:keyword
 // Excludes a single label; preserves all others.
 sum_without_single_label
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod) (network.cost))
@@ -72,7 +72,7 @@ result:double | step:datetime            | _timeseries:keyword
 // Excludes multiple labels.
 sum_without_multiple_labels
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod, region) (network.cost{cluster!="prod"}))
@@ -87,7 +87,7 @@ result:double | step:datetime            | _timeseries:keyword
 // Basic aggregators with `without`: sum, max, min, count.
 max_without_over_average_over_time
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(max without (pod, region) (avg_over_time(network.cost[1h])))
@@ -103,7 +103,7 @@ result:double     | step:datetime            | _timeseries:keyword
 // Basic aggregators with `without`: sum, max, min, count.
 min_without_over_average_over_time
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(min without (pod, region) (avg_over_time(network.cost[1h])))
@@ -119,7 +119,7 @@ result:double      | step:datetime            | _timeseries:keyword
 // Basic aggregators with `without`: sum, max, min, count.
 count_without_over_average_over_time
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(count without (pod, region) (avg_over_time(network.cost[1h])))
@@ -139,7 +139,7 @@ result:double | step:datetime            | _timeseries:keyword
 // `sum by (cluster)` matches `sum without (pod, region)`.
 equivalence_sum_by_cluster_matches_sum_without_pod_region
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(sum by (cluster) (avg_over_time(network.cost[1h])))
 | SORT result;
@@ -154,7 +154,7 @@ result:double      | step:datetime            | cluster:keyword
 // `max by (cluster)` matches `max without (pod, region)`.
 equivalence_max_by_cluster_matches_max_without_pod_region
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(max by (cluster) (avg_over_time(network.cost[1h])))
 | SORT result;
@@ -172,7 +172,7 @@ result:double     | step:datetime            | cluster:keyword
 
 max_over_sum_without
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(max(sum without (pod, region) (avg_over_time(network.cost[1h]))));
@@ -184,7 +184,7 @@ result:double     | step:datetime
 
 avg_over_sum_without
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(avg(sum without (pod, region) (avg_over_time(network.cost[1h]))));
@@ -197,7 +197,7 @@ result:double      | step:datetime
 // Validates the output cardinality of `sum without (...)`.
 count_over_sum_without
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(count(sum without (pod, region) (avg_over_time(network.cost[1h]))));
@@ -210,7 +210,7 @@ result:double | step:datetime
 // Applies `without` to an exact child produced by `by`.
 sum_without_over_sum_by
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum without (pod) (sum by (cluster, region, pod) (network.cost)))
@@ -226,7 +226,7 @@ result:double | step:datetime            | _timeseries:keyword
 // Applies `by` over a `without` result; `by` re-establishes exact grouping.
 by_over_without_re_exactifies
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (region) (sum by (cluster, region, pod) (network.cost))))
@@ -242,7 +242,7 @@ result:double | step:datetime            | cluster:keyword
 // Full round-trip: `by -> without -> by`.
 by_over_without_over_by
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum by (cluster) (sum without (pod) (sum by (cluster, region, pod) (network.cost))))
@@ -258,7 +258,7 @@ result:double | step:datetime            | cluster:keyword
 // `by` cannot restore a label already removed by `without`.
 by_cannot_resurrect_removed_label
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 PROMQL index=k8s step=1h result=(sum by (region) (sum without (region) (network.cost)));
@@ -275,7 +275,7 @@ result:double | step:datetime            | region:keyword
 // `scalar(...)` over multiple output series returns NaN.
 scalar_over_sum_without_returns_nan
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: promql_scalar
@@ -289,7 +289,7 @@ NaN           | 2024-05-10T01:00:00.000Z
 // `scalar(...)` succeeds after reducing to one series.
 scalar_over_max_of_without
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_nested_aggregates
 required_capability: promql_without_grouping
 required_capability: promql_scalar

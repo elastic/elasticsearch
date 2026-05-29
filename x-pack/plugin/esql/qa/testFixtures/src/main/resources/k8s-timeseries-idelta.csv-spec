@@ -19,7 +19,7 @@ null               | 2024-05-10T00:01:00.000Z
 
 idelta_of_double_no_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m cost_change=(sum(idelta(network.cost[1m])))
@@ -41,7 +41,7 @@ cost_change:double | step:datetime
 idelta_of_double_no_grouping_promql_expanded
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost_change=(sum(idelta(network.cost[1m])))
@@ -57,7 +57,7 @@ idelta_of_double_no_grouping_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: promql_unmapped_fields_filter_nulls
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost_change=(sum(idelta(network.cost[1m])))
@@ -86,7 +86,7 @@ null                | 2024-05-10T00:01:00.000Z
 
 idelta_of_integer_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg(idelta(network.eth0.currently_connected_clients[1m])))
@@ -125,7 +125,7 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 
 idelta_of_integer_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (idelta(network.eth0.currently_connected_clients[1m])))
@@ -169,7 +169,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 
 idelta_with_filtering_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (idelta(network.bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -224,7 +224,7 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 
 eval_on_idelta_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m avg_bytes=(avg by (cluster) (idelta(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0
@@ -304,7 +304,7 @@ events:double | pod:keyword | time_bucket:datetime
 
 idelta_all_value_types_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m events=(sum by (pod) (idelta(events_received[10m])))
 | SORT events DESC, pod, step | LIMIT 10;

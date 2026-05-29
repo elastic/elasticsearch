@@ -26,7 +26,7 @@ null                  | 2024-05-10T00:01:00.000Z
 
 irate_of_long_no_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m irate_bytes_in=(avg(irate(network.total_bytes_in[1m])))
@@ -72,7 +72,7 @@ irate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 irate_of_long_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=5m irate_bytes_in=(avg by (cluster) (irate(network.total_bytes_in[5m])))
 | EVAL irate_bytes_in = round(irate_bytes_in, 6)
@@ -115,7 +115,7 @@ null               | 2024-05-10T00:01:00.000Z
 
 irate_of_double_no_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m irate_cost=(sum(irate(network.total_cost[1m])))
@@ -164,7 +164,7 @@ irate_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 irate_with_filtering_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m irate_bytes_in=(sum by (cluster) (irate(network.total_bytes_in{pod="one"}[10m])))
 | EVAL irate_bytes_in = round(irate_bytes_in, 6)
@@ -185,7 +185,7 @@ irate_bytes_in:double | step:datetime            | cluster:keyword
 
 irate_with_filtering_promql_expanded
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m irate_bytes_in=(round(sum by (cluster) (irate(network.total_bytes_in{pod="one"}[10m])), 0.01))
 | SORT cluster, step;
@@ -205,7 +205,7 @@ irate_bytes_in:double | step:datetime            | cluster:keyword
 irate_with_filtering_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" irate_bytes_in=(round(sum by (cluster) (irate(network.total_bytes_in{pod="one"}[10m])), 0.01))
@@ -242,7 +242,7 @@ irate_bytes:double | cluster:keyword | time_bucket:datetime     | irate_kb:doubl
 
 eval_on_irate_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m irate_bytes=(avg by (cluster) (irate(network.total_bytes_in[10m])))
 | EVAL irate_kb = irate_bytes / 1024.0
@@ -301,7 +301,7 @@ null                  | 2024-05-10T00:01:00.000Z
 
 irate_of_expression_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=1m irate_bytes_in=(avg(irate(network.total_bytes_in[1m]) + 10))
@@ -432,7 +432,7 @@ irate_of_ratio:double | cluster:keyword | time_bucket:datetime
 
 irate_of_ratio_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 
 PROMQL index=k8s step=10m irate_of_ratio=(sum by (cluster) (irate(network.total_cost[10m]) / irate(network.total_bytes_in[10m])))
 | EVAL irate_of_ratio = round(irate_of_ratio, 6)
@@ -475,7 +475,7 @@ null                  | qa              | 2024-05-10T00:22:00.000Z
 
 irate_of_long_grouping_1min_nulls_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v2
+required_capability: fix_promql_time_bucket_v3
 required_capability: promql_unmapped_fields_filter_nulls
 
 PROMQL index=k8s step=2m irate_bytes_in=(avg by (cluster) (irate(network.total_bytes_in[2m])))

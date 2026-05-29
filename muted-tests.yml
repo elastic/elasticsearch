@@ -499,21 +499,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
-- class: org.elasticsearch.index.seqno.SeqNoPruningIT
-  method: testSeqNoPartiallyPrunedWithRetentionLease
-  issue: https://github.com/elastic/elasticsearch/issues/149823
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPartiallyRetainedByCcrLease
-  issue: https://github.com/elastic/elasticsearch/issues/149826
-- class: org.elasticsearch.index.seqno.SeqNoPruningIT
-  method: testWritesSucceedOnReplicaAfterSeqNoPruning
-  issue: https://github.com/elastic/elasticsearch/issues/149829
-- class: org.elasticsearch.index.seqno.SeqNoPruningIT
-  method: testSeqNoPrunedAfterMerge
-  issue: https://github.com/elastic/elasticsearch/issues/149830
-- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
-  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
-  issue: https://github.com/elastic/elasticsearch/issues/149834
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testOTelHealthMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149835

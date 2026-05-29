@@ -109,8 +109,8 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             updateByQuery(),
             true,
-            (bulkByScrollResponse, updatedDocCount) -> {
-                assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount));
+            (bulkByPaginatedSearchResponse, updatedDocCount) -> {
+                assertThat(bulkByPaginatedSearchResponse.getUpdated(), is((long) updatedDocCount));
             }
         );
     }
@@ -133,8 +133,8 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             scriptEnabled,
             reindexRequestBuilder,
             false,
-            (bulkByScrollResponse, reindexDocCount) -> {
-                assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
+            (bulkByPaginatedSearchResponse, reindexDocCount) -> {
+                assertThat(bulkByPaginatedSearchResponse.getCreated(), is((long) reindexDocCount));
             }
         );
     }
@@ -147,8 +147,8 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             false,
             deleteByQuery(),
             true,
-            (bulkByScrollResponse, deletedDocCount) -> {
-                assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount));
+            (bulkByPaginatedSearchResponse, deletedDocCount) -> {
+                assertThat(bulkByPaginatedSearchResponse.getDeleted(), is((long) deletedDocCount));
             }
         );
     }
@@ -163,7 +163,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             boolean scriptEnabled,
             AbstractBulkByPaginatedSearchRequestBuilder<R, Self> requestBuilder,
             boolean useOptimisticConcurrency,
-            BiConsumer<BulkByScrollResponse, Integer> resultConsumer
+            BiConsumer<BulkByPaginatedSearchResponse, Integer> resultConsumer
         ) throws Exception {
         createIndexWithSingleShard(sourceIndex);
 
@@ -250,7 +250,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             source.setSize(scrollSize);
             source.addSort(SORTING_FIELD, SortOrder.DESC);
             source.setQuery(QueryBuilders.matchAllQuery());
-            final ActionFuture<BulkByScrollResponse> updateByQueryResponse = requestBuilder.execute();
+            final ActionFuture<BulkByPaginatedSearchResponse> updateByQueryResponse = requestBuilder.execute();
 
             assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(2)));
 
@@ -262,13 +262,13 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 assertThat(Strings.toTruncatedString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
             }
 
-            final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();
-            assertThat(bulkByScrollResponse.getVersionConflicts(), lessThanOrEqualTo((long) conflictingOps));
+            final BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse = updateByQueryResponse.actionGet();
+            assertThat(bulkByPaginatedSearchResponse.getVersionConflicts(), lessThanOrEqualTo((long) conflictingOps));
             // When scripts are enabled, the first maxDocs are a NoOp
             final int candidateOps = scriptEnabled ? numDocs - maxDocs : numDocs;
             int successfulOps = Math.min(candidateOps - conflictingOps, maxDocs);
-            assertThat(bulkByScrollResponse.getNoops(), is((long) (scriptEnabled ? maxDocs : 0)));
-            resultConsumer.accept(bulkByScrollResponse, successfulOps);
+            assertThat(bulkByPaginatedSearchResponse.getNoops(), is((long) (scriptEnabled ? maxDocs : 0)));
+            resultConsumer.accept(bulkByPaginatedSearchResponse, successfulOps);
         } finally {
             for (SearchHit hit : docsModifiedConcurrently) {
                 hit.decRef();

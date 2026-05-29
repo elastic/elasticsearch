@@ -419,6 +419,17 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     || query.contains("_multifile_type_drift}}")
                     || query.contains("_hive}}")
             );
+            // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
+            // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native
+            // representation. Its queries use {{employees}} without a multi_value_syntax opt-in
+            // (the non-CSV format readers reject the unknown key via ConfigKeyValidator). On the
+            // EsqlSpecTestCase cluster the local CSV reader defaults to multi_value_syntax: none
+            // and would misalign columns on the bracket-MV employees.csv. CSV-side bracket-syntax
+            // coverage lives in csv-multivalue.csv-spec with the explicit "brackets" opt-in.
+            assumeFalseLogging(
+                "external-multivalue requires AbstractExternalSourceSpecTestCase (native multi-value formats)",
+                fileName.equals("external-multivalue.csv-spec")
+            );
             Path path = getCsvDataPath();
             if (path != null) {
                 query = substituteTemplates(query, csvFileTemplateResolver(path));

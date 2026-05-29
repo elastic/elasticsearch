@@ -10,7 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -24,7 +24,7 @@ import java.util.Map;
 /**
  * RestBuilderListener that returns higher than 200 status if there are any failures and allows to set XContent.Params.
  */
-public class BulkIndexByScrollResponseContentListener extends RestBuilderListener<BulkByScrollResponse> {
+public class BulkIndexByScrollResponseContentListener extends RestBuilderListener<BulkByPaginatedSearchResponse> {
 
     private final Map<String, String> params;
 
@@ -34,14 +34,14 @@ public class BulkIndexByScrollResponseContentListener extends RestBuilderListene
     }
 
     @Override
-    public RestResponse buildResponse(BulkByScrollResponse response, XContentBuilder builder) throws Exception {
+    public RestResponse buildResponse(BulkByPaginatedSearchResponse response, XContentBuilder builder) throws Exception {
         builder.startObject();
         response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
         builder.endObject();
         return new RestResponse(getStatus(response), builder);
     }
 
-    private static RestStatus getStatus(BulkByScrollResponse response) {
+    private static RestStatus getStatus(BulkByPaginatedSearchResponse response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
          * interesting to the user.

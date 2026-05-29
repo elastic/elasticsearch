@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
@@ -130,11 +130,11 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
 
         final CountDownLatch listenerDone = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
-        final AtomicReference<BulkByScrollResponse> success = new AtomicReference<>();
+        final AtomicReference<BulkByPaginatedSearchResponse> success = new AtomicReference<>();
         internalCluster().client(coordNodeName).execute(ReindexAction.INSTANCE, request, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                success.set(bulkByScrollResponse);
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                success.set(bulkByPaginatedSearchResponse);
                 listenerDone.countDown();
             }
 
@@ -155,7 +155,7 @@ public class SearchableSnapshotReindexRelocationOnShutdownIT extends BaseSearcha
         assertTrue("reindex listener should complete", listenerDone.await(30, TimeUnit.SECONDS));
 
         final Throwable error = failure.get();
-        final BulkByScrollResponse response = success.get();
+        final BulkByPaginatedSearchResponse response = success.get();
         assertThat(ExceptionsHelper.unwrapCause(error), instanceOf(TaskRelocatedException.class));
         final TaskRelocatedException relocated = (TaskRelocatedException) ExceptionsHelper.unwrapCause(error);
         final String relocatedTaskIdString = relocated.getRelocatedTaskId().orElseThrow();

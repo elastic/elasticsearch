@@ -52,7 +52,12 @@ function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: num
     "cat > \"$$WRAPPED_CMD_FILE\" <<'__NEVER_FAIL_EOF__'",
     command,
     "__NEVER_FAIL_EOF__",
-    `timeout --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$$WRAPPED_CMD_FILE"`,
+    // --foreground keeps the wrapped command in the parent's process group;
+    // without it `timeout` setpgid()s its child, the gradle CLI loses the
+    // controlling-TTY plumbing the develocity scan plugin relies on, and the
+    // CLI JVM hangs ~36 minutes after BUILD SUCCESSFUL until the inner
+    // timeout fires. Diagnosed on build #2 of elasticsearch-flakiness-detection-manual.
+    `timeout --foreground --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$$WRAPPED_CMD_FILE"`,
     "rc=$?",
     "rm -f \"$$WRAPPED_CMD_FILE\"",
     `if [ "$$rc" -eq 124 ] || [ "$$rc" -eq 137 ]; then`,

@@ -117,7 +117,12 @@ export function toBuildkitePipeline(
       for (let i = 0; i < batches.length; i++) {
         env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes);
       }
-      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
+      // Both `$$` escapes defer interpolation past Buildkite's pipeline-upload
+      // pass: `$$BUILDKITE_PARALLEL_JOB` because the variable is set per-job at
+      // run time (BK substitutes empty at upload time, breaking the indirect
+      // lookup), and `$${!VARNAME}` because BK can't parse `!` as the start of
+      // a variable identifier.
+      step.command = 'VARNAME="BATCH_COMMAND_$${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
       step.parallelism = batches.length;
       step.env = env;
     }

@@ -319,7 +319,11 @@ public class ViewResolver {
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
-                listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
+                listener.onResponse(
+                    crossProjectModeDecider.crossProjectEnabled()
+                        ? unresolvedRelation
+                        : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
+                );
                 return;
             }
 

@@ -1680,6 +1680,43 @@ public class ParquetFormatReaderTests extends ESTestCase {
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
     }
 
+    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // Overwrite every byte in the data area (between PAR1 header and footer) so that column
+        // data is completely garbled, triggering a decoding error on read(). The footer at the
+        // end of the file stays intact so metadata() still succeeds.
+        int footerLenOffset = parquetData.length - 8;
+        int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
+            | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
+        int footerStart = parquetData.length - 8 - footerLen;
+        Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(parquetData, "https://host/corrupt.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // metadata() should still succeed (footer is intact)
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertNotNull(metadata);
+        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), containsString("id"));
+    }
+
     public void testValidateFooterIntegrityRejectsNullsInRequiredColumn() {
         MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
 
@@ -3186,4 +3223,5 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(iterator.hasNext());
         }
     }
+
 }

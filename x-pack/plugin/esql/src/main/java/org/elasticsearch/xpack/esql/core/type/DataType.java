@@ -594,6 +594,12 @@ public enum DataType implements Writeable {
      */
     public static final String COUNTER_CAST_NAME = "counter";
 
+    /**
+     * The identifier used in the {@code ::gauge} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the gauge (plain numeric) variant of the input's counter type.
+     */
+    public static final String GAUGE_CAST_NAME = "gauge";
+
     public static Collection<DataType> types() {
         return TYPES;
     }
@@ -733,6 +739,13 @@ public enum DataType implements Writeable {
 
     public static boolean isNullOrNumeric(DataType t) {
         return t.isNumeric() || isNull(t);
+    }
+
+    /**
+     * True for integer-valued data types that use integral compute blocks directly.
+     */
+    public static boolean isIntegral(DataType t) {
+        return t == INTEGER || t == LONG;
     }
 
     public static boolean isDateTime(DataType type) {

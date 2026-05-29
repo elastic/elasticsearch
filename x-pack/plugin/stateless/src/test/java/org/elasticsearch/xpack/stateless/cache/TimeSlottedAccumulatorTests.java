@@ -21,6 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class TimeSlottedAccumulatorTests extends ESTestCase {
@@ -168,7 +169,12 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         assertThat(accumulator.accumulate(anchorSlot, firstDelta), equalTo(firstDelta));
         assertThat(accumulator.accumulate(anchorSlot, secondDelta), equalTo(firstDelta + secondDelta));
         assertThat(accumulator.accumulate(anchorSlot, 0), equalTo(firstDelta + secondDelta));
-        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(firstDelta + secondDelta));
+
+        int overSubtract = randomIntBetween(firstDelta + secondDelta + 1, firstDelta + secondDelta + 100);
+        int slotCount = accumulator.accumulate(anchorSlot, -overSubtract);
+        assertThat(slotCount, lessThan(0));
+        assertThat(slotCount, equalTo(firstDelta + secondDelta - overSubtract));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(slotCount));
     }
 
     public void testConcurrentAdds() throws Exception {

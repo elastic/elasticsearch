@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -61,16 +63,20 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         boolean skipFirstLine,
         boolean trimLastPartialLine,
         List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        NdJsonReaderCounters counters,
+        int maxRecordBytes
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
         String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
+        NdJsonRecordSplitter recordSplitter = new NdJsonRecordSplitter(maxRecordBytes);
         if (skipFirstLine) {
-            skipToNextLine(inputStream);
+            skipToNextLine(inputStream, recordSplitter);
         }
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
         }
         this.rowLimit = rowLimit;
         if (canUseByteArrayFastPath(object)) {
@@ -87,7 +93,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                sourceLocation,
+                counters
             );
         } else {
             this.pageDecoder = new NdJsonPageDecoder(
@@ -97,7 +104,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                sourceLocation,
+                counters
             );
         }
     }
@@ -109,7 +117,9 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * also fall back to streaming so a metadata hiccup does not abort an open call; the streaming
      * read will surface the same condition if the data itself is unreachable.
      */
-    private static boolean canUseByteArrayFastPath(StorageObject object) {
+    // package-private for testing: pins the invariant that segments above the threshold stream rather than
+    // buffering the whole segment, which is what bounds per-open-segment memory under the open-segment cap.
+    static boolean canUseByteArrayFastPath(StorageObject object) {
         try {
             long len = object.length();
             return len >= 0 && len <= BYTE_ARRAY_FAST_PATH_MAX_SIZE;
@@ -196,12 +206,19 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      *       {@link NdJsonFormatReader#read} uses to decide whether to call this method.</li>
      * </ul>
      *
-     * <p>Delegates to {@link NdJsonFormatReader#scanForTerminator} so LF/CRLF/CR are handled
+     * <p>Delegates to {@link NdJsonRecordSplitter#scanForTerminator} so LF/CRLF/CR are handled
      * uniformly; in practice the codec's finish-current-line always ends on {@code '\n'}, so
      * only the LF branch fires, but routing through one implementation removes the coupling.
      */
     static void skipToNextLine(InputStream stream) throws IOException {
-        NdJsonFormatReader.scanForTerminator(stream);
+        skipToNextLine(stream, new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES));
+    }
+
+    static void skipToNextLine(InputStream stream, NdJsonRecordSplitter recordSplitter) throws IOException {
+        NdJsonRecordSplitter.LineScan scan = recordSplitter.scanForTerminator(stream);
+        if (scan.consumed() == RecordSplitter.RECORD_TOO_LARGE) {
+            throw recordSplitter.recordTooLargeException();
+        }
     }
 
     /**
@@ -210,7 +227,20 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * when the returned stream is closed. Oversized partial lines follow {@code errorPolicy}.
      */
     static InputStream trimLastPartialLine(InputStream in, ErrorPolicy errorPolicy, String sourceLocation) {
-        // TODO: thread in a centralized error counter?
-        return new TrimLastPartialLineInputStream(in, errorPolicy, sourceLocation);
+        return trimLastPartialLine(
+            in,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES)
+        );
+    }
+
+    static InputStream trimLastPartialLine(
+        InputStream in,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonRecordSplitter recordSplitter
+    ) {
+        return new TrimLastPartialLineInputStream(in, errorPolicy, sourceLocation, recordSplitter);
     }
 }

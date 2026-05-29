@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -74,9 +76,10 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
+    private PromqlFunctionRegistry promqlFunctionRegistry = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
-    private final Map<IndexPattern, IndexResolution> lenientResolution = new HashMap<>();
+    private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
@@ -132,22 +135,25 @@ public class TestAnalyzer {
 
     /**
      * Add a lenient (CPS shadow) resolution entry. The {@code ResolveViewShadow} analyzer rule
-     * looks up entries in {@link AnalyzerContext#optionalLinkedResolution()} by the shadow's full
+     * looks up entries in {@link AnalyzerContext#linkedResolution()} by the shadow's full
      * {@code IndexPattern} (view name + applicable exclusions), so the same view referenced
      * with different exclusion lists can be wired to different results.
      */
-    public TestAnalyzer addLenientShadow(IndexPattern indexPattern, IndexResolution resolution) {
+    public TestAnalyzer addLenientResolution(LinkedIndexPattern indexPattern, IndexResolution resolution) {
         this.lenientResolution.put(indexPattern, resolution);
         return this;
     }
 
     /**
-     * Convenience overload of {@link #addLenientShadow(IndexPattern, IndexResolution)} for the
+     * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
      */
-    public TestAnalyzer addLenientShadow(EsIndex esIndex) {
-        return addLenientShadow(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex));
+    public TestAnalyzer addLenientResolution(EsIndex esIndex) {
+        return addLenientResolution(
+            new LinkedIndexPattern(LinkedIndexPattern.Kind.OPTIONAL, new IndexPattern(Source.EMPTY, esIndex.name())),
+            IndexResolution.valid(esIndex)
+        );
     }
 
     /**
@@ -787,6 +793,7 @@ public class TestAnalyzer {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             null,
             indexResolutions,
             lookupResolution,

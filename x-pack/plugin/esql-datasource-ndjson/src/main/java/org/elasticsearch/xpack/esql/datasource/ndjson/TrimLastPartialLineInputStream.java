@@ -8,15 +8,17 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
@@ -26,31 +28,22 @@ import java.util.Arrays;
  * dropping a trailing partial line (split boundary). Reads the delegate lazily and keeps at most a
  * small read buffer plus any uncommitted tail after the last newline seen so far.
  *
- * <p>If a line without a delimiter exceeds {@link #MAX_CARRY_BYTES}, {@link ErrorPolicy#isStrict()}
+ * <p>If a line without a delimiter exceeds the configured {@code max_record_size}, {@link ErrorPolicy#isStrict()}
  * causes an {@link IOException}; otherwise the buffered partial line is discarded as bogus and
  * reading continues. Discards are logged like {@link NdJsonPageDecoder} parse skips:
  * {@link Level#INFO} when {@link ErrorPolicy#logErrors()} is true, otherwise {@link Level#DEBUG}.
- *
- * <p>Only line feed ({@code '\n'}) is a record boundary here. A carriage return from CRLF that is
- * split across read chunks can remain as a trailing {@code '\r'} on the emitted line (pre-existing
- * limitation for Windows-style line endings in this path).
  */
 final class TrimLastPartialLineInputStream extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(TrimLastPartialLineInputStream.class);
 
     private static final int DEFAULT_TRIM_CHUNK_SIZE = 8192;
-    /** Record delimiter for trimming (LF only; see class Javadoc for CRLF). */
-    private static final char SPLIT_BOUNDARY = '\n';
-
-    static final ByteSizeValue MAX_CARRY = ByteSizeValue.ofMb(32);
-    /** Max bytes held in {@link #carry} when no {@code '\n'} has been seen yet (pathological single line). */
-    static final long MAX_CARRY_BYTES = MAX_CARRY.getBytes();
 
     private final InputStream delegate;
     private final byte[] chunk;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
+    private final NdJsonRecordSplitter recordSplitter;
 
     /** Bytes after the last {@code '\n'} observed across all chunks read so far; discarded at EOF. */
     private byte[] carry;
@@ -59,18 +52,47 @@ final class TrimLastPartialLineInputStream extends InputStream {
     private int readIdx;
     private int writeIdx;
     private boolean eof;
+    private boolean discardingOversizedPartial;
+    private boolean discardingOptionalLfAfterCr;
     private final byte[] single = new byte[1];
 
     TrimLastPartialLineInputStream(InputStream delegate, ErrorPolicy errorPolicy, String sourceLocation) {
-        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation);
+        this(
+            delegate,
+            DEFAULT_TRIM_CHUNK_SIZE,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES)
+        );
     }
 
     TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy, String sourceLocation) {
+        this(delegate, chunkSize, errorPolicy, sourceLocation, new NdJsonRecordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES));
+    }
+
+    TrimLastPartialLineInputStream(
+        InputStream delegate,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonRecordSplitter recordSplitter
+    ) {
+        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation, recordSplitter);
+    }
+
+    TrimLastPartialLineInputStream(
+        InputStream delegate,
+        int chunkSize,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonRecordSplitter recordSplitter
+    ) {
         this.delegate = delegate;
         Check.isTrue(chunkSize > 0, "chunkSize must strictly positive");
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.chunk = new byte[chunkSize];
         this.errorPolicy = errorPolicy;
+        Check.isTrue(recordSplitter != null, "recordSplitter must not be null");
+        this.recordSplitter = recordSplitter;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from [" + sourceLocation + "] discarded an oversized partial line (policy: " + errorPolicy.modeName() + ")"
@@ -117,45 +139,94 @@ final class TrimLastPartialLineInputStream extends InputStream {
             if (n == 0) {
                 continue;
             }
-            int lastNl = -1;
-            for (int i = n - 1; i >= 0; i--) {
-                if (chunk[i] == SPLIT_BOUNDARY) {
-                    lastNl = i;
-                    break;
-                }
+            int start = skipDiscardedOversizedPartial(chunk, n);
+            if (start == n) {
+                continue;
             }
-            if (lastNl >= 0) {
+            int scanLength = n - start;
+            int lastBoundary = recordSplitter.findLastRecordBoundary(chunk, start, scanLength);
+            if (lastBoundary == RecordSplitter.RECORD_TOO_LARGE) {
+                if (errorPolicy.isStrict()) {
+                    throw carryLimitExceeded();
+                }
+                logDiscardedOversizedPartial(scanLength, "partial_line_without_delimiter");
+                carry = null;
+                discardingOversizedPartial = true;
+                continue;
+            }
+            if (lastBoundary >= 0) {
                 int carryLen = carry == null ? 0 : carry.length;
-                int emitLen = carryLen + lastNl + 1;
+                int emitLen = carryLen + (lastBoundary - start) + 1;
+                if (emitLen > recordSplitter.maxRecordBytes()) {
+                    if (errorPolicy.isStrict()) {
+                        throw carryLimitExceeded();
+                    }
+                    logDiscardedOversizedPartial(emitLen, "record_before_delimiter");
+                    carry = tailAfterBoundary(chunk, lastBoundary, n);
+                    discardingOversizedPartial = false;
+                    if (carry == null && lastBoundary == n - 1 && chunk[lastBoundary] == '\r') {
+                        discardingOptionalLfAfterCr = true;
+                    }
+                    continue;
+                }
                 ensureWritable(emitLen);
                 if (carryLen > 0) {
                     System.arraycopy(carry, 0, buffer, writeIdx, carryLen);
                     writeIdx += carryLen;
                     carry = null;
                 }
-                System.arraycopy(chunk, 0, buffer, writeIdx, lastNl + 1);
-                writeIdx += lastNl + 1;
-                if (lastNl + 1 < n) {
-                    int tailLen = n - (lastNl + 1);
-                    if (tailLen > MAX_CARRY_BYTES) {
-                        if (errorPolicy.isStrict()) {
-                            throw carryLimitExceeded();
-                        }
-                        logDiscardedOversizedPartial(tailLen, "trailing_fragment_after_delimiter");
-                        carry = null;
-                    } else {
-                        carry = Arrays.copyOfRange(chunk, lastNl + 1, n);
-                    }
-                }
+                int chunkEmitLen = lastBoundary - start + 1;
+                System.arraycopy(chunk, start, buffer, writeIdx, chunkEmitLen);
+                writeIdx += chunkEmitLen;
+                carry = tailAfterBoundary(chunk, lastBoundary, n);
                 return true;
             }
-            carry = append(carry, chunk, n);
+            carry = append(carry, chunk, start, scanLength);
         }
         return true;
     }
 
-    private static IOException carryLimitExceeded() {
-        return new IOException("NDJSON lines longer than [" + MAX_CARRY + "] are not supported");
+    private int skipDiscardedOversizedPartial(byte[] data, int n) throws IOException {
+        int start = 0;
+        if (discardingOptionalLfAfterCr) {
+            discardingOptionalLfAfterCr = false;
+            if (n > 0 && data[0] == '\n') {
+                start = 1;
+            }
+        }
+        if (discardingOversizedPartial == false) {
+            return start;
+        }
+        NdJsonRecordSplitter.LineScan scan = recordSplitter.scanForTerminator(new ByteArrayInputStream(data, start, n - start));
+        if (scan.consumed() < 0) {
+            return n;
+        }
+        discardingOversizedPartial = false;
+        int consumed = start + Math.toIntExact(scan.consumed());
+        if (consumed == n && data[n - 1] == '\r') {
+            discardingOptionalLfAfterCr = true;
+        }
+        return consumed;
+    }
+
+    private byte[] tailAfterBoundary(byte[] data, int boundary, int n) throws IOException {
+        if (boundary + 1 >= n) {
+            return null;
+        }
+        int tailLen = n - (boundary + 1);
+        if (tailLen > recordSplitter.maxRecordBytes()) {
+            if (errorPolicy.isStrict()) {
+                throw carryLimitExceeded();
+            }
+            logDiscardedOversizedPartial(tailLen, "trailing_fragment_after_delimiter");
+            discardingOversizedPartial = true;
+            return null;
+        }
+        return Arrays.copyOfRange(data, boundary + 1, n);
+    }
+
+    private IOException carryLimitExceeded() {
+        return recordSplitter.recordTooLargeException();
     }
 
     /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
@@ -166,7 +237,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
                 + "] of approximately ["
                 + discardedBytes
                 + "] bytes while trimming split suffix; limit is ["
-                + MAX_CARRY
+                + recordSplitter.maxRecordBytes()
                 + "]"
         );
         logger.log(
@@ -175,30 +246,31 @@ final class TrimLastPartialLineInputStream extends InputStream {
                 "Skipping NDJSON [{}] of approximately [{}] bytes while trimming split suffix; limit is [{}]",
                 kind,
                 discardedBytes,
-                MAX_CARRY
+                recordSplitter.maxRecordBytes()
             )
         );
     }
 
-    private byte[] append(byte[] prefix, byte[] data, int n) throws IOException {
+    private byte[] append(byte[] prefix, byte[] data, int offset, int n) throws IOException {
         if (n <= 0) {
             return prefix;
         }
         long newLen = (prefix == null || prefix.length == 0) ? n : (long) prefix.length + n;
-        if (newLen > MAX_CARRY_BYTES) {
+        if (newLen > recordSplitter.maxRecordBytes()) {
             if (errorPolicy.isStrict()) {
                 throw carryLimitExceeded();
             }
             long dropped = prefix == null ? 0 : (long) prefix.length;
             logDiscardedOversizedPartial(dropped + n, "partial_line_without_delimiter");
-            // Bogus line: drop the partial tail buffered so far; continue with this chunk only.
-            return Arrays.copyOfRange(data, 0, n);
+            // Bogus line: drop the partial tail buffered so far and discard through the next delimiter.
+            discardingOversizedPartial = true;
+            return null;
         }
         if (prefix == null || prefix.length == 0) {
-            return Arrays.copyOfRange(data, 0, n);
+            return Arrays.copyOfRange(data, offset, offset + n);
         }
         byte[] out = Arrays.copyOf(prefix, prefix.length + n);
-        System.arraycopy(data, 0, out, prefix.length, n);
+        System.arraycopy(data, offset, out, prefix.length, n);
         return out;
     }
 

@@ -10,12 +10,15 @@
 package org.elasticsearch.synonyms;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
@@ -24,13 +27,18 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
 import org.junit.Before;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.Reader;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymRule;
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
@@ -52,7 +60,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             maxSynonymRules,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         );
     }
 
@@ -84,7 +93,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             maxRules,
             pitBatchSize,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         );
 
         String synonymSetId = randomIdentifier();
@@ -93,7 +103,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(putFuture).synonymsOperationResult());
 
         PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
-        synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+        synsApiService.getSynonymSetRules(Set.of(synonymSetId), false, getFuture);
         PagedResult<SynonymRule> result = safeGet(getFuture);
         assertEquals(rulesNumber, result.totalResults());
         assertEquals(rulesNumber, result.pageResults().length);
@@ -110,7 +120,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             maxRules,
             pitBatchSize,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         );
 
         String synonymSetId = randomIdentifier();
@@ -125,11 +136,11 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
                     "warning",
                     SynonymsManagementAPIService.class.getName(),
                     Level.WARN,
-                    "The number of synonym rules in the synonym set [" + synonymSetId + "] exceeds the maximum allowed*"
+                    "*synonym filter for sets*" + synonymSetId + "*exceeds the maximum allowed*"
                 )
             );
             PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
-            synsApiService.getSynonymSetRules(synonymSetId, getFuture);
+            synsApiService.getSynonymSetRules(Set.of(synonymSetId), false, getFuture);
             PagedResult<SynonymRule> result = safeGet(getFuture);
             assertEquals(rulesNumber, result.totalResults());   // true total from index
             assertEquals(maxRules, result.pageResults().length); // capped at limit
@@ -263,7 +274,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             clusterService(),
             100_000,
             SynonymsManagementAPIService.PIT_BATCH_SIZE,
-            SynonymsManagementAPIService.BULK_CHUNK_SIZE
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
         ) {
             @Override
             void checkSynonymsIndexHealth(ActionListener<ClusterHealthResponse> listener) {
@@ -364,5 +376,156 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         });
 
         putRuleNoRefreshLatch.await(5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * When the total rules across multiple synonym sets exceeds {@code maxSynonymRules}, the result
+     * is capped at the limit and a warning is logged.
+     */
+    public void testGetMultipleSynonymSetsRulesTruncationWarning() throws Exception {
+        int rulesPerSet = 2;
+        int maxRules = rulesPerSet; // limit equals one set's worth — two sets together exceed it
+        SynonymsManagementAPIService service = new SynonymsManagementAPIService(
+            client(),
+            clusterService(),
+            maxRules,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            SynonymsManagementAPIService.BULK_CHUNK_SIZE,
+            internalCluster().getInstance(FeatureService.class)
+        );
+
+        String setA = randomIdentifier();
+        String setB = randomIdentifier();
+        putSynonymsSet(service, setA, randomSynonymsSet(rulesPerSet, rulesPerSet));
+        putSynonymsSet(service, setB, randomSynonymsSet(rulesPerSet, rulesPerSet));
+
+        try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "truncation warning",
+                    SynonymsManagementAPIService.class.getName(),
+                    Level.WARN,
+                    "*synonym filter for sets*exceeds the maximum allowed*"
+                )
+            );
+            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+            service.getSynonymSetRules(Set.of(setA, setB), false, getFuture);
+            PagedResult<SynonymRule> result = safeGet(getFuture);
+            assertEquals(rulesPerSet * 2, result.totalResults());
+            assertEquals(maxRules, result.pageResults().length);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * When some of the requested synonym sets exist (even if empty) and one does not, a per-set
+     * warning is logged for the missing set and the response succeeds with rules from existing sets.
+     */
+    public void testGetMultipleSynonymSetsRulesMissingSetWithIgnoreMissing() throws Exception {
+        String existsSetId = randomIdentifier();
+        String missingSetId = randomIdentifier();
+
+        // Create an empty synonym set (no rules, but the set document exists)
+        putSynonymsSet(synonymsManagementAPIService, existsSetId, new SynonymRule[0]);
+
+        try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "missing set warning",
+                    SynonymsManagementAPIService.class.getName(),
+                    Level.WARN,
+                    "*" + missingSetId + "*not found*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no warning for existing set",
+                    SynonymsManagementAPIService.class.getName(),
+                    Level.WARN,
+                    "*" + existsSetId + "*"
+                )
+            );
+            PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
+            synonymsManagementAPIService.getSynonymSetRules(Set.of(existsSetId, missingSetId), true, getFuture);
+            PagedResult<SynonymRule> result = safeGet(getFuture);
+            assertEquals(0, result.pageResults().length);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    /**
+     * When none of the requested synonym sets exist, {@code getSynonymSetRules} fails with
+     * {@link ResourceNotFoundException}.
+     */
+    public void testGetMultipleSynonymSetsRulesAllMissingThrowsNotFound() {
+        String setA = randomIdentifier();
+        String setB = randomIdentifier();
+
+        PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(Set.of(setA, setB), true, future);
+
+        Exception ex = expectThrows(ResourceNotFoundException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(ex.getMessage(), allOf(containsString(setA), containsString(setB), containsString("not found")));
+    }
+
+    /**
+     * Rules from multiple sets are concatenated into the reader the analyzer consumes.
+     */
+    public void testGetReaderFromIndexMultipleSynsets() throws IOException {
+        String setA = randomIdentifier();
+        String setB = randomIdentifier();
+
+        putSynonymsSet(synonymsManagementAPIService, setA, new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast") });
+        putSynonymsSet(synonymsManagementAPIService, setB, new SynonymRule[] { new SynonymRule("rule-b-1", "jumps, leaps") });
+
+        String content = readAll(Analysis.getReaderFromIndex(Set.of(setA, setB), synonymsManagementAPIService, false));
+        assertThat(content, containsString("quick, fast"));
+        assertThat(content, containsString("jumps, leaps"));
+    }
+
+    /**
+     * With {@code ignoreMissing=true}, rules from existing sets are returned and the missing set is skipped.
+     */
+    public void testGetReaderFromIndexMissingSetIgnoredWhenLenient() throws IOException {
+        String existingSet = randomIdentifier();
+        String missingSet = randomIdentifier();
+
+        putSynonymsSet(synonymsManagementAPIService, existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") });
+
+        String content = readAll(Analysis.getReaderFromIndex(Set.of(existingSet, missingSet), synonymsManagementAPIService, true));
+        assertThat(content, containsString("quick, fast"));
+    }
+
+    /**
+     * With {@code ignoreMissing=false}, a missing set causes {@link ResourceNotFoundException} to propagate.
+     */
+    public void testGetReaderFromIndexMissingSetFailsWhenNotLenient() {
+        String existingSet = randomIdentifier();
+        String missingSet = randomIdentifier();
+
+        putSynonymsSet(synonymsManagementAPIService, existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") });
+
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> Analysis.getReaderFromIndex(Set.of(existingSet, missingSet), synonymsManagementAPIService, false)
+        );
+        assertThat(e.getMessage(), containsString(missingSet));
+    }
+
+    private static void putSynonymsSet(SynonymsManagementAPIService service, String setName, SynonymRule[] synonymsSet) {
+        PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> future = new PlainActionFuture<>();
+        service.putSynonymsSet(setName, synonymsSet, false, future);
+        safeGet(future);
+    }
+
+    private static String readAll(Reader reader) throws IOException {
+        try (BufferedReader br = new BufferedReader(reader)) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+            return sb.toString();
+        }
     }
 }

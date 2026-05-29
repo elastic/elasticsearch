@@ -25,7 +25,7 @@ book_no:keyword | author:text
 ;
 
 matchWithMultivaluedKeywordField
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 // tag::match-with-keyword-field[]
@@ -221,7 +221,7 @@ book_no:keyword
 ;
 
 matchWithFunctionPushedToLucene
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 from hosts 
@@ -262,7 +262,7 @@ book_no:keyword | title:text
 ;
 
 matchMultivaluedField
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 from employees 
@@ -280,7 +280,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMultiValuedFieldWithConjunction
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 
 from employees 
@@ -293,7 +293,7 @@ emp_no:integer | first_name:keyword | last_name:keyword
 ;
 
 testMatchAndQueryStringFunctions
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: qstr_function
 
@@ -672,7 +672,7 @@ live long and prosper
 ;
 
 testMatchWithSemanticTextAndKeyword
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 
@@ -686,7 +686,7 @@ live long and prosper    | host1
 ;
 
 testMatchWithSemanticTextMultiValueField
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 
@@ -700,7 +700,7 @@ _id: keyword | st_multi_value:text
 ;
 
 testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
-skip_keyword_variant: match_family_rejects_field_extract
+skip_flattened_rewrite: match_family_rejects_field_extract
 required_capability: match_operator_colon
 required_capability: semantic_text_field_caps
 

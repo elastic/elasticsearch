@@ -60,7 +60,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  * breaking down how many tests were launched, silenced, or skipped because the query had
  * nothing for the rewriter to wrap. Tests that exercise a known limitation of
  * {@code field_extract()} or of an upstream grammar/engine constraint carry a
- * {@code skip_keyword_variant: <reason>} preamble line in the csv-spec entry itself; this
+ * {@code skip_flattened_rewrite: <reason>} preamble line in the csv-spec entry itself; this
  * variant reads that directive and skips the test with the verbatim reason. To re-enable a
  * silenced test locally a developer deletes the directive line from the csv-spec entry; no
  * Java change is required.
@@ -172,7 +172,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     private static final AtomicInteger ONLY_LOOKUP_JOIN_ON_COUNT = new AtomicInteger();
     /**
      * Per-reason silenced counter, keyed by the verbatim value of the
-     * {@code skip_keyword_variant:} preamble line on the csv-spec test. Built up lazily as
+     * {@code skip_flattened_rewrite:} preamble line on the csv-spec test. Built up lazily as
      * skipped tests are seen so the post-run summary only reports reasons that were actually
      * encountered by this JVM.
      */
@@ -194,7 +194,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      * end-to-end), how many were short-circuited because the query had nothing for the
      * rewriter to wrap, how many were short-circuited because the only keyword references
      * were inside {@code LOOKUP JOIN ... ON ...} clauses, and how many were silenced as known
-     * limitations. The silenced count is broken out per {@code skip_keyword_variant:} reason so
+     * limitations. The silenced count is broken out per {@code skip_flattened_rewrite:} reason so
      * a reason-by-reason tally is visible in the same place &mdash; useful both as a smoke
      * check after a fix lands and as the baseline reading when un-silencing a reason locally
      * by removing the directive from the relevant csv-spec entries.
@@ -620,7 +620,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         @Override
         public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
-            // A {@code skip_keyword_variant:} preamble line marks a test whose failure under
+            // A {@code skip_flattened_rewrite:} preamble line marks a test whose failure under
             // this variant is a known limitation of field_extract() or of an upstream
             // grammar/engine constraint. Running the rewrite would only reproduce the
             // documented failure and obscure new regressions in the rest of the suite; the
@@ -628,7 +628,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // the JUnit XML <skipped> element explains why the test was skipped. To re-enable
             // a silenced test locally a developer deletes the directive line from the
             // csv-spec entry; nothing else needs to be touched.
-            String skipReason = testCase.skipKeywordVariant;
+            String skipReason = testCase.skipFlattenedRewrite;
             if (skipReason != null && skipReason.isBlank() == false) {
                 SILENCED_COUNTS_BY_REASON.computeIfAbsent(skipReason, k -> new AtomicInteger()).incrementAndGet();
                 logger.info("keyword→flattened: skipping; silenced [{}]: {}", testId, skipReason);

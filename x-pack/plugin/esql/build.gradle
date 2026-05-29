@@ -129,6 +129,17 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/.*.crc'
 }
 
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager) used by the external
+  // data-source SPI decorator tests (Retryable/Range/QueryBudgeted/ConcurrencyLimited).
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run Arrow-using tests under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation. Only affects tests that actually create an Arrow
+  // allocator (the datasources SPI tests); the rest of the esql suite is unchanged.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+}
+
 
 
 interface Injected {

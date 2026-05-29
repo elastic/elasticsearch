@@ -124,6 +124,16 @@ tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).confi
   mapping from: /netty-nio-client/,         to: 'aws-sdk-2'
 }
 
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run the whole suite under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation instead of surfacing as a flaky native corruption later
+  // in the same JVM.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+}
+
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // missing/unused classes from commons-logging (used by Apache HTTP client)

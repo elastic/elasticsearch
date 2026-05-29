@@ -55,6 +55,10 @@ tasks.named('checkstyleMain').configure {
 tasks.named("test").configure {
   // Needed for Arrow tests
   jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run Arrow-using tests under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf fails deterministically with a stack trace at the offending allocation.
+  // Only affects tests that actually create an Arrow allocator; others are unchanged.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }

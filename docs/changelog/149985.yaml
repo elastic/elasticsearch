@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 149985
+summary: "ES|QL PromQL: implicit type coercion for counter/gauge"
+type: enhancement

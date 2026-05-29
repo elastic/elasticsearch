@@ -34,9 +34,14 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * @param liveDocsBytes         the total bytes in memory used for live docs
  * @param pointsInMemoryBytes   the total bytes in memory used for points across all fields
  */
-public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages, long postingsInMemoryBytes, long liveDocsBytes, long pointsInMemoryBytes)
-    implements
-        ToXContentFragment {
+public record ShardFieldStats(
+    int numSegments,
+    int totalFields,
+    long fieldUsages,
+    long postingsInMemoryBytes,
+    long liveDocsBytes,
+    long pointsInMemoryBytes
+) implements ToXContentFragment {
 
     public static final long FIXED_BITSET_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 

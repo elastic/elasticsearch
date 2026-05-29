@@ -64,15 +64,15 @@ describe("toBuildkitePipeline end-to-end", () => {
     const step = group.steps[0];
     expect(step.label).toBe("java rest tests");
     expect(step.key).toBe("flakiness-detection:java-rest");
-    expect(step.parallelism).toBe(2);
+    expect(step.parallelism).toBe(5);
     expect(step.env).toBeDefined();
     expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
-    expect(step.env!["BATCH_COMMAND_1"]).toContain("repeat-rest-test.sh");
+    expect(step.env!["BATCH_COMMAND_4"]).toContain("repeat-rest-test.sh");
     expect(step.env!["BATCH_COMMAND_0"]).toContain("exit 0");
-    expect(step.env!["BATCH_COMMAND_1"]).toContain("exit 0");
+    expect(step.env!["BATCH_COMMAND_4"]).toContain("exit 0");
     // Each parallel batch is independently wrapped under the inner timeout.
     expect(step.env!["BATCH_COMMAND_0"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
-    expect(step.env!["BATCH_COMMAND_1"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
+    expect(step.env!["BATCH_COMMAND_4"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
     expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
     // The `$$` escape prevents Buildkite pipeline interpolation from trying to
     // parse `${!VARNAME}` (bash indirect expansion) as a Buildkite variable,
@@ -83,6 +83,29 @@ describe("toBuildkitePipeline end-to-end", () => {
     const analyze = group.steps[1];
     expect(analyze.key).toBe("flakiness-detection:analyze");
     expect(analyze.depends_on).toEqual([{ step: "flakiness-detection:java-rest", allow_failure: true }]);
+  });
+
+  test("dispatches default unit-test batches in parallel", () => {
+    const tests: ClassifiedTest[] = [];
+    for (let i = 0; i < 4; i++) {
+      tests.push({
+        gradleProject: ":server",
+        kind: "test",
+        sourceSet: "test",
+        fqcn: `org.elasticsearch.Unit${i}Tests`,
+      });
+    }
+
+    const pipeline = pipelineFromTests(tests);
+    const step = pipeline.steps[0].steps[0];
+
+    expect(step.key).toBe("flakiness-detection:unit");
+    expect(step.parallelism).toBe(2);
+    expect(step.env!["BATCH_COMMAND_0"]).toContain("--tests org.elasticsearch.Unit0Tests");
+    expect(step.env!["BATCH_COMMAND_0"]).toContain("--tests org.elasticsearch.Unit1Tests");
+    expect(step.env!["BATCH_COMMAND_0"]).toContain("--tests org.elasticsearch.Unit2Tests");
+    expect(step.env!["BATCH_COMMAND_0"]).not.toContain("--tests org.elasticsearch.Unit3Tests");
+    expect(step.env!["BATCH_COMMAND_1"]).toContain("--tests org.elasticsearch.Unit3Tests");
   });
 
   test("all test kinds appear in single group with unique keys", () => {

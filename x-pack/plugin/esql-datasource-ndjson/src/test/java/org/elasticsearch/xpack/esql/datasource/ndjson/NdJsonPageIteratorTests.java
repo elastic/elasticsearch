@@ -331,6 +331,45 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testTrimLastPartialLineCrLfAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\r\nbb\r\nPART".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                3,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
+            assertEquals("aa\r\nbb\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLoneCrAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\rbb\rPART".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                3,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
+            assertEquals("aa\rbb\r", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testSkipFirstLineHonorsMaxRecordBytes() {
+        IOException ex = expectThrows(
+            IOException.class,
+            () -> NdJsonPageIterator.skipToNextLine(
+                new ByteArrayInputStream("partial-without-boundary".getBytes(StandardCharsets.UTF_8)),
+                new NdJsonRecordSplitter(8)
+            )
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("max_record_size [8]"));
+    }
+
     /**
      * Regression: after the consumer has advanced {@code readIdx}, growing the emit buffer must use
      * {@code writeIdx + emitLen}, not {@code unread + emitLen}, or a large carry + line can write past
@@ -418,23 +457,22 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Without a record delimiter, {@link TrimLastPartialLineInputStream} must not grow {@code carry}
-     * past {@link TrimLastPartialLineInputStream#MAX_CARRY_BYTES} (defends against pathological lines).
-     */
+    /** Without a record delimiter, trimming must not grow {@code carry} past the configured record-size budget. */
     public void testTrimLastPartialLineCarryExceedsMaxThrows() throws IOException {
         int chunk = 8192;
-        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        int maxRecordBytes = 16 * 1024;
+        long streamLen = maxRecordBytes + chunk;
         try (
             InputStream trimmed = new TrimLastPartialLineInputStream(
                 new FiniteBytesWithoutNewline(streamLen),
                 chunk,
                 ErrorPolicy.STRICT,
-                "test://input"
+                "test://input",
+                new NdJsonRecordSplitter(maxRecordBytes)
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(ex.getMessage(), Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString()));
+            assertThat(ex.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
         }
     }
 
@@ -444,16 +482,63 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testTrimLastPartialLineCarryOverLimitLenientSkipsBogusLine() throws IOException {
         int chunk = 8192;
-        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        int maxRecordBytes = 16 * 1024;
+        long streamLen = maxRecordBytes + chunk;
         try (
             InputStream trimmed = new TrimLastPartialLineInputStream(
                 new FiniteBytesWithoutNewline(streamLen),
                 chunk,
                 ErrorPolicy.LENIENT,
-                "test://input"
+                "test://input",
+                new NdJsonRecordSplitter(maxRecordBytes)
             )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsThroughDelimiterAfterOversizedLine() throws IOException {
+        byte[] payload = "aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                4,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsCrLfRemainderAfterOversizedLine() throws IOException {
+        byte[] payload = "aaaaaaaaa\r\nok\r\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                5,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsOversizedTailThroughDelimiter() throws IOException {
+        byte[] payload = "ok\naaaaaaaaa\nnext\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                12,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\nnext\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
 

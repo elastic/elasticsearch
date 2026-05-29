@@ -60,14 +60,13 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
             visitRatio,
             random().nextBoolean(),
             SLICE_FIELD,
-            querySlice,
-            1.0f
+            querySlice
         );
     }
 
     @Override
     IVFKnnFloatVectorQuery getStableKnnVectorQuery(String field, float[] query, int k, Query queryFilter, float visitRatio) {
-        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean(), 1.0f);
+        return new IVFKnnFloatVectorQuery(field, query, k, k, queryFilter, visitRatio, random().nextBoolean());
     }
 
     @Before
@@ -273,8 +272,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                             1.0f,
                             random().nextBoolean(),
                             SLICE_FIELD,
-                            new BytesRef("" + slice),
-                            1.0f
+                            new BytesRef("" + slice)
                         );
                         TopDocs topDocs = searcher.search(kvq, k);
                         assertEquals(expectedDocs, topDocs.scoreDocs.length);
@@ -295,8 +293,7 @@ public class IVFKnnFloatSlicedVectorQueryTests extends AbstractIVFKnnVectorQuery
                         1.0f,
                         random().nextBoolean(),
                         SLICE_FIELD,
-                        new BytesRef("invalid"),
-                        1.0f
+                        new BytesRef("invalid")
                     );
                     TopDocs topDocs = searcher.search(kvq, 3);
                     assertEquals(0, topDocs.scoreDocs.length);

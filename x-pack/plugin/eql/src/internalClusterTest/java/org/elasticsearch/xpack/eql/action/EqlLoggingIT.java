@@ -117,15 +117,11 @@ public class EqlLoggingIT extends AbstractEqlBlockingIntegTestCase {
             .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
 
         EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
-        try {
-            var message = getMessageData(appender.getLastEventAndReset());
-            assertMessageSuccess(message, EqlLogContext.TYPE, query);
-            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
-            assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("5"));
-            assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
-        } finally {
-            decRef(response);
-        }
+        var message = getMessageData(appender.getLastEventAndReset());
+        assertMessageSuccess(message, EqlLogContext.TYPE, query);
+        assertThat(message.get(QUERY_FIELD_INDICES), equalTo("test"));
+        assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo("5"));
+        assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
     }
 
     public void testEqlFailureLogging() throws Exception {

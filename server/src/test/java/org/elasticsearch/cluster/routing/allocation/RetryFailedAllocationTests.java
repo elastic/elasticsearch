@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RetryFailedAllocationTests extends ESAllocationTestCase {
@@ -120,12 +121,15 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
             clusterState = strategy.applyFailedShards(clusterState, failedShards, List.of());
             clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i, ActionListener.noop());
         }
-        assertThat("replica should not be assigned", getReplica().state(), equalTo(ShardRoutingState.UNASSIGNED));
+        var replicaShard = getReplica();
+        assertThat("replica should not be assigned", replicaShard.state(), equalTo(ShardRoutingState.UNASSIGNED));
+        var unassignedInfo = replicaShard.unassignedInfo();
         assertThat(
-            "unassigned reason should be ALLOCATION_FAILED before manual retry",
-            getReplica().unassignedInfo().reason(),
+            "expected unassigned reason to be ALLOCATION_FAILED",
+            unassignedInfo.reason(),
             equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
         );
+        assertThat(unassignedInfo.failedAllocations(), greaterThan(0));
 
         AllocationService.CommandsResult result = strategy.reroute(
             clusterState,
@@ -144,12 +148,14 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         );
         clusterState = result.clusterState();
 
-        assertThat(getReplica().state(), equalTo(ShardRoutingState.INITIALIZING));
+        replicaShard = getReplica();
+        assertThat(replicaShard.state(), equalTo(ShardRoutingState.INITIALIZING));
+        unassignedInfo = replicaShard.unassignedInfo();
         assertThat(
-            "unassigned reason should change to MANUAL_ALLOCATION after manual retry",
-            getReplica().unassignedInfo().reason(),
+            "unassigned reason should be MANUAL_ALLOCATION after manual retry",
+            unassignedInfo.reason(),
             equalTo(UnassignedInfo.Reason.MANUAL_ALLOCATION)
         );
-        assertThat(getReplica().unassignedInfo().failedAllocations(), equalTo(0));
+        assertThat(unassignedInfo.failedAllocations(), equalTo(0));
     }
 }

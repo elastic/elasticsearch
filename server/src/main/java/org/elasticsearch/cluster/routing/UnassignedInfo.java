@@ -357,7 +357,7 @@ public record UnassignedInfo(
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
         } else if (reason.equals(Reason.ALLOCATION_FAILURE_RESET)
             && out.getTransportVersion().supports(UNASSIGNEDINFO_ALLOCATION_FAILURE_RESET) == false) {
-                // Fall back to MANUAL_ALLOCATION for older versions that don't understand ALLOCATION_FAILURE_RESET
+                // Fall back to legacy behavior for older versions that don't yet support ALLOCATION_FAILURE_RESET
                 out.writeByte((byte) Reason.MANUAL_ALLOCATION.ordinal());
             } else {
                 out.writeByte((byte) reason.ordinal());

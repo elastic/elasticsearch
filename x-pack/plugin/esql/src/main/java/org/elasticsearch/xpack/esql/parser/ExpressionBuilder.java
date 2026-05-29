@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -795,12 +796,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
-        // DataType.COUNTER_CAST_NAME is a virtual cast target — not a real DataType, but maps to the counter
-        // variant of the input's numeric type (long→counter_long, double→counter_double, integer→counter_integer).
         if (dataTypeCtx instanceof EsqlBaseParser.ToDataTypeContext toDataType) {
             String typeName = visitIdentifier(toDataType.identifier()).toLowerCase(Locale.ROOT);
+            // counter and gauge are virtual cast targets — not real DataTypes.
+            // Do not call expression(parseTree) here before the virtual-cast checks: regular casts fall through
+            // below and would call expression() twice, turning deep inline cast chains (e.g. ::long::int repeated)
+            // into O(n^2) work.
             if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
                 return new ToCounter(source, expression(parseTree));
+            } else if (DataType.GAUGE_CAST_NAME.equals(typeName)) {
+                return new ToGauge(source, expression(parseTree));
             }
         }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);

@@ -28,19 +28,16 @@ import java.util.Arrays;
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private boolean isQueryPreconditioned = false;
-    private final int originalK;
     private float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
      * @param query the query vector
-     * @param k the number of nearest neighbors to return (possibly oversampled)
+     * @param k the number of nearest neighbors to return
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
-     * @param overSampleFactor the oversample multiplier applied to the original k; must be {@code >= 1.0f}.
-     *                         When {@code 1.0f}, no oversampling is applied and originalK equals k.
      */
     public IVFKnnFloatVectorQuery(
         String field,
@@ -49,12 +46,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition,
-        float overSampleFactor
+        boolean doPrecondition
     ) {
         super(field, visitRatio, k, numCands, filter, doPrecondition);
-        assert overSampleFactor >= 1.0f : "overSampleFactor [" + overSampleFactor + "] must be >= 1.0";
-        this.originalK = overSampleFactor > 1.0f ? Math.max(1, Math.round(k / overSampleFactor)) : k;
         this.query = query;
     }
 
@@ -134,7 +128,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, originalK, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, k, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;

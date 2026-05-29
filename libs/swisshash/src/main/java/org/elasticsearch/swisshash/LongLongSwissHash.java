@@ -659,10 +659,11 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
     }
 
     private static long hash(long key1, long key2) {
-        long h = key1 * 0x9E3779B97F4A7C15L ^ key2;
-        h = (h ^ (h >>> 32)) * 0x4cd6944c5cc20b6dL;
-        h = (h ^ (h >>> 29)) * 0xfc12c5b19d3259e9L;
-        return h ^ (h >>> 32);
+        // Cheaper 128-bit combiner: rotate one half to decorrelate, XOR, single Fibonacci mul.
+        // Trades a small amount of mixing quality (vs the Stafford double-finalizer) for
+        // roughly 2 fewer multiplications per call. For high-cardinality keys (e.g., where
+        // key1 alone is nearly unique) the cheaper mix still distributes well.
+        return (key1 ^ Long.rotateLeft(key2, 32)) * 0x9E3779B97F4A7C15L;
     }
 
     private int slot(final long hash) {

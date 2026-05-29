@@ -11,6 +11,9 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -53,6 +56,28 @@ import java.util.List;
 public class LocalMapper {
 
     public static LocalMapper INSTANCE = new LocalMapper();
+
+    /**
+     * Thread-local pragmas used while planning. Set by the call site that invokes
+     * {@link #map(LogicalPlan)} so the planner can read per-query opt-in flags like
+     * {@code skip_final_aggregation} and {@code data_driver_topn_limit} without
+     * threading {@code Configuration} through every method signature.
+     */
+    private static final ThreadLocal<org.elasticsearch.xpack.esql.plugin.QueryPragmas> PRAGMAS = ThreadLocal.withInitial(
+        () -> org.elasticsearch.xpack.esql.plugin.QueryPragmas.EMPTY
+    );
+
+    public static org.elasticsearch.xpack.esql.plugin.QueryPragmas currentPragmas() {
+        return PRAGMAS.get();
+    }
+
+    public static void setPragmas(org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas) {
+        PRAGMAS.set(pragmas == null ? org.elasticsearch.xpack.esql.plugin.QueryPragmas.EMPTY : pragmas);
+    }
+
+    public static void clearPragmas() {
+        PRAGMAS.remove();
+    }
 
     private LocalMapper() {}
 
@@ -97,7 +122,45 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas = currentPragmas();
+            // Pragmas don't reliably propagate to data-driver threads yet, so fall back to JVM-flag.
+            boolean skipFinal = pragmas.skipFinalAggregation() || Boolean.getBoolean("esql.skip_final_agg");
+            // EXPERIMENTAL: data_driver_topn_limit pushes a TopN(K) into the data driver.
+            // To keep results correct when the same group key spans drivers, we run INITIAL
+            // (intermediate-state output) so the coordinator's FINAL can merge cross-driver
+            // partials BEFORE the global TopN. Setting skip_final_agg still uses SINGLE mode
+            // (final output, no FINAL stage) and is only correct when keys are in one driver.
+            int topNLimit = pragmas.dataDriverTopNLimit();
+            if (topNLimit == 0) {
+                topNLimit = Integer.getInteger("esql.data_driver_topn_limit", 0);
+            }
+            AggregatorMode mode = skipFinal ? AggregatorMode.SINGLE : AggregatorMode.INITIAL;
+            PhysicalPlan aggExec = MapperUtils.aggExec(aggregate, mappedChild, mode, intermediate);
+
+            if (topNLimit > 0 && aggregate.aggregates().isEmpty() == false) {
+                // For SINGLE-mode output, sort by the final aggregate attribute (e.g. `c`).
+                // For INITIAL-mode output, sort by the corresponding intermediate count/sum
+                // attribute (the first intermediate attr; FINAL agg later merges partial counts).
+                Attribute sortAttr;
+                if (mode == AggregatorMode.SINGLE) {
+                    sortAttr = aggregate.aggregates().get(0).toAttribute();
+                } else {
+                    // intermediate layout puts groupings FIRST, then per-agg state attrs.
+                    // For the first aggregate `c = COUNT(*)`, its partial-count attr lives at
+                    // index numGroupings (e.g. for GROUP BY WatchID, ClientIP -> index 2).
+                    int firstAggStateIdx = aggregate.groupings().size();
+                    sortAttr = intermediate.get(firstAggStateIdx);
+                }
+                Order order = new Order(aggregate.source(), sortAttr, Order.OrderDirection.DESC, Order.NullsPosition.FIRST);
+                return new TopNExec(
+                    aggregate.source(),
+                    aggExec,
+                    List.of(order),
+                    new Literal(aggregate.source(), topNLimit, DataType.INTEGER),
+                    null
+                );
+            }
+            return aggExec;
         }
 
         if (unary instanceof Limit limit) {

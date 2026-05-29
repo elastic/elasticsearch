@@ -1810,16 +1810,24 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        // Capture the optimized plan before mapping so a failure in physical planning still
-        // surfaces it in the failure log.
-        planSnapshot = planSnapshot.withOptimized(optimizedPlan);
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
-        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
-        physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlan);
-        // Overwrite on each call so a failure during subplan execution surfaces the most recent
-        // physical plan we built.
-        planSnapshot = planSnapshot.withPhysical(physicalPlan);
-        return physicalPlan;
+        org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas = physicalPlanOptimizer.context().configuration().pragmas();
+        org.elasticsearch.xpack.esql.planner.mapper.Mapper.setPragmas(pragmas);
+        org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.setPragmas(pragmas);
+        try {
+            // Capture the optimized plan before mapping so a failure in physical planning still
+            // surfaces it in the failure log.
+            planSnapshot = planSnapshot.withOptimized(optimizedPlan);
+            PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
+            physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
+            physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlan);
+            // Overwrite on each call so a failure during subplan execution surfaces the most recent
+            // physical plan we built.
+            planSnapshot = planSnapshot.withPhysical(physicalPlan);
+            return physicalPlan;
+        } finally {
+            org.elasticsearch.xpack.esql.planner.mapper.Mapper.clearPragmas();
+            org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.clearPragmas();
+        }
     }
 
     private LogicalPlan analyzedPlan(

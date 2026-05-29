@@ -1311,52 +1311,59 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
-        PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
-        if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
-            return passThroughReduction;
-        }
+        // Ensure LocalMapper sees the pragmas for this query.
+        org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.setPragmas(configuration.pragmas());
+        try {
+            PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
+            ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
+            if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
+                return passThroughReduction;
+            }
 
-        Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
-            originalPlan.replaceChild(p.replaceChildren(List.of(source))),
-            originalPlan
-        );
+            Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
+                originalPlan.replaceChild(p.replaceChildren(List.of(source))),
+                originalPlan
+            );
 
-        // The default plan is just the exchange source piped directly into the exchange sink.
-        ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
-            case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
-                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
-                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
-                // aggregations, we also need the original plan, since we add the project in the reduction node.
-                LateMaterializationPlanner.planReduceDriverTopN(
-                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
-                    originalPlan
-                )
-                    // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
-            case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
-            // Not a TopN - must be an agg or a limit
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
-            default -> passThroughReduction;
-        };
-        if (planTimeProfile != null) {
-            planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
-        }
+            // The default plan is just the exchange source piped directly into the exchange sink.
+            ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
+                case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
+                    // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction
+                    // node,
+                    // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
+                    // aggregations, we also need the original plan, since we add the project in the reduction node.
+                    LateMaterializationPlanner.planReduceDriverTopN(
+                        stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
+                        originalPlan
+                    )
+                        // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
+                        .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
+                case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
+                // Not a TopN - must be an agg or a limit
+                case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
+                default -> passThroughReduction;
+            };
+            if (planTimeProfile != null) {
+                planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
+            }
 
-        // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
-        // able to perform this check.
-        if (Assertions.ENABLED == false
-            || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
-                && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {
+            // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here. We should always be
+            // able to perform this check.
+            if (Assertions.ENABLED == false
+                || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment
+                    && skipConsistencyCheckAfterReductionPlanning(fragment.fragment()))) {
+                return reductionPlan;
+            }
+
+            PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), originalPlan.output());
+            ExchangeSourceExec reductionSource = (ExchangeSourceExec) reductionPlan.nodeReducePlan().collectLeaves().getFirst();
+            // The data driver's output is sent to the reduction driver, so the outputs must match up.
+            PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
+
             return reductionPlan;
+        } finally {
+            org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.clearPragmas();
         }
-
-        PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), originalPlan.output());
-        ExchangeSourceExec reductionSource = (ExchangeSourceExec) reductionPlan.nodeReducePlan().collectLeaves().getFirst();
-        // The data driver's output is sent to the reduction driver, so the outputs must match up.
-        PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
-
-        return reductionPlan;
     }
 
     private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {

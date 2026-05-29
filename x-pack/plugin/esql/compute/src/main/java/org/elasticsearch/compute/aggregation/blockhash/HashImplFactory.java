@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
 import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.swisshash.LongLongPartitionedSwissHash;
 import org.elasticsearch.swisshash.SwissHashFactory;
 
 /**
@@ -60,6 +61,9 @@ public class HashImplFactory {
 
     /** Creates a new LongLongHashTable. */
     public static LongLongHashTable newLongLongHash(BlockFactory bf) {
+        if (Boolean.getBoolean("esql.partitioned_longlong_hash")) {
+            return new LongLongPartitionedSwissHash(bf.bigArrays().recycler(), bf.breaker());
+        }
         if (SWISS_HASH_FACTORY != null) {
             return SWISS_HASH_FACTORY.newLongLongSwissHash(bf.bigArrays().recycler(), bf.breaker());
         } else {

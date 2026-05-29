@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -154,7 +155,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             Set<String> projected = Set.of("id");
             ColumnChunkPrefetcher.PrefetchedChunks prefetched = prefetchChunks(storageObject, block, projected);
             try (
-                org.elasticsearch.core.Releasable r = prefetched.release();
+                Releasable r = prefetched.release();
                 PageReadStore store = PrefetchedRowGroupBuilder.build(
                     block,
                     0,
@@ -262,7 +263,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
                 ColumnChunkPrefetcher.PrefetchedChunks prefetched = prefetchChunks(storageObject, block, projected);
 
                 try (
-                    org.elasticsearch.core.Releasable r = prefetched.release();
+                    Releasable r = prefetched.release();
                     PageReadStore store = PrefetchedRowGroupBuilder.build(
                         block,
                         0,
@@ -372,10 +373,10 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
             Set<String> projected = Set.of("id");
             ColumnChunkPrefetcher.PrefetchedChunks prefetched = withOffsetIndex ? prefetchChunks(storageObject, block, projected) : null;
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = prefetched == null ? null : prefetched.chunks();
-            org.elasticsearch.core.Releasable releasable = prefetched == null ? () -> {} : prefetched.release();
+            Releasable releasable = prefetched == null ? () -> {} : prefetched.release();
 
             try (
-                org.elasticsearch.core.Releasable r = releasable;
+                Releasable r = releasable;
                 PageReadStore store = PrefetchedRowGroupBuilder.build(
                     block,
                     0,

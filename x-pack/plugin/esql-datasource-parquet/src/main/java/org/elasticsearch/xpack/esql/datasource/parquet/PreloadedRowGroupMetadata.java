@@ -282,11 +282,14 @@ final class PreloadedRowGroupMetadata implements Releasable {
                         }
                     }
                     case DICTIONARY_PAGE, BLOOM_FILTER -> {
-                        // Retain the raw buffer for the pre-warm cache; coalesced fetch already
-                        // returned a sliced ByteBuffer of exactly the requested length.
+                        // Retain the raw buffer for the pre-warm cache. CoalescedRangeReader
+                        // delivers slices with position == relativeOffset within the merged range,
+                        // not 0. PrefetchedSource.slice() treats offsetInChunk as 0-based, so
+                        // normalise here via slice() — same fix as buildPrefetched in
+                        // ColumnChunkPrefetcher.
                         preWarmedChunks.put(
                             meta.range().offset(),
-                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf)
+                            new ColumnChunkPrefetcher.PrefetchedChunk(meta.range().offset(), meta.range().length(), buf.slice())
                         );
                     }
                 }

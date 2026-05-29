@@ -134,13 +134,24 @@ public record SageMakerServiceSettings(
 
     @Override
     public ToXContentObject getFilteredXContentObject() {
-        return this;
+        return (builder, params) -> {
+            builder.startObject();
+            writeCommonFields(builder);
+            // Render the api-specific settings' exposed view so internal-only fields (e.g. dimensions_set_by_user) are not returned.
+            apiServiceSettings.getFilteredXContentObject().toXContent(builder, params);
+            return builder.endObject();
+        };
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        writeCommonFields(builder);
+        apiServiceSettings.toXContent(builder, params);
+        return builder.endObject();
+    }
 
+    private void writeCommonFields(XContentBuilder builder) throws IOException {
         builder.field(ENDPOINT_NAME, endpointName());
         builder.field(REGION, region());
         builder.field(API, api());
@@ -148,9 +159,6 @@ public record SageMakerServiceSettings(
         optionalField(TARGET_CONTAINER_HOSTNAME, targetContainerHostname(), builder);
         optionalField(INFERENCE_COMPONENT_NAME, inferenceComponentName(), builder);
         optionalField(BATCH_SIZE, batchSize(), builder);
-        apiServiceSettings.toXContent(builder, params);
-
-        return builder.endObject();
     }
 
     private static <T> void optionalField(String name, T value, XContentBuilder builder) throws IOException {

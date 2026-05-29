@@ -21,11 +21,13 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
@@ -38,6 +40,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
@@ -158,7 +161,27 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
             if (dimensions != null) {
                 builder.field(DIMENSIONS_FIELD, dimensions);
             }
+            builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
             return builder;
+        }
+
+        @Override
+        public ToXContentObject getFilteredXContentObject() {
+            // dimensions_set_by_user is internal: it is persisted by toXContent but must not be returned in the GET response.
+            return new ToXContentObject() {
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    if (dimensions != null) {
+                        builder.field(DIMENSIONS_FIELD, dimensions);
+                    }
+                    return builder;
+                }
+
+                @Override
+                public boolean isFragment() {
+                    return true;
+                }
+            };
         }
 
         static ApiServiceSettings fromMap(Map<String, Object> serviceSettings, ValidationException validationException) {
@@ -168,8 +191,11 @@ public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
                 ModelConfigurations.SERVICE_SETTINGS,
                 validationException
             );
+            var dimensionsSetByUser = extractOptionalBoolean(serviceSettings, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
-            return new ApiServiceSettings(dimensions, dimensions != null);
+            // dimensions_set_by_user is persisted with stored configurations; it is absent from user requests, where it is
+            // inferred from whether dimensions were supplied. Reading it back preserves the distinction across a persist/parse cycle.
+            return new ApiServiceSettings(dimensions, dimensionsSetByUser != null ? dimensionsSetByUser : dimensions != null);
         }
 
         @Override

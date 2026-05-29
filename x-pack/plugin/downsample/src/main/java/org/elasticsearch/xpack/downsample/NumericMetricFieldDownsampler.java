@@ -200,15 +200,9 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
                 }
                 int docValuesCount = counterDocValues.docValueCount();
                 assert docValuesCount > 0;
-                collectCurrentValues(counterDocValues, currentTimestamp);
+                temporalityCollector.collect(counterDocValues.nextValue(), currentTimestamp);
                 state = State.IN_PROGRESS;
             }
-        }
-
-        public void collectCurrentValues(SortedNumericDoubleValues counterDocValues, long currentTimestamp) throws IOException {
-            var currentCounterValue = counterDocValues.nextValue();
-            assert temporalityCollector != null;
-            temporalityCollector.collect(currentCounterValue, currentTimestamp);
         }
 
         private boolean assertTemporality(Temporality temporality) {
@@ -263,10 +257,11 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         /**
-         * Throws UnsupportedOperationException, use {@link #collectCurrentValues(SortedNumericDoubleValues, long) } instead.
+         * Throws UnsupportedOperationException, use {@link #collect(SortedNumericDoubleValues, long[], IntArrayList, Temporality) }
+         * instead.
          */
         @Override
-        public void collectCurrentValues(SortedNumericDoubleValues docValues) throws IOException {
+        public void collectCurrentValues(SortedNumericDoubleValues docValues) {
             throw new UnsupportedOperationException("This producer should never be called without timestamps");
         }
 

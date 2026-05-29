@@ -1,5 +1,5 @@
 area: Machine Learning
 issues: []
 pr: 150083
-summary: Update `TransformIndexer` Exception
+summary: Update `TransformIndexer` `RetentionPolicyException` to correctly include version conflicts
 type: bug

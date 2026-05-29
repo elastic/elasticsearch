@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,7 +57,7 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     public void testLookupExplosionManyFieldsExpression() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 1000;
-        int joinFieldsCount = ExpressionBuilder.MAX_EXPRESSION_DEPTH - 1;
+        int joinFieldsCount = 299; // see ExpressionBuilder.MAX_EXPRESSION_DEPTH
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount, lookupEntries, true);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }

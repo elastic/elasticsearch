@@ -1,0 +1,29 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.tokens_per_field_limit"]
+      reason: "setting must be present to be tested"
+
+---
+"Test field within token limit succeeds":
+  - do:
+      indices.create:
+        index: test_token_limit
+        body:
+          settings:
+            index:
+              mapping:
+                tokens_per_field:
+                  limit: 100
+          mappings:
+            properties:
+              body:
+                type: text
+
+  - do:
+      index:
+        index: test_token_limit
+        id: "1"
+        body:
+          body: "hello world"
+
+  - match: { result: created }

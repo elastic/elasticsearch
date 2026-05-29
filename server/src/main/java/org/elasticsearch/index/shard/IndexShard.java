@@ -83,6 +83,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.TokenCountingAnalyzer;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.bulk.stats.ShardBulkStats;
@@ -3925,10 +3926,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public static Analyzer buildIndexAnalyzer(MapperService mapperService) {
+        return buildIndexAnalyzer(mapperService, () -> -1);
+    }
+
+    /**
+     * Builds the index analyzer, wrapping it with a {@link TokenCountingAnalyzer}
+     * that enforces a per-field token limit.
+     *
+     * <p>The wrapper is always applied, even when the limit is disabled (set to -1). This is because
+     * Lucene's {@code PER_FIELD_REUSE_STRATEGY} caches {@code TokenStreamComponents} per field name,
+     * so if we conditionally omitted the wrapper and the setting were later changed dynamically to a
+     * positive value, the cached components would lack the counting filter and the limit would not
+     * take effect until the engine was restarted. The overhead when disabled is a single branch
+     * ({@code if (cachedLimit > 0)}) per token, which is negligible.
+     *
+     * @param mapperService          the mapper service to use for field analyzer resolution
+     * @param maxTokenCountSupplier  supplies the maximum number of tokens allowed per field, or -1 for no limit
+     * @return the analyzer to use for indexing, or null if no mapper service is available
+     */
+    static Analyzer buildIndexAnalyzer(MapperService mapperService, IntSupplier maxTokenCountSupplier) {
         if (mapperService == null) {
             return null;
         }
-        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+        Analyzer baseAnalyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
                 return mapperService.indexAnalyzer(
@@ -3937,6 +3957,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
             }
         };
+        return new TokenCountingAnalyzer(baseAnalyzer, maxTokenCountSupplier);
     }
 
     private EngineConfig newEngineConfig(LongSupplier globalCheckpointSupplier) {
@@ -3957,7 +3978,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .warmer(warmer)
             .store(store)
             .mergePolicy(indexSettings.getMergePolicy(isTimeBasedIndex))
-            .analyzer(buildIndexAnalyzer(mapperService))
+            .analyzer(buildIndexAnalyzer(mapperService, indexSettings::getMaxFieldTokenCount))
             .similarity(similarityService.similarity(mapperService == null ? null : mapperService::fieldType))
             .codecProvider(codecService)
             .eventListener(shardEventListener)

@@ -213,21 +213,7 @@ enum Database {
             SERVICE,
             NETWORK
         ),
-        Set.of(
-            COUNTRY_ISO_CODE,
-            COUNTRY_NAME,
-            CONTINENT_NAME,
-            REGION_NAME,
-            CITY_NAME,
-            LOCATION,
-            ASN,
-            ORGANIZATION_NAME,
-            HOSTING,
-            PROXY,
-            RELAY,
-            TOR,
-            VPN
-        )
+        Set.of(COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME, REGION_ISO_CODE, REGION_NAME, CITY_NAME, LOCATION)
     );
 
     private final Set<DatabaseProperty> properties;

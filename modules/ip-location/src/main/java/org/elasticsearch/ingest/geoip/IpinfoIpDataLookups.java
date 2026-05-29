@@ -170,25 +170,6 @@ final class IpinfoIpDataLookups {
     }
 
     /**
-     * Lax-ly parses a string that contains an integer into an Integer (or null, if such parsing isn't possible).
-     * @param radius a potentially empty (or null) string that is expected to contain a parsable integer
-     * @return the parsed integer
-     */
-    static Integer parseRadius(final String radius) {
-        if (radius == null || Strings.hasText(radius) == false) {
-            return null;
-        } else {
-            String stripped = radius.trim();
-            try {
-                return Integer.parseInt(stripped);
-            } catch (NumberFormatException e) {
-                logger.trace("Unable to parse non-compliant radius string [{}]", radius);
-                return null;
-            }
-        }
-    }
-
-    /**
      * Lax-ly parses a string that contains a double into a Double (or null, if such parsing isn't possible).
      * @param latlon a potentially empty (or null) string that is expected to contain a parsable double
      * @return the parsed double

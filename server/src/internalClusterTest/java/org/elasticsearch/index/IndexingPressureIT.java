@@ -9,6 +9,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -59,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,6 +75,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
 public class IndexingPressureIT extends ESIntegTestCase {
@@ -164,23 +168,28 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 )
             );
 
-            final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+            final ActionFuture<BulkResponse> cancelledFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
             waitForPreSubmissionTaskCancellation.await();
 
             mockLog.awaitAllExpectationsMatched();
+            BulkResponse bulkResponse = cancelledFuture.actionGet();
             assertThat(indexingPressure.stats().getTotalCancelledOps(), is(1L));
 
+            Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
+
+            while (iterator.hasNext()) {
+                BulkItemResponse bulkItemResponse = iterator.next();
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [presubmission-cancellation]"));
+            }
         } finally {
             if (waitForPreSubmissionTaskCancellation.getCount() > 0) {
                 waitForPreSubmissionTaskCancellation.countDown();
             }
-
             PreIndexListenerInstallerPlugin.resetPreIndexListener();
-
         }
-
         assertFalse(preIndexCalled.get());
-
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {

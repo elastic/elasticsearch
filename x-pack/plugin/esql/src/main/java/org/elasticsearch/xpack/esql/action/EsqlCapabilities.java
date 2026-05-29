@@ -1418,6 +1418,13 @@ public class EsqlCapabilities {
         TO_COUNTER,
 
         /**
+         * Support for {@code TO_GAUGE} function and the {@code ::gauge} cast operator, which converts
+         * {@code counter_long}, {@code counter_integer}, and {@code counter_double} values to their
+         * plain numeric (gauge) equivalents.
+         */
+        TO_GAUGE,
+
+        /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
         TO_LOWER_EMPTY_STRING,
@@ -2145,6 +2152,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for PromQL instant queries.
+         */
+        PROMQL_INSTANT_QUERY,
+
+        /**
          * Support for the {@code DATE_UNIT_COUNT} function.
          */
         ESQL_DATE_UNIT_COUNT_FN,
@@ -2851,6 +2863,11 @@ public class EsqlCapabilities {
          * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
+
+        /**
+         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         */
+        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.

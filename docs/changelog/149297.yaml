@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 149297
-summary: Lucene `TermsEnum` and `PostingsEnum` may only be used from acquiring thread
-type: bug

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.prometheus.rest;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -68,7 +67,6 @@ public class PrometheusStatusBuildInfoRestAction extends BaseRestHandler {
             builder.endObject();
         }
         builder.endObject();
-        String body = Strings.toString(builder);
-        return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, "application/json", body));
+        return channel -> channel.sendResponse(new RestResponse(RestStatus.OK, builder));
     }
 }

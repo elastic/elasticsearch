@@ -159,4 +159,3 @@ setup:
         index: test_text_dv_high
         body: { query: { regexp: { text_field: { value: "London.*" } } } }
   - length: { hits.hits: 2 }
-

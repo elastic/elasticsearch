@@ -22,17 +22,18 @@ import java.io.UncheckedIOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
@@ -57,7 +58,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  * At the end of the run {@link #logKeywordToFlattenedSummary()} emits a single
  * {@code keyword→flattened summary:} line (grep-able from the JUnit XML {@code <system-out>})
  * breaking down how many tests were launched, silenced, or skipped because the query had
- * nothing for the rewriter to wrap.
+ * nothing for the rewriter to wrap. Tests that exercise a known limitation of
+ * {@code field_extract()} or of an upstream grammar/engine constraint carry a
+ * {@code skip_keyword_variant: <reason>} preamble line in the csv-spec entry itself; this
+ * variant reads that directive and skips the test with the verbatim reason. To re-enable a
+ * silenced test locally a developer deletes the directive line from the csv-spec entry; no
+ * Java change is required.
  * <p>
  * Optional logging: to also emit the full rewritten query (one multi-line {@code INFO} message
  * per launched test, prefixed with {@code keyword→flattened: rewritten query:}), pass
@@ -164,15 +170,13 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     private static final AtomicInteger LAUNCHED_COUNT = new AtomicInteger();
     private static final AtomicInteger NO_KEYWORD_REFS_COUNT = new AtomicInteger();
     private static final AtomicInteger ONLY_LOOKUP_JOIN_ON_COUNT = new AtomicInteger();
-    private static final EnumMap<SilencedFlattenedFindings.Finding, AtomicInteger> SILENCED_COUNTS_BY_FINDING = new EnumMap<>(
-        SilencedFlattenedFindings.Finding.class
-    );
-
-    static {
-        for (SilencedFlattenedFindings.Finding f : SilencedFlattenedFindings.Finding.values()) {
-            SILENCED_COUNTS_BY_FINDING.put(f, new AtomicInteger());
-        }
-    }
+    /**
+     * Per-reason silenced counter, keyed by the verbatim value of the
+     * {@code skip_keyword_variant:} preamble line on the csv-spec test. Built up lazily as
+     * skipped tests are seen so the post-run summary only reports reasons that were actually
+     * encountered by this JVM.
+     */
+    private static final ConcurrentMap<String, AtomicInteger> SILENCED_COUNTS_BY_REASON = new ConcurrentHashMap<>();
 
     /**
      * Runs after {@link CsvIT#setupCluster()} (which JUnit guarantees runs first because it is
@@ -190,11 +194,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
      * end-to-end), how many were short-circuited because the query had nothing for the
      * rewriter to wrap, how many were short-circuited because the only keyword references
      * were inside {@code LOOKUP JOIN ... ON ...} clauses, and how many were silenced as known
-     * limitations. The silenced count is broken out per
-     * {@link SilencedFlattenedFindings.Finding} so a finding-by-finding tally is visible in
-     * the same place &mdash; useful both as a smoke check after a fix lands and as the
-     * baseline reading when un-silencing a finding via the
-     * {@link SilencedFlattenedFindings} system properties.
+     * limitations. The silenced count is broken out per {@code skip_keyword_variant:} reason so
+     * a reason-by-reason tally is visible in the same place &mdash; useful both as a smoke
+     * check after a fix lands and as the baseline reading when un-silencing a reason locally
+     * by removing the directive from the relevant csv-spec entries.
      * <p>
      * The summary line is emitted at {@code INFO} so it lands in the standard internal-cluster
      * test JVM stdout and the JUnit XML {@code <system-out>}; the line begins with the literal
@@ -204,7 +207,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     @AfterClass
     public static void logKeywordToFlattenedSummary() {
         int silenced = 0;
-        for (AtomicInteger c : SILENCED_COUNTS_BY_FINDING.values()) {
+        for (AtomicInteger c : SILENCED_COUNTS_BY_REASON.values()) {
             silenced += c.get();
         }
         int launched = LAUNCHED_COUNT.get();
@@ -219,12 +222,10 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             noRefs,
             onlyLookup
         );
-        for (Map.Entry<SilencedFlattenedFindings.Finding, AtomicInteger> e : SILENCED_COUNTS_BY_FINDING.entrySet()) {
-            int v = e.getValue().get();
-            if (v > 0) {
-                logger.info("keyword→flattened summary: silenced[{} / {}]={}", e.getKey().name(), e.getKey().issueRef(), v);
-            }
-        }
+        SILENCED_COUNTS_BY_REASON.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEach(e -> logger.info("keyword→flattened summary: silenced[{}]={}", e.getKey(), e.getValue().get()));
     }
 
     /**
@@ -619,18 +620,21 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         @Override
         public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
-            // Silenced findings short-circuit the rewrite entirely. The registry lists tests
-            // whose failure is a known limitation of field_extract() or of an upstream
-            // grammar/engine constraint (see SilencedFlattenedFindings.Finding for the
-            // categories); running the rewrite would only reproduce the documented failure
-            // and obscure new regressions in the rest of the suite. The unsilencing knobs
-            // documented on SilencedFlattenedFindings let a developer working on a specific
-            // finding category re-enable the relevant tests locally.
-            Optional<SilencedFlattenedFindings.Finding> silencedAs = SilencedFlattenedFindings.findingFor(testId);
-            if (silencedAs.isPresent()) {
-                SILENCED_COUNTS_BY_FINDING.get(silencedAs.get()).incrementAndGet();
-                logger.info("keyword→flattened: skipping; silenced finding [{} / {}]", testId, silencedAs.get().issueRef());
-                throw new AssumptionViolatedException(SilencedFlattenedFindings.assumptionMessage(testId, silencedAs.get()));
+            // A {@code skip_keyword_variant:} preamble line marks a test whose failure under
+            // this variant is a known limitation of field_extract() or of an upstream
+            // grammar/engine constraint. Running the rewrite would only reproduce the
+            // documented failure and obscure new regressions in the rest of the suite; the
+            // assumption-violation message carries the verbatim reason from the csv-spec so
+            // the JUnit XML <skipped> element explains why the test was skipped. To re-enable
+            // a silenced test locally a developer deletes the directive line from the
+            // csv-spec entry; nothing else needs to be touched.
+            String skipReason = testCase.skipKeywordVariant;
+            if (skipReason != null && skipReason.isBlank() == false) {
+                SILENCED_COUNTS_BY_REASON.computeIfAbsent(skipReason, k -> new AtomicInteger()).incrementAndGet();
+                logger.info("keyword→flattened: skipping; silenced [{}]: {}", testId, skipReason);
+                throw new AssumptionViolatedException(
+                    String.format(Locale.ROOT, "silenced known field_extract() limitation [%s]: %s", testId, skipReason)
+                );
             }
             String originalQuery = testCase.query;
             List<String> expectedColumnOrder = parseExpectedColumnOrder(testCase.expectedResults);

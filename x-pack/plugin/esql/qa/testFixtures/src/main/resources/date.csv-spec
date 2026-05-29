@@ -286,6 +286,7 @@ date1:date               | dd_ms:integer
 ;
 
 dateDiffTestWarnings
+skip_keyword_variant: field_extract_multivalue_null
 required_capability: functions_source_serialization_warnings
 
 FROM employees

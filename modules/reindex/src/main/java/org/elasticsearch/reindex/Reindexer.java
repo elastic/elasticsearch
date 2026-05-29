@@ -69,7 +69,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
@@ -519,7 +519,7 @@ public class Reindexer {
         }, e -> {
             logger.warn("Failed to close remote PIT (rejected)", e);
             closeRestClientAndRun(restClient, () -> listener.onResponse(null));
-        }), threadPool, restClient);
+        }), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -583,7 +583,9 @@ public class Reindexer {
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
             threadPool,
             restClient,
-            rejectAwareListener
+            rejectAwareListener,
+            requestBreaker,
+            reindexSettings.getMemoryAccountingThresholdInBytes()
         );
     }
 
@@ -617,7 +619,7 @@ public class Reindexer {
         },
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
-        ), threadPool, restClient);
+        ), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -1065,7 +1067,9 @@ public class Reindexer {
                         remoteInfo,
                         searchRequest,
                         remoteVersion,
-                        searchContextKeepaliveDeadline
+                        searchContextKeepaliveDeadline,
+                        getCircuitBreaker(),
+                        reindexSettings.getMemoryAccountingThresholdInBytes()
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1079,7 +1083,9 @@ public class Reindexer {
                     remoteInfo,
                     searchRequest,
                     remoteVersion,
-                    searchContextKeepaliveDeadline
+                    searchContextKeepaliveDeadline,
+                    getCircuitBreaker(),
+                    reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);
@@ -1218,7 +1224,7 @@ public class Reindexer {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
-                WorkerBulkByScrollTaskState taskWorker,
+                WorkerBulkByPaginatedSearchTaskState taskWorker,
                 ScriptService scriptService,
                 Script script,
                 Map<String, Object> params,
@@ -1243,7 +1249,9 @@ public class Reindexer {
                         nowInMillisSupplier.getAsLong()
                     )
                 );
-                reindex.newInstance(params, ctxMap).execute();
+                ReindexScript instance = reindex.newInstance(params, ctxMap);
+                instance._setCancellationCheck(buildCancellationCheck());
+                instance.execute();
                 return ctxMap;
             }
 

@@ -1076,7 +1076,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             model,
             new RerankRequest(
                 InferenceString.fromStringList(inputs),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                InferenceString.ofText(randomAlphaOfLength(10)),
                 topN,
                 randomOptionalBoolean(),
                 Map.of()
@@ -2073,7 +2073,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             var exception = expectThrows(
                 ElasticsearchStatusException.class,
@@ -2096,7 +2096,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             var exception = expectThrows(
                 ModelDeploymentTimeoutException.class,
@@ -2128,9 +2128,9 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         });
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
-            assertTrue(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
+            assertNull(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
 
             verify(mockDeploymentDurationHistogram).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);

@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 150195
+summary: Remove feature flag for DLM Frozen Transition
+type: feature

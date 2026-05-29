@@ -159,9 +159,6 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void infer(
         Model model,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -174,7 +171,7 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
             return;
         }
         timeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
-        var inferenceRequest = new SageMakerInferenceRequest(query, returnDocuments, topN, input, stream, inputType);
+        var inferenceRequest = new SageMakerInferenceRequest(null, null, null, input, stream, inputType);
 
         try {
             var sageMakerModel = ((SageMakerModel) model).override(taskSettings);
@@ -319,7 +316,6 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
     @Override
     public void chunkedInfer(
         Model model,
-        String query,
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -357,9 +353,6 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
                     threadPool.getThreadContext(),
                     (l, ignored) -> infer(
                         sageMakerModel,
-                        query,
-                        null,  // no return docs while chunking?
-                        null, // no topN while chunking?
                         toStringList(request.batch().inputs().get()),
                         false, // we never stream when chunking
                         null, // since we pass sageMakerModel as the model, we already overwrote the model with the task settings

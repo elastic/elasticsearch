@@ -51,6 +51,11 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
     // returned; volatile is sufficient to publish the reference across those phases.
     private volatile WorkloadIdentityHttpClientManager httpClientManager;
 
+    // Captured alongside httpClientManager so close() can unregister its file watchers on node
+    // shutdown. The volatile write also publishes the started instance (and its watcher handles)
+    // across the createComponents -> close thread boundary; see WorkloadIdentitySslConfig.
+    private volatile WorkloadIdentitySslConfig sslConfig;
+
     public WorkloadIdentityPlugin() {
         // Clear any prior instance's slot; see WorkloadIdentityRegistry#reset.
         WorkloadIdentityRegistry.reset();
@@ -83,6 +88,9 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
                 services.threadPool()
             );
             sslConfig.addReloadListener(manager::reload);
+            // Store before start() so a partial start (watchers registered, initial load failed)
+            // is still released by close().
+            this.sslConfig = sslConfig;
             sslConfig.start();
             // Build the issuer client (which validates the URL) before storing the manager: a
             // malformed URL throws synchronously without leaking the unstarted manager. Store
@@ -104,19 +112,23 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
     }
 
     /**
-     * Tears down the {@link WorkloadIdentityHttpClientManager} captured in {@link #createComponents}.
-     * The manager implements {@link java.io.Closeable} but not {@code LifecycleComponent}, so
-     * {@code NodeConstruction#loadPluginComponents} does not wire it into the node-shutdown
-     * {@code resourcesToClose} list; closing it here is what actually releases the Apache HC
-     * connection pool, I/O reactor threads, and the periodic eviction task on {@code Node#close}.
+     * Tears down the components captured in {@link #createComponents}. Neither implements
+     * {@code LifecycleComponent}, so {@code NodeConstruction#loadPluginComponents} does not wire
+     * them into the node-shutdown {@code resourcesToClose} list; closing them here is what unregisters
+     * the SSL file watchers (sslConfig) and releases the Apache HC connection pool, I/O reactor threads,
+     * and the periodic eviction task (manager) on {@code Node#close}. Watchers are stopped before the
+     * HTTP client so no reload callback runs during manager shutdown. Both closes are idempotent and
+     * tolerate a never-started instance, so a {@code createComponents} that threw partway through is
+     * still released.
      */
     @Override
     public void close() {
+        final WorkloadIdentitySslConfig sslConfig = this.sslConfig;
+        if (sslConfig != null) {
+            sslConfig.close();
+        }
         final WorkloadIdentityHttpClientManager manager = this.httpClientManager;
         if (manager != null) {
-            // Idempotent (guarded inside the manager); also safe if createComponents threw between
-            // assigning the field and finishing setup, because manager.close() tolerates being
-            // called on a never-started instance.
             manager.close();
         }
     }

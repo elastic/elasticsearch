@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class WorkloadIdentitySslConfigTests extends ESTestCase {
@@ -68,12 +67,10 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
      * still return a usable strategy (over the freshly-loaded context).
      */
     public void testReloadFiresListenersWhenFileChanges() throws Exception {
-        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile);
         final AtomicInteger reloadCount = new AtomicInteger();
-        sslConfig.addReloadListener(reloadCount::incrementAndGet);
-
-        // Sanity-check: no reload has been triggered yet.
-        assertThat(reloadCount.get(), equalTo(0));
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile, reloadCount::incrementAndGet);
+        // The initial publish during start() fired the listener exactly once.
+        assertThat(reloadCount.get(), equalTo(1));
 
         // Touch the file with the same content (idempotent rewrite); the FileWatcher compares
         // size + lastModifiedTime + (mtime tiebreaker) bytes, so to make the change observable we
@@ -82,7 +79,8 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
 
         resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
-        assertThat("listener must fire after a watched file changes", reloadCount.get(), greaterThan(0));
+        // One more invocation for the single watcher-driven reload: initial publish + one tick = 2.
+        assertThat("listener must fire once more after a watched file changes", reloadCount.get(), equalTo(2));
         assertThat(sslConfig.getStrategy(), notNullValue());
     }
 
@@ -93,9 +91,10 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
      * the next change, so the operator can recover by overwriting with valid material.
      */
     public void testReloadKeepsPreviousContextOnFailure() throws Exception {
-        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile);
         final AtomicInteger reloadCount = new AtomicInteger();
-        sslConfig.addReloadListener(reloadCount::incrementAndGet);
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile, reloadCount::incrementAndGet);
+        // The initial publish during start() fired the listener exactly once.
+        assertThat(reloadCount.get(), equalTo(1));
 
         // Sanity: the original strategy is non-null before any reload attempt.
         assertThat(sslConfig.getStrategy(), notNullValue());
@@ -114,7 +113,8 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
             )
         );
 
-        assertThat("listener must NOT fire when reload fails", reloadCount.get(), equalTo(0));
+        // Still 1: the failed reload must not fire the listener, leaving only the initial publish.
+        assertThat("failed reload must not fire the listener", reloadCount.get(), equalTo(1));
         // The previously-loaded context is still serving; getStrategy() must still succeed.
         assertThat(sslConfig.getStrategy(), notNullValue());
     }
@@ -125,10 +125,15 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
      * naming the listener failure so the operator has a trail to follow.
      */
     public void testListenerExceptionIsIsolated() throws Exception {
-        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile);
         final AtomicInteger secondCount = new AtomicInteger();
-        sslConfig.addReloadListener(() -> { throw new RuntimeException("listener boom"); });
-        sslConfig.addReloadListener(secondCount::incrementAndGet);
+        // The throwing listener also fires (and is isolated) during the initial publish, which the
+        // peer counter observes once.
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(
+            caFile,
+            () -> { throw new RuntimeException("listener boom"); },
+            secondCount::incrementAndGet
+        );
+        assertThat(secondCount.get(), equalTo(1));
 
         Files.writeString(caFile, Files.readString(caFile) + "\n", StandardCharsets.US_ASCII);
         // notifyNow must not propagate the listener's RuntimeException to the test thread, and
@@ -144,7 +149,8 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
             )
         );
 
-        assertThat("subsequent listeners must still run after a peer throws", secondCount.get(), greaterThan(0));
+        // Ran again for the watcher-driven reload despite the peer throwing: initial + one tick = 2.
+        assertThat("subsequent listeners must still run after a peer throws", secondCount.get(), equalTo(2));
     }
 
     /**
@@ -166,19 +172,19 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
     }
 
     /**
-     * Listeners registered after {@code start()} must not retroactively observe the initial
-     * publish; one notification per publish edge.
+     * Reload listeners are fixed before {@link WorkloadIdentitySslConfig#start()}: registering one
+     * afterwards is a programming error (the listener would silently miss the initial publish), so
+     * it must throw rather than be quietly accepted.
      */
-    public void testListenerRegisteredAfterStartDoesNotObserveInitialPublish() {
+    public void testAddReloadListenerAfterStartThrows() {
         final Settings settings = settingsWithCaFile(caFile);
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
 
         sslConfig.start();
 
-        final AtomicInteger publishCount = new AtomicInteger();
-        sslConfig.addReloadListener(publishCount::incrementAndGet);
-        assertThat("listener registered after start() must NOT see the initial publish", publishCount.get(), equalTo(0));
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, () -> sslConfig.addReloadListener(() -> {}));
+        assertThat(ex.getMessage(), containsString("cannot add a reload listener"));
     }
 
     /**
@@ -193,7 +199,7 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
         sslConfig.start();
 
         final IllegalStateException ex = expectThrows(IllegalStateException.class, sslConfig::start);
-        assertThat(ex.getMessage(), containsString("already been started"));
+        assertThat(ex.getMessage(), containsString("cannot start workload-identity SSL config in state [STARTED]"));
         assertThat(sslConfig.getStrategy(), notNullValue());
     }
 
@@ -209,12 +215,104 @@ public class WorkloadIdentitySslConfigTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("not been started"));
     }
 
-    private WorkloadIdentitySslConfig newSslConfig(Path caCertPath) {
+    /**
+     * {@link WorkloadIdentitySslConfig#close()} must unregister the file watchers: a subsequent
+     * file change and watcher tick must no longer drive a reload. This is the leak/teardown
+     * guarantee that lets a caller create and discard instances without watchers accumulating.
+     */
+    public void testCloseStopsWatchers() throws Exception {
+        final AtomicInteger reloadCount = new AtomicInteger();
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile, reloadCount::incrementAndGet);
+        // The initial publish during start() fired the listener exactly once.
+        assertThat(reloadCount.get(), equalTo(1));
+
+        sslConfig.close();
+
+        // The watcher is unregistered, so a real file change plus a tick must not reach the listener.
+        Files.writeString(caFile, Files.readString(caFile) + "\n", StandardCharsets.US_ASCII);
+        resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+        // Still 1: no watcher-driven reload occurred after close().
+        assertThat("listener must not fire after close() unregisters the watchers", reloadCount.get(), equalTo(1));
+    }
+
+    /**
+     * A reload invoked after {@link WorkloadIdentitySslConfig#close()} must not republish or
+     * notify listeners, matching {@link WorkloadIdentityHttpClientManager#reload()}.
+     */
+    public void testReloadAfterCloseIsNoOp() {
+        final AtomicInteger reloadCount = new AtomicInteger();
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile, reloadCount::incrementAndGet);
+        assertThat(reloadCount.get(), equalTo(1));
+
+        sslConfig.close();
+        sslConfig.reloadNow();
+
+        assertThat("reload after close() must not notify listeners", reloadCount.get(), equalTo(1));
+    }
+
+    /**
+     * {@link WorkloadIdentitySslConfig#close()} is idempotent: a repeat call is a no-op rather
+     * than throwing or double-stopping watchers.
+     */
+    public void testCloseIsIdempotent() {
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile);
+
+        sslConfig.close();
+        sslConfig.close();
+    }
+
+    /**
+     * Mirroring {@link WorkloadIdentityHttpClientManager}, only the {@code STARTED → CLOSED}
+     * transition does work: {@code close()} on a never-started instance is a no-op that leaves it
+     * in {@code INIT}, so it can still be started afterwards (and then closed for real).
+     */
+    public void testCloseBeforeStartIsNoOp() {
+        final Settings settings = settingsWithCaFile(caFile);
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+
+        sslConfig.close();
+
+        // close() from INIT did not transition to CLOSED, so a subsequent start() still succeeds.
+        sslConfig.start();
+        assertThat(sslConfig.getStrategy(), notNullValue());
+    }
+
+    /**
+     * {@code start()} from {@code CLOSED} must throw rather than silently flip the state or try
+     * to re-register watchers.
+     */
+    public void testStartAfterCloseThrows() {
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile);
+
+        sslConfig.close();
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, sslConfig::start);
+        assertThat(ex.getMessage(), containsString("[CLOSED]"));
+    }
+
+    /**
+     * {@code close()} only stops future reloads; a strategy can still be obtained over the
+     * last-published context so any in-flight TLS work is unaffected.
+     */
+    public void testGetStrategyUsableAfterClose() {
+        final WorkloadIdentitySslConfig sslConfig = newSslConfig(caFile);
+
+        sslConfig.close();
+
+        assertThat(sslConfig.getStrategy(), notNullValue());
+    }
+
+    private WorkloadIdentitySslConfig newSslConfig(Path caCertPath, Runnable... reloadListeners) {
         final Settings settings = settingsWithCaFile(caCertPath);
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final WorkloadIdentitySslConfig config = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
-        // Tests using this helper add listeners after start(); tests that need to observe the
-        // initial publish inline the construction instead.
+        // Reload listeners are fixed before start(); register them here so the initial publish
+        // during start() reaches them. That initial publish fires each listener once, so callers
+        // that count only subsequent reloads reset their counters after this returns.
+        for (Runnable listener : reloadListeners) {
+            config.addReloadListener(listener);
+        }
         config.start();
         return config;
     }

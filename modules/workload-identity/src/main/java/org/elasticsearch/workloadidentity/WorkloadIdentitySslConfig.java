@@ -26,7 +26,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.WatcherHandle;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -34,8 +36,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -63,15 +64,17 @@ import static org.elasticsearch.common.settings.Setting.stringListSetting;
  * invoked on the {@link ResourceWatcherService} polling thread after the new {@link SSLContext}
  * has been published; a listener that throws is logged and isolated.
  *
- * <p>Lifecycle: construct &rarr; {@link #addReloadListener(Runnable) addReloadListener} &rarr;
- * {@link #start()}. The constructor parses settings only. {@code start()} is one-shot (a second
- * call throws); it registers the file watchers <em>before</em> loading the initial
- * {@link SSLContext}, so a concurrent cert change is either reflected in the initial load or
- * detected as a diff against the watcher baseline on the next poll.
+ * <p>Lifecycle: {@code INIT} (constructed) &rarr; {@code STARTED} ({@link #start()}) &rarr;
+ * {@code CLOSED} ({@link #close()}). The constructor parses settings only;
+ * {@link #addReloadListener(Runnable)} must be called before {@code start()}. {@code start()} is
+ * valid only from {@code INIT} (a second call while {@code STARTED}, or a call from {@code CLOSED},
+ * throws) and registers the watchers before the initial {@link SSLContext} load. {@code close()}
+ * from {@code STARTED} unregisters the watchers and is terminal; {@code close()} from {@code INIT}
+ * or {@code CLOSED} is a no-op that leaves the state unchanged.
  *
  * @see SslConfigurationLoader
  */
-public final class WorkloadIdentitySslConfig {
+public final class WorkloadIdentitySslConfig implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(WorkloadIdentitySslConfig.class);
 
@@ -111,8 +114,32 @@ public final class WorkloadIdentitySslConfig {
      * reference into the strategy they hold.
      */
     private volatile SSLContext context;
-    private final AtomicBoolean started = new AtomicBoolean(false);
-    private final CopyOnWriteArrayList<Runnable> reloadListeners = new CopyOnWriteArrayList<>();
+
+    /** Lifecycle states; see the class Javadoc for transitions. */
+    private enum State {
+        /** Constructed; settings parsed but no watchers registered and no {@link SSLContext} published. */
+        INIT,
+        /** {@link #start()} has registered the watchers and published the initial {@link SSLContext}. */
+        STARTED,
+        /** {@link #close()} has been called; watchers unregistered. Terminal. */
+        CLOSED
+    }
+
+    private final AtomicReference<State> state = new AtomicReference<>(State.INIT);
+    /**
+     * Reload callbacks, fixed before {@link #start()} (see {@link #addReloadListener(Runnable)}).
+     * Written only on the setup thread, before {@code start()} registers the file watchers. The
+     * initial publish runs on that same thread; a watcher-driven reload runs only after the watcher
+     * is registered, and that registration with the {@link ResourceWatcherService} (added after the
+     * listeners) establishes the happens-before that publishes them to the watcher thread. A plain
+     * {@link ArrayList} therefore suffices.
+     */
+    private final List<Runnable> reloadListeners = new ArrayList<>();
+    /**
+     * Watcher handles retained so {@link #close()} can unregister them. Written by {@link #start()}
+     * and read by {@link #close()}.
+     */
+    private final List<WatcherHandle<FileWatcher>> watcherHandles = new ArrayList<>();
 
     /**
      * @return all SSL settings registered by this module. Combine with the rest of the module's
@@ -158,11 +185,12 @@ public final class WorkloadIdentitySslConfig {
 
     /**
      * Register file watchers, then load and publish the initial {@link SSLContext}. Valid only
-     * once; a second call throws {@link IllegalStateException}.
+     * from {@code INIT}; a second call, or a call after {@link #close()}, throws
+     * {@link IllegalStateException}.
      */
     public void start() {
-        if (started.compareAndSet(false, true) == false) {
-            throw new IllegalStateException("workload-identity SSL config has already been started");
+        if (state.compareAndSet(State.INIT, State.STARTED) == false) {
+            throw new IllegalStateException("cannot start workload-identity SSL config in state [" + state.get() + "]");
         }
         registerFileWatchers();
         loadAndPublish(true);
@@ -196,7 +224,7 @@ public final class WorkloadIdentitySslConfig {
             try {
                 final FileWatcher watcher = new FileWatcher(file);
                 watcher.addListener(listener);
-                resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH);
+                watcherHandles.add(resourceWatcher.add(watcher, ResourceWatcherService.Frequency.HIGH));
             } catch (IOException e) {
                 throw new UncheckedIOException("cannot watch workload-identity SSL file [" + file + "]", e);
             }
@@ -212,6 +240,9 @@ public final class WorkloadIdentitySslConfig {
      *                reloads (log {@code WARN} and retain the previous context).
      */
     private void loadAndPublish(boolean initial) {
+        if (state.get() == State.CLOSED) {
+            return;
+        }
         final SSLContext newContext;
         try {
             newContext = configuration.createSslContext();
@@ -235,24 +266,29 @@ public final class WorkloadIdentitySslConfig {
     }
 
     /**
-     * Subscribe to reload events. Listeners run after the volatile {@link SSLContext} field has
-     * been swapped, on the {@link ResourceWatcherService} polling thread or, for the initial
-     * load, on the {@link #start()} thread. Listeners registered before {@code start()} are
-     * invoked once during it; listeners registered later miss the initial publish. Listeners
-     * are not removable; the plugin owns this object for its lifetime.
+     * Subscribe to reload events. Must be called before {@link #start()} (while in {@code INIT});
+     * calling it later throws {@link IllegalStateException}. Fixing the set before the initial
+     * publish lets every listener observe it and keeps the list lock-free. Listeners run after the
+     * {@link SSLContext} swap &mdash; on the {@code start()} thread for the initial load, the
+     * {@link ResourceWatcherService} polling thread thereafter &mdash; and are not removable.
      */
     public void addReloadListener(Runnable listener) {
+        if (state.get() != State.INIT) {
+            throw new IllegalStateException("cannot add a reload listener to workload-identity SSL config in state [" + state.get() + "]");
+        }
         this.reloadListeners.add(listener);
     }
 
     /**
      * @return an {@link SSLIOSessionStrategy} over the currently-published {@link SSLContext}. A
      *         fresh strategy is returned each call; rotation-aware callers should re-fetch via
-     *         {@link #addReloadListener(Runnable)} rather than cache the result.
+     *         {@link #addReloadListener(Runnable)} rather than cache the result. Remains usable
+     *         after {@link #close()} (which only stops future reloads) over the last-published
+     *         context.
      * @throws IllegalStateException if {@link #start()} has not yet completed.
      */
     public SSLIOSessionStrategy getStrategy() {
-        if (started.get() == false) {
+        if (state.get() == State.INIT) {
             throw new IllegalStateException("workload-identity SSL config has not been started");
         }
         final HostnameVerifier hostnameVerifier = configuration.verificationMode().isHostnameVerificationEnabled()
@@ -261,5 +297,26 @@ public final class WorkloadIdentitySslConfig {
         final String[] protocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         final String[] cipherSuites = configuration.getCipherSuites().toArray(Strings.EMPTY_ARRAY);
         return new SSLIOSessionStrategy(context, protocols, cipherSuites, hostnameVerifier);
+    }
+
+    // Visible for testing
+    void reloadNow() {
+        loadAndPublish(false);
+    }
+
+    /**
+     * Unregisters file watchers registered by {@link #start()}. Only the {@code STARTED → CLOSED}
+     * transition does work; calls from any other state silently return. {@link #getStrategy()}
+     * remains usable over the last-published context.
+     */
+    @Override
+    public void close() {
+        if (state.compareAndSet(State.STARTED, State.CLOSED) == false) {
+            return;
+        }
+        for (WatcherHandle<FileWatcher> handle : watcherHandles) {
+            handle.stop();
+        }
+        watcherHandles.clear();
     }
 }

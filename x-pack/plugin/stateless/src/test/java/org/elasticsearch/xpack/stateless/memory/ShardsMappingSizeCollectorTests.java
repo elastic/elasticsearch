@@ -121,6 +121,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
                 randomNonNegativeInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomNonNegativeLong()
             )
         );
@@ -258,7 +259,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(shardRoutingStub);
-        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(1, 1, -1, 0, 0));
+        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(1, 1, -1, 0, 0, 0));
 
         when(indexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;
@@ -300,7 +301,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED));
         final int numSegments = randomIntBetween(1, 10);
-        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(numSegments, 1, -1, 10, 20));
+        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(numSegments, 1, -1, 10, 20, 0));
 
         when(indexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;

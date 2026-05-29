@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.Foldables;
+import org.elasticsearch.xpack.esql.expression.function.ConfigurationFunction;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -418,7 +418,12 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (isRuntimeSearch()) {
-            return new MatchTextEvaluator.Factory(source(), toEvaluator.apply(field()), Foldables.queryAsString(query(), sourceText()), new StandardAnalyzer());
+            return new MatchTextEvaluator.Factory(
+                source(),
+                toEvaluator.apply(field()),
+                Foldables.queryAsString(query(), sourceText()),
+                new StandardAnalyzer()
+            );
         }
 
         return super.toEvaluator(toEvaluator);

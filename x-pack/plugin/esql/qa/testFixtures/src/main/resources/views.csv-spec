@@ -1264,3 +1264,80 @@ total:long | cluster:keyword
 2          | prod
 2          | staging
 ;
+
+mixedSubqueriesViewPlan
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| SORT cluster, @timestamp
+| KEEP @timestamp, client_ip, cluster, max_bytes
+;
+
+@timestamp:datetime      | client_ip:ip | cluster:keyword | max_bytes:long
+null                     | null         | prod            | 10277
+null                     | null         | qa              | 10797
+null                     | null         | staging         | 7403
+null                     | null         | synthetic       | 99999
+2023-10-23T13:33:34.937Z | 172.21.0.5   | null            | null
+;
+
+mixedSubqueriesViewFiltered
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| WHERE max_bytes > 8000
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+synthetic       | 99999
+;
+
+mixedSubqueriesViewStats
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM view_k8s_mixed_subqueries
+| STATS rows = COUNT(), clusters = COUNT(cluster), ips = COUNT(client_ip), max_b = MAX(max_bytes)
+;
+
+rows:long | clusters:long | ips:long | max_b:long
+5         | 4             | 1        | 99999
+;
+
+mixedSubqueriesViewInFromSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: ts_command_v0
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+
+FROM (FROM view_k8s_mixed_subqueries | WHERE max_bytes IS NOT NULL)
+| SORT cluster
+| KEEP cluster, max_bytes
+;
+
+cluster:keyword | max_bytes:long
+prod            | 10277
+qa              | 10797
+staging         | 7403
+synthetic       | 99999
+;

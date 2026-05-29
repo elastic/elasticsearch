@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -70,7 +71,7 @@ public final class ThrottlingRecoveryService {
      */
     public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
         logger.trace(
-            "enqueue recovery: recoverySource: [{}], shardId: [{}]",
+            "--> enqueue recovery: recoverySource: [{}], shardId: [{}]",
             recoveryState.getRecoverySource(),
             recoveryState.getShardId()
         );
@@ -97,7 +98,7 @@ public final class ThrottlingRecoveryService {
                 RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
                     logger.trace(
-                        "dispatch recovery: recoverySource: [{}], shardId: [{}]",
+                        "--> dispatch recovery: recoverySource: [{}], shardId: [{}]",
                         nextTask.recoveryState.getRecoverySource(),
                         nextTask.recoveryState.getShardId()
                     );
@@ -111,9 +112,10 @@ public final class ThrottlingRecoveryService {
 
     private void closeAndFillSlots(RecoveryTask recoveryTask) {
         logger.trace(
-            "close recovery: recoverySource: [{}], shardId: [{}]",
+            "--> close recovery: recoverySource: [{}], shardId: [{}], stackTrace: [{}]",
             recoveryTask.recoveryState.getRecoverySource(),
-            recoveryTask.recoveryState.getShardId()
+            recoveryTask.recoveryState.getShardId(),
+            ExceptionsHelper.stackTrace(new RuntimeException("trace"))
         );
         int current = runningRecoveries.decrementAndGet();
         assert current >= 0 : "negative number of running recoveries " + current;

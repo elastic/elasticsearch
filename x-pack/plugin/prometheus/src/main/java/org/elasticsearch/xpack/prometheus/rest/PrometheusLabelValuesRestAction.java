@@ -32,9 +32,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEF
  * REST handler for the Prometheus {@code GET /_prometheus/api/v1/label/{name}/values} and
  * {@code GET /_prometheus/{index}/api/v1/label/{name}/values} endpoints.
  * Returns the sorted, deduplicated list of values for a single label name.
- * Only GET is supported. POST with {@code application/x-www-form-urlencoded} bodies is rejected
- * at the HTTP layer as a CSRF safeguard before this handler is ever reached — see
- * {@code RestController#isContentTypeDisallowed}.
+ * Only GET is supported, matching upstream Prometheus.
  *
  * <p>Label names may use the {@code U__} encoding defined by the OpenMetrics spec to represent
  * characters that are not valid in Prometheus label names (e.g. dots, colons). This handler

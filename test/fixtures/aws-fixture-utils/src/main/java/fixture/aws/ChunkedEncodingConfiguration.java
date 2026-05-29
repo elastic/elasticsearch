@@ -51,7 +51,7 @@ public enum ChunkedEncodingConfiguration {
         return new RandomSupplier()::getChunkedEncodingConfiguration;
     }
 
-    /// Lazy because randomness isn't available in static context
+    /** Lazy because randomness isn't available in static context */
     private static class RandomSupplier extends AtomicInteger {
         ChunkedEncodingConfiguration getChunkedEncodingConfiguration() {
             compareAndSet(0, between(1, 3));

@@ -100,15 +100,6 @@ public class RecordingApmServer extends ExternalResource {
                             }
                         }
                     }
-                } catch (Throwable t) {
-                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
-                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
-                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
-                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
-                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
-                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
-                    // if we have an error outside the test scope (before or after) that is OK.
-                    logger.warn("failed to parse request", t);
                 }
             }
             exchange.sendResponseHeaders(201, 0);

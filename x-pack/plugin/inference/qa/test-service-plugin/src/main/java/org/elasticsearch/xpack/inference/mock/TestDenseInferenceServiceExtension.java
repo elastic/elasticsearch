@@ -41,6 +41,9 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 
 import java.io.IOException;
@@ -227,11 +230,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new DenseEmbeddingFloatResults(embeddings);
         }
 
-        private GenericDenseEmbeddingFloatResults makeGenericEmbeddingResults(
-            List<InferenceStringGroup> input,
-            ServiceSettings serviceSettings
-        ) {
-            List<GenericDenseEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
+        private InferenceServiceResults makeGenericEmbeddingResults(List<InferenceStringGroup> input, ServiceSettings serviceSettings) {
+            List<List<Float>> averagedEmbeddings = new ArrayList<>();
             for (var inputContent : input) {
                 // For multiple inputs that generate one embedding, average the embeddings for each input
                 List<InferenceString> inferenceStrings = inputContent.inferenceStrings();
@@ -264,9 +264,27 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     }
                     return summedValues;
                 }).orElse(Collections.emptyList()).stream().map(f -> f / inferenceStrings.size()).toList();
-                embeddings.add(GenericDenseEmbeddingFloatResults.Embedding.of(averagedFloatEmbeddings));
+                averagedEmbeddings.add(averagedFloatEmbeddings);
             }
-            return new GenericDenseEmbeddingFloatResults(embeddings);
+
+            return switch (serviceSettings.elementType()) {
+                case FLOAT, BFLOAT16 -> {
+                    var floatEmbeddings = averagedEmbeddings.stream().map(GenericDenseEmbeddingFloatResults.Embedding::of).toList();
+                    yield new GenericDenseEmbeddingFloatResults(floatEmbeddings);
+                }
+                case BYTE -> {
+                    var byteEmbeddings = averagedEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList();
+                    yield new GenericDenseEmbeddingByteResults(byteEmbeddings);
+                }
+                case BIT -> {
+                    var bitEmbeddings = averagedEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList();
+                    yield new GenericDenseEmbeddingBitResults(bitEmbeddings);
+                }
+            };
         }
 
         private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs, ServiceSettings serviceSettings) {

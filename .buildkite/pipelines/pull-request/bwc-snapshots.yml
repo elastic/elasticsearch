@@ -17,6 +17,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 2 / bwc-snapshots"
@@ -30,6 +32,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 3 / bwc-snapshots"
@@ -43,6 +47,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 4 / bwc-snapshots"
@@ -56,6 +62,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 5 / bwc-snapshots"
@@ -69,6 +77,8 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
       - label: "{{matrix.BWC_VERSION}} / Part 6 / bwc-snapshots"
@@ -82,5 +92,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
           machineType: n4-standard-16
+          preemptible: true
+          spotZones: us-east1-b,us-east1-c,us-east1-d,us-central1-a,us-central1-b,us-central1-c,us-central1-f,us-west1-a,us-west1-b
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk

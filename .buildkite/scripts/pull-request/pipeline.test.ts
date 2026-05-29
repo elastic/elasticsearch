@@ -54,7 +54,7 @@ describe("generatePipelines", () => {
     testWithTriggerCheck(
       `${import.meta.dir}/mocks/pipelines`,
       ["build.gradle", "docs/README.asciidoc"],
-      "@elasticmachine test this please"
+      "@elasticmachine test this please",
     );
   });
 
@@ -62,7 +62,7 @@ describe("generatePipelines", () => {
     testWithTriggerCheck(
       `${import.meta.dir}/mocks/pipelines`,
       ["build.gradle", "docs/README.asciidoc"],
-      "@elasticsearchmachine test this please"
+      "@elasticsearchmachine test this please",
     );
   });
 
@@ -80,7 +80,7 @@ describe("generatePipelines", () => {
 
     expect(usingDefaults).toBeDefined();
     expect((usingDefaults!.pipeline.steps![0] as any).retry).toBeDefined();
-    expect((usingDefaults!.pipeline.steps![0] as any).retry.automatic).toHaveLength(3);
+    expect((usingDefaults!.pipeline.steps![0] as any).retry.automatic).toHaveLength(4);
   });
 
   test("should inject retry into nested steps within groups", () => {
@@ -92,7 +92,7 @@ describe("generatePipelines", () => {
     const group = bwcSnapshots!.pipeline.steps![0] as any;
     expect(group.group).toBe("bwc-snapshots");
     expect(group.steps[0].retry).toBeDefined();
-    expect(group.steps[0].retry.automatic).toHaveLength(3);
+    expect(group.steps[0].retry.automatic).toHaveLength(4);
   });
 
   test("should not overwrite pre-existing retry config on steps", () => {

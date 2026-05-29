@@ -115,7 +115,7 @@ public class GroqServiceTests extends InferenceServiceTestCase {
         try (var service = createInferenceService()) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             List<ChunkInferenceInput> inputs = List.of();
-            service.chunkedInfer(createModel("some_url"), null, inputs, Map.of(), null, null, listener);
+            service.chunkedInfer(createModel("some_url"), inputs, Map.of(), null, null, listener);
 
             var exception = expectThrows(UnsupportedOperationException.class, listener::actionGet);
             assertThat(exception.getMessage(), containsString("groq service does not support chunked inference"));

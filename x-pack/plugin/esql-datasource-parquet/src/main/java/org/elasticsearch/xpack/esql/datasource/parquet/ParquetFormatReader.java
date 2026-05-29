@@ -1235,8 +1235,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     ? filterPredicate
                     : null;
 
-            metadataHandedOff = true;
-            return new OptimizedParquetColumnIterator(
+            OptimizedParquetColumnIterator iterator = new OptimizedParquetColumnIterator(
                 reader,
                 projectedSchema,
                 projectedAttributes,
@@ -1260,6 +1259,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 resolveDynamicThresholdColumn(fileSchema, dynamicThreshold),
                 counters
             );
+            // Constructor succeeded — iterator now owns preloadedMetadata. Set the flag after
+            // construction so that a throw inside the constructor does not suppress cleanup.
+            metadataHandedOff = true;
+            return iterator;
         } finally {
             if (metadataHandedOff == false) {
                 preloadedMetadata.close();

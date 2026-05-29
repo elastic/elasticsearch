@@ -135,6 +135,65 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
         assertFilteredBuilderParity(WriterVersion.PARQUET_1_0);
     }
 
+    /**
+     * Regression for {@code readBatchSparse} on a filtered projection store whose first queued
+     * page has {@code firstRowIndex > 0}. {@code skipRows} must not double-count the jump when
+     * advancing to sparse survivor positions — otherwise the column exhausts early and
+     * {@code combineBlocks} asserts {@code chunk total 0 != expected N}.
+     */
+    public void testReadBatchSparseWithFilteredFirstRowIndex() throws IOException {
+        byte[] file = writeSortedIntFile(WriterVersion.PARQUET_1_0, CompressionCodecName.UNCOMPRESSED);
+        StorageObject storageObject = new InMemoryStorageObject(file);
+        try (ParquetFileReader reader = openReader(file)) {
+            BlockMetaData block = reader.getRowGroups().getFirst();
+            MessageType schema = reader.getFileMetaData().getSchema();
+            long rowCount = block.getRowCount();
+            long rangeStart = rowCount / 4;
+            long rangeEndExclusive = rowCount / 2;
+            RowRanges rowRanges = RowRanges.of(rangeStart, rangeEndExclusive, rowCount);
+            Set<String> projected = Set.of("id");
+            ColumnChunkPrefetcher.PrefetchedChunks prefetched = prefetchChunks(storageObject, block, projected);
+            try (
+                org.elasticsearch.core.Releasable r = prefetched.release();
+                PageReadStore store = PrefetchedRowGroupBuilder.build(
+                    block,
+                    0,
+                    schema,
+                    projected,
+                    rowRanges,
+                    PreloadedRowGroupMetadata.preload(reader, storageObject, blockFactory.arrowAllocator()),
+                    prefetched.chunks(),
+                    storageObject,
+                    codecFactory,
+                    blockFactory.arrowAllocator()
+                )
+            ) {
+                ColumnDescriptor desc = schema.getColumns().getFirst();
+                ColumnInfo info = new ColumnInfo(
+                    desc,
+                    desc.getPrimitiveType().getPrimitiveTypeName(),
+                    DataType.INTEGER,
+                    desc.getMaxDefinitionLevel(),
+                    desc.getMaxRepetitionLevel(),
+                    desc.getPrimitiveType().getLogicalTypeAnnotation()
+                );
+                PageColumnReader pcr = new PageColumnReader(store.getPageReader(desc), desc, info, rowRanges);
+                int sourceRows = (int) rowCount;
+                int[] survivors = new int[] { (int) rangeStart + 10, (int) rangeStart + 20, (int) rangeStart + 30 };
+                Block sparse = pcr.readBatchSparse(sourceRows, blockFactory, survivors, survivors.length);
+                try {
+                    IntBlock intBlock = (IntBlock) sparse;
+                    assertEquals("sparse read must emit one row per survivor", survivors.length, intBlock.getPositionCount());
+                    for (int i = 0; i < survivors.length; i++) {
+                        assertEquals(survivors[i], intBlock.getInt(i));
+                    }
+                } finally {
+                    sparse.close();
+                }
+            }
+        }
+    }
+
     public void testSequentialPathWithoutOffsetIndex() throws IOException {
         // Without an offset index, the builder must take the sequential path; data must still match.
         byte[] file = writeIntFile(WriterVersion.PARQUET_1_0, CompressionCodecName.UNCOMPRESSED, true, false);

@@ -495,16 +495,15 @@ final class PageColumnReader implements Releasable {
     }
 
     void skipRows(int count) {
-        int remaining = count;
-        while (remaining > 0) {
+        long target = rowPositionInRowGroup + count;
+        while (rowPositionInRowGroup < target) {
             if (ensurePage() == false) {
                 break;
             }
-            int fromPage = Math.min(remaining, availableInPage());
+            int fromPage = (int) Math.min(target - rowPositionInRowGroup, availableInPage());
             int nonNullSkipped = defDecoder.skip(fromPage);
             skipValues(nonNullSkipped);
             advancePosition(fromPage);
-            remaining -= fromPage;
         }
     }
 

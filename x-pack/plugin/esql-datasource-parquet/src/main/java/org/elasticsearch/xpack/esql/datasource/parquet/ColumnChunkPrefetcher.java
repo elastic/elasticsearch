@@ -148,9 +148,12 @@ final class ColumnChunkPrefetcher {
                             // the direct memory we just allocated so the breaker charge returns.
                             chunks.release().close();
                         }
-                    } catch (RuntimeException e) {
+                    } catch (Throwable e) {
                         // buildPrefetched failed mid-way; the helper has already released its
-                        // tracked buffers — surface the failure.
+                        // tracked buffers — surface the failure. Catching Throwable (not just
+                        // RuntimeException) is intentional: buildPrefetched re-throws Errors
+                        // such as OutOfMemoryError, and if those escaped here the future would
+                        // never complete, permanently hanging any caller that joins it.
                         result.completeExceptionally(e);
                     }
                 }
@@ -377,8 +380,18 @@ final class ColumnChunkPrefetcher {
                 @Override
                 public void onResponse(CoalescedRangeReader.CoalescedRangeResult fetched) {
                     try {
-                        result.complete(buildPrefetched(fetched, allocator));
-                    } catch (RuntimeException e) {
+                        PrefetchedChunks chunks = buildPrefetched(fetched, allocator);
+                        if (result.complete(chunks) == false) {
+                            // The future was cancelled between I/O completion and here; release
+                            // the direct memory we just allocated so the breaker charge returns.
+                            chunks.release().close();
+                        }
+                    } catch (Throwable e) {
+                        // buildPrefetched failed mid-way; the helper has already released its
+                        // tracked buffers — surface the failure. Catching Throwable (not just
+                        // RuntimeException) is intentional: buildPrefetched re-throws Errors
+                        // such as OutOfMemoryError, and if those escaped here the future would
+                        // never complete, permanently hanging any caller that joins it.
                         result.completeExceptionally(e);
                     }
                 }

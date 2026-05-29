@@ -1376,12 +1376,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return false;
     }
 
-    /// Resets the failed allocation counter for all unassigned shards.
-    ///
-    /// @param allocation the routing allocation
-    /// @param userTriggered `true` if this is a user-triggered reset via the reroute API,
-    ///                      `false` if this is an internal reset triggered by topology changes (e.g., node joins)
-    public void resetFailedCounter(RoutingAllocation allocation, boolean userTriggered) {
+    public void resetFailedCounter(RoutingAllocation allocation) {
         final var observer = allocation.changes();
         int shardsWithMaxFailedAllocations = 0;
         int shardsWithMaxFailedRelocations = 0;
@@ -1408,20 +1403,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     // ignore
                 }
             }
-            // When resetting failure counter to 0, we must change the reason if it's currently ALLOCATION_FAILED
-            // (due to assertion: (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED))
-            final UnassignedInfo.Reason newReason;
-            if (failedAllocations > 0 && unassignedInfo.reason() == UnassignedInfo.Reason.ALLOCATION_FAILED) {
-                // Change ALLOCATION_FAILED to either MANUAL_ALLOCATION or ALLOCATION_FAILURE_RESET
-                newReason = userTriggered ? UnassignedInfo.Reason.MANUAL_ALLOCATION : UnassignedInfo.Reason.ALLOCATION_FAILURE_RESET;
-            } else {
-                // Keep original reason for shards without allocation failures
-                newReason = unassignedInfo.reason();
-            }
+            UnassignedInfo.Reason reason = failedAllocations > 0 && unassignedInfo.reason() == UnassignedInfo.Reason.ALLOCATION_FAILED
+                ? UnassignedInfo.Reason.MANUAL_ALLOCATION
+                : unassignedInfo.reason();
 
             unassignedIterator.updateUnassigned(
                 new UnassignedInfo(
-                    newReason,
+                    reason,
                     unassignedInfo.message(),
                     unassignedInfo.failure(),
                     0,

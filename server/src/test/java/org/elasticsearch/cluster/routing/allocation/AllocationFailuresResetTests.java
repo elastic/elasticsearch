@@ -167,7 +167,7 @@ public class AllocationFailuresResetTests extends ESTestCase {
             final var shard = state.getRoutingTable().allShards().findFirst().get();
             return state.nodes().size() == 2
                 && state.getRoutingNodes().hasAllocationFailures() == false
-                && UnassignedInfo.Reason.ALLOCATION_FAILURE_RESET.equals(shard.unassignedInfo().reason());
+                && UnassignedInfo.Reason.MANUAL_ALLOCATION.equals(shard.unassignedInfo().reason());
         }, clusterService);
     }
 }

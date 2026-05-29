@@ -89,9 +89,6 @@ public record UnassignedInfo(
     );
 
     private static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = TransportVersion.fromName("unassignedinfo_reshard_added");
-    private static final TransportVersion UNASSIGNEDINFO_ALLOCATION_FAILURE_RESET = TransportVersion.fromName(
-        "unassignedinfo_allocation_failure_reset"
-    );
 
     /**
      * Reason why the shard is in unassigned state.
@@ -159,7 +156,12 @@ public record UnassignedInfo(
          */
         FORCED_EMPTY_PRIMARY(true),
         /**
-         * Forced manually to allocate
+         * Manual allocation via the cluster reroute API, to force allocation of a shard and/or to reset the
+         * allocation failure counter.
+         *
+         * <p>Note: This reason is also assigned when the allocation failure counter is automatically reset due to
+         * cluster topology changes (e.g., new node joining).
+         * See https://github.com/elastic/elasticsearch-team/issues/4064 for more details
          */
         MANUAL_ALLOCATION(true),
         /**
@@ -178,12 +180,7 @@ public record UnassignedInfo(
         /**
          * New shard added as part of index re-sharding operation
          */
-        RESHARD_ADDED(true),
-        /**
-         * Unassigned as a result of a failed allocation. The failure counter was reset (either manually via the
-         * reroute API or automatically due to topology changes such as node joins) to allow for more retries.
-         */
-        ALLOCATION_FAILURE_RESET(false);
+        RESHARD_ADDED(true);
 
         private final boolean isExpectedTransient;
 
@@ -355,13 +352,9 @@ public record UnassignedInfo(
             // We should have protection to ensure we do not reshard in mixed clusters
             assert false;
             out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
-        } else if (reason.equals(Reason.ALLOCATION_FAILURE_RESET)
-            && out.getTransportVersion().supports(UNASSIGNEDINFO_ALLOCATION_FAILURE_RESET) == false) {
-                // Fall back to legacy behavior for older versions that don't yet support ALLOCATION_FAILURE_RESET
-                out.writeByte((byte) Reason.MANUAL_ALLOCATION.ordinal());
-            } else {
-                out.writeByte((byte) reason.ordinal());
-            }
+        } else {
+            out.writeByte((byte) reason.ordinal());
+        }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

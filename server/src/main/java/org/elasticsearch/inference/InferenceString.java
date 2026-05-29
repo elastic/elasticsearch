@@ -151,7 +151,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> fromStringList(List<String> strings) {
-        return strings.stream().map(aString -> InferenceString.ofText(aString)).toList();
+        return strings.stream().map(InferenceString::ofText).toList();
     }
 
     /**

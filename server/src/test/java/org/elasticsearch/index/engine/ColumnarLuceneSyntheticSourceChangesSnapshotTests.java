@@ -10,18 +10,12 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.translog.Translog;
 
-import java.io.IOException;
-
-public class ColumnarLuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChangesSnapshotTests {
+public class ColumnarLuceneSyntheticSourceChangesSnapshotTests extends LuceneSyntheticSourceChangesSnapshotTests {
     @Override
     protected Settings indexSettings() {
         return Settings.builder()
@@ -45,29 +39,5 @@ public class ColumnarLuceneSyntheticSourceChangesSnapshotTests extends SearchBas
                 }
             }
             """;
-    }
-
-    @Override
-    protected Translog.Snapshot newRandomSnapshot(
-        MapperService mapperService,
-        Engine.Searcher engineSearcher,
-        int searchBatchSize,
-        long fromSeqNo,
-        long toSeqNo,
-        boolean requiredFullRange,
-        boolean singleConsumer,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
-    ) throws IOException {
-        return new LuceneSyntheticSourceChangesSnapshot(
-            mapperService,
-            engineSearcher,
-            searchBatchSize,
-            randomLongBetween(0, ByteSizeValue.ofBytes(Integer.MAX_VALUE).getBytes()),
-            fromSeqNo,
-            toSeqNo,
-            requiredFullRange,
-            accessStats
-        );
     }
 }

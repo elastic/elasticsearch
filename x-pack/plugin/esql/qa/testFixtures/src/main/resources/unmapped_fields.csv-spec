@@ -593,12 +593,11 @@ required_capability: join_lookup_v12
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | LOOKUP JOIN partial_message_types_lookup ON message
-| EVAL unmapped = unmapped_message
-| KEEP @timestamp, message, message_type, unmapped
+| KEEP @timestamp, message, message_type, unmapped_message
 | SORT @timestamp DESC
 ;
 
-@timestamp:date          | message:keyword        | message_type:keyword | unmapped:keyword
+@timestamp:date          | message:keyword        | message_type:keyword | unmapped_message:keyword
 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1! | connection           | Disconnected from 10.1.0.1
 2024-10-23T13:53:55.832Z | Connection error?      | error                | Disconnection error
 2024-10-23T13:52:55.015Z | Connection error?      | error                | Disconnection error
@@ -616,12 +615,11 @@ required_capability: join_lookup_v12
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | LOOKUP JOIN partial_message_types_lookup ON message
-| EVAL absent = completely_absent_field
-| KEEP @timestamp, message_type, absent
+| KEEP @timestamp, message_type, completely_absent_field
 | SORT @timestamp DESC
 ;
 
-@timestamp:date          | message_type:keyword | absent:keyword
+@timestamp:date          | message_type:keyword | completely_absent_field:keyword
 2024-10-23T13:55:01.543Z | connection           | null
 2024-10-23T13:53:55.832Z | error                | null
 2024-10-23T13:52:55.015Z | error                | null

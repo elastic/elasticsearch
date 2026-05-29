@@ -49,7 +49,7 @@ public class AnalyzerUnmappedKeepJoinTests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    public void testLoad_unmapped_mapped_pukFires_doesNotThrow() {
+    public void testLoad_unmapped_mapped_pukFires() {
         // KEEP forces load() to fire at the Project node before the join — message becomes PotentiallyUnmappedKeyword (KEYWORD).
         assumeTrue(
             "requires optional_fields_load_with_lookup_join",

@@ -42,7 +42,7 @@ public class AnalyzerUnmappedEnrichTests extends AnalyzerUnmappedTestBase {
         assertThat(x.dataType(), is(DataType.KEYWORD));
     }
 
-    public void testLoad_unmappedKey_loadedAsKeyword_doesNotThrow() {
+    public void testLoad_unmappedKey_loadedAsKeyword() {
         // load() promotes absent key to KEYWORD; MATCH-type enrich policy accepts keyword fields.
         var plan = testWithLanguagesEnrich().statement(
             setUnmappedLoad("FROM test | ENRICH languages ON language_code | KEEP emp_no, language_name")
@@ -60,7 +60,7 @@ public class AnalyzerUnmappedEnrichTests extends AnalyzerUnmappedTestBase {
         );
     }
 
-    public void testNullify_unmappedKey_nullifiedMatchField_analysisSucceeds() {
+    public void testNullify_unmappedKey_nullifiedMatchField_loadedAsKeyword() {
         // nullify() sets key type to NULL; resolveEnrich() skips type-validation for NULL-typed keys.
         // Analysis succeeds, but the key is always null at runtime → ENRICH produces no matches.
         var plan = testWithLanguagesEnrich().statement(

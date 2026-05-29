@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedTestBase {
 
-    private static final String UNSUPPORTED_JOIN_FILTER = "Unsupported join filter expression";
+    private static final Matcher<String> UNSUPPORTED_JOIN_FILTER = containsString("Unsupported join filter expression");
 
     private static String lookupJoinOn(String onExpr) {
         return "FROM partial_mapping_sample_data | LOOKUP JOIN partial_message_types_lookup ON " + onExpr;
@@ -40,14 +41,14 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
     public void testNullify_leftSide_mappedField_literal_errors() {
         partialMappingTest().statementError(
             setUnmappedNullify(lookupJoinOn("unmapped_event_duration > message_type AND event_duration > 1000000")),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
     public void testLoad_leftSide_unmappedField_literal_errors() {
         partialMappingTest().statementError(
             setUnmappedLoad(lookupJoinOn("unmapped_event_duration > message_type AND unmapped_event_duration > \"x\"")),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
@@ -73,7 +74,7 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
                 lookupJoinOn("unmapped_event_duration > message_type AND message_type > message_type")
                     + " | KEEP @timestamp, event_duration, message_type"
             ),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
@@ -97,7 +98,7 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
                 lookupJoinOn("unmapped_event_duration > message_type AND message_type > message_type")
                     + " | KEEP @timestamp, event_duration, message_type"
             ),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
@@ -125,7 +126,7 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
                     + " | EVAL unmapped = unmapped_event_duration"
                     + " | KEEP @timestamp, unmapped, message_type"
             ),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
@@ -151,7 +152,7 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
                     + " | EVAL unmapped = unmapped_event_duration"
                     + " | KEEP @timestamp, unmapped, message_type"
             ),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
@@ -191,14 +192,14 @@ public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedT
     public void testNullify_nonexistentField_errors() {
         partialMappingTest().statementError(
             setUnmappedNullify(lookupJoinOn("unmapped_event_duration > message_type AND nonexistent > \"a\"")),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 
     public void testLoad_nonexistentField_errors() {
         partialMappingTest().statementError(
             setUnmappedLoad(lookupJoinOn("unmapped_event_duration > message_type AND nonexistent > \"a\"")),
-            containsString(UNSUPPORTED_JOIN_FILTER)
+            UNSUPPORTED_JOIN_FILTER
         );
     }
 }

@@ -480,19 +480,24 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
     }
 
     private static int queryBytes(VectorSimilarityFunctions.BBQType type, int dims) {
-        return type.layout() == VectorSimilarityFunctions.Layout.PACKED ? dims : BBQTestUtils.numBytes(dims, type.queryBits());
+        return switch (type.layout()) {
+            case STRIPED -> BBQTestUtils.numBytes(dims, type.queryBits());
+            case PACKED -> dims;
+        };
     }
 
     private static byte[] packDoc(VectorSimilarityFunctions.BBQType type, byte[] unpacked) {
-        return type.layout() == VectorSimilarityFunctions.Layout.PACKED
-            ? BBQTestUtils.packQuads(unpacked)
-            : BBQTestUtils.packStriped(unpacked, type.dataBits());
+        return switch (type.layout()) {
+            case STRIPED -> BBQTestUtils.packStriped(unpacked, type.dataBits());
+            case PACKED -> BBQTestUtils.packQuads(unpacked);
+        };
     }
 
     private static byte[] packQuery(VectorSimilarityFunctions.BBQType type, byte[] unpacked) {
-        return type.layout() == VectorSimilarityFunctions.Layout.PACKED
-            ? unpacked.clone()
-            : BBQTestUtils.packStriped(unpacked, type.queryBits());
+        return switch (type.layout()) {
+            case STRIPED -> BBQTestUtils.packStriped(unpacked, type.queryBits());
+            case PACKED -> unpacked.clone();
+        };
     }
 
     long nativeSimilarity(MemorySegment a, MemorySegment b, int length) {

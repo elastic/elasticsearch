@@ -133,7 +133,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
  *         natural ordering, make sure to test sorting and the other binary
  *         comparisons. Make sure these functions all have CSV tests that run
  *         against indexed data. When you add support to the function, add
- *         a new {@link FunctionDefinition.Builder#capabilities(String...) capability}.</li>
+ *         a new {@link FunctionDefinition.Builder#capabilities(String...) capability}.
+ *         As you add support for more functions, run the tests in normal
+ *         mode <strong>and</strong> release mode. See {@code Testing.asciidoc}
+ *         for instructions on how to run the release build.</li>
  *     <li>
  *         Add conversion functions as appropriate.  Almost all types should
  *         support {@link ToString}, and should have a "ToType" function that
@@ -585,6 +588,18 @@ public enum DataType implements Writeable {
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    /**
+     * The identifier used in the {@code ::counter} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the counter variant of the input's numeric type.
+     */
+    public static final String COUNTER_CAST_NAME = "counter";
+
+    /**
+     * The identifier used in the {@code ::gauge} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the gauge (plain numeric) variant of the input's counter type.
+     */
+    public static final String GAUGE_CAST_NAME = "gauge";
+
     public static Collection<DataType> types() {
         return TYPES;
     }
@@ -726,6 +741,13 @@ public enum DataType implements Writeable {
         return t.isNumeric() || isNull(t);
     }
 
+    /**
+     * True for integer-valued data types that use integral compute blocks directly.
+     */
+    public static boolean isIntegral(DataType t) {
+        return t == INTEGER || t == LONG;
+    }
+
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
     }
@@ -829,7 +851,16 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE || t == FLATTENED);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatialOrGrid(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == DATE_PERIOD
+            || t == DATE_RANGE
+            || t == FLATTENED
+            || t == HISTOGRAM
+            || t == TIME_DURATION
+            || t == TSID_DATA_TYPE);
     }
 
     public String nameUpper() {

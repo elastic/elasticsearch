@@ -36,6 +36,16 @@ public abstract class BucketAggregationScript {
         return params;
     }
 
+    private Runnable cancellationCheck = null;
+
+    public void _setCancellationCheck(Runnable cancellationCheck) {
+        this.cancellationCheck = cancellationCheck;
+    }
+
+    public Runnable _getCancellationCheck() {
+        return cancellationCheck;
+    }
+
     public abstract Number execute();
 
     public interface Factory extends ScriptFactory {

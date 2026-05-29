@@ -61,6 +61,13 @@ dependencies {
       requireCapability("org.elasticsearch.plugin:searchable-snapshots-test-artifacts")
     }
   }
+  implementation project(':x-pack:plugin:blob-cache')
+  implementation project(':x-pack:plugin:stateless')
+  implementation(project(':x-pack:plugin:stateless')) {
+    capabilities {
+      requireCapability("org.elasticsearch.plugin:stateless-test-artifacts")
+    }
+  }
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   nativeLib(project(':libs:native'))

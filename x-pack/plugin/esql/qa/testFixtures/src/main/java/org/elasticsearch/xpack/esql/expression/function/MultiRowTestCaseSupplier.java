@@ -63,6 +63,17 @@ public final class MultiRowTestCaseSupplier {
             case KEYWORD, TEXT -> stringCases(minRows, maxRows, type);
             case IP -> ipCases(minRows, maxRows);
             case BOOLEAN -> booleanCases(minRows, maxRows);
+            case VERSION -> versionCases(minRows, maxRows);
+            case CARTESIAN_POINT -> cartesianPointCases(minRows, maxRows, IncludingAltitude.NO);
+            case CARTESIAN_SHAPE -> cartesianShapeCasesWithoutCircle(minRows, maxRows, IncludingAltitude.NO);
+            case GEO_POINT -> geoPointCases(minRows, maxRows, IncludingAltitude.NO);
+            case GEO_SHAPE -> geoShapeCasesWithoutCircle(minRows, maxRows, IncludingAltitude.NO);
+            case GEOHASH -> geohashCases(minRows, maxRows);
+            case GEOTILE -> geotileCases(minRows, maxRows);
+            case GEOHEX -> geohexCases(minRows, maxRows);
+            case DENSE_VECTOR -> denseVectorCases(minRows, maxRows);
+            case EXPONENTIAL_HISTOGRAM -> exponentialHistogramCases(minRows, maxRows);
+            case TDIGEST -> tdigestCases(minRows, maxRows);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };
@@ -574,6 +585,19 @@ public final class MultiRowTestCaseSupplier {
             );
         }
 
+        return cases;
+    }
+
+    public static List<TypedDataSupplier> flattenedCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
+            return cases;
+        }
+        addSuppliers(cases, minRows, maxRows, "empty", DataType.FLATTENED, FlattenedCases.EMPTY);
+        addSuppliers(cases, minRows, maxRows, "single key", DataType.FLATTENED, FlattenedCases.SINGLE_KEY);
+        addSuppliers(cases, minRows, maxRows, "multi key", DataType.FLATTENED, FlattenedCases.MULTI_KEY);
+        addSuppliers(cases, minRows, maxRows, "object", DataType.FLATTENED, FlattenedCases.OBJECT);
+        addSuppliers(cases, minRows, maxRows, "random", DataType.FLATTENED, FlattenedCases.RANDOM);
         return cases;
     }
 

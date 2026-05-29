@@ -33,6 +33,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -132,6 +133,9 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv"
         ),
         new TestDataset("mv_sample_data"),
+        new TestDataset("event_alerts"),
+        new TestDataset("event_logs"),
+        new TestDataset("event_empty").noData(),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")
@@ -177,9 +181,14 @@ public class CsvTestsDataLoader {
         new TestDataset("date_nanos"),
         new TestDataset("date_nanos_union_types"),
         new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json"),
-        new TestDataset("k8s_unmapped", "mapping-k8s-unmapped.json", "k8s.csv").withSetting("k8s-settings.json"),
+        new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
+            .withDynamic("false"),
+        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
+        new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),
         new TestDataset("distances"),
         new TestDataset("addresses"),
         new TestDataset("addresses").withIndex("addresses_no_continent")
@@ -216,6 +225,8 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
+        new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
+        new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
@@ -246,12 +257,14 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("flattened_many"),
+        new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V5),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -294,7 +307,10 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
-        new ViewConfig("view_with_subquery")
+        new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -631,9 +647,17 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
+        loadViewsIntoEs(client, cap -> true);
+    }
+
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
+                if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                    logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
+                    continue;
+                }
                 loadView(client, view);
             }
         } else {
@@ -1277,6 +1301,20 @@ public class CsvTestsDataLoader {
          * ingestion more fields are added dynamically. Required for csv tests which do not ingest the csvs into real indices.
          */
         public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+            if (dynamicTypeMapping != null && mappingFileName != null) {
+                Map<String, EsField> mappedFields = LoadMapping.loadMapping(streamMapping());
+                for (String fieldName : dynamicTypeMapping.keySet()) {
+                    if (isMappedField(mappedFields, fieldName)) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + fieldName
+                                + "] in dynamicTypeMapping for dataset ["
+                                + indexName
+                                + "] is already mapped; use withTypeMapping instead"
+                        );
+                    }
+                }
+            }
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1289,6 +1327,25 @@ public class CsvTestsDataLoader {
                 inferenceEndpoints,
                 requiredCapabilities
             );
+        }
+
+        private static boolean isMappedField(Map<String, EsField> mapping, String fieldName) {
+            String[] segments = fieldName.split("\\.");
+            Map<String, EsField> currentMap = mapping;
+            for (int i = 0; i < segments.length; i++) {
+                EsField field = currentMap.get(segments[i]);
+                if (field == null) {
+                    return false;
+                }
+                if (i == segments.length - 1) {
+                    return true;
+                }
+                currentMap = field.getProperties();
+                if (currentMap == null || currentMap.isEmpty()) {
+                    return false;
+                }
+            }
+            return false;
         }
 
         /**
@@ -1377,7 +1434,11 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
+    public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public ViewConfig(String name) {
+            this(name, List.of());
+        }
+
         public String loadQuery() {
             return getResourceString("/views/" + name + ".esql");
         }

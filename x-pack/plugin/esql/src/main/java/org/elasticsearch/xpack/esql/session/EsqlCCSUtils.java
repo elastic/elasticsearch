@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +97,7 @@ public class EsqlCCSUtils {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
                     new Versioned<>(
-                        new Result(Analyzer.NO_FIELDS, Collections.emptyList(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
+                        new Result(Analyzer.NO_FIELDS, List.of(), Map.of(), configuration, DriverCompletionInfo.EMPTY, executionInfo),
                         TransportVersion.current()
                     )
                 );
@@ -227,7 +226,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
-        Collection<IndexResolution> optionalLinkedIndexResolution,
+        Collection<IndexResolution> linkedResolution,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -241,7 +240,7 @@ public class EsqlCCSUtils {
                 clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
             }
         }
-        for (IndexResolution indexResolution : optionalLinkedIndexResolution) {
+        for (IndexResolution indexResolution : linkedResolution) {
             for (String indexName : indexResolution.resolvedIndices()) {
                 clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
             }

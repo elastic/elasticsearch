@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
@@ -37,11 +38,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -325,35 +328,153 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer buildTracer(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings);
+        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop());
         tracer.doStart();
         return tracer;
     }
 
     private APMTracer buildTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracerWithW3CPropagator(settings);
+        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator());
         tracer.doStart();
         return tracer;
+    }
+
+    private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth) {
+        APMTracer tracer = new SpyAPMTracer(settings, maxTraceDepth, OpenTelemetry.noop());
+        tracer.doStart();
+        return tracer;
+    }
+
+    private APMTracer buildSdkPathTracerWithW3CPropagator(Settings settings) {
+        APMTracer tracer = new SpyAPMTracer(settings, 0, openTelemetryWithW3CPropagator());
+        tracer.doStart();
+        return tracer;
+    }
+
+    private static OpenTelemetry openTelemetryWithW3CPropagator() {
+        return OpenTelemetrySdk.builder().setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance())).build();
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthZero_dropsChildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0);
+
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
+
+        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+
+        assertThat(tracer.getSpans(), anEmptyMap());
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthZero_recordsRootSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0);
+
+        // No PARENT_APM_TRACE_CONTEXT transient => no local parent => this is a root span.
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "root-span", Map.of());
+
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthOne_recordsChildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 1);
+
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
+
+        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    /**
+     * Exercises the depth chain end-to-end: with {@code maxTraceDepth=1}, the root and its first-level
+     * child are recorded but a grandchild is dropped. {@link ThreadContext#newTraceContext()} promotes
+     * the previous {@code APM_TRACE_CONTEXT} to {@code PARENT_APM_TRACE_CONTEXT} the same way the task
+     * framework does in production.
+     */
+    public void test_onSdkPath_withMaxTraceDepthOne_dropsGrandchildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 1);
+
+        ThreadContext traceContext = new ThreadContext(settings);
+
+        tracer.startTrace(traceContext, TRACEABLE1, "root", Map.of());
+        try (var ignore1 = traceContext.newTraceContext()) {
+            tracer.startTrace(traceContext, TRACEABLE2, "child", Map.of());
+            try (var ignore2 = traceContext.newTraceContext()) {
+                tracer.startTrace(traceContext, TRACEABLE3, "grandchild", Map.of());
+            }
+        }
+
+        assertThat(tracer.getSpans(), aMapWithSize(2));
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
+        assertThat(tracer.getSpans(), not(hasKey(TRACEABLE3.getSpanId())));
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthZero_recordsEntryAndDropsLocalChild() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracerWithW3CPropagator(settings);
+
+        final String traceId = "0af7651916cd43dd8448eb211c80319c";
+        final String remoteParentSpanId = "b7ad6b7169203331";
+        ThreadContext traceContext = new ThreadContext(settings);
+        // PARENT_APM_TRACE_CONTEXT is intentionally absent: this simulates a fresh entry from a remote caller.
+        traceContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, "00-" + traceId + "-" + remoteParentSpanId + "-01");
+
+        tracer.startTrace(traceContext, TRACEABLE1, "entry-span", Map.of());
+        try (var ignored = traceContext.newTraceContext()) {
+            tracer.startTrace(traceContext, TRACEABLE2, "local-child", Map.of());
+        }
+
+        assertThat(tracer.getSpans().keySet(), equalTo(Set.of(TRACEABLE1.getSpanId())));
+        Span entrySpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+        assertThat(entrySpan.getSpanContext().getTraceId(), is(traceId));
+        assertThat(entrySpan.getSpanContext().getSpanId(), is(remoteParentSpanId));
+    }
+
+    public void test_addError_callsRecordException() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Exception failure = new IllegalStateException("boom");
+        tracer.addError(TRACEABLE1, failure);
+
+        Mockito.verify(recordedSpan).recordException(failure);
     }
 
     static class SpyAPMTracer extends APMTracer {
 
         Map<String, Instant> spanStartTimeMap;
+        private final OpenTelemetry openTelemetry;
 
-        SpyAPMTracer(Settings settings) {
-            super(settings);
+        SpyAPMTracer(Settings settings, OpenTelemetry openTelemetry) {
+            this(settings, openTelemetry, false, 0);
+        }
+
+        SpyAPMTracer(Settings settings, int maxTraceDepth, OpenTelemetry openTelemetry) {
+            this(settings, openTelemetry, true, maxTraceDepth);
+        }
+
+        private SpyAPMTracer(Settings settings, OpenTelemetry openTelemetry, boolean useOtelSdkTracesExport, int maxTraceDepth) {
+            super(settings, () -> openTelemetry, useOtelSdkTracesExport, maxTraceDepth);
+            this.openTelemetry = openTelemetry;
             this.spanStartTimeMap = new HashMap<>();
         }
 
         @Override
         APMServices createApmServices() {
-            APMServices apmServices = super.createApmServices();
             Tracer mockTracer = mock(Tracer.class);
             doAnswer(invocation -> {
                 String spanName = (String) invocation.getArguments()[0];
                 return new MockSpanBuilder(spanName);
             }).when(mockTracer).spanBuilder(anyString());
-            return new APMServices(mockTracer, apmServices.openTelemetry());
+            return new APMServices(mockTracer, openTelemetry);
         }
 
         Instant getSpanStartTime(String spanName) {
@@ -444,28 +565,6 @@ public class APMTracerTests extends ESTestCase {
                 spanStartTimeMap.put(spanName, startTime);
                 return span;
             }
-        }
-    }
-
-    /**
-     * Extension of {@link SpyAPMTracer} that wires a real {@link W3CTraceContextPropagator}
-     * so that {@code getRemoteParentContext()} actually extracts a parent from
-     * {@link Task#TRACE_PARENT_HTTP_HEADER}. Used to test the data-node scenario where
-     * the header is propagated over transport but no local parent context is present.
-     */
-    static class SpyAPMTracerWithW3CPropagator extends SpyAPMTracer {
-
-        SpyAPMTracerWithW3CPropagator(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        APMServices createApmServices() {
-            APMServices base = super.createApmServices();
-            OpenTelemetrySdk openTelemetry = OpenTelemetrySdk.builder()
-                .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
-                .build();
-            return new APMServices(base.tracer(), openTelemetry);
         }
     }
 

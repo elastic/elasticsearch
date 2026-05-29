@@ -55,6 +55,8 @@ def parquetQaProject = project(xpackModule('esql-datasource-parquet:qa'))
 def parquetFixtureOutputDir = file("${parquetQaProject.buildDir}/parquet-fixtures/iceberg-fixtures")
 
 sourceSets.javaRestTest.resources.srcDir file("${parquetQaProject.buildDir}/parquet-fixtures")
+// Share static csv-spec files (e.g. external-hive-partitioned.csv-spec) with the java parquet qa module.
+sourceSets.javaRestTest.resources.srcDir file("${parquetQaProject.projectDir}/src/javaRestTest/resources")
 tasks.named('processJavaRestTestResources').configure {
   dependsOn parquetQaProject.tasks.named('generateParquetFixtures')
 }
@@ -68,10 +70,11 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named('javaRestTest') {
+  enabled = buildParams.snapshotBuild && parent.testsEnabled
+
   dependsOn parquetQaProject.tasks.named('generateParquetFixtures')
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
-  enabled = buildParams.snapshotBuild
 
   systemProperty 'tests.rest.client_timeout', '60'
   systemProperty 'tests.rest.socket_timeout', '60'

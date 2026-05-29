@@ -63,9 +63,10 @@ public final class DatasetRewriter {
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} whose pattern resolves to
      * dataset(s) into {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of
-     * such (multi). All other relations are left untouched. Three short-circuits avoid resolver
-     * cost on the common path: feature flag off, {@code projectMetadata == null}, or no datasets
-     * registered.
+     * such (multi). All other relations are left untouched. Two short-circuits avoid resolver
+     * cost on the common path: {@code projectMetadata == null}, or no datasets registered — and
+     * since {@link DataSourceMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} gates the CRUD layer
+     * that puts datasets into cluster state, the no-datasets check is the natural off-switch.
      *
      * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets),
      * non-{@code STANDARD} {@link IndexMode} on a dataset, METADATA fields on a dataset, or
@@ -74,7 +75,7 @@ public final class DatasetRewriter {
      * regardless of whether the user wrote {@code FROM <dataset>} or inline {@code EXTERNAL}).
      */
     public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false || projectMetadata == null) {
+        if (projectMetadata == null) {
             return parsed;
         }
         DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);
@@ -234,17 +235,22 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. Secrets stay as
-     * {@link org.elasticsearch.common.settings.SecureString}; callers materialize plaintext via
-     * {@link Object#toString()} at use site. Use {@code Objects.toString(config.get(key), null)}
-     * — direct {@code (String)} cast would CCE on non-String values.
+     * Dataset format settings at the top level; data-source auth/connection settings stored under
+     * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
+     * options. {@link ExternalSourceResolver#storageConfig} flattens the sub-map before passing
+     * settings to a storage provider; {@link ExternalSourceResolver#planConfig} strips it before
+     * embedding config in plan nodes (avoiding serialization of credential objects).
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
-        for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-            merged.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
-        }
         merged.putAll(dataset.settings());
+        if (parent.settings().isEmpty() == false) {
+            Map<String, Object> dsSettings = new HashMap<>();
+            for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
+                dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
+            }
+            merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
+        }
         return merged;
     }
 }

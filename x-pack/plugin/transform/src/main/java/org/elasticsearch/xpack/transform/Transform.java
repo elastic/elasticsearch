@@ -187,7 +187,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
-        if (TransformMetadata.upgradeMode(project)) {
+        if (TransformMetadata.isUpgradeMode(project)) {
             // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
             listener.onResponse(Map.of("already_in_upgrade_mode", true));
             return;

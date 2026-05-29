@@ -30,9 +30,14 @@ public class CreateIndexCapabilities {
     private static final String LOOKUP_INDEX_MODE_CAPABILITY = "lookup_index_mode";
 
     /**
-     * Support for columnar and columnar_logsdb index modes.
+     * Support for columnar and logsdb_columnar index modes.
      */
     private static final String COLUMNAR_INDEX_MODES_CAPABILITY = "columnar_index_modes";
+
+    /**
+     * Support vectordb_document index mode
+     */
+    private static final String VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY = "vectordb_document_index_mode";
 
     private static final String NESTED_DENSE_VECTOR_SYNTHETIC_TEST = "nested_dense_vector_synthetic_test";
 
@@ -57,6 +62,9 @@ public class CreateIndexCapabilities {
         );
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
             caps.add(COLUMNAR_INDEX_MODES_CAPABILITY);
+        }
+        if (IndexMode.VECTORDB_FEATURE_FLAG.isEnabled()) {
+            caps.add(VECTORDB_DOCUMENT_INDEX_MODE_CAPABILITY);
         }
         CAPABILITIES = Set.copyOf(caps);
     }

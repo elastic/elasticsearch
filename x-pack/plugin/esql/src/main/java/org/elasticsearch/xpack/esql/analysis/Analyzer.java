@@ -51,12 +51,14 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeE
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
@@ -103,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggrega
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -183,7 +186,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -255,7 +257,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
-            new TimeSeriesGroupByAll(),
+            new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolveUnionTypesInUnionAll(),
             new ResolveUnmapped()
         ),
@@ -356,10 +358,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
-            if (context.unmappedResolution() == UnmappedResolution.LOAD) {
-                loadPartiallyUnmappedFields(attributes, esIndex);
-            }
-
             return new EsRelation(
                 plan.source(),
                 esIndex.name(),
@@ -369,34 +367,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.indexNameWithModes(),
                 attributes.isEmpty() ? NO_FIELDS : attributes
             );
-        }
-
-        /**
-         * When {@code SET unmapped_fields="load"}, convert partially-mapped fields so they can be used across indices where they
-         * may not exist:
-         * <ul>
-         *   <li>Keyword fields are converted to use {@link PotentiallyUnmappedKeywordEsField} so they are loaded from
-         *       {@code _source} on shards where they are unmapped.</li>
-         *   <li>Non-keyword fields are marked as {@link InvalidMappedField#potentiallyUnmapped potentially unmapped} so that
-         *       explicit casts (e.g. {@code field::long}) can resolve them via the union types / {@code MultiTypeEsField}
-         *       mechanism.</li>
-         * </ul>
-         */
-        private static void loadPartiallyUnmappedFields(List<Attribute> attributes, EsIndex esIndex) {
-            for (int i = 0; i < attributes.size(); i++) {
-                if (attributes.get(i) instanceof FieldAttribute fa && isPartiallyUnmappedRegularField(fa, esIndex)) {
-                    if (fa.dataType() == KEYWORD) {
-                        attributes.set(i, ResolveRefs.insistKeyword(fa));
-                    } else {
-                        attributes.set(i, ResolveRefs.invalidInsistAttribute(fa, esIndex));
-                    }
-                }
-            }
-        }
-
-        private static boolean isPartiallyUnmappedRegularField(FieldAttribute fa, EsIndex esIndex) {
-            // We ignore proper subclasses of FieldAttribute; these represent unsupported or special attributes.
-            return fa.getClass().equals(FieldAttribute.class) && esIndex.isPartiallyUnmappedField(fa.fieldName().string());
         }
 
         private List<NamedExpression> resolveMetadata(List<NamedExpression> metadata, AnalyzerContext context) {
@@ -475,9 +445,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
                 }
 
-                FieldAttribute attribute = t instanceof UnsupportedEsField uef
-                    ? new UnsupportedAttribute(source, name, uef)
-                    : new FieldAttribute(source, parentName, null, name, t);
+                FieldAttribute attribute;
+                if (t instanceof UnsupportedEsField uef) {
+                    attribute = new UnsupportedAttribute(source, name, uef);
+                } else if (t instanceof InvalidMappedTsField imtf) {
+                    // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
+                    // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
+                    var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
+                    attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
+                } else {
+                    attribute = new FieldAttribute(source, parentName, null, name, t);
+                }
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
@@ -491,19 +469,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#optionalLinkedResolution()}.
+     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
      * <p>
      * Each {@code ViewShadowRelation} represents a "if a remote project has an index with this
      * view's name, treat it as if the user wrote a remote index reference at this position"
      * lookup. The lenient field-caps integration (deferred to a follow-up PR) populates
-     * {@code optionalLinkedResolution}, keyed by the shadow's {@link ViewShadowRelation#optionalLinkedPattern()}
+     * {@code linkedResolution}, keyed by the shadow's {@link ViewShadowRelation#linkedIndexPattern()}
      * (view name + applicable exclusions). The full pattern is the lookup key — different
      * exclusion lists at the same view name produce distinct {@code ViewShadowRelation}
      * instances and may resolve differently (e.g. one comes back empty because of the
      * exclusions, the other resolves to a remote index). This rule:
      * <ul>
      *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link ViewShadowRelation#optionalLinkedPattern()}, replaces the shadow with an
+     *       {@link ViewShadowRelation#linkedIndexPattern()}, replaces the shadow with an
      *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
      *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
      *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
@@ -514,7 +492,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
-            IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
+            IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
             if (resolution == null || resolution.isValid() == false) {
                 // No remote index found (or lookup didn't run yet) — leave the shadow alone for
                 // ViewCompactionPostIndexResolution to strip.
@@ -577,7 +555,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileList());
+            return new ExternalRelation(
+                plan.source(),
+                tablePath,
+                metadata,
+                metadata.schema(),
+                resolvedSource.fileList(),
+                resolvedSource.schemaMap()
+            );
         }
 
         private String extractTablePath(Expression tablePath) {
@@ -754,7 +739,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
-                case Insist i -> resolveInsist(i, childrenOutput, context);
+                case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
                 case PromqlCommand promql -> resolvePromql(promql, childrenOutput);
@@ -1284,58 +1269,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolved;
         }
 
-        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, AnalyzerContext context) {
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput) {
             List<Attribute> list = new ArrayList<>();
-            List<IndexResolution> resolutions = collectIndexResolutions(insist, context);
             for (Attribute a : insist.insistedAttributes()) {
-                list.add(resolveInsistAttribute(a, childrenOutput, resolutions));
+                list.add(resolveInsistAttribute(a, childrenOutput));
             }
             return insist.withAttributes(list);
         }
 
-        private static List<IndexResolution> collectIndexResolutions(LogicalPlan plan, AnalyzerContext context) {
-            List<IndexResolution> resolutions = new ArrayList<>();
-            plan.forEachDown(EsRelation.class, e -> {
-                var resolution = context.indexResolution().get(new IndexPattern(e.source(), e.indexPattern()));
-                if (resolution != null) {
-                    resolutions.add(resolution);
-                }
-            });
-            return resolutions;
-        }
-
-        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, List<IndexResolution> indices) {
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput) {
             Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
                 return insistKeyword(attribute);
             }
 
-            // Field is partially unmapped.
-            // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
-            if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                // NOTE: We use indices.getFirst() here as a temporary solution. INSIST will be removed after load is in GA anyway.
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices.getFirst().get());
-            }
-
-            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
-            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
+            // Partially unmapped fields are already wrapped during index resolution:
+            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → InvalidMappedField.potentiallyUnmapped.
             return resolvedCol;
-        }
-
-        static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
-            InvalidMappedField field = InvalidMappedField.potentiallyUnmapped(fa.field().getName(), getTypesToIndices(fa, esIndex));
-            return new FieldAttribute(fa.source(), fa.parentName(), fa.qualifier(), fa.name(), field);
-        }
-
-        private static Map<String, Set<String>> getTypesToIndices(FieldAttribute fa, EsIndex esIndex) {
-            if (fa.field() instanceof InvalidMappedField imf) {
-                return imf.getTypesToIndices();
-            }
-            // Field isn't currently invalid, meaning it's mapped to a single type in all the indices where it's actually mapped.
-            TreeSet<String> indicesWithField = new TreeSet<>(esIndex.concreteQualifiedIndices());
-            indicesWithField.removeAll(esIndex.getUnmappedIndices(fa.name()));
-            return Map.of(fa.dataType().typeName(), indicesWithField);
         }
 
         public static FieldAttribute insistKeyword(Attribute attribute) {
@@ -1560,13 +1511,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 : new ResolvingProject(keep.source(), keep.child(), inputAttributes -> keepResolver(keep.projections(), inputAttributes));
         }
 
+        // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
+        // or implicit projections — users must request them by name. Identification is type-based
+        // through the {@link VirtualAttribute} marker so future virtual attributes opt in by
+        // class hierarchy rather than name convention.
+        private static <T extends NamedExpression> List<T> excludeExternalMetadata(List<T> attributes) {
+            List<T> filtered = new ArrayList<>(attributes.size());
+            for (T attr : attributes) {
+                if (attr instanceof VirtualAttribute == false) {
+                    filtered.add(attr);
+                }
+            }
+            return filtered;
+        }
+
         private static List<NamedExpression> keepResolver(List<? extends NamedExpression> projections, List<Attribute> childOutput) {
             List<NamedExpression> resolvedProjections;
             // start with projections
 
             // no projection specified or just *
             if (projections.isEmpty() || (projections.size() == 1 && projections.getFirst() instanceof UnresolvedStar)) {
-                resolvedProjections = new ArrayList<>(childOutput);
+                // Widen List<Attribute> to List<NamedExpression> via copy; safe because every
+                // Attribute is a NamedExpression and the result is a fresh, mutable list.
+                resolvedProjections = new ArrayList<>(excludeExternalMetadata(childOutput));
             }
             // otherwise resolve them
             else {
@@ -1575,7 +1542,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     final List<Attribute> resolved;
                     final int priority;
                     if (proj instanceof UnresolvedStar) {
-                        resolved = childOutput;
+                        resolved = excludeExternalMetadata(childOutput);
                         priority = 4;
                     } else if (proj instanceof UnresolvedNamePattern up) {
                         resolved = resolveAgainstList(up, childOutput);
@@ -1613,6 +1580,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static List<NamedExpression> dropResolver(List<NamedExpression> removals, List<Attribute> childOutput) {
+            // DROP must operate over the full childOutput — including any external metadata
+            // (`_file.*`, partition columns) the user already pulled in via KEEP — so it can
+            // remove a data column without silently stripping previously-kept virtual columns.
+            // Wildcard / default-output filtering is handled in keepResolver and
+            // planWithoutSyntheticAttributes, not here.
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (NamedExpression ne : removals) {
@@ -2431,22 +2403,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esr;
             });
             if (res.equals(plan) == false) {
-                res = res.transformUp(Project.class, p -> {
-                    List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
-                    for (Attribute attr : p.inputSet()) {
-                        if (attr.synthetic() && p.outputSet().contains(attr) == false) {
-                            syntheticAttributesToCarryOver.add(attr);
-                        }
-                    }
-
-                    if (syntheticAttributesToCarryOver.isEmpty()) {
-                        return p;
-                    }
-
-                    List<NamedExpression> newProjections = new ArrayList<>(p.projections());
-                    newProjections.addAll(syntheticAttributesToCarryOver);
-                    return new Project(p.source(), p.child(), newProjections);
-                });
+                res = carryOverSyntheticAttributesThroughProjects(res);
             }
             return res;
         }
@@ -2469,6 +2426,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "]";
                     Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
+                }
+                // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
+                // Strip it so union resolution can defer to implicit aggregate_metric_double casting in aggregations.
+                if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(imf)) {
+                    return fa;
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
@@ -2688,6 +2650,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Attribute attr : output) {
                 // Do not let the synthetic union type field attributes end up in the final output.
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
+                    continue;
+                }
+                // Virtual columns (today: _file.*) are hidden from default output.
+                // Users add them explicitly via KEEP _file.path, etc.
+                if (attr instanceof VirtualAttribute) {
                     continue;
                 }
                 newOutput.add(attr);
@@ -3057,6 +3024,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ? maybePushDownConvertFunctions(unionAll, plan, convertFunctionsToAttributes)
                     : unionAll
             );
+
+            // Carry over the synthetic convert-function attributes added to UnionAll output through Project above it.
+            if (convertFunctionsToAttributes.isEmpty() == false) {
+                planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(planWithConvertFunctionsPushedDown);
+            }
 
             // Then replace the conversion functions with the corresponding attributes in the UnionAll output
             LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(
@@ -3566,5 +3538,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
             return isEmpty.get();
         }
+    }
+
+    /**
+     * Carry over synthetic attributes that are present in a {@link Project}'s input set but missing from its
+     * projections, by appending them to the projection list. Used by the union-types resolution rules to
+     * propagate newly introduced synthetic {@code $$<field>$converted_to$<type>} attributes (from either
+     * multi-typed {@link EsRelation} fields or {@link UnionAll} branches) through intermediate
+     * {@link Project} nodes that were resolved before the synthetic existed (typically those produced by
+     * {@code RENAME}, {@code KEEP}, or {@code DROP}). Without this, downstream references inserted above
+     * the {@link Project} would have no binding and the optimizer's plan consistency check would later
+     * fail with missing references.
+     *
+     * <p>Used by both {@code ResolveUnionTypes} (for multi-typed EsRelation fields) and
+     * {@code ResolveUnionTypesInUnionAll} (for type conflicts across {@link UnionAll} branches).
+     */
+    private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan) {
+        return plan.transformUp(Project.class, p -> {
+            List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+            for (Attribute attr : p.inputSet()) {
+                if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                    syntheticAttributesToCarryOver.add(attr);
+                }
+            }
+            if (syntheticAttributesToCarryOver.isEmpty()) {
+                return p;
+            }
+            List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+            newProjections.addAll(syntheticAttributesToCarryOver);
+            return new Project(p.source(), p.child(), newProjections);
+        });
     }
 }

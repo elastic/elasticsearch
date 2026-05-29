@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -34,13 +37,15 @@ public class ApproximationPlanTests extends ApproximationTestCase {
      * It must not be treated as nullable by optimizer rules (e.g. FoldNull, PropagateNullable).
      */
     public void testSampleProbabilityPlaceHolderIsNotNullable() {
-        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(Source.EMPTY);
+        var placeholder = new ApproximationPlan.SampleProbabilityPlaceHolder(Source.EMPTY, randomInt());
         assertThat(placeholder.nullable(), equalTo(Nullability.FALSE));
     }
 
-    public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() throws Exception {
+    public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)");
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -51,9 +56,11 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
-    public void testApproximationPlan_createsConfidenceInterval_withGrouping() throws Exception {
+    public void testApproximationPlan_createsConfidenceInterval_withGrouping() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no");
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -64,11 +71,13 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(SUM(emp_no))"))));
     }
 
-    public void testApproximationPlan_dependentConfidenceIntervals() throws Exception {
+    public void testApproximationPlan_dependentConfidenceIntervals() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan(
-                "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
-            ),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -87,14 +96,48 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         assertThat(approximationPlan, hasPlan(Eval.class, withField(("_approximation_certified(e)"))));
     }
 
-    public void testColumnMetadata() throws Exception {
+    public void testApproximationPlan_withFork() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM test | FORK (STATS sum=SUM(emp_no)) (KEEP emp_no) (WHERE emp_no < 10 | STATS max=MAX(emp_no))"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+        assertThat(
+            approximationPlan.output().stream().map(Attribute::name).toList(),
+            contains("sum", "_fork", "emp_no", "max", "_approximation_confidence_interval(sum)", "_approximation_certified(sum)")
+        );
+    }
+
+    public void testApproximationPlan_withNonApproximableSubqueries() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM (FROM test | LIMIT 1 | STATS bad = COUNT(*)), (FROM test | STATS good = COUNT(*))"
+        );
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+        assertThat(
+            approximationPlan.output().stream().map(Attribute::name).toList(),
+            contains("bad", "good", "_approximation_confidence_interval(good)", "_approximation_certified(good)")
+        );
+    }
+
+    public void testColumnMetadata() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)");
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
         for (Attribute attr : approximationPlan.output()) {
-            Map<String, Object> metadata = ApproximationPlan.columnMetadata(attr);
+            Map<String, Object> metadata = ApproximationPlan.createColumnMetadata(attr);
             switch (attr.name()) {
                 case "count", "sum":
                     assertThat(attr.synthetic(), equalTo(false));

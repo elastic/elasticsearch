@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149971
+summary: Enforce limit for max nested functions
+type: bug

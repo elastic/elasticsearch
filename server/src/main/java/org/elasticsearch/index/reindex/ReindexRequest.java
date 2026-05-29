@@ -120,6 +120,9 @@ public class ReindexRequest extends AbstractBulkIndexByPaginatedSearchRequest<Re
                 e = addValidationError("unsupported version for internal versioning [" + destination.version() + ']', e);
             }
         }
+        if (destination.opType() == IndexRequest.OpType.CREATE && destination.versionType() != INTERNAL) {
+            e = addValidationError("create operations only support internal versioning. use index instead", e);
+        }
         if (getRemoteInfo() != null) {
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);

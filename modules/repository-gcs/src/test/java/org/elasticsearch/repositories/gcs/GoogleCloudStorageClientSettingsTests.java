@@ -41,6 +41,7 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.GCS_TENACIOUS_RETRIES_ENABLED_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.MEGABYTES_COPIED_PER_CHUNK_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
@@ -128,7 +129,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             new URI(""),
             null,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
-            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY)
+            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
+            GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
     }
@@ -147,7 +149,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             new URI(""),
             proxy,
             MAX_RETRIES_SETTING.getDefault(Settings.EMPTY),
-            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY)
+            MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY),
+            GCS_TENACIOUS_RETRIES_ENABLED_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(proxy, googleCloudStorageClientSettings.getProxy());
     }
@@ -219,7 +222,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             original.getTokenUri(),
             original.getProxy(),
             original.getMaxRetries(),
-            original.getMegabytesCopiedPerChunk()
+            original.getMegabytesCopiedPerChunk(),
+            original.getTenaciousRetriesEnabled()
         );
     }
 
@@ -234,7 +238,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
         Proxy proxy = original.getProxy();
         int maxRetries = original.getMaxRetries();
         long megabytesCopiedPerChunk = original.getMegabytesCopiedPerChunk();
-        switch (randomIntBetween(0, 9)) {
+        boolean tenaciousRetriesEnabled = original.getTenaciousRetriesEnabled();
+        switch (randomIntBetween(0, 10)) {
             case 0 -> credential = randomValueOtherThan(original.getCredential(), () -> {
                 try {
                     return randomCredential(clientName).v1();
@@ -260,6 +265,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
                 original.getMegabytesCopiedPerChunk(),
                 () -> randomLongBetween(5, 5000)
             );
+            case 10 -> tenaciousRetriesEnabled = !original.getTenaciousRetriesEnabled();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new GoogleCloudStorageClientSettings(
@@ -272,7 +278,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             tokenUri,
             proxy,
             maxRetries,
-            megabytesCopiedPerChunk
+            megabytesCopiedPerChunk,
+            tenaciousRetriesEnabled
         );
     }
 
@@ -376,6 +383,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             ? randomIntBetween(5, 5000)
             : MEGABYTES_COPIED_PER_CHUNK_SETTING.getDefault(Settings.EMPTY);
 
+        boolean tenaciousRetriesEnabled = randomBoolean();
+
         return new GoogleCloudStorageClientSettings(
             credential,
             endpoint,
@@ -386,7 +395,8 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             new URI(""),
             null,
             maxRetries,
-            megabytesCopiedPerChunk
+            megabytesCopiedPerChunk,
+            tenaciousRetriesEnabled
         );
     }
 

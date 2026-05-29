@@ -31,6 +31,8 @@ import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -40,7 +42,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -103,21 +105,21 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
     private final Queue<PaginatedHitSource.AsyncResponse> responseQueue = new LinkedBlockingQueue<>();
     private final Queue<Throwable> failureQueue = new LinkedBlockingQueue<>();
 
-    private static BulkByScrollTask.Status randomStatusWithoutException() {
+    private static BulkByPaginatedSearchTask.Status randomStatusWithoutException() {
         if (randomBoolean()) {
             return randomWorkingStatus(null);
         }
         boolean canHaveNullStatues = randomBoolean();
-        List<BulkByScrollTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
+        List<BulkByPaginatedSearchTask.StatusOrException> statuses = IntStream.range(0, between(0, 10)).mapToObj(i -> {
             if (canHaveNullStatues && rarely()) {
                 return null;
             }
-            return new BulkByScrollTask.StatusOrException(randomWorkingStatus(i));
+            return new BulkByPaginatedSearchTask.StatusOrException(randomWorkingStatus(i));
         }).collect(toList());
-        return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
+        return new BulkByPaginatedSearchTask.Status(statuses, randomBoolean() ? "test" : null, 0f);
     }
 
-    private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+    private static BulkByPaginatedSearchTask.Status randomWorkingStatus(Integer sliceId) {
         int total = between(0, 10000000);
         int updated = between(0, total);
         int created = between(0, total - updated);
@@ -130,7 +132,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
         TimeUnit[] timeUnits = { TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS };
         TimeValue throttled = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
         TimeValue throttledUntil = new TimeValue(randomIntBetween(0, 1000), randomFrom(timeUnits));
-        return new BulkByScrollTask.Status(
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             updated,
@@ -258,7 +260,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
                     remoteInfo(),
                     request,
                     Version.CURRENT,
-                    keepaliveDeadline()
+                    keepaliveDeadline(),
+                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                    1024L
                 )
             );
         }
@@ -355,7 +359,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo,
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -379,7 +385,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo,
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -548,7 +556,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo(),
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
     }
 
@@ -614,7 +624,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo(),
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
     }
 

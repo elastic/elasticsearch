@@ -38,7 +38,7 @@ public class InMemoryViewResolver extends ViewResolver {
         Supplier<ViewMetadata> metadata,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(clusterService, null, null, crossProjectModeDecider);
+        super(null, clusterService, null, null, crossProjectModeDecider);
         this.projectResolver = DefaultProjectResolver.INSTANCE;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),

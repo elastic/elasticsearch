@@ -134,6 +134,7 @@ toc:
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
                   - file: esql/commands/ts-info.md
+                  - file: esql/commands/ts_collapse.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
@@ -214,6 +215,8 @@ toc:
                   - hidden: esql/functions-operators/date-time-functions/range_max.md
                   - hidden: esql/functions-operators/date-time-functions/range_min.md
                   - hidden: esql/functions-operators/date-time-functions/range_within.md
+                  - hidden: esql/functions-operators/date-time-functions/range_contains.md
+                  - hidden: esql/functions-operators/date-time-functions/range_intersects.md
                   - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
                 children:
@@ -329,12 +332,14 @@ toc:
                   - file: esql/functions-operators/dense-vector-functions/v_hamming.md
                   - file: esql/functions-operators/dense-vector-functions/v_l1_norm.md
                   - file: esql/functions-operators/dense-vector-functions/v_l2_norm.md
+                  - hidden: esql/functions-operators/dense-vector-functions/v_magnitude.md
               - file: esql/functions-operators/type-conversion-functions.md
                 children:
                   - file: esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md
                   - file: esql/functions-operators/type-conversion-functions/to_boolean.md
                   - file: esql/functions-operators/type-conversion-functions/to_cartesianpoint.md
                   - file: esql/functions-operators/type-conversion-functions/to_cartesianshape.md
+                  - file: esql/functions-operators/type-conversion-functions/to_counter.md
                   - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
                   - file: esql/functions-operators/type-conversion-functions/to_datetime.md
                   - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md
@@ -342,6 +347,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
                   - file: esql/functions-operators/type-conversion-functions/to_double.md
                   - file: esql/functions-operators/type-conversion-functions/to_exponential_histogram.md
+                  - file: esql/functions-operators/type-conversion-functions/to_gauge.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohash.md
                   - file: esql/functions-operators/type-conversion-functions/to_geohex.md
                   - file: esql/functions-operators/type-conversion-functions/to_geopoint.md
@@ -410,6 +416,10 @@ toc:
           - file: esql/esql-query-log.md
           - file: esql/esql-task-management.md
       - file: esql/limitations.md
+  - file: promql.md
+    children:
+      - file: promql/promql-http-api.md
+      - file: promql/promql-limitations.md
   - file: sql.md
     children:
       - file: sql/sql-getting-started.md
@@ -429,24 +439,24 @@ toc:
       - file: sql/sql-cli.md
       - file: sql/sql-jdbc.md
         children:
-            - file: sql/sql-jdbc-api-usage.md
+          - file: sql/sql-jdbc-api-usage.md
       - file: sql/sql-odbc.md
         children:
-            - file: sql/sql-odbc-installation.md
-            - file: sql/sql-odbc-setup.md
+          - file: sql/sql-odbc-installation.md
+          - file: sql/sql-odbc-setup.md
       - file: sql/sql-client-apps.md
         children:
-            - file: sql/sql-client-apps-dbeaver.md
-            - file: sql/sql-client-apps-dbvis.md
-            - file: sql/sql-client-apps-excel.md
-            - file: sql/sql-client-apps-powerbi.md
-            - file: sql/sql-client-apps-ps1.md
-            - file: sql/sql-client-apps-microstrat.md
-            - file: sql/sql-client-apps-qlik.md
-            - file: sql/sql-client-apps-squirrel.md
-            - file: sql/sql-client-apps-workbench.md
-            - file: sql/sql-client-apps-tableau-desktop.md
-            - file: sql/sql-client-apps-tableau-server.md
+          - file: sql/sql-client-apps-dbeaver.md
+          - file: sql/sql-client-apps-dbvis.md
+          - file: sql/sql-client-apps-excel.md
+          - file: sql/sql-client-apps-powerbi.md
+          - file: sql/sql-client-apps-ps1.md
+          - file: sql/sql-client-apps-microstrat.md
+          - file: sql/sql-client-apps-qlik.md
+          - file: sql/sql-client-apps-squirrel.md
+          - file: sql/sql-client-apps-workbench.md
+          - file: sql/sql-client-apps-tableau-desktop.md
+          - file: sql/sql-client-apps-tableau-server.md
       - file: sql/sql-spec.md
         children:
           - file: sql/sql-lexical-structure.md

@@ -23,10 +23,10 @@ import java.util.stream.Stream;
 public final class PanamaVectorConstants {
 
     /** Preferred width in bits for vectors. */
-    static final int PREFERRED_VECTOR_BITSIZE;
+    public static final int PREFERRED_VECTOR_BITSIZE;
 
     /** Whether integer vectors can be trusted to actually be fast. */
-    static final boolean ENABLE_INTEGER_VECTORS;
+    public static final boolean ENABLE_INTEGER_VECTORS;
 
     static final VectorSpecies<Byte> PREFERRED_BYTE_SPECIES;
     static final VectorSpecies<Integer> PREFERRED_INTEGER_SPECIES;

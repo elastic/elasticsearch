@@ -37,6 +37,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SumOverTimeTests extends AbstractAggregationTestCase {
     public SumOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @ParametersFactory
@@ -112,6 +115,21 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new SumOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
+    }
+
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {

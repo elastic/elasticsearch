@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -131,11 +133,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -397,6 +397,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+        // Sometimes explicitly set the setting to the default value, which doubles as a test for the setting being registered
+        if (randomBoolean()) {
+            builder.put(
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(),
+                StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getDefault(Settings.EMPTY)
+            );
+        }
         return builder;
     }
 
@@ -530,6 +537,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     protected void setNodeRepositoryStrategy(String nodeName, StatelessMockRepositoryStrategy strategy) {
         ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
+    }
+
+    protected void setProjectRepositoryStrategy(String nodeName, ProjectId projectId, StatelessMockRepositoryStrategy strategy) {
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
+        ObjectStoreTestUtils.getProjectObjectStoreStatelessMockRepository(projectId, objectStoreService).setStrategy(strategy);
     }
 
     protected void setNodeRepositoryFailureStrategy(
@@ -1123,11 +1135,19 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
     }
 
+    /**
+     * List all finalized blobs in the blob container, exclude any temporary blobs present for in-progress
+     * atomic writes.
+     *
+     * @param blobContainer An BlobContainer that extends or delegates to a {@link FsBlobContainer}
+     * @return The list of finalized blobs in that container
+     */
     protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
         var blobContainerPath = blobContainer.path().buildAsString();
         return blobContainer.listBlobs(operationPurpose)
             .keySet()
             .stream()
+            .filter(blob -> FsBlobContainer.isTempBlobName(blob.substring(blob.lastIndexOf('/') + 1)) == false)
             .map(blob -> blobContainerPath + blob)
             .collect(Collectors.toSet());
     }
@@ -1190,6 +1210,14 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return new PrimaryTermAndGeneration(indexShard.getOperationPrimaryTerm(), ((IndexEngine) engineOrNull).getCurrentGeneration());
     }
 
+    /**
+     * Call this when the blobs you want listed have been fully uploaded, e.g., after a flush,
+     * or call this in a loop (e.g., assertBusy) to check that some blobs have been deleted.
+     *
+     * If blobs are being uploaded, some non-conforming filenames may not be listed, e.g., if they
+     * have partial names like the temporary "pending-" prefixed blobs that {@link FsBlobContainer}
+     * uses to do atomic uploads.
+     */
     protected static Set<PrimaryTermAndGeneration> listBlobsTermAndGenerations(ShardId shardId) throws Exception {
         Set<PrimaryTermAndGeneration> set = new HashSet<>();
         var objectStoreService = getObjectStoreService(internalCluster().getRandomNodeName());
@@ -1197,11 +1225,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         for (var entry : indexBlobContainer.children(operationPurpose).entrySet()) {
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
-            statelessCompoundCommits.forEach(
-                filename -> set.add(
-                    new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename))
-                )
-            );
+            statelessCompoundCommits.forEach(filename -> {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename)));
+                }
+            });
         }
         return set;
     }
@@ -1272,10 +1300,44 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return indexingNodeSettingsBuilder.build();
     }
 
+    /**
+     * Relocate non-hollow index shards from {@code indexNodeA} to {@code indexNodeB} and hollow them on the target.
+     *
+     * Preconditions:
+     * <ul>
+     * <li>The cluster contains exactly two {@link DiscoveryNodeRole#INDEX_ROLE} nodes.</li>
+     * <li>{@code indexName} has {@code index.routing.allocation.exclude._name} setting set to {@code indexNodeB}. This is later
+     *     updated to indexNodeA to hollow the shards.</li>
+     * </ul>
+     */
     protected void hollowShards(String indexName, int numberOfShards, String indexNodeA, String indexNodeB) throws Exception {
-        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        // assert cluster does not have more indexing nodes, and index settings exclude indexNodeB
+        final var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).setMetadata(true).get().getState();
+        final Set<String> indexingNodeNames = new HashSet<>();
+        for (DiscoveryNode node : state.nodes()) {
+            if (node.hasRole(DiscoveryNodeRole.INDEX_ROLE.roleName())) {
+                indexingNodeNames.add(node.getName());
+            }
+        }
+        assertThat(
+            "we expect exactly two indexing nodes in the cluster (no other index-role nodes)",
+            indexingNodeNames,
+            equalTo(Set.of(indexNodeA, indexNodeB))
+        );
+
+        var indexMetadata = state.metadata().getProject().index(indexName);
+        assertThat("index [" + indexName + "] must exist", indexMetadata, notNullValue());
+        String excludeNames = indexMetadata.getSettings().get(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name");
+        assertThat(
+            "index [" + indexName + "] must set [index.routing.allocation.exclude._name] so primaries stay off [" + indexNodeB + "]",
+            excludeNames,
+            equalTo(indexNodeB)
+        );
+
+        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final var index = resolveIndex(indexName);
         for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(resolveIndex(indexName), 0);
+            var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
             var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
             assertFalse(indexEngine.isLastCommitHollow());
@@ -1283,17 +1345,13 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
 
         logger.debug("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> {
-            var nodes = internalCluster().nodesInclude(indexName);
-            assertThat(nodes, not(hasItem(indexNodeA)));
-            assertThat(nodes, hasItem(indexNodeB));
-        });
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA), indexName);
+        internalCluster().awaitNodesInclude(indexName, nodes -> nodes.contains(indexNodeA) == false && nodes.contains(indexNodeB));
         ensureGreen(indexName);
 
         var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
         for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(resolveIndex(indexName), i);
+            var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
         }

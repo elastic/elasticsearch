@@ -42,6 +42,9 @@ static inline int32_t dotd2q4_packed_inner(const int8_t* a, const int8_t* query,
 
     int i = 0;
     while (i < blk) {
+        // We are avoiding templates here because the masks required to extract the 4 elements from a byte
+        // are different enough to make templated code look less readable.
+        // See commit ddb46a776397ce4293fdff6667eacc0781297119
         __m256i acc_s0_16 = _mm256_setzero_si256();
         __m256i acc_s1_16 = _mm256_setzero_si256();
         __m256i acc_s2_16 = _mm256_setzero_si256();
@@ -122,8 +125,8 @@ static inline void dotd2q4_packed_bulk_impl(
         if (has_next) {
             apply_indexed<batches>([&](auto I) {
                 next_doc_ptrs[I] = mapper(docs, c + batches + I, offsets, pitch);
-                prefetch(next_doc_ptrs[I], lines_to_fetch);
             });
+            head_prefetch<batches, 1>(next_doc_ptrs);
         }
 
         __m256i acc32[batches];
@@ -147,6 +150,9 @@ static inline void dotd2q4_packed_bulk_impl(
             const int end = std::min(i + chunk, blk);
 
             for (; i < end; i += stride) {
+                if (has_next) {
+                    spread_prefetch_step<batches, 1, stride>(next_doc_ptrs, i, lines_to_fetch);
+                }
                 __m256i query_s0 = _mm256_loadu_si256((const __m256i*)(query + i));
                 __m256i query_s1 = _mm256_loadu_si256((const __m256i*)(query + i + packed_len));
                 __m256i query_s2 = _mm256_loadu_si256((const __m256i*)(query + i + 2 * packed_len));

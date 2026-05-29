@@ -89,8 +89,18 @@ public class GeometryTestUtils {
         }
     }
 
+    /**
+     * Returns a Lucene polygon with non-zero area, so its vertices are not all collinear and the polygon
+     * survives {@link org.apache.lucene.geo.Tessellator}. Lucene's {@code GeoTestUtil.nextPolygon} on its
+     * own occasionally returns degenerate polygons; callers that hand the result to the geo_shape indexer
+     * should use this wrapper.
+     */
+    public static org.apache.lucene.geo.Polygon nextLucenePolygon() {
+        return randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
+    }
+
     public static Polygon randomPolygon(boolean hasAlt) {
-        org.apache.lucene.geo.Polygon lucenePolygon = randomValueOtherThanMany(p -> area(p) == 0, GeoTestUtil::nextPolygon);
+        org.apache.lucene.geo.Polygon lucenePolygon = nextLucenePolygon();
         if (lucenePolygon.numHoles() > 0) {
             org.apache.lucene.geo.Polygon[] luceneHoles = lucenePolygon.getHoles();
             List<LinearRing> holes = new ArrayList<>();

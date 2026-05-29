@@ -922,12 +922,25 @@ public final class IndexSettings {
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                var indexMode = (IndexMode) settings.get(MODE);
                 if (enabled == false) {
+                    // columnar mode requires synthetic recovery source
+                    if (indexMode.isStrictColumnar()) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] must not be false when [%s] is set to [%s].",
+                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+                                MODE.getKey(),
+                                indexMode.name()
+                            )
+                        );
+                    }
+
                     return;
                 }
 
                 // Verify if synthetic source is enabled on the index; fail if it is not
-                var indexMode = (IndexMode) settings.get(MODE);
                 if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
                     var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
                     if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {

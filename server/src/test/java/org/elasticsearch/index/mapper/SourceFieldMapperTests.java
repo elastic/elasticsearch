@@ -561,6 +561,33 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testSyntheticRecoverySourceRequiredForColumnarIndex() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // Disabling synthetic recovery source is rejected for columnar index modes
+        for (var columnarMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), columnarMode.toString())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), false)
+                .build();
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, topMapping(b -> {}))
+            );
+            assertThat(
+                exc.getMessage(),
+                containsString(
+                    "The setting ["
+                        + IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                        + "] must not be false when ["
+                        + IndexSettings.MODE.getKey()
+                        + "] is set to ["
+                        + columnarMode.name()
+                        + "]."
+                )
+            );
+        }
+    }
+
     public void testRecoverySourceWithSyntheticSource() throws IOException {
         {
             Settings settings = Settings.builder()

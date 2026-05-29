@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchPhrase;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -127,6 +129,33 @@ public class VerifierTests extends ESTestCase {
             equalTo(
                 "1:36: Cannot use field [multi_typed_int] due to ambiguities being mapped as [2] incompatible types:"
                     + " [byte] in [test1], [long] in [test2]"
+            )
+        );
+    }
+
+    public void testEnrichOnTextKeywordConflictedMatchField() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("keyword", Set.of("test2"));
+        typesToIndices.put("text", Set.of("test"));
+
+        Map<String, EsField> mapping = Map.of("street", new InvalidMappedField("street", typesToIndices));
+        Map<String, EsField> enrichMapping = Map.of(
+            "street",
+            new EsField("street", KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        TestAnalyzer analyzer = analyzer().addIndex("test*", IndexResolution.valid(EsIndexGenerator.esIndex("test*", mapping)))
+            .addEnrichPolicy(
+                Enrich.Mode.ANY,
+                "test-policy",
+                new ResolvedEnrichPolicy("street", EnrichPolicy.MATCH_TYPE, List.of(), Map.of("", "test2"), enrichMapping)
+            )
+            .stripErrorPrefix(true);
+
+        analyzer.error(
+            "from test* | enrich test-policy on street",
+            equalTo(
+                "1:36: Cannot use field [street] due to ambiguities being mapped as [2] incompatible types:"
+                    + " [keyword] in [test2], [text] in [test]"
             )
         );
     }

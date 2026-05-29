@@ -70,11 +70,13 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
         int k = centroids.length;
         int dim = vectors.dimension();
 
-        if (floatCentroidsShadow != null) {
+        if (ops instanceof CentroidOps.ByteOps) {
+            assert floatCentroidsShadow != null;
             // Byte path: accumulate in float precision, update float shadow, copy back to byte
             float[][] batchSums = new float[k][dim];
             float[] batchWeights = new float[k];
 
+            // Accumulate the raw Sinkhorn weights via fast FMA loop
             for (int idx = 0; idx < vectors.size(); idx++) {
                 byte[] vec = (byte[]) vectors.vectorValue(idx);
                 for (int c = 0; c < k; c++) {
@@ -86,6 +88,7 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
                 }
             }
 
+            // Apply the k scaling and update
             for (int c = 0; c < k; c++) {
                 if (batchWeights[c] > 0) {
                     float scaledBatchWeight = batchWeights[c] * k;
@@ -106,6 +109,7 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
             V[] batchCentroidSums = ops.newCentroidArray(k, dim);
             float[] batchWeights = new float[k];
 
+            // Accumulate the raw Sinkhorn weights via fast FMA loop
             for (int idx = 0; idx < vectors.size(); idx++) {
                 V vec = vectors.vectorValue(idx);
                 for (int c = 0; c < k; c++) {
@@ -117,6 +121,7 @@ abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
                 }
             }
 
+            // Apply the k scaling and update
             for (int c = 0; c < k; c++) {
                 if (batchWeights[c] > 0) {
                     float scaledBatchWeight = batchWeights[c] * k;

@@ -133,7 +133,8 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         // Using a shift so that the updates are gentle and small.
         float learningRateShift = 3.f * this.sampleSize / centroids.length;
 
-        if (floatCentroidsShadow != null) {
+        if (ops instanceof CentroidOps.ByteOps) {
+            assert floatCentroidsShadow != null;
             // Byte path: SGD in float precision, round to byte for distance computation
             int dim = vectors.dimension();
             for (int idx = 0; idx < vectors.size(); idx++) {

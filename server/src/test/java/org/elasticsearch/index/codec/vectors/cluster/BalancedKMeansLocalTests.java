@@ -98,7 +98,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
         boolean useByte = randomBoolean();
         if (useByte) {
-            ClusteringByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
+            KMeansByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
             byte[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.BYTE);
             int[] assignments = new int[nVectors];
             KMeansIntermediate<byte[]> kMeansIntermediate = new KMeansIntermediate<>(centroids, assignments);
@@ -169,7 +169,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
                 vectors.add(new byte[5]);
             }
             int sampleSize = vectors.size();
-            ClusteringByteVectorValues bvv = ClusteringByteVectorValues.build(vectors, null, 5);
+            KMeansByteVectorValues bvv = KMeansByteVectorValues.build(vectors, null, 5);
 
             byte[][] centroids = KMeansLocal.pickInitialCentroids(bvv, nClusters, CentroidOps.BYTE);
             BalancedOTKMeansLocal.cluster(bvv, CentroidOps.BYTE, centroids, sampleSize, maxIterations);
@@ -247,7 +247,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
         boolean useByte = randomBoolean();
         if (useByte) {
-            ClusteringByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
+            KMeansByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
             byte[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.BYTE);
             LloydKMeansLocal.cluster(vectors, CentroidOps.BYTE, centroids, sampleSize, maxIterations);
 
@@ -368,7 +368,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
-    private static ClusteringByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
+    private static KMeansByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
         List<byte[]> vectors = new ArrayList<>(nSamples);
         byte[][] centroids = new byte[nClusters][nDims];
         for (int i = 0; i < nClusters; i++) {
@@ -384,6 +384,6 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             }
             vectors.add(vector);
         }
-        return ClusteringByteVectorValues.build(vectors, null, nDims);
+        return KMeansByteVectorValues.build(vectors, null, nDims);
     }
 }

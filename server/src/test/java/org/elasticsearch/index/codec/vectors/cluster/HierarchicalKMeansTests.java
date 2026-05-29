@@ -34,7 +34,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
         boolean useByte = randomBoolean();
         if (useByte) {
-            ClusteringByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
+            KMeansByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
             int targetSize = (int) ((float) nVectors / (float) nClusters);
             HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(
                 CentroidOps.BYTE,
@@ -136,7 +136,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             for (int i = 0; i < nVectors; i++) {
                 vectorList.add(values[random().nextInt(diffValues)]);
             }
-            ClusteringByteVectorValues vectors = ClusteringByteVectorValues.build(vectorList, null, dims);
+            KMeansByteVectorValues vectors = KMeansByteVectorValues.build(vectorList, null, dims);
 
             HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(
                 CentroidOps.BYTE,
@@ -204,7 +204,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             vectorList.add(vector);
         }
 
-        ClusteringByteVectorValues vectors = ClusteringByteVectorValues.build(vectorList, null, dims);
+        KMeansByteVectorValues vectors = KMeansByteVectorValues.build(vectorList, null, dims);
 
         HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 10, nVectors, 512, 1.0f);
         KMeansResult<byte[]> result = hkmeans.cluster(vectors, nVectors / nClusters);
@@ -243,7 +243,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
             vectorList.add(vector);
         }
 
-        ClusteringByteVectorValues vectors = ClusteringByteVectorValues.build(vectorList, null, dims);
+        KMeansByteVectorValues vectors = KMeansByteVectorValues.build(vectorList, null, dims);
 
         // Request more clusters than natural groups — some should end up empty and get removed
         int targetSize = nVectors / 10;
@@ -338,7 +338,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
-    private static ClusteringByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
+    private static KMeansByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
         List<byte[]> vectors = new ArrayList<>(nSamples);
         byte[][] centroids = new byte[nClusters][nDims];
         for (int i = 0; i < nClusters; i++) {
@@ -354,6 +354,6 @@ public class HierarchicalKMeansTests extends ESTestCase {
             }
             vectors.add(vector);
         }
-        return ClusteringByteVectorValues.build(vectors, null, nDims);
+        return KMeansByteVectorValues.build(vectors, null, nDims);
     }
 }

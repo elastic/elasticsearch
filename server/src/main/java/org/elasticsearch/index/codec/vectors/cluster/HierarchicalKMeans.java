@@ -157,7 +157,7 @@ public class HierarchicalKMeans<V> {
                 V typed = (V) centroidF;
                 centroid = typed;
             }
-            V[] centroids = ops.newCentroidArray(1, 0);
+            V[] centroids = ops.newCentroidArrayShallow(1);
             centroids[0] = centroid;
             return new KMeansIntermediate<>(centroids, new int[vectors.size()]);
         }

@@ -511,7 +511,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = reindex().source("source").destination("dest").refresh(true).get();
+        BulkByPaginatedSearchResponse response = reindex().source("source").destination("dest").refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("dest").setSize(0), 3);
@@ -546,7 +546,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = updateByQuery().source("test").refresh(true).get();
+        BulkByPaginatedSearchResponse response = updateByQuery().source("test").refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 3);
@@ -581,7 +581,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
+        BulkByPaginatedSearchResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 0);

@@ -700,3 +700,6 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testFilterWithNoVectorMatches
   issue: https://github.com/elastic/elasticsearch/issues/150190
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testDimensionMismatch
+  issue: https://github.com/elastic/elasticsearch/issues/150191

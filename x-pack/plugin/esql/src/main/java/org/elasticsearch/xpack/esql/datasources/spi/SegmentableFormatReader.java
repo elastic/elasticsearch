@@ -38,6 +38,16 @@ public interface SegmentableFormatReader extends FormatReader {
         return new DelegatingRecordSplitter(this);
     }
 
+    /**
+     * Returns the record-boundary splitter with a caller-supplied record-size cap.
+     * Implementations that support the cap report {@link RecordSplitter#RECORD_TOO_LARGE}
+     * when a record exceeds {@code maxRecordBytes}; implementations that cannot enforce a
+     * dynamic cap may keep the default splitter.
+     */
+    default RecordSplitter recordSplitter(int maxRecordBytes) {
+        return recordSplitter();
+    }
+
     // TODO(phase-1.2): once recordSplitter() is the canonical entry point, remove these legacy
     // find* methods and route callers through recordSplitter().
 

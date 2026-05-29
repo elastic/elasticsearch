@@ -200,7 +200,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         public NativeFunctions addBBQ(Iterable<BBQType> bbqTypes, Iterable<Operation> operations) {
             bbqTypes.forEach(type -> operations.forEach(op -> {
                 String typeName = switch (type) {
-                    case D1Q1 -> throw new IllegalStateException("D1Q1 has no native implementation");
+                    case D1Q1 -> "d1q1";
                     case D1Q4 -> "d1q4";
                     case D2Q4 -> "d2q4";
                     case D4Q4 -> "d4q4";
@@ -230,7 +230,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         static Iterable<BBQType> allBBQTypes() {
-            return () -> Arrays.stream(BBQType.values()).filter(t -> t != BBQType.D1Q1).iterator();
+            return () -> Arrays.stream(BBQType.values()).iterator();
         }
 
         private static String getOpName(Operation op) {
@@ -788,6 +788,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
             Objects.checkFromIndexSize(0L, elementCount, a.byteSize() / Short.BYTES);
             Objects.checkFromIndexSize(0L, elementCount, b.byteSize() / Short.BYTES);
             return callSingleDistanceFloat(squareDBF16QBF16Handle, a, b, elementCount);
+        }
+
+        private static final MethodHandle dotD1Q1Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q1, Operation.SINGLE)
+        );
+
+        static long dotProductD1Q1(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0L, length, query.byteSize());
+            Objects.checkFromIndexSize(0L, length, a.byteSize());
+            return callSingleDistanceLong(dotD1Q1Handle, a, query, length);
         }
 
         private static final MethodHandle dotD1Q4Handle = HANDLES.get(

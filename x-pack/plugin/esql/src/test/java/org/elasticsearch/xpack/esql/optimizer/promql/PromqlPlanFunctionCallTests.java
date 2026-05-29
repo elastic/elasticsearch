@@ -65,17 +65,11 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     public void testRoundToNearestMatchesPrometheusFormula() {
-        assertPromqlRoundToNearest(0.0215, 0.001);
-        assertPromqlRoundToNearest(11.298657, 0.001);
-        assertPromqlRoundToNearest(15.92077, 0.001);
-        assertPromqlRoundToNearest(1.8376549999999998, 0.001);
-        assertPromqlRoundToNearest(25.832432999999998, 0.001);
-    }
-
-    private void assertPromqlRoundToNearest(double value, double toNearest) {
-        double inverse = 1.0 / toNearest;
-        double expected = Math.floor(value * inverse + 0.5) / inverse;
-        assertConstantResult("round(vector(" + value + "), " + toNearest + ")", equalTo(expected));
+        assertConstantResult("round(vector(0.0215), 0.001)", equalTo(0.022));
+        assertConstantResult("round(vector(11.298657), 0.001)", equalTo(11.299));
+        assertConstantResult("round(vector(15.92077), 0.001)", equalTo(15.921));
+        assertConstantResult("round(vector(1.8376549999999998), 0.001)", equalTo(1.838));
+        assertConstantResult("round(vector(25.832432999999998), 0.001)", equalTo(25.832));
     }
 
     public void testYearUsesStepTimestampWhenNoArgument() {

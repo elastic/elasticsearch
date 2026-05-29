@@ -1,32 +1,32 @@
 #!/bin/bash
 
 if [[ -f build/task-status.json ]]; then
-  ls -alh .buildkite/node_modules
-  echo ''
+  # pnpm creates symlinks for the packages inside node_modules
+  # But something in our build is deleting those symlinks (I'm not sure what)
+  # The other files/dirs in node_modules are fine, but the symlinks disappear during the build
+  # So, for now, we need to fix node_modules before we can run node scripts
+  cd .buildkite
+  rm -rf node_modules
+  pnpm install
+
   # Finalize the current run (stamp build scan URL from Buildkite metadata) and
   # merge with any previous runs (saved by smart-retry pre-command). On the first
   # attempt, build/previous-task-status.json won't exist — the script handles
   # that by wrapping the current run as the sole entry.
-  node .buildkite/scripts/smart-retry/finalize-task-status.ts \
-    build/task-status.json \
-    build/previous-task-status.json \
-    build/task-status-merged.json \
-    && mv build/task-status-merged.json build/task-status.json
+  node scripts/smart-retry/finalize-task-status.ts \
+    "$WORKSPACE/build/task-status.json" \
+    "$WORKSPACE/build/previous-task-status.json" \
+    "$WORKSPACE/build/task-status-merged.json" \
+    && mv "$WORKSPACE/build/task-status-merged.json" "$WORKSPACE/build/task-status.json"
 
-  cd build
+  cd "$WORKSPACE/build"
   gzip -k task-status.json
   buildkite-agent artifact upload task-status.json.gz
-  cd -
+  cd "$WORKSPACE/buildkite"
 
   echo "+++ Overall job status"
-  ls -alh .
-  cd .buildkite
-  ls -alh node_modules/
-  rm -rf node_modules
-  pnpm install # TODO - why is this necessary? why do the node_modules disappear?
-  ls -alh node_modules/
-
-  node scripts/smart-retry/summarize-task-status.ts ../build/task-status.json
+  node scripts/smart-retry/summarize-task-status.ts "$WORKSPACE/build/task-status.json"
+  cd "$WORKSPACE"
 fi
 
 # Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in

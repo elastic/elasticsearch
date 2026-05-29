@@ -80,7 +80,7 @@ public class BlobStoreCacheDirectoryMetrics implements DirectoryMetrics.Pluggabl
 
     @Override
     public BlobStoreCacheDirectoryMetrics merge(BlobStoreCacheDirectoryMetrics other) {
-        return new BlobStoreCacheDirectoryMetrics(waitTime + other.waitBytes, waits + other.waits, waitBytes + other.getWaitBytes());
+        return new BlobStoreCacheDirectoryMetrics(waitTime + other.waitTime, waits + other.waits, waitBytes + other.getWaitBytes());
     }
 
     @Override

@@ -322,12 +322,16 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     protected Settings.Builder getSettingsForParams() {
+        return getSettingsForParams(params);
+    }
+
+    public static Settings.Builder getSettingsForParams(Params params) {
         var builder = Settings.builder();
-        if (params.syntheticSource) {
+        if (params.syntheticSource()) {
             builder.put("index.mapping.source.mode", "synthetic");
         }
-        if (params.indexMode != IndexMode.STANDARD) {
-            builder.put(IndexSettings.MODE.getKey(), params.indexMode.name());
+        if (params.indexMode() != IndexMode.STANDARD) {
+            builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
         }
         return builder;
     }
@@ -336,7 +340,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         return buildSpecification(customHandlers, IndexMode.STANDARD);
     }
 
-    private static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers, IndexMode indexMode) {
+    public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers, IndexMode indexMode) {
         var coreHandlers = new ArrayList<DataSourceHandler>();
         coreHandlers.add(new DataSourceHandler() {
             @Override
@@ -350,8 +354,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         });
         if (indexMode.isStrictColumnar()) {
-            // synthetic_source_keep is forbidden on strict-columnar indices, so strip any value the randomized field-mapping generator
-            // emits before the mapping reaches MapperService. Delegate to the downstream handler under a new name to avoid self-recursion.
             String columnarUnwrapMarker = "_columnar_inner_";
             coreHandlers.add(new DataSourceHandler() {
                 @Override
@@ -365,14 +367,17 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                             dataSource.get(
                                 new DataSourceRequest.LeafMappingParametersGenerator(
                                     dataSource,
-                                    columnarUnwrapMarker + request.fieldName(),  // new name
+                                    // Delegate to the downstream handler under a new name to avoid self-recursion.
+                                    columnarUnwrapMarker + request.fieldName(),
                                     request.fieldType(),
                                     request.eligibleCopyToFields(),
                                     request.dynamicMapping()
                                 )
                             ).mappingGenerator().get()
                         );
+                        // synthetic_source_keep and store are forbidden on strict-columnar indices
                         mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                        mapping.remove("store");
                         return mapping;
                     });
                 }

@@ -6,7 +6,9 @@ setup:
         - method: PUT
           path: /{index}
           capabilities: [ columnar_index_modes ]
-      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled"
+      cluster_features: [ "mapper.columnar.maintain_array_order" ]
+      reason: "Strict columnar index modes are only available on builds where the columnar feature flag is enabled, and array
+        ordering in columnar mode requires the mapper.columnar.maintain_array_order feature"
 
 # Each scenario writes the same multi-value document to two indices and reads it back:
 #   - test_columnar (index.mode: logsdb_columnar) - must return insertion order, since strict columnar emits a .offsets

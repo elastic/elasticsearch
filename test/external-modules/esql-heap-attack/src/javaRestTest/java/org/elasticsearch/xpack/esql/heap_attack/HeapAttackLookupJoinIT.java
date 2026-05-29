@@ -57,7 +57,7 @@ public class HeapAttackLookupJoinIT extends HeapAttackTestCase {
     public void testLookupExplosionManyFieldsExpression() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 1000;
-        int joinFieldsCount = 399;// only join on 399 columns due to max expression size of 400
+        int joinFieldsCount = 299; // see ExpressionBuilder.MAX_EXPRESSION_DEPTH
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount, lookupEntries, true);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }

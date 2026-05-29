@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.xpack.esql.formatter.arrow;
 
 import org.apache.arrow.memory.AllocationManager;
 import org.apache.arrow.memory.ArrowBuf;

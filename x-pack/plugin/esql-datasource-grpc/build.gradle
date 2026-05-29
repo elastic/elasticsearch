@@ -32,7 +32,6 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  implementation project(path: xpackModule('esql:arrow'))
   implementation project(":libs:arrow")
 
   // Arrow Flight (gRPC-based columnar data transport)

@@ -26,8 +26,8 @@ import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock;
-import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.formatter.arrow.ArrowToBlockConverter;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -87,7 +87,7 @@ public record ArrowToEsql(DataType dataType, ElementType elementType, ArrowToBlo
 
     /**
      * Must only advertise types that the runtime converter registry
-     * ({@link org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter#forType}) can actually convert,
+     * ({@link ArrowToBlockConverter#forType}) can actually convert,
      * otherwise schema inference would accept a column that batch conversion rejects at runtime with
      * {@code Unsupported Arrow type}.
      */

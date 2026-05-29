@@ -366,36 +366,47 @@ public abstract class GoldenTestCase extends ESTestCase {
                     }
                 }
                 if (stages.contains(Stage.NODE_REDUCE) || stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                    ExchangeExec exec = EsqlTestUtils.singleValue(physicalPlan.collect(ExchangeExec.class));
-                    var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
-                    var reductionPlan = ComputeService.reductionPlan(
-                        PlannerSettings.DEFAULTS,
-                        new EsqlFlags(false),
-                        configuration,
-                        configuration.newFoldContext(),
-                        sink,
-                        true,
-                        true,
-                        new PlanTimeProfile()
+                    List<ExchangeExec> exchanges = physicalPlan.collect(ExchangeExec.class);
+                    // Skip plans that terminate at the
+                    // coordinator and produce no ExchangeExec;
+                    // e.g. query that optimized data scan entirely like `time()`
 
-                    );
-                    if (stages.contains(Stage.NODE_REDUCE)) {
-                        var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
-                        result.addAll(
-                            addNodeReduceDualPlanResult(reductionPlan, dualFileOutput.nodeReduceOutput(), dualFileOutput.dataNodeOutput())
+                    if (exchanges.isEmpty() == false) {
+                        ExchangeExec exec = EsqlTestUtils.singleValue(exchanges);
+                        var sink = new ExchangeSinkExec(exec.source(), exec.output(), false, exec.child());
+                        var reductionPlan = ComputeService.reductionPlan(
+                            PlannerSettings.DEFAULTS,
+                            new EsqlFlags(false),
+                            configuration,
+                            configuration.newFoldContext(),
+                            sink,
+                            true,
+                            true,
+                            new PlanTimeProfile()
+
                         );
-                    }
-                    if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
-                        var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
-                        result.add(
-                            Tuple.tuple(
-                                Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
-                                verifyOrWrite(
-                                    localOptimize(reductionPlan.dataNodePlan(), configuration),
-                                    outputPath(singleFileOutput.output())
+                        if (stages.contains(Stage.NODE_REDUCE)) {
+                            var dualFileOutput = (DualFileOutput) Stage.NODE_REDUCE.fileOutput;
+                            result.addAll(
+                                addNodeReduceDualPlanResult(
+                                    reductionPlan,
+                                    dualFileOutput.nodeReduceOutput(),
+                                    dualFileOutput.dataNodeOutput()
                                 )
-                            )
-                        );
+                            );
+                        }
+                        if (stages.contains(Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION)) {
+                            var singleFileOutput = (SingleFileOutput) Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION.fileOutput;
+                            result.add(
+                                Tuple.tuple(
+                                    Stage.NODE_REDUCE_LOCAL_PHYSICAL_OPTIMIZATION,
+                                    verifyOrWrite(
+                                        localOptimize(reductionPlan.dataNodePlan(), configuration),
+                                        outputPath(singleFileOutput.output())
+                                    )
+                                )
+                            );
+                        }
                     }
                 }
             }

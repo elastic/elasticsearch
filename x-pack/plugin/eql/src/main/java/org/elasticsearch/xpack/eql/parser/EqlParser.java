@@ -40,6 +40,11 @@ public class EqlParser {
     private final boolean DEBUG = false;
 
     /**
+     * Maximum depth for nested expressions.
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 250;
+
+    /**
      * Parses an EQL statement into execution plan
      */
     public LogicalPlan createStatement(String eql) {
@@ -65,6 +70,21 @@ public class EqlParser {
         return invokeParser(expression, params, EqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
+    private record ParserPipeline(CommonTokenStream tokenStream, EqlBaseParser parser) {}
+
+    private ParserPipeline createParserPipeline(String eql) {
+        EqlBaseLexer lexer = new EqlBaseLexer(new ANTLRInputStream(eql));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(ERROR_LISTENER);
+        CommonTokenStream tokenStream = new CommonTokenStream(lexer);
+        EqlBaseParser parser = new EqlBaseParser(tokenStream);
+        parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
+        parser.removeErrorListeners();
+        parser.addErrorListener(ERROR_LISTENER);
+        parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        return new ParserPipeline(tokenStream, parser);
+    }
+
     private <T> T invokeParser(
         String eql,
         ParserParams params,
@@ -72,33 +92,46 @@ public class EqlParser {
         BiFunction<AstBuilder, ParserRuleContext, T> visitor
     ) {
         try {
-            EqlBaseLexer lexer = new EqlBaseLexer(new ANTLRInputStream(eql));
+            ParserPipeline pipeline = createParserPipeline(eql);
 
-            lexer.removeErrorListeners();
-            lexer.addErrorListener(ERROR_LISTENER);
-
-            CommonTokenStream tokenStream = new CommonTokenStream(lexer);
-            EqlBaseParser parser = new EqlBaseParser(tokenStream);
-
-            parser.addParseListener(new PostProcessor(Arrays.asList(parser.getRuleNames())));
-
-            parser.removeErrorListeners();
-            parser.addErrorListener(ERROR_LISTENER);
-
-            parser.getInterpreter().setPredictionMode(PredictionMode.SLL);
+            try {
+                pipeline.tokenStream().fill();
+                int depth = 0;
+                int prefixChain = 0;
+                for (Token token : pipeline.tokenStream().getTokens()) {
+                    switch (token.getType()) {
+                        case EqlBaseLexer.LP -> depth++;
+                        case EqlBaseLexer.RP -> depth--;
+                        case EqlBaseLexer.NOT, EqlBaseLexer.MINUS, EqlBaseLexer.PLUS -> prefixChain++;
+                        default -> {
+                            if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0;
+                        }
+                    }
+                    if (depth + prefixChain > MAX_EXPRESSION_DEPTH) {
+                        throw new ParsingException(
+                            "EQL statement exceeded the maximum expression depth allowed ({})",
+                            MAX_EXPRESSION_DEPTH
+                        );
+                    }
+                }
+            } catch (ParsingException pe) {
+                if (pe.getMessage() != null && pe.getMessage().contains("exceeded the maximum expression depth")) {
+                    throw pe;
+                }
+                pipeline = createParserPipeline(eql);
+            }
 
             if (DEBUG) {
-                debug(parser);
-                tokenStream.fill();
-
-                for (Token t : tokenStream.getTokens()) {
+                debug(pipeline.parser());
+                pipeline.tokenStream().fill();
+                for (Token t : pipeline.tokenStream().getTokens()) {
                     String symbolicName = EqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
                     String literalName = EqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
                     log.info(format(Locale.ROOT, "  %-15s '%s'", symbolicName == null ? literalName : symbolicName, t.getText()));
                 }
             }
 
-            ParserRuleContext tree = parseFunction.apply(parser);
+            ParserRuleContext tree = parseFunction.apply(pipeline.parser());
 
             if (DEBUG) {
                 log.info("Parse tree {} " + tree.toStringTree());

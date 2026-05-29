@@ -35,6 +35,20 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
+        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
+
+        // Query-level rollup counters from the response root, surfaced unconditionally so the slow
+        // log carries the same I/O / row / CPU cost signal that {@code profile=true} would show
+        // under the top-level {@code profile.*} keys. Field names mirror the JSON profile so log
+        // and profile readers see the same vocabulary.
+        context.getRollupCounters().ifPresent(rollup -> {
+            msg.field(PROFILE_PREFIX + "documents_found", rollup.documentsFound());
+            msg.field(PROFILE_PREFIX + "values_loaded", rollup.valuesLoaded());
+            msg.field(PROFILE_PREFIX + "rows_emitted", rollup.rowsEmitted());
+            msg.field(PROFILE_PREFIX + "bytes_read", rollup.bytesRead());
+            msg.field(PROFILE_PREFIX + "read_nanos", rollup.readNanos());
+            msg.field(PROFILE_PREFIX + "cpu_nanos", rollup.cpuNanos());
+        });
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);
         if (remotes.isEmpty() == false) {

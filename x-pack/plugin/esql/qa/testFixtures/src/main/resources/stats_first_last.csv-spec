@@ -539,3 +539,142 @@ first_gh:geohash | first_gt:geotile | first_ghex:geohex
 u3bu             | 4/8/5            | 841f059ffffffff
 ;
 
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on dense_vector type
+required_capability: first_agg_extended_types_2
+
+FROM colors
+| WHERE id < 5
+| STATS first_rgb = FIRST(rgb_vector, id)
+;
+
+first_rgb:dense_vector
+[128.0, 0.0, 0.0]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on exponential_histogram type (NULL sort)
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS first_hist = FIRST(responseTime, NULL)
+;
+
+first_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on exponential_histogram type with grouping (NULL sort)
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance IN ("dummy-empty", "dummy-zero_threshold_only")
+| STATS first_hist = FIRST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+first_hist:exponential_histogram | instance:keyword
+"{""scale"":0}" | dummy-empty
+"{""scale"":0,""zero"":{""threshold"":2.0E-5}}" | dummy-zero_threshold_only
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type (NULL sort)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = FIRST(responseTime, NULL)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with grouping (NULL sort)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "hand-rolled-empty")
+| STATS first_td = FIRST(responseTime, NULL) BY instance
+| SORT instance
+;
+
+first_td:tdigest | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | hand-rolled
+"{""centroids"":[], ""counts"":[]}" | hand-rolled-empty
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type sorted by timestamp
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = FIRST(responseTime, @timestamp)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with grouping sorted by timestamp
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "hand-rolled-empty")
+| STATS first_td = FIRST(responseTime, @timestamp) BY instance
+| SORT instance
+;
+
+first_td:tdigest                                                                                                     | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | hand-rolled
+"{""centroids"":[], ""counts"":[]}"                                                                                  | hand-rolled-empty
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with count (sorted by timestamp)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "multi-row-td"
+| STATS first_td = FIRST(responseTime, @timestamp), n = COUNT(*)
+;
+
+first_td:tdigest                                                                                                     | n:long
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 2
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test first aggregation on tdigest type with grouping and count (sorted by timestamp)
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance IN ("hand-rolled", "multi-row-td")
+| STATS first_td = FIRST(responseTime, @timestamp), n = COUNT(*) BY instance
+| SORT instance
+;
+
+first_td:tdigest                                                                                                     | n:long | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 1      | hand-rolled
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | 2      | multi-row-td
+;

@@ -19,8 +19,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -34,7 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
+public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByPaginatedSearchResponse> {
 
     private final ThreadPool threadPool;
     private final Client client;
@@ -79,7 +79,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     }
 
     @Override
-    public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
+    public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByPaginatedSearchResponse> listener) {
         BulkByPaginatedSearchTask bulkByPaginatedSearchTask = (BulkByPaginatedSearchTask) task;
         long startTime = System.nanoTime();
         BulkByPaginatedSearchParallelizationHelper.startSlicedAction(

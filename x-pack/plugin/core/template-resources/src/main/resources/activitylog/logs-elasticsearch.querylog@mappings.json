@@ -134,6 +134,11 @@
                   "index": false,
                   "ignore_above": 32765
                 },
+                "filter": {
+                  "type": "keyword",
+                  "index": false,
+                  "ignore_above": 32765
+                },
                 "result_count": {
                   "type": "long",
                   "index": false

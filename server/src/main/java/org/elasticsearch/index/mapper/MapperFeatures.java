@@ -105,6 +105,7 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER = new NodeFeature(
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
+    static final NodeFeature STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE = new NodeFeature("mapper.columnar.store_not_allowed");
     static final NodeFeature TOKENS_PER_FIELD_LIMIT = new NodeFeature("mapper.tokens_per_field_limit");
 
     @Override
@@ -179,6 +180,7 @@ public class MapperFeatures implements FeatureSpecification {
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
+            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
             TOKENS_PER_FIELD_LIMIT
         );
     }

@@ -37,6 +37,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValuesSlice;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
@@ -285,7 +286,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     ) throws IOException {
         final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
         final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
-        KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
+        KMeansResult<float[]> centroidClusters = centroidSupplier.secondLevelClusters();
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {
             centroidVectorCount[assignments[i]]++;
@@ -390,7 +391,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
-        KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
+        KMeansResult<float[]> centroidClusters = centroidSupplier.secondLevelClusters();
         String quantizedVectorsTempName = null;
         try (
             IndexOutput quantizedVectorsTemp = mergeState.segmentInfo.dir.createTempOutput(
@@ -607,17 +608,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         if (centroidSupplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
             ClusteringFloatVectorValues floatVectorValues = centroidSupplier.asKmeansFloatVectorValues();
             if (centroidSlices == null) {
-                KMeansResult centroidClusters = buildSecondLevelClusters(fieldInfo, floatVectorValues, true);
+                KMeansResult<float[]> centroidClusters = buildSecondLevelClusters(fieldInfo, floatVectorValues, true);
                 return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo, centroidClusters, null);
             } else {
-                List<KMeansResult> centroidClusters = new ArrayList<>(centroidSlices.sliceOffsets().length);
+                List<KMeansResult<float[]>> centroidClusters = new ArrayList<>(centroidSlices.sliceOffsets().length);
                 int start = 0;
                 for (int i = 0; i < centroidSlices.sliceOffsets().length; i++) {
                     final int offset = start;
                     start = centroidSlices.sliceOffsets()[i];
                     int count = start - offset;
                     ClusteringFloatVectorValues slice = new ClusteringFloatVectorValuesSlice(floatVectorValues, j -> offset + j, count);
-                    KMeansResult result = buildSecondLevelClusters(fieldInfo, slice, true);
+                    KMeansResult<float[]> result = buildSecondLevelClusters(fieldInfo, slice, true);
                     centroidClusters.add(result);
                     if (i == 0) {
                         centroidSlices.sliceOffsets()[i] = result.centroids().length;
@@ -625,7 +626,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                         centroidSlices.sliceOffsets()[i] = centroidSlices.sliceOffsets()[i - 1] + result.centroids().length;
                     }
                 }
-                KMeansResult result = KMeansResult.merge(centroidClusters);
+                KMeansResult<float[]> result = KMeansResult.merge(centroidClusters, CentroidOps.FLOAT);
                 assert CentroidSlices.assertSliceOffsets(centroidSlices.sliceOffsets(), result.centroids().length);
                 return new OffHeapCentroidSupplier(centroidsInput, numCentroids, fieldInfo, result, centroidSlices);
             }
@@ -641,7 +642,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             info.getVectorDimension()
         );
         if (centroidSupplier.size() > centroidsPerParentCluster * centroidsPerParentCluster) {
-            KMeansResult centroidClusters = buildSecondLevelClusters(info, centroidSupplier.asKmeansFloatVectorValues(), false);
+            KMeansResult<float[]> centroidClusters = buildSecondLevelClusters(info, centroidSupplier.asKmeansFloatVectorValues(), false);
             return CentroidSupplier.fromArray(centroids, centroidClusters, info.getVectorDimension());
         }
         return centroidSupplier;
@@ -789,7 +790,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             centroidOutput.writeBytes(buffer.array(), buffer.array().length);
         }
         QuantizedCentroids parentQuantizeCentroid = new QuantizedCentroids(
-            CentroidSupplier.fromArray(centroidGroups.centroids, KMeansResult.EMPTY, fieldInfo.getVectorDimension()),
+            CentroidSupplier.fromArray(centroidGroups.centroids, KMeansResult.emptyFloat(), fieldInfo.getVectorDimension()),
             fieldInfo.getVectorDimension(),
             osq,
             globalCentroid
@@ -863,13 +864,17 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
     }
 
-    private KMeansResult buildSecondLevelClusters(FieldInfo fieldInfo, ClusteringFloatVectorValues floatVectorValues, boolean isMerge)
-        throws IOException {
+    private KMeansResult<float[]> buildSecondLevelClusters(
+        FieldInfo fieldInfo,
+        ClusteringFloatVectorValues floatVectorValues,
+        boolean isMerge
+    ) throws IOException {
         // we use the HierarchicalKMeans to partition the space of all vectors across merging segments
         // this are small numbers so we run it wih all the centroids.
-        HierarchicalKMeans hierarchicalKMeans;
+        HierarchicalKMeans<float[]> hierarchicalKMeans;
         if (isMerge && mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(
+                CentroidOps.FLOAT,
                 fieldInfo.getVectorDimension(),
                 mergeExec,
                 numMergeWorkers,
@@ -880,6 +885,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             );
         } else {
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(
+                CentroidOps.FLOAT,
                 fieldInfo.getVectorDimension(),
                 HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
                 HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
@@ -890,7 +896,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         return hierarchicalKMeans.cluster(floatVectorValues, centroidsPerParentCluster);
     }
 
-    private CentroidGroups buildCentroidGroups(KMeansResult kMeansResult) {
+    private CentroidGroups buildCentroidGroups(KMeansResult<float[]> kMeansResult) {
         final int[] centroidVectorCount = new int[kMeansResult.centroids().length];
         for (int i = 0; i < kMeansResult.assignments().length; i++) {
             centroidVectorCount[kMeansResult.assignments()[i]]++;
@@ -913,6 +919,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
+//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
         // Sliced indices treat each slice as an independent partition that must be clustered on its
         // own. The tiered merge strategy operates on the merged segment as a flat whole, which would
         // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
@@ -954,6 +961,24 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
             TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
 
+//=======
+        // TODO: consider hinting / bootstrapping hierarchical kmeans with the prior segments centroids
+        // TODO: for flush we are doing this over the vectors and here centroids which seems duplicative
+        // preliminary tests suggest recall is good using only centroids but need to do further evaluation
+        HierarchicalKMeans<float[]> hierarchicalKMeans;
+        if (mergeExec != null) {
+            hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(
+                CentroidOps.FLOAT,
+                floatVectorValues.dimension(),
+                mergeExec,
+                numMergeWorkers
+            );
+        } else {
+            hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
+        }
+        if (sliceField == null) { // no slice
+            KMeansResult<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
+//>>>>>>> main
             if (logger.isDebugEnabled()) {
                 int totalVectors = 0;
                 int totalCentroids = 0;
@@ -1009,6 +1034,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         if (mergeExec != null) {
             hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
         } else {
+//<<<<<<< reduce-diskbbq-merge-cost-tiered-strategy
             hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
         }
         final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
@@ -1034,6 +1060,64 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             int sliceDocStart = values.docID();
             while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
                 values.nextDoc();
+//=======
+            final FieldInfo slicedFieldInfo = mergeState.mergeFieldInfos.fieldInfo(sliceField);
+            assert slicedFieldInfo != null;
+            assert slicedFieldInfo.getDocValuesType() == DocValuesType.SORTED : "sliceField must be SortedDocValues";
+            final SortedDocValues values = DocValueConsumerHelper.INSTANCE.getMergeSortedField(slicedFieldInfo, mergeState);
+            final int numSlices = values.getValueCount();
+            final KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+            iterator.advance(0);
+            values.nextDoc();
+            // slice field must be dense populated, but we might have documents without a vector.
+            final int[] sliceOffsets = new int[numSlices];
+            final int[] sliceLengths = new int[numSlices];
+            List<KMeansResult<float[]>> kmeansResults = new ArrayList<>();
+            for (int i = 0; i < numSlices; i++) {
+                if (iterator.docID() == DocIdSetIterator.NO_MORE_DOCS) {
+                    // no more vectors, we are done
+                    sliceLengths[i] = 0;
+                    sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
+                    continue;
+                }
+                // get start and end of an slice
+                int sliceDocStart = values.docID();
+                while (values.docID() != DocIdSetIterator.NO_MORE_DOCS && values.ordValue() == i) {
+                    values.nextDoc();
+                }
+                final int sliceDocEnd = values.docID();
+                // get the vector ordinals for the slice
+                int vectorDocStart = iterator.docID();
+                if (vectorDocStart < sliceDocStart) {
+                    // advance iterator to the beginning of the slice
+                    vectorDocStart = iterator.advance(sliceDocStart);
+                }
+                if (vectorDocStart > sliceDocEnd) {
+                    // no vectors in this slice
+                    sliceLengths[i] = 0;
+                    sliceOffsets[i] = i == 0 ? 0 : sliceOffsets[i - 1];
+                    continue;
+                }
+                final int vectorOrdStart = iterator.index();
+                final int docEnd = vectorDocStart == sliceDocEnd ? sliceDocEnd : iterator.advance(sliceDocEnd);
+                final int vectorOrdEnd = docEnd == KnnVectorValues.DocIndexIterator.NO_MORE_DOCS
+                    ? floatVectorValues.size()
+                    : iterator.index();
+                final int sliceNumVectors = vectorOrdEnd - vectorOrdStart;
+                final ClusteringFloatVectorValuesSlice slice = new ClusteringFloatVectorValuesSlice(
+                    floatVectorValues,
+                    j -> vectorOrdStart + j,
+                    sliceNumVectors
+                );
+                final KMeansResult<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, slice);
+                kmeansResults.add(kMeansResult);
+                sliceLengths[i] = sliceNumVectors;
+                sliceOffsets[i] = i == 0 ? kMeansResult.centroids().length : sliceOffsets[i - 1] + kMeansResult.centroids().length;
+            }
+            final KMeansResult<float[]> merged = KMeansResult.merge(kmeansResults, CentroidOps.FLOAT);
+            if (logger.isDebugEnabled()) {
+                logger.debug("final centroid count: {}", merged.centroids().length);
+//>>>>>>> main
             }
             final int sliceDocEnd = values.docID();
             // get the vector ordinals for the slice
@@ -1133,8 +1217,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             // for sliced indexed, we don't cluster the data during flush so we can search our vectors by docId range
             return buildFlatCentroidAssignments(fieldInfo, floatVectorValues);
         }
-        HierarchicalKMeans hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-        KMeansResult kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
+        HierarchicalKMeans<float[]> hierarchicalKMeans = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, floatVectorValues.dimension());
+        KMeansResult<float[]> kMeansResult = calculateCentroids(hierarchicalKMeans, floatVectorValues);
         if (logger.isDebugEnabled()) {
             logger.debug("final centroid count: {}", kMeansResult.centroids().length);
         }
@@ -1146,8 +1230,10 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         );
     }
 
-    private KMeansResult calculateCentroids(HierarchicalKMeans hierarchicalKMeans, ClusteringFloatVectorValues floatVectorValues)
-        throws IOException {
+    private KMeansResult<float[]> calculateCentroids(
+        HierarchicalKMeans<float[]> hierarchicalKMeans,
+        ClusteringFloatVectorValues floatVectorValues
+    ) throws IOException {
         return hierarchicalKMeans.cluster(floatVectorValues, vectorPerCluster);
     }
 
@@ -1165,7 +1251,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final int numCentroids;
         private final int dimension;
         private final float[] scratch;
-        private final KMeansResult clusters;
+        private final KMeansResult<float[]> clusters;
         private final CentroidSlices centroidSlices;
         private int currOrd = -1;
 
@@ -1173,7 +1259,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             IndexInput centroidsInput,
             int numCentroids,
             FieldInfo info,
-            KMeansResult clusters,
+            KMeansResult<float[]> clusters,
             CentroidSlices centroidSlices
         ) {
             this.centroidsInput = centroidsInput;
@@ -1201,7 +1287,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         }
 
         @Override
-        public KMeansResult secondLevelClusters() {
+        public KMeansResult<float[]> secondLevelClusters() {
             return clusters;
         }
 

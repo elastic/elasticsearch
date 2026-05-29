@@ -183,20 +183,19 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public TopNOperator get(DriverContext driverContext) {
-            TopNOperator op = getTopNOperator(driverContext.blockFactory());
-            if (parallelWorkerConfig != null) {
-                op.factory = this;
-                op.parallelWorkerConfig = parallelWorkerConfig;
-            }
-            return op;
+            return getTopNOperator(driverContext.blockFactory(), this, parallelWorkerConfig);
         }
 
         @Override
         public TopNOperator getWorkerOperator(DriverContext driverContext) {
-            return getTopNOperator(driverContext.workerBlockFactory());
+            return getTopNOperator(driverContext.workerBlockFactory(), null, null);
         }
 
-        private TopNOperator getTopNOperator(BlockFactory blockFactory) {
+        private TopNOperator getTopNOperator(
+            BlockFactory blockFactory,
+            @Nullable TopNOperatorFactory factory,
+            @Nullable ParallelWorkerConfig parallelWorkerConfig
+        ) {
             return new TopNOperator(
                 blockFactory,
                 blockFactory.breaker(),
@@ -207,7 +206,9 @@ public class TopNOperator implements Operator, Accountable {
                 maxPageRows,
                 jumboPageBytes,
                 inputOrdering,
-                minCompetitive
+                minCompetitive,
+                factory,
+                parallelWorkerConfig
             );
         }
 
@@ -230,13 +231,11 @@ public class TopNOperator implements Operator, Accountable {
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
 
-    /** Set by {@link TopNOperatorFactory#get} when parallel promotion is configured. */
     @Nullable
-    TopNOperatorFactory factory;
+    private final TopNOperatorFactory factory;
 
-    /** Set by {@link TopNOperatorFactory#get} when parallel promotion is configured. */
     @Nullable
-    ParallelWorkerConfig parallelWorkerConfig;
+    private final ParallelWorkerConfig parallelWorkerConfig;
 
     /**
      * Maximum number of rows per output page.
@@ -306,6 +305,36 @@ public class TopNOperator implements Operator, Accountable {
         InputOrdering inputOrdering,
         @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier
     ) {
+        this(
+            blockFactory,
+            breaker,
+            topCount,
+            elementTypes,
+            encoders,
+            sortOrders,
+            maxPageRows,
+            jumboPageBytes,
+            inputOrdering,
+            minCompetitiveSupplier,
+            null,
+            null
+        );
+    }
+
+    private TopNOperator(
+        BlockFactory blockFactory,
+        CircuitBreaker breaker,
+        int topCount,
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<SortOrder> sortOrders,
+        int maxPageRows,
+        long jumboPageBytes,
+        InputOrdering inputOrdering,
+        @Nullable SharedMinCompetitive.Supplier minCompetitiveSupplier,
+        @Nullable TopNOperatorFactory factory,
+        @Nullable ParallelWorkerConfig parallelWorkerConfig
+    ) {
         TopNQueue inputQueue = null;
         SharedMinCompetitive minCompetitive = null;
         boolean success = false;
@@ -332,6 +361,8 @@ public class TopNOperator implements Operator, Accountable {
         for (SortOrder so : sortOrders) {
             channelInKey[so.channel] = true;
         }
+        this.factory = factory;
+        this.parallelWorkerConfig = parallelWorkerConfig;
     }
 
     @Override

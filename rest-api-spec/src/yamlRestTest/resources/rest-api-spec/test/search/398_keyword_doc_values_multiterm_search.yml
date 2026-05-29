@@ -178,3 +178,21 @@ setup:
         index: test_kw_dv_high
         body: { query: { regexp: { keyword_field: { value: "London.*" } } } }
   - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on sorted-set doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_low
+        body: { query: { regexp: { keyword_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on binary doc-values-only keyword field":
+
+  - do:
+      search:
+        index: test_kw_dv_high
+        body: { query: { regexp: { keyword_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }

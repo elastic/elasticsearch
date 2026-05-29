@@ -1,0 +1,1 @@
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" result=(time())

@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -38,7 +37,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInpu
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
@@ -103,9 +101,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void infer(
         Model model,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         List<String> input,
         boolean stream,
         Map<String, Object> taskSettings,
@@ -115,7 +110,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
     ) {
         try {
             var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, inputType, clusterService, model.getTaskType());
-            var inferenceInput = createInput(this, model, input, inputType, query, returnDocuments, topN, stream);
+            var inferenceInput = createInput(this, model, input, inputType, stream);
             doInfer(model, inferenceInput, taskSettings, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -229,30 +224,10 @@ public abstract class SenderService<M extends Model> implements InferenceService
         Model model,
         List<String> input,
         InputType inputType,
-        @Nullable String query,
-        @Nullable Boolean returnDocuments,
-        @Nullable Integer topN,
         boolean stream
     ) {
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
-            case RERANK -> {
-                ValidationException validationException = new ValidationException();
-                service.validateRerankParameters(returnDocuments, topN, validationException);
-
-                if (query == null) {
-                    validationException.addValidationError("Rerank task type requires a non-null query field");
-                }
-
-                validationException.throwIfValidationErrorsExist();
-                yield new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, query),
-                    InferenceString.fromStringList(input),
-                    returnDocuments,
-                    topN,
-                    stream
-                );
-            }
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
@@ -367,7 +342,6 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void chunkedInfer(
         Model model,
-        @Nullable String query,
         List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -16,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -182,12 +180,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
-        var filter = project.collect(Filter.class).getFirst();
+        var isNotNullFilter = project.collect(Filter.class)
+            .stream()
+            .filter(f -> f.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(isNotNullFilter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        var scalarAgg = as(eval.child(), Aggregate.class);
+        var stepRangeFilter = as(eval.child(), Filter.class);
+        var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
         assertThat(scalarAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
 
@@ -216,13 +219,17 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
 
         var project = as(plan, Project.class);
-        var filter = project.collect(Filter.class).getFirst();
-        as(filter.condition(), IsNotNull.class);
+        var isNotNullFilter = project.collect(Filter.class)
+            .stream()
+            .filter(f -> f.condition() instanceof IsNotNull)
+            .findFirst()
+            .orElseThrow();
 
-        var eval = as(filter.child(), Eval.class);
+        var eval = as(isNotNullFilter.child(), Eval.class);
         assertThat(eval.fields(), hasSize(2));
 
-        var scalarAgg = as(eval.child(), Aggregate.class);
+        var stepRangeFilter = as(eval.child(), Filter.class);
+        var scalarAgg = as(stepRangeFilter.child(), Aggregate.class);
         assertThat(scalarAgg.groupings(), hasSize(1));
         assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
         assertThat(scalarAgg.aggregates(), hasSize(3));
@@ -231,8 +238,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
 
         var bucketEval = as(tsAgg.child(), Eval.class);
-        var bucketAlias = as(bucketEval.fields().getFirst(), Alias.class);
-        var bucket = as(bucketAlias.child(), Bucket.class);
-        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+        assertThat(bucketEval.fields(), hasSize(1));
+        assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
     }
 }

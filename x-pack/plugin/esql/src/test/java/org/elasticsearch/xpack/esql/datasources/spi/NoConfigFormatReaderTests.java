@@ -103,8 +103,23 @@ public class NoConfigFormatReaderTests extends ESTestCase {
 
     private static class SegmentableStub implements SegmentableFormatReader, NoConfigFormatReader {
         @Override
-        public long findNextRecordBoundary(InputStream stream) {
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return new RecordSplitter() {
+                @Override
+                public long findNextRecordBoundary(InputStream stream) {
+                    return -1;
+                }
+
+                @Override
+                public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                    return -1;
+                }
+
+                @Override
+                public int maxRecordBytes() {
+                    return maxRecordBytes;
+                }
+            };
         }
 
         @Override

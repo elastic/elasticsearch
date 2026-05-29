@@ -56,6 +56,24 @@ public class NdJsonRecordSplitterContractTests extends ESTestCase {
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findLastRecordBoundary(repeatedByte('x', 9), 0, 9));
     }
 
+    public void testTerminatedOversizedRecordIsNotDispatchable() throws IOException {
+        RecordSplitter splitter = newSplitter(8);
+        byte[] oversized = bytes("x".repeat(8) + "\n");
+
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(oversized)));
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findLastRecordBoundary(oversized, 0, oversized.length));
+    }
+
+    public void testSafeRecordBeforeOversizedTailCanBeReturnedOnce() throws IOException {
+        RecordSplitter splitter = newSplitter(8);
+        byte[] safe = bytes("ok\n");
+        byte[] oversizedTail = bytes("x".repeat(9) + "\n");
+        byte[] combined = concat(safe, oversizedTail);
+
+        assertEquals(safe.length - 1, splitter.findLastRecordBoundary(combined, 0, combined.length));
+        assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findLastRecordBoundary(combined, safe.length, oversizedTail.length));
+    }
+
     public void testFindLastRecordBoundaryUsesOffsetAwareReverseScan() throws IOException {
         byte[] prefix = bytes("ignored\n");
         byte[] payload = bytes("{\"a\":1}\n{\"b\":2}");
@@ -74,12 +92,12 @@ public class NdJsonRecordSplitterContractTests extends ESTestCase {
         assertEquals(RecordSplitter.RECORD_TOO_LARGE, splitter.findNextRecordBoundary(new ByteArrayInputStream(repeatedByte('x', 9))));
     }
 
-    public void testLegacyReaderMethodsDelegateToSplitter() throws IOException {
+    public void testFormatReaderDefaultSplitter() throws IOException {
         NdJsonFormatReader reader = new NdJsonFormatReader(null, null);
         byte[] payload = bytes("first\nsecond");
 
-        assertEquals(6L, reader.findNextRecordBoundary(new ByteArrayInputStream(payload)));
-        assertEquals(5, reader.findLastRecordBoundary(payload, payload.length));
+        assertEquals(6L, reader.recordSplitter().findNextRecordBoundary(new ByteArrayInputStream(payload)));
+        assertEquals(5, reader.recordSplitter().findLastRecordBoundary(payload, payload.length));
     }
 
     public void testDefaultSplitterUsesDefaultMaxRecordBytes() {

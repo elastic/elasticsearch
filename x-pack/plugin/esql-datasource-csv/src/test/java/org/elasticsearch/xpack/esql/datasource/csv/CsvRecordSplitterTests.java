@@ -156,6 +156,29 @@ public class CsvRecordSplitterTests extends ESTestCase {
         }
     }
 
+    public void testLoneCrBoundaryCountAgreesWithReadCsvRecord() throws IOException {
+        CsvFormatOptions options = CsvFormatOptions.DEFAULT;
+        RecordSplitter splitter = splitter(options);
+        String data = "a,b\rc,d\r\"e\rf\",g\r";
+        byte[] buf = bytes(data);
+
+        int parserRecords = 0;
+        try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+            while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), options.delimiter(), false) != null) {
+                parserRecords++;
+            }
+        }
+
+        int scannerRecords = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
+        while (splitter.findNextRecordBoundary(in) >= 0) {
+            scannerRecords++;
+        }
+
+        assertEquals(parserRecords, scannerRecords);
+        assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
+    }
+
     private static RecordSplitter splitter(CsvFormatOptions options) {
         return new CsvRecordSplitter(options, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }

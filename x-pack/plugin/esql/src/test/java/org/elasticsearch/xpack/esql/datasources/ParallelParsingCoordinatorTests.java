@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -233,7 +234,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "abcde\nfghij\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(6, skipped);
         }
     }
@@ -243,7 +244,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "abcde\r\nfghij\n".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(7, skipped);
         }
     }
@@ -253,7 +254,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         byte[] data = "no-newline-here".getBytes(StandardCharsets.UTF_8);
         try (InputStream stream = new ByteArrayInputStream(data)) {
-            long skipped = reader.findNextRecordBoundary(stream);
+            long skipped = reader.recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES).findNextRecordBoundary(stream);
             assertEquals(-1, skipped);
         }
     }
@@ -901,6 +902,60 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         return TEST_BLOCK_FACTORY;
     }
 
+    private static RecordSplitter newlineSplitter(int maxRecordBytes) {
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) throws IOException {
+                long consumed = 0;
+                int b;
+                while ((b = stream.read()) != -1) {
+                    consumed++;
+                    if (consumed > maxRecordBytes) {
+                        return RECORD_TOO_LARGE;
+                    }
+                    if (b == '\n') {
+                        return consumed;
+                    }
+                    if (b == '\r') {
+                        int next = stream.read();
+                        if (next == '\n') {
+                            consumed++;
+                            return consumed > maxRecordBytes ? RECORD_TOO_LARGE : consumed;
+                        }
+                        return consumed;
+                    }
+                }
+                return -1;
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                int end = offset + length;
+                int recordStart = offset;
+                int lastBoundary = -1;
+                for (int i = offset; i < end; i++) {
+                    if (buf[i] == '\n' || buf[i] == '\r') {
+                        int boundary = i;
+                        if (buf[i] == '\r' && i + 1 < end && buf[i + 1] == '\n') {
+                            boundary = ++i;
+                        }
+                        if (boundary - recordStart + 1 > maxRecordBytes) {
+                            return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                        }
+                        lastBoundary = boundary;
+                        recordStart = boundary + 1;
+                    }
+                }
+                return end - recordStart > maxRecordBytes && lastBoundary < 0 ? (int) RECORD_TOO_LARGE : lastBoundary;
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return maxRecordBytes;
+            }
+        };
+    }
+
     /**
      * Minimal SegmentableFormatReader that scans for newlines.
      */
@@ -913,27 +968,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-                if (b == '\r') {
-                    int next = stream.read();
-                    consumed++;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                    if (next == -1) {
-                        return consumed - 1;
-                    }
-                    return consumed - 1;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -978,16 +1014,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1118,16 +1146,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1191,16 +1211,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return newlineSplitter(maxRecordBytes);
         }
 
         @Override

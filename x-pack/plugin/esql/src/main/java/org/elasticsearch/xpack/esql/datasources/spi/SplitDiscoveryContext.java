@@ -36,7 +36,8 @@ public record SplitDiscoveryContext(
     PartitionMetadata partitionInfo,
     List<Expression> filterHints,
     ExternalSchema querySchema,
-    @Nullable ExternalSchema unifiedSchema
+    @Nullable ExternalSchema unifiedSchema,
+    int maxRecordBytes
 ) {
     public SplitDiscoveryContext(
         SourceMetadata metadata,
@@ -45,7 +46,17 @@ public record SplitDiscoveryContext(
         PartitionMetadata partitionInfo,
         List<Expression> filterHints
     ) {
-        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, ExternalSchema.EMPTY, null);
+        this(
+            metadata,
+            fileList,
+            Map.of(),
+            config,
+            partitionInfo,
+            filterHints,
+            ExternalSchema.EMPTY,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
     }
 
     public SplitDiscoveryContext(
@@ -56,7 +67,17 @@ public record SplitDiscoveryContext(
         List<Expression> filterHints,
         ExternalSchema querySchema
     ) {
-        this(metadata, fileList, Map.of(), config, partitionInfo, filterHints, querySchema, null);
+        this(
+            metadata,
+            fileList,
+            Map.of(),
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
     }
 
     public SplitDiscoveryContext(
@@ -68,7 +89,17 @@ public record SplitDiscoveryContext(
         List<Expression> filterHints,
         ExternalSchema querySchema
     ) {
-        this(metadata, fileList, schemaMap, config, partitionInfo, filterHints, querySchema, null);
+        this(
+            metadata,
+            fileList,
+            schemaMap,
+            config,
+            partitionInfo,
+            filterHints,
+            querySchema,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
     }
 
     public SplitDiscoveryContext {
@@ -79,5 +110,8 @@ public record SplitDiscoveryContext(
         config = config != null ? Map.copyOf(config) : Map.of();
         filterHints = filterHints != null ? List.copyOf(filterHints) : List.of();
         querySchema = querySchema != null ? querySchema : ExternalSchema.EMPTY;
+        if (maxRecordBytes <= 0) {
+            throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
+        }
     }
 }

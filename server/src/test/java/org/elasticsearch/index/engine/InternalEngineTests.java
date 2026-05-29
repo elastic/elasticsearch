@@ -3421,7 +3421,7 @@ public class InternalEngineTests extends EngineTestCase {
             wrapper.setAllowRandomFileNotFoundException(randomBoolean());
             wrapper.setRandomIOExceptionRate(randomDouble());
             wrapper.setRandomIOExceptionRateOnOpen(randomDouble());
-            final Path translogPath = createTempDir("testFailStart");
+            final Path translogPath = createTempDir("testFailStart-" + i);
             try (Store store = createStore(wrapper)) {
                 int refCount = store.refCount();
                 assertTrue("refCount: " + store.refCount(), store.refCount() > 0);

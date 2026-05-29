@@ -22,7 +22,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
-import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchHits;
@@ -85,18 +84,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Nullable
     private Long timeRangeFilterFromMillis;
-
-    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
-
-    @Override
-    public DirectoryMetrics getDirectoryMetrics() {
-        return directoryMetrics;
-    }
-
-    @Override
-    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
-        this.directoryMetrics = directoryMetrics;
-    }
 
     /**
      * SearchHits from top_hits that must be released when this result is released. Eagerly allocated so
@@ -487,9 +474,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             if (in.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
                 timeRangeFilterFromMillis = in.readOptionalLong();
             }
-            if (in.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
-                setDirectoryMetrics(new DirectoryMetrics(in));
-            }
+            readDirectoryMetrics(in);
             success = true;
         } finally {
             if (success == false) {
@@ -558,9 +543,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(TIMESTAMP_RANGE_TELEMETRY)) {
             out.writeOptionalLong(timeRangeFilterFromMillis);
         }
-        if (out.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
-            getDirectoryMetrics().writeTo(out);
-        }
+        writeDirectoryMetrics(out);
     }
 
     @Nullable

@@ -10,6 +10,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.DirectoryMetrics;
@@ -39,6 +40,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
     protected ShardSearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
+    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
     protected SearchPhaseResult() {}
 
@@ -112,16 +114,39 @@ public abstract class SearchPhaseResult extends TransportResponse {
     }
 
     /**
-     * Returns the directory-level metrics captured while executing this phase on a data node.
-     * Subclasses that open a reader during shard-level execution override this; phase results
-     * that don't open a reader (e.g. can-match, open-PIT) inherit the default and return
-     * {@link DirectoryMetrics#EMPTY}.
+     * Returns the directory-level metrics captured while executing this phase on a data node, or
+     * {@link DirectoryMetrics#EMPTY} when none were recorded (e.g. can-match, open-PIT, or any phase
+     * result that never opened a reader). The value is never {@code null}.
      */
     public DirectoryMetrics getDirectoryMetrics() {
-        return DirectoryMetrics.EMPTY;
+        return directoryMetrics;
     }
 
-    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {}
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
+    }
+
+    /**
+     * Reads the directory metrics from the stream when the negotiated transport version supports it.
+     * Subclasses that serialize metrics call this at the end of their stream-input constructor so the
+     * feature-flag gating lives in a single place.
+     */
+    protected final void readDirectoryMetrics(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            setDirectoryMetrics(new DirectoryMetrics(in));
+        }
+    }
+
+    /**
+     * Writes the directory metrics to the stream when the negotiated transport version supports it.
+     * Counterpart to {@link #readDirectoryMetrics(StreamInput)}; subclasses call this at the end of
+     * their {@link #writeTo(StreamOutput)} implementation.
+     */
+    protected final void writeDirectoryMetrics(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
+            getDirectoryMetrics().writeTo(out);
+        }
+    }
 
     @Nullable
     public final ShardSearchRequest getShardSearchRequest() {

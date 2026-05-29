@@ -17,7 +17,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
-import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -33,17 +32,6 @@ import static org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinati
 public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
-
-    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
-
-    @Override
-    public DirectoryMetrics getDirectoryMetrics() {
-        return directoryMetrics;
-    }
-
-    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
-        this.directoryMetrics = directoryMetrics;
-    }
 
     private long searchHitsSizeBytes = 0L;
 
@@ -90,9 +78,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 lastChunkBytes = in.readReleasableBytesReference();
             }
         }
-        if (in.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
-            setDirectoryMetrics(new DirectoryMetrics(in));
-        }
+        readDirectoryMetrics(in);
     }
 
     @Override
@@ -108,9 +94,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
                 out.writeBytesReference(lastChunkBytes);
             }
         }
-        if (out.getTransportVersion().supports(SearchPhaseResult.SEARCH_PHASE_BYTES_READ)) {
-            getDirectoryMetrics().writeTo(out);
-        }
+        writeDirectoryMetrics(out);
     }
 
     @Override

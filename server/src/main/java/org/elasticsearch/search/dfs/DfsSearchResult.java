@@ -16,7 +16,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -42,17 +41,6 @@ public final class DfsSearchResult extends SearchPhaseResult {
     private boolean searchTimedOut;
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
-    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
-
-    @Override
-    public DirectoryMetrics getDirectoryMetrics() {
-        return directoryMetrics;
-    }
-
-    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
-        this.directoryMetrics = directoryMetrics;
-    }
-
     public DfsSearchResult(StreamInput in) throws IOException {
         contextId = new ShardSearchContextId(in);
         int termsSize = in.readVInt();
@@ -74,9 +62,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         if (in.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             searchTimedOut = in.readBoolean();
         }
-        if (in.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
-            setDirectoryMetrics(new DirectoryMetrics(in));
-        }
+        readDirectoryMetrics(in);
     }
 
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
@@ -159,9 +145,7 @@ public final class DfsSearchResult extends SearchPhaseResult {
         if (out.getTransportVersion().supports(DFS_SEARCH_TIMED_OUT)) {
             out.writeBoolean(searchTimedOut);
         }
-        if (out.getTransportVersion().supports(SEARCH_PHASE_BYTES_READ)) {
-            getDirectoryMetrics().writeTo(out);
-        }
+        writeDirectoryMetrics(out);
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {

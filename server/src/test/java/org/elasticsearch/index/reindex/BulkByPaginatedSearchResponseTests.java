@@ -33,22 +33,25 @@ import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
-public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkByScrollResponse> {
+public class BulkByPaginatedSearchResponseTests extends AbstractXContentTestCase<BulkByPaginatedSearchResponse> {
 
-    private static final ObjectParser<BulkByScrollResponseBuilder, Void> PARSER = new ObjectParser<>(
+    private static final ObjectParser<BulkByPaginatedSearchResponseBuilder, Void> PARSER = new ObjectParser<>(
         "bulk_by_scroll_response",
         true,
-        BulkByScrollResponseBuilder::new
+        BulkByPaginatedSearchResponseBuilder::new
     );
     static {
-        PARSER.declareLong(BulkByScrollResponseBuilder::setTook, new ParseField(BulkByScrollResponse.TOOK_FIELD));
-        PARSER.declareBoolean(BulkByScrollResponseBuilder::setTimedOut, new ParseField(BulkByScrollResponse.TIMED_OUT_FIELD));
-        PARSER.declareObjectArray(
-            BulkByScrollResponseBuilder::setFailures,
-            (p, c) -> parseFailure(p),
-            new ParseField(BulkByScrollResponse.FAILURES_FIELD)
+        PARSER.declareLong(BulkByPaginatedSearchResponseBuilder::setTook, new ParseField(BulkByPaginatedSearchResponse.TOOK_FIELD));
+        PARSER.declareBoolean(
+            BulkByPaginatedSearchResponseBuilder::setTimedOut,
+            new ParseField(BulkByPaginatedSearchResponse.TIMED_OUT_FIELD)
         );
-        // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
+        PARSER.declareObjectArray(
+            BulkByPaginatedSearchResponseBuilder::setFailures,
+            (p, c) -> parseFailure(p),
+            new ParseField(BulkByPaginatedSearchResponse.FAILURES_FIELD)
+        );
+        // since the result of BulkByPaginatedSearchResponse.Status are mixed we also parse that in this
         BulkByPaginatedSearchTaskStatusTests.declareFields(PARSER);
     }
 
@@ -132,8 +135,8 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     }
 
     public static void assertEqualBulkResponse(
-        BulkByScrollResponse expected,
-        BulkByScrollResponse actual,
+        BulkByPaginatedSearchResponse expected,
+        BulkByPaginatedSearchResponse actual,
         boolean includeUpdated,
         boolean includeCreated
     ) {
@@ -159,14 +162,14 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     }
 
     @Override
-    protected void assertEqualInstances(BulkByScrollResponse expected, BulkByScrollResponse actual) {
+    protected void assertEqualInstances(BulkByPaginatedSearchResponse expected, BulkByPaginatedSearchResponse actual) {
         assertEqualBulkResponse(expected, actual, includeUpdated, includeCreated);
     }
 
     @Override
-    protected BulkByScrollResponse createTestInstance() {
+    protected BulkByPaginatedSearchResponse createTestInstance() {
         if (testExceptions) {
-            return new BulkByScrollResponse(
+            return new BulkByPaginatedSearchResponse(
                 timeValueMillis(randomNonNegativeLong()),
                 BulkByPaginatedSearchTaskStatusTests.randomStatus(),
                 randomIndexingFailures(),
@@ -174,7 +177,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
                 randomBoolean()
             );
         } else {
-            return new BulkByScrollResponse(
+            return new BulkByPaginatedSearchResponse(
                 timeValueMillis(randomNonNegativeLong()),
                 BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException(),
                 emptyList(),
@@ -185,7 +188,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     }
 
     @Override
-    protected BulkByScrollResponse doParseInstance(XContentParser parser) throws IOException {
+    protected BulkByPaginatedSearchResponse doParseInstance(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null).buildResponse();
     }
 

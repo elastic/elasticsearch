@@ -27,8 +27,6 @@ import java.util.Random;
 public class HierarchicalKMeans<V> {
     private static final Logger logger = LogManager.getLogger(HierarchicalKMeans.class);
 
-    private static final Logger logger = LogManager.getLogger(HierarchicalKMeans.class);
-
     public static final int MAXK = 128;
     public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
     public static final float DEFAULT_SOAR_LAMBDA = 1.0f;

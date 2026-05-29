@@ -411,20 +411,22 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         final var indexName = randomIdentifier();
-        final boolean manySegments = rarely();
         final Instant now = Instant.now();
         assertAcked(
             prepareCreate(indexName).setSettings(
-                seqNoPruningIndexSettings(indexSettings(1, 0), manySegments).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), now.minusSeconds(3600).toString())
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), now.plusSeconds(3600).toString())
+                    .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+                    .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+                    .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
                     .build()
             ).setMapping("@timestamp", "type=date", "hostname", "type=keyword,time_series_dimension=true", "field", "type=keyword")
         );
         ensureGreen(indexName);
 
-        final int nbBatches = randomBatchCount(manySegments);
+        final int nbBatches = randomIntBetween(5, 10);
         final int docsPerBatch = randomIntBetween(20, 50);
         final long totalDocs = (long) nbBatches * docsPerBatch;
 

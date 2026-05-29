@@ -34,6 +34,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -213,9 +214,19 @@ public class NativePrivilegeStore {
             listener.onResponse(Collections.emptyList());
         } else if (projectSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             if (waitForAvailableSecurityIndex) {
-                securityIndexManager.whenIndexAvailableForSearch(
-                    listener.delegateFailureAndWrap(
-                        (l, snapshot) -> snapshot.checkIndexVersionThenExecute(l::onFailure, () -> searchPrivileges(applications, l))
+                securityIndexManager.tryAwaitIndexAvailableForSearch(
+                    ActionListener.wrap(
+                        snapshot -> snapshot.checkIndexVersionThenExecute(
+                            listener::onFailure,
+                            () -> searchPrivileges(applications, listener)
+                        ),
+                        e -> {
+                            if (e instanceof IndexNotFoundException) {
+                                listener.onResponse(Collections.emptyList());
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
                     )
                 );
             } else {

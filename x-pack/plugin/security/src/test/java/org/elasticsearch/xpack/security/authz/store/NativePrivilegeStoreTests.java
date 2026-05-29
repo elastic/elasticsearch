@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.search.SearchHit;
@@ -170,7 +171,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             final var l = (ActionListener<SecurityIndexManager.IndexState>) invocationOnMock.getArguments()[0];
             l.onResponse(projectIndex);
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener());
+        }).when(securityIndex).tryAwaitIndexAvailableForSearch(anyActionListener());
         cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -319,6 +320,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testGetPrivilegesSucceedsWhenHelperResolvesSnapshot() throws Exception {
+        markShardsUnavailable();
         final List<ApplicationPrivilegeDescriptor> sourcePrivileges = Arrays.asList(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
@@ -331,16 +333,17 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         ActionListener.respondAndRelease(listener.get(), buildSearchResponse(buildHits(sourcePrivileges)));
 
         assertResult(sourcePrivileges, future);
-        verify(securityIndex, times(1)).whenIndexAvailableForSearch(anyActionListener());
+        verify(securityIndex, times(1)).tryAwaitIndexAvailableForSearch(anyActionListener());
     }
 
     public void testGetPrivilegesPropagatesHelperFailureWithNonShardsReason() {
+        markShardsUnavailable();
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var l = (ActionListener<SecurityIndexManager.IndexState>) invocation.getArguments()[0];
             l.onFailure(new IndexClosedException(new Index("potato", randomUUID())));
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener());
+        }).when(securityIndex).tryAwaitIndexAvailableForSearch(anyActionListener());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
@@ -348,16 +351,35 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testGetPrivilegesPropagatesHelperFailureWithUnavailableShardsReason() {
+        markShardsUnavailable();
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var l = (ActionListener<SecurityIndexManager.IndexState>) invocation.getArguments()[0];
             l.onFailure(unavailableShardsException());
             return null;
-        }).when(securityIndex).whenIndexAvailableForSearch(anyActionListener());
+        }).when(securityIndex).tryAwaitIndexAvailableForSearch(anyActionListener());
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
         store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
         expectThrows(UnavailableShardsException.class, future::actionGet);
+    }
+
+    public void testGetPrivilegesReturnsEmptyWhenIndexNotFoundAfterHelperWait() throws Exception {
+        markShardsUnavailable();
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var l = (ActionListener<SecurityIndexManager.IndexState>) invocation.getArguments()[0];
+            l.onFailure(new IndexNotFoundException("potato"));
+            return null;
+        }).when(securityIndex).tryAwaitIndexAvailableForSearch(anyActionListener());
+
+        final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
+        store.getPrivileges(Arrays.asList("myapp", "yourapp"), null, true, future);
+        assertThat(future.get(1, TimeUnit.SECONDS), empty());
+    }
+
+    private void markShardsUnavailable() {
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
     }
 
     public void testGetAllPrivileges() throws Exception {

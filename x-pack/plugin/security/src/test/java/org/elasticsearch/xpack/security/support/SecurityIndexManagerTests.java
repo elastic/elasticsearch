@@ -942,7 +942,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS), is(false));
     }
 
-    public void testWhenIndexAvailableForSearchRespondsImmediatelyWhenAvailable() {
+    public void testWhenIndexAvailableForSearchRespondsImmediatelyTryAwaitSearchableAvailable() {
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS
@@ -950,7 +950,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
 
         final AtomicReference<IndexState> response = new AtomicReference<>();
-        manager.whenIndexAvailableForSearch(
+        manager.tryAwaitIndexAvailableForSearch(
             ActionListener.wrap(response::set, e -> { throw new AssertionError("unexpected failure", e); })
         );
 
@@ -967,7 +967,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         manager.clusterChanged(event(closedState.build()));
 
         final AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.whenIndexAvailableForSearch(
+        manager.tryAwaitIndexAvailableForSearch(
             ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set)
         );
 
@@ -978,19 +978,19 @@ public class SecurityIndexManagerTests extends ESTestCase {
         markShardsUnavailable();
 
         final AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.whenIndexAvailableForSearch(
+        manager.tryAwaitIndexAvailableForSearch(
             ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set)
         );
 
         assertThat(failure.get(), instanceOf(UnavailableShardsException.class));
     }
 
-    public void testWhenIndexAvailableForSearchReturnsFreshSnapshotWhenShardsBecomeAvailable() {
+    public void testWhenIndexAvailableForSearchReturnsFreshSnapshotTryAwaitSearchableShardsBecomeAvailable() {
         markShardsUnavailable();
         when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
 
         final AtomicReference<IndexState> response = new AtomicReference<>();
-        manager.whenIndexAvailableForSearch(
+        manager.tryAwaitIndexAvailableForSearch(
             ActionListener.wrap(response::set, e -> { throw new AssertionError("unexpected failure", e); }),
             TimeValue.timeValueSeconds(30)
         );
@@ -1014,7 +1014,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         when(threadPool.schedule(scheduled.capture(), any(TimeValue.class), any())).thenReturn(mock(Scheduler.ScheduledCancellable.class));
 
         final AtomicReference<Exception> failure = new AtomicReference<>();
-        manager.whenIndexAvailableForSearch(
+        manager.tryAwaitIndexAvailableForSearch(
             ActionListener.wrap(snapshot -> { throw new AssertionError("unexpected response " + snapshot); }, failure::set),
             TimeValue.timeValueSeconds(30)
         );

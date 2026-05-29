@@ -91,7 +91,7 @@ public class SecurityIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
     /**
-     * Determines how long {@link #whenIndexAvailableForSearch(ActionListener)} will wait for the security index
+     * Determines how long {@link #tryAwaitIndexAvailableForSearch(ActionListener)} will wait for the security index
      * to become available for search before performing its single fresh re-check.
      * The default value of 0 bypasses all waiting-related logic entirely.
      */
@@ -693,16 +693,16 @@ public class SecurityIndexManager implements ClusterStateListener {
      *       otherwise. A timeout from the wait itself is never propagated to the listener.</li>
      * </ul>
      */
-    public void whenIndexAvailableForSearch(ActionListener<IndexState> listener) {
+    public void tryAwaitIndexAvailableForSearch(ActionListener<IndexState> listener) {
         if (SECURITY_INDEX_WAIT_TIMEOUT.equals(TimeValue.ZERO)) {
-            completeWithCurrentSnapshot(listener);
+            completeAvailableForSearchWait(listener);
             return;
         }
-        whenIndexAvailableForSearch(listener, SECURITY_INDEX_WAIT_TIMEOUT);
+        tryAwaitIndexAvailableForSearch(listener, SECURITY_INDEX_WAIT_TIMEOUT);
     }
 
-    // package-private for tests that need to drive the wait path with a non-zero timeout
-    void whenIndexAvailableForSearch(ActionListener<IndexState> listener, TimeValue waitTimeout) {
+    // package-private for testing
+    void tryAwaitIndexAvailableForSearch(ActionListener<IndexState> listener, TimeValue waitTimeout) {
         final IndexState snapshot = forCurrentProject();
         if (snapshot.isAvailable(Availability.SEARCH_SHARDS)) {
             listener.onResponse(snapshot);
@@ -721,18 +721,18 @@ public class SecurityIndexManager implements ClusterStateListener {
         snapshot.onIndexAvailableForSearch(new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                completeWithCurrentSnapshot(contextPreserving);
+                completeAvailableForSearchWait(contextPreserving);
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.warn(() -> "Failure while waiting for security index [" + snapshot.getConcreteIndexName() + "]", e);
-                completeWithCurrentSnapshot(contextPreserving);
+                completeAvailableForSearchWait(contextPreserving);
             }
         }, waitTimeout);
     }
 
-    private void completeWithCurrentSnapshot(ActionListener<IndexState> listener) {
+    private void completeAvailableForSearchWait(ActionListener<IndexState> listener) {
         final IndexState current = forCurrentProject();
         if (current.isAvailable(Availability.SEARCH_SHARDS)) {
             listener.onResponse(current);

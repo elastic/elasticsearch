@@ -55,11 +55,13 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimi
 
         // This optimization avoids Lucene queries so we can't use it when an AliasFilter is in effect.
         if (context.aliasFilter() != null && context.aliasFilter() != AliasFilter.EMPTY) {
+            logger.debug("Cannot use bulk lookup on KEYWORD with aliasFilter {}", context.aliasFilter());
             return plan;
         }
 
         // Only use optimization for LOOKUP JOIN on single keyword and no other Lucene queries
         if (plan.query() != null) {
+            logger.debug("Cannot use bulk lookup on KEYWORD with Lucene query {}", plan.query());
             return plan;
         }
 
@@ -101,7 +103,11 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimi
                         ),
                         rightAttribute
                     );
+                } else {
+                    logger.debug("Cannot use bulk lookup, could not find rightAttribute {}", fieldName);
                 }
+            } else {
+                logger.debug("Cannot use bulk lookup on field type {}", matchField.type());
             }
         }
 
@@ -131,6 +137,7 @@ public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimi
             );
         }
 
+        logger.debug("Cannot use bulk lookup optimization");
         return plan;
     }
 }

@@ -67,7 +67,7 @@ $$$dlm-frozen-transition-poll-interval$$$
 $$$dlm-frozen-transition-max-concurrency$$$
 
 `dlm.frozen.transition.thread_pool.size`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that the frozen transition service converts concurrently. Defaults to the smaller of either 2x the CPU core count of the node or `100`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that the frozen transition service converts concurrently. Defaults to the smaller of either two times the CPU core count of the node or `100`.
 
 $$$dlm-frozen-transition-max-queue-size$$$
 

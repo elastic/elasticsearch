@@ -139,7 +139,7 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
         try {
             next = sslConfig.getStrategy();
         } catch (Exception e) {
-            logger.error("failed to fetch new workload-identity SSL strategy during reload; keeping previous delegate", e);
+            logger.warn("failed to fetch new workload-identity SSL strategy during reload; keeping previous delegate", e);
             return;
         }
         sslStrategy.setDelegate(next);

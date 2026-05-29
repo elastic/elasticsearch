@@ -49,6 +49,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")

@@ -50,7 +50,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.ESTestCase.assertThat;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.w3c.dom.Node.ELEMENT_NODE;
@@ -64,6 +65,8 @@ public class S3HttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
     public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
     public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
+    public static final String COPY_SOURCE_HEADER = "X-amz-copy-source";
+    public static final Pattern SHA256_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final String bucket;
     private final String basePath;
@@ -160,6 +163,7 @@ public class S3HttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    verifyContentSha256Header(exchange, blob.v2());
                     upload.addPart(blob.v1(), blob.v2());
                     exchange.getResponseHeaders().add("ETag", blob.v1());
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -206,13 +210,7 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (request.isPutObjectRequest()) {
                 final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
-                assertThat(
-                    exchange.getRequestHeaders().getFirst(CONTENT_SHA256_HEADER),
-                    oneOf(
-                        "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
-                        MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
-                    )
-                );
+                verifyContentSha256Header(exchange, blob.v2());
                 blobs.put(request.path(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -483,6 +481,30 @@ public class S3HttpHandler implements HttpHandler {
 
     MultipartUpload getUpload(String uploadId) {
         return uploads.get(uploadId);
+    }
+
+    private static void verifyContentSha256Header(final HttpExchange exchange, BytesReference body) {
+        final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
+        if (contentSha256Header != null && SHA256_PATTERN.asMatchPredicate().test(contentSha256Header)) {
+            // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
+            // if it's a real SHA256 checksum then it must match the request's contents.
+            assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
+        }
+    }
+
+    /**
+     * Assert that if the exchange is a {@code PutObject} or {@code UploadPart} request then {@code X-amz-content-sha256} header is present
+     * and either contains a full SHA256 hash or another value matching the provided {@link org.hamcrest.Matcher}.
+     */
+    public void assertContentSha256Header(HttpExchange exchange, org.hamcrest.Matcher<String> otherPermittedValues) {
+        final var request = parseRequest(exchange);
+        if ((request.isUploadPartRequest() || request.isPutObjectRequest())
+            && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER)).orElse(List.of()).isEmpty()) {
+            assertThat(
+                exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
+                anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), otherPermittedValues)
+            );
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

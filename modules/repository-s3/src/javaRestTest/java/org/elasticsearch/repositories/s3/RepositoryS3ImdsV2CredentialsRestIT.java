@@ -42,7 +42,7 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
             .instanceIdentityDocument((b, p) -> b.field("region", regionSupplier.get()))
     );
 
-    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
+    private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, null, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

@@ -33,6 +33,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         "bucket",
         "base_path_integration_tests",
         fixedAccessKey(ACCESS_KEY, ANY_REGION, "s3")

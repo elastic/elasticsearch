@@ -801,7 +801,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader<ESNextDiskBBQVe
             int endDoc;
             if (acceptDocs == null) {
                 startDoc = 0;
-                endDoc = values.ordToDoc(values.size() - 1);
+                endDoc = values.ordToDoc(values.size() - 1) + 1;
             } else {
                 ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = acceptDocs.sliceAcceptDocs();
                 startDoc = sliceAcceptDocs.startDoc();

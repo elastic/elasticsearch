@@ -19,6 +19,7 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -292,10 +293,16 @@ final class PrefetchedPageReader implements PageReader, Releasable {
      */
     private ByteBuffer allocateDirect(int size) {
         ArrowBuf buf = allocator.buffer(size);
-        ownedBuffers.add(buf::close);
         // Use the explicit (index, length) overload: ArrowBuf may round capacity up, but the
         // codec's size sanity check expects remaining() == declared decompressed size.
-        return buf.nioBuffer(0, size);
+        ByteBuffer view = buf.nioBuffer(0, size);
+        // Poison the region just before release (assertions only) so a decompressed-page BytesInput
+        // that aliases this buffer and is read after the reader is closed fails deterministically.
+        ownedBuffers.add(() -> {
+            DirectMemoryDebug.poison(view);
+            buf.close();
+        });
+        return view;
     }
 
     @Override

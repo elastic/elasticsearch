@@ -18,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.nio.ByteBuffer;
@@ -466,8 +467,13 @@ final class ColumnChunkPrefetcher {
         }
         int length = buffer.remaining();
         ArrowBuf promoted = allocator.buffer(length);
-        extra.add(promoted::close);
         ByteBuffer direct = promoted.nioBuffer(0, length);
+        // Poison the region just before release (assertions only) so a page slice that aliases this
+        // promoted chunk and is read after free fails deterministically instead of flakily.
+        extra.add(() -> {
+            DirectMemoryDebug.poison(direct);
+            promoted.close();
+        });
         direct.put(buffer);
         direct.flip();
         return direct;

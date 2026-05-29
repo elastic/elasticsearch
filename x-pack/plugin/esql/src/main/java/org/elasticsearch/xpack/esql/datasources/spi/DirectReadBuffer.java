@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -29,8 +30,45 @@ import java.nio.ByteBuffer;
  *
  * <p>Using {@link #buffer()} after {@link #close()} reads dangling memory; the underlying chunk
  * may have been recycled into another allocation.
+ *
+ * <h2>Use-after-free / double-free detection (assertions only)</h2>
+ * <p>The bytes are exposed as a detached {@link ByteBuffer} (via {@code ArrowBuf.nioBuffer(...)}),
+ * so reads through that view <em>bypass Arrow's reference-count tracking entirely</em> — the Arrow
+ * debug allocator can detect a double-free or a leak, but it is blind to a read that aliases this
+ * buffer after {@link #close()} has freed it. That is the failure mode behind the nondeterministic
+ * zstd {@code "Src size is incorrect"} / {@code "Destination buffer is too small"} corruption: a
+ * slice handed out before close is read after the backing {@link ArrowBuf} was returned to the
+ * allocator and recycled.
+ *
+ * <p>To make that class of bug deterministic and self-locating, when assertions are enabled this
+ * type:
+ * <ul>
+ *   <li>captures the <b>allocation</b> stack trace at construction and the <b>free</b> stack trace
+ *       at {@link #close()} ("who deallocated this"),</li>
+ *   <li>throws on a second {@link #close()} (double-free) and on any {@link #buffer()} access after
+ *       close (use-after-free), attaching both stack traces, and</li>
+ *   <li><b>poisons</b> the direct memory with a recognizable pattern immediately before releasing it,
+ *       so any surviving alias that reads the freed region fails the same way on every run instead
+ *       of occasionally seeing still-intact bytes.</li>
+ * </ul>
+ * All of this compiles out (no allocation, no poisoning) when assertions are disabled, so the
+ * production read path is unchanged.
  */
-public record DirectReadBuffer(ByteBuffer buffer, Releasable release) implements Releasable {
+public final class DirectReadBuffer implements Releasable {
+
+    private final ByteBuffer buffer;
+    private final Releasable release;
+
+    // Assertions-only lifecycle tracking; all null/false when -ea is off.
+    private final Throwable allocSite;
+    private volatile boolean released;
+    private volatile Throwable freeSite;
+
+    public DirectReadBuffer(ByteBuffer buffer, Releasable release) {
+        this.buffer = buffer;
+        this.release = release;
+        this.allocSite = Assertions.ENABLED ? new Throwable("DirectReadBuffer allocated here") : null;
+    }
 
     /**
      * Bridge used by {@link DirectBufferFactory#forAllocator(BufferAllocator)}: allocates an
@@ -59,8 +97,56 @@ public record DirectReadBuffer(ByteBuffer buffer, Releasable release) implements
         }
     }
 
+    /**
+     * The bytes. Must not be accessed after {@link #close()}; doing so reads freed (and possibly
+     * recycled) native memory. When assertions are enabled, a post-close access throws with the
+     * allocation and free stack traces attached.
+     */
+    public ByteBuffer buffer() {
+        assert assertLive("DirectReadBuffer.buffer() accessed after close() (use-after-free)");
+        return buffer;
+    }
+
+    /** The underlying {@link Releasable}. Prefer {@link #close()}, which adds lifecycle checks. */
+    public Releasable release() {
+        return release;
+    }
+
     @Override
     public void close() {
+        if (Assertions.ENABLED) {
+            // A second close would double-free the ArrowBuf. Surface it here with both stacks
+            // rather than letting Arrow throw a context-free IllegalReferenceCountException.
+            assert released == false : doubleFree();
+            freeSite = new Throwable("DirectReadBuffer freed here");
+            released = true;
+            DirectMemoryDebug.poison(buffer);
+        }
         release.close();
+    }
+
+    private boolean assertLive(String message) {
+        if (released) {
+            AssertionError e = new AssertionError(message);
+            if (allocSite != null) {
+                e.addSuppressed(allocSite);
+            }
+            if (freeSite != null) {
+                e.addSuppressed(freeSite);
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    private AssertionError doubleFree() {
+        AssertionError e = new AssertionError("DirectReadBuffer.close() called twice (double-free)");
+        if (allocSite != null) {
+            e.addSuppressed(allocSite);
+        }
+        if (freeSite != null) {
+            e.addSuppressed(freeSite);
+        }
+        return e;
     }
 }

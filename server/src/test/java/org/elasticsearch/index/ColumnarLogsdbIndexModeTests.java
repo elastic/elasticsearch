@@ -50,10 +50,7 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     public void testColumnarLogsdbSerializationFailsOnOlderTransportVersion() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
-            IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out)
-            );
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out));
             assertThat(e.getMessage(), containsString("[logsdb_columnar] doesn't support serialization with transport version"));
         }
     }

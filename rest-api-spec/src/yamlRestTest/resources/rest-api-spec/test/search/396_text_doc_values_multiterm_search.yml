@@ -133,12 +133,30 @@ setup:
   - length: { hits.hits: 2 }
 
 ---
+"Test case-insensitive regexp query on sorted-set doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_low
+        body: { query: { regexp: { text_field: { value: "london.*", case_insensitive: true } } } }
+  - length: { hits.hits: 2 }
+
+---
 "Test prefix query on binary doc-values-only text field":
 
   - do:
       search:
         index: test_text_dv_high
         body: { query: { prefix: { text_field: { value: "London" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive prefix query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { prefix: { text_field: { value: "london", case_insensitive: true } } } }
   - length: { hits.hits: 2 }
 
 ---
@@ -152,10 +170,29 @@ setup:
   - match: { hits.hits.0._id: "3" }
 
 ---
+"Test case-insensitive wildcard query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { wildcard: { text_field: { value: "*changi*", case_insensitive: true } } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "3" }
+
+---
 "Test regexp query on binary doc-values-only text field":
 
   - do:
       search:
         index: test_text_dv_high
         body: { query: { regexp: { text_field: { value: "London.*" } } } }
+  - length: { hits.hits: 2 }
+
+---
+"Test case-insensitive regexp query on binary doc-values-only text field":
+
+  - do:
+      search:
+        index: test_text_dv_high
+        body: { query: { regexp: { text_field: { value: "london.*", case_insensitive: true } } } }
   - length: { hits.hits: 2 }

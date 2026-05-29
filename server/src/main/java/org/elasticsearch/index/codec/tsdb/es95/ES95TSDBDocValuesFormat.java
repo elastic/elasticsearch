@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
@@ -25,6 +26,7 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
@@ -85,6 +87,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     final TSDBDocValuesFormatConfig formatConfig;
     final NumericCodecFactory numericCodecFactory;
     final FallbackDecoderFactory fallbackDecoderFactory;
+    @Nullable
+    final FieldContextResolver fieldContextResolver;
 
     /**
      * Creates a new ES95 format with default configuration.
@@ -103,7 +107,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            null
         );
     }
 
@@ -118,7 +123,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         int blockBytesThreshold,
         int blockCountThreshold,
         final NumericCodecFactory numericCodecFactory,
-        final FallbackDecoderFactory fallbackDecoderFactory
+        final FallbackDecoderFactory fallbackDecoderFactory,
+        @Nullable final FieldContextResolver fieldContextResolver
     ) {
         super(CODEC_NAME);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
@@ -128,6 +134,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
+        this.fieldContextResolver = fieldContextResolver;
         this.formatConfig = new TSDBDocValuesFormatConfig(
             TSDBDocValuesFormatConfig.VERSION_CURRENT,
             TERMS_DICT_CONFIG,
@@ -152,6 +159,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     public DocValuesConsumer fieldsConsumer(final SegmentWriteState state) throws IOException {
         final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(
             PIPELINE_CONFIG_RESOLVER,
+            fieldContextResolver,
             numericCodecFactory,
             fallbackDecoderFactory
         );
@@ -180,6 +188,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     public DocValuesProducer fieldsProducer(final SegmentReadState state) throws IOException {
         final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(
             PIPELINE_CONFIG_RESOLVER,
+            fieldContextResolver,
             numericCodecFactory,
             fallbackDecoderFactory
         );

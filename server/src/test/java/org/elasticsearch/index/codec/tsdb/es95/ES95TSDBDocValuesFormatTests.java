@@ -56,7 +56,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            null
         );
 
         @Override
@@ -251,7 +252,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                     ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
                     ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                     NumericCodecFactory.DEFAULT,
-                    ES95NumericFieldReader::defaultFallbackDecoder
+                    ES95NumericFieldReader::defaultFallbackDecoder,
+                    null
                 );
                 try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
                     for (int i = 0; i < numDocs; i++) {
@@ -340,7 +342,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             NumericCodecFactory.DEFAULT,
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
-            }
+            },
+            null
         );
 
         final int numDocs = ESTestCase.randomIntBetween(128, 4096);

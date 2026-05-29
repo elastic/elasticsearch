@@ -24,17 +24,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerializingTestCase<
-    BulkByScrollResponseWireSerializingTests.BulkByScrollResponseWrapper> {
+public class BulkByPaginatedSearchResponseWireSerializingTests extends AbstractWireSerializingTestCase<
+    BulkByPaginatedSearchResponseWireSerializingTests.BulkByPaginatedSearchResponseWrapper> {
     @Override
-    protected Writeable.Reader<BulkByScrollResponseWrapper> instanceReader() {
-        return BulkByScrollResponseWrapper::new;
+    protected Writeable.Reader<BulkByPaginatedSearchResponseWrapper> instanceReader() {
+        return BulkByPaginatedSearchResponseWrapper::new;
     }
 
     @Override
-    protected BulkByScrollResponseWrapper createTestInstance() {
-        return new BulkByScrollResponseWrapper(
-            new BulkByScrollResponse(
+    protected BulkByPaginatedSearchResponseWrapper createTestInstance() {
+        return new BulkByPaginatedSearchResponseWrapper(
+            new BulkByPaginatedSearchResponse(
                 randomTimeValue(),
                 BulkByPaginatedSearchTaskStatusTests.randomStatus(),
                 randomBulkFailures(),
@@ -45,38 +45,38 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
     }
 
     @Override
-    protected BulkByScrollResponseWrapper mutateInstance(BulkByScrollResponseWrapper instance) {
-        BulkByScrollResponse r = instance.response();
-        return new BulkByScrollResponseWrapper(switch (between(0, 4)) {
-            case 0 -> new BulkByScrollResponse(
+    protected BulkByPaginatedSearchResponseWrapper mutateInstance(BulkByPaginatedSearchResponseWrapper instance) {
+        BulkByPaginatedSearchResponse r = instance.response();
+        return new BulkByPaginatedSearchResponseWrapper(switch (between(0, 4)) {
+            case 0 -> new BulkByPaginatedSearchResponse(
                 randomValueOtherThan(r.getTook(), ESTestCase::randomTimeValue),
                 r.getStatus(),
                 r.getBulkFailures(),
                 r.getSearchFailures(),
                 r.isTimedOut()
             );
-            case 1 -> new BulkByScrollResponse(
+            case 1 -> new BulkByPaginatedSearchResponse(
                 r.getTook(),
                 mutateRandomStatus(r.getStatus()),
                 r.getBulkFailures(),
                 r.getSearchFailures(),
                 r.isTimedOut()
             );
-            case 2 -> new BulkByScrollResponse(
+            case 2 -> new BulkByPaginatedSearchResponse(
                 r.getTook(),
                 r.getStatus(),
                 mutateBulkFailures(r.getBulkFailures()),
                 r.getSearchFailures(),
                 r.isTimedOut()
             );
-            case 3 -> new BulkByScrollResponse(
+            case 3 -> new BulkByPaginatedSearchResponse(
                 r.getTook(),
                 r.getStatus(),
                 r.getBulkFailures(),
                 mutateSearchFailures(r.getSearchFailures()),
                 r.isTimedOut()
             );
-            case 4 -> new BulkByScrollResponse(
+            case 4 -> new BulkByPaginatedSearchResponse(
                 r.getTook(),
                 r.getStatus(),
                 r.getBulkFailures(),
@@ -107,7 +107,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
     }
 
     private List<Failure> randomBulkFailures() {
-        return randomList(0, 5, BulkByScrollResponseWireSerializingTests::randomFailure);
+        return randomList(0, 5, BulkByPaginatedSearchResponseWireSerializingTests::randomFailure);
     }
 
     static Failure randomFailure() {
@@ -175,7 +175,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
     }
 
     /**
-     * {@code BulkByScrollResponse} does not implement {@code equals}/{@code hashCode},
+     * {@code BulkByPaginatedSearchResponse} does not implement {@code equals}/{@code hashCode},
      * and its {@link BulkByPaginatedSearchTask.Status} contains slice-level and implementation
      * details that are not stable for direct equality checks.
      * <p>
@@ -187,18 +187,18 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
      * serialization / deserialization, and fail the default equality check. For this
      * reason, we define custom equality below.
      */
-    static class BulkByScrollResponseWrapper implements Writeable {
-        private final BulkByScrollResponse response;
+    static class BulkByPaginatedSearchResponseWrapper implements Writeable {
+        private final BulkByPaginatedSearchResponse response;
 
-        BulkByScrollResponseWrapper(BulkByScrollResponse response) {
+        BulkByPaginatedSearchResponseWrapper(BulkByPaginatedSearchResponse response) {
             this.response = response;
         }
 
-        BulkByScrollResponseWrapper(StreamInput in) throws IOException {
-            this.response = new BulkByScrollResponse(in);
+        BulkByPaginatedSearchResponseWrapper(StreamInput in) throws IOException {
+            this.response = new BulkByPaginatedSearchResponse(in);
         }
 
-        BulkByScrollResponse response() {
+        BulkByPaginatedSearchResponse response() {
             return response;
         }
 
@@ -216,7 +216,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            BulkByScrollResponseWrapper that = (BulkByScrollResponseWrapper) o;
+            BulkByPaginatedSearchResponseWrapper that = (BulkByPaginatedSearchResponseWrapper) o;
             return responsesEqual(response, that.response);
         }
 
@@ -248,7 +248,7 @@ public class BulkByScrollResponseWireSerializingTests extends AbstractWireSerial
 
     }
 
-    private static boolean responsesEqual(BulkByScrollResponse a, BulkByScrollResponse b) {
+    private static boolean responsesEqual(BulkByPaginatedSearchResponse a, BulkByPaginatedSearchResponse b) {
         if (a.getTook().equals(b.getTook()) == false) return false;
 
         try {

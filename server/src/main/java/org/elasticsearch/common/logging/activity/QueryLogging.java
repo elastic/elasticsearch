@@ -37,6 +37,8 @@ public interface QueryLogging {
      * Is this search only targeting system indices?
      */
     String QUERY_FIELD_IS_SYSTEM = ES_QUERY_FIELDS_PREFIX + "is_system";
+    /** Query filter */
+    String QUERY_FIELD_FILTER = ES_QUERY_FIELDS_PREFIX + "filter";
 
     /**
      * This is the name Log4j logger will use.

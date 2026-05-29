@@ -1730,6 +1730,21 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }), containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 
+    public void testStoreNotAllowedInColumnarMode() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : new IndexMode[] { IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR }) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(settings, fieldMapping(b -> b.field("type", "keyword").field("store", true)))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString("[store] cannot be enabled on field [field] in [" + indexMode.getName() + "] index mode")
+            );
+        }
+    }
+
     /**
      * An array of objects mixing a scalar value with an inner array must preserve both. This means that we must record offsets for every
      * value regardless of whether they're in an immediate array or not.
@@ -1800,6 +1815,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.endArray();
         });
         assertThat(result, containsString("\"field\":[null]"));
+    }
+
+    /**
+     * A {@code multi_fields} parent must record its own array-order offsets and round-trip its array order in synthetic source.
+     */
+    public void testColumnarKeywordMultiFieldsParentArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> {
+            b.startObject("parent").field("type", "keyword");
+            b.startObject("fields").startObject("raw").field("type", "keyword").endObject().endObject();
+            b.endObject();
+        })).documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        String result = syntheticSource(mapper, b -> b.array("parent", v2, v1, v3, v2));
+        assertThat(result, containsString("\"parent\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 
     private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {

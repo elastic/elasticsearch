@@ -19,7 +19,7 @@ cost:double | time_bucket:datetime
 
 sum_over_time_of_double_no_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m cost=(sum(sum_over_time(network.cost[1m])))
 | SORT cost DESC, step DESC | LIMIT 10;
@@ -56,7 +56,7 @@ clients:double     | time_bucket:datetime
 
 sum_over_time_of_integer_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m clients=(avg(sum_over_time(network.eth0.currently_connected_clients[1m])))
 | SORT step | LIMIT 10;
@@ -93,7 +93,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 
 sum_over_time_of_integer_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m clients=(avg by (cluster) (sum_over_time(network.eth0.currently_connected_clients[1m])))
 | SORT step, cluster | LIMIT 10;
@@ -124,7 +124,7 @@ tx:double | time_bucket:datetime
 
 sum_over_time_of_aggregate_metric_double_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum(sum_over_time(network.eth0.tx[10m])))
@@ -140,7 +140,7 @@ sum_over_time_of_aggregate_metric_double_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
 required_capability: aggregate_metric_double_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:30:00.000Z" end="2024-05-09T23:50:00.000Z" tx=(sum(sum_over_time(network.eth0.tx[10m])))
@@ -169,7 +169,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 
 sum_over_time_of_aggregate_metric_double_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s-downsampled step=10m tx=(sum by (cluster) (sum_over_time(network.eth0.tx[10m])))
@@ -205,7 +205,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 sum_over_time_with_filtering_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m tx=(sum by (cluster) (sum_over_time(network.bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -254,7 +254,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 sum_over_time_with_window_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_time_series_window_backward
 
 PROMQL index=k8s step=5m tx=(sum by (cluster) (sum_over_time(network.bytes_in{pod="one"}[10m])))
@@ -327,7 +327,7 @@ cost:double | pod:keyword | time_bucket:datetime
 sum_over_time_older_than_10d_promql
 required_capability: promql_command_v0
 required_capability: aggregate_metric_double_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s-downsampled step=10m start="2024-05-09T23:00:00.000Z" end="2024-05-10T00:00:00.000Z" cost=(avg by (pod) (sum_over_time(network.eth0.rx{cluster="qa"}[10m])))
@@ -360,7 +360,7 @@ max_bytes:double   | cluster:keyword | time_bucket:datetime     | kb_minus_offse
 # Awaits fix: Arithmetic on instant vector is not supported at this time.
 eval_on_sum_over_time_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m max_bytes=(avg by (cluster) (sum_over_time(network.bytes_in[10m])))
 | EVAL kb_minus_offset = (max_bytes - 100) / 1000.0
@@ -397,7 +397,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 sum_over_time_multi_values_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:10:00.000Z" events=(sum by (pod) (sum_over_time(events_received[1m])))
@@ -436,7 +436,7 @@ null        | two         | 2024-05-10T00:13:00.000Z
 sum_over_time_null_values_promql
 required_capability: promql_command_v0
 required_capability: promql_unmapped_fields_filter_nulls
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:00.000Z" events=(sum by (pod) (sum_over_time(events_received[1m])))
@@ -473,7 +473,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 sum_over_time_all_value_types_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m events=(sum by (pod) (sum_over_time(events_received[10m])))
 | SORT events desc, pod, step | LIMIT 10;
@@ -507,7 +507,7 @@ bytes:double | time_bucket:datetime
 # Awaits fix: Index wildcard selector is not supported at this time.
 sum_over_time_aggregate_metric_double_implicit_casting_promql-Ignore
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum(sum_over_time(network.eth0.rx[10m])))
@@ -543,7 +543,7 @@ bytes:double | pod:keyword | time_bucket:datetime
 # Awaits fix: Index wildcard selector is not supported at this time.
 sum_over_time_aggregate_metric_double_implicit_casting_grouping_promql-Ignore
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: aggregate_metric_double_v0
 
 PROMQL index=k8s,k8s-downsampled step=10m bytes=(sum by (pod) (sum_over_time(network.eth0.rx[10m])))
@@ -577,7 +577,7 @@ sum:long | pod:keyword | time_bucket:datetime
 # Awaits fix: Subqueries are not supported at this time.
 sum_over_time_nested_expression_promql-Ignore
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m sum=(sum by (pod) (sum_over_time((network.eth0.rx % 2)[1m:])))
 | SORT sum desc, step, pod | LIMIT 5;
@@ -605,7 +605,7 @@ min:long | time_bucket:datetime
 
 sum_over_time_nested_expression_in_grouping_with_alias_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=5m min=(min(sum_over_time(network.bytes_in[5m])))
 | SORT step | LIMIT 10;

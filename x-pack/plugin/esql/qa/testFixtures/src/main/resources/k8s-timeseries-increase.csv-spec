@@ -23,7 +23,7 @@ increase_bytes_in:double | time_bucket:datetime
 increase_of_long_no_grouping_promql
 required_capability: rate_with_interpolation_v3
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m increase_bytes_in=(avg(increase(network.total_bytes_in[1m])))
 | SORT increase_bytes_in DESC, step DESC | LIMIT 10;
@@ -68,7 +68,7 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 increase_of_long_grouping_promql
 required_capability: rate_with_interpolation_v3
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=5m increase_bytes_in=(avg by (cluster) (increase(network.total_bytes_in[5m])))
 | EVAL increase_bytes_in = ROUND(increase_bytes_in, 6)
@@ -90,7 +90,7 @@ increase_bytes_in:double | cluster:keyword | step:datetime
 
 increase_of_long_grouping_promql_expanded
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=5m increase_bytes_in=(round(avg by (cluster) (increase(network.total_bytes_in[5m])), 1))
 | SORT cluster, step;
@@ -116,7 +116,7 @@ increase_bytes_in:double | step:datetime            | cluster:keyword
 increase_of_long_grouping_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z" increase_bytes_in=(round(avg by (cluster) (increase(network.total_bytes_in[2m])), 0.000001))
@@ -154,7 +154,7 @@ increase_cost:double   | time_bucket:datetime
 
 increase_of_double_no_grouping_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m increase_cost=(sum(increase(network.total_cost[1m])))
 | SORT increase_cost DESC, step | LIMIT 10;
@@ -200,7 +200,7 @@ increase_bytes_in:double | cluster:keyword | time_bucket:datetime
 
 increase_with_filtering_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m increase_bytes_in=(sum by (cluster) (increase(network.total_bytes_in{pod="one"}[10m])))
 | SORT step, cluster | LIMIT 10;
@@ -265,7 +265,7 @@ increase_bytes:double | cluster:keyword | time_bucket:datetime     | increase_kb
 eval_on_increase_promql
 required_capability: rate_with_interpolation_v3
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=10m increase_bytes=(avg by (cluster) (increase(network.total_bytes_in[10m])))
 | EVAL increase_kb = increase_bytes / 1024.0
@@ -323,7 +323,7 @@ increase_bytes_in:double | time_bucket:datetime
 increase_of_expression_promql
 required_capability: rate_with_interpolation_v3
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1m increase_bytes_in=(avg(increase(network.total_bytes_in[1m]) + 10))
 | SORT increase_bytes_in DESC, step DESC | LIMIT 10;
@@ -412,7 +412,7 @@ increase_of_ratio:double | cluster:keyword | time_bucket:datetime
 
 increase_of_ratio_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: rate_with_interpolation_v3
 
 PROMQL index=k8s step=10m increase_of_ratio=(sum by (cluster) (increase(network.total_cost[10m]) / increase(network.total_bytes_in[10m])))

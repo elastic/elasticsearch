@@ -196,7 +196,7 @@ max_rate: double | time_bucket:date
 
 oneRateWithPromql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: rate_with_interpolation_v2
 
 PROMQL index=k8s step=5m max(rate(network.total_bytes_in[5m]))
@@ -220,7 +220,7 @@ max_rate: double | time_bucket:date
 
 oneRateWithSingleStepPromql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max(rate(network.total_bytes_in[1h]));
 
 max(rate(network.total_bytes_in[1h])):double | step:datetime
@@ -809,7 +809,7 @@ maxRate:double | tbucket:datetime
 
 instant_selector_dimensions_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
@@ -876,7 +876,7 @@ count:long | _timeseries:keyword                                                
 
 bare_count_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1h count=(count_over_time(network.cost[1h]))
 | SORT count DESC
@@ -921,7 +921,7 @@ network.cost:double | _timeseries:keyword                                       
 
 bare_metric_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h network.cost
 | SORT network.cost DESC
 ;
@@ -991,7 +991,7 @@ avg:double         | _timeseries:keyword                                        
 
 bare_avg_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1h avg=(avg_over_time(network.cost[1h]))
 | SORT avg DESC
@@ -1058,7 +1058,7 @@ sum:double | _timeseries:keyword                                                
 
 bare_sum_over_time_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=1h sum=(sum_over_time(network.cost[1h]))
 | SORT sum DESC
@@ -1129,7 +1129,7 @@ _timeseries:keyword                           | tbucket:datetime         | rate:
 
 bare_rate_with_tbucket_outputs_dimensions_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_displaying_ts_dimensions_in_metrics_group_by_all
 
 PROMQL index=k8s step=1h rate=(rate(network.total_bytes_in[1h]))
@@ -1289,7 +1289,7 @@ max_deriv:double | max_rate:double | time_bucket:date_nanos   | cluster:keyword
 
 derivative_of_gauge_metric_promql
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket_v3
+required_capability: fix_promql_time_bucket_v2
 
 PROMQL index=k8s step=5m max_deriv=(max by (pod) (deriv(network.cost{pod="three"}[5m])))
 | SORT step

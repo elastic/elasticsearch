@@ -52,7 +52,12 @@ function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: num
     "cat > \"$$WRAPPED_CMD_FILE\" <<'__NEVER_FAIL_EOF__'",
     command,
     "__NEVER_FAIL_EOF__",
-    `timeout --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$$WRAPPED_CMD_FILE"`,
+    // --foreground keeps the wrapped command in the parent's process group;
+    // without it `timeout` setpgid()s its child, the gradle CLI loses the
+    // controlling-TTY plumbing the develocity scan plugin relies on, and the
+    // CLI JVM hangs ~36 minutes after BUILD SUCCESSFUL until the inner
+    // timeout fires. Diagnosed on build #2 of elasticsearch-flakiness-detection-manual.
+    `timeout --foreground --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$$WRAPPED_CMD_FILE"`,
     "rc=$?",
     "rm -f \"$$WRAPPED_CMD_FILE\"",
     `if [ "$$rc" -eq 124 ] || [ "$$rc" -eq 137 ]; then`,
@@ -112,7 +117,12 @@ export function toBuildkitePipeline(
       for (let i = 0; i < batches.length; i++) {
         env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes);
       }
-      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
+      // Both `$$` escapes defer interpolation past Buildkite's pipeline-upload
+      // pass: `$$BUILDKITE_PARALLEL_JOB` because the variable is set per-job at
+      // run time (BK substitutes empty at upload time, breaking the indirect
+      // lookup), and `$${!VARNAME}` because BK can't parse `!` as the start of
+      // a variable identifier.
+      step.command = 'VARNAME="BATCH_COMMAND_$${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
       step.parallelism = batches.length;
       step.env = env;
     }

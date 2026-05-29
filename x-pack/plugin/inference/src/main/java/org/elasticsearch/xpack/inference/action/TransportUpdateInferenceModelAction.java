@@ -164,7 +164,13 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, newServiceSettingsMap);
 
-                validateConsumedUpdateSettings(service.get(), serviceName, newServiceSettingsMap, newTaskSettingsMap, newChunkingSettingsMap);
+                validateConsumedUpdateSettings(
+                    service.get(),
+                    serviceName,
+                    newServiceSettingsMap,
+                    newTaskSettingsMap,
+                    newChunkingSettingsMap
+                );
 
                 Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
                 if (mergedParsedModel.equals(existingParsedModel)) {

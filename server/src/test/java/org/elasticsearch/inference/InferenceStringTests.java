@@ -330,13 +330,13 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testToStringList_withAllTextInferenceStrings() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> InferenceString.ofText(s)).toList();
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).toList();
         assertThat(InferenceString.toStringList(inferenceStrings), is(rawStrings));
     }
 
     public void testToStringList_throwsAssertionError_whenAnyInferenceStringIsNotText() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> InferenceString.ofText(s)).collect(Collectors.toList());
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).collect(Collectors.toList());
         // Add a non-text InferenceString randomly in the list
         inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, TEST_DATA_URI));
         AssertionError assertionError = expectThrows(AssertionError.class, () -> InferenceString.toStringList(inferenceStrings));

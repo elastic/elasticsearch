@@ -56,7 +56,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.indices.IndexCreationException;
@@ -894,7 +894,7 @@ public class SynonymsManagementAPIService {
     }
 
     // Deletes a synonym set rules, using the supplied listener
-    private void deleteSynonymsSetObjects(String synonymSetId, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteSynonymsSetObjects(String synonymSetId, ActionListener<BulkByPaginatedSearchResponse> listener) {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId)
         ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
@@ -963,13 +963,13 @@ public class SynonymsManagementAPIService {
                 return;
             }
 
-            deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByScrollResponse) -> {
-                if (bulkByScrollResponse.getDeleted() == 0) {
+            deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteObjectsListener, bulkByPaginatedSearchResponse) -> {
+                if (bulkByPaginatedSearchResponse.getDeleted() == 0) {
                     // If nothing was deleted, synonym set did not exist
                     deleteObjectsListener.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
                     return;
                 }
-                final List<BulkItemResponse.Failure> bulkFailures = bulkByScrollResponse.getBulkFailures();
+                final List<BulkItemResponse.Failure> bulkFailures = bulkByPaginatedSearchResponse.getBulkFailures();
                 if (bulkFailures.isEmpty() == false) {
                     deleteObjectsListener.onFailure(
                         new InvalidParameterException(

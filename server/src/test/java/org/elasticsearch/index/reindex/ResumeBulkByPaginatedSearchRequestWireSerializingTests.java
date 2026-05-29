@@ -24,8 +24,8 @@ import static org.elasticsearch.index.reindex.BulkByScrollWireSerializingTestUti
 import static org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests.mutateReindexRequest;
 import static org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests.newRandomReindexWireInstance;
 
-public class ResumeBulkByScrollRequestWireSerializingTests extends AbstractWireSerializingTestCase<
-    ResumeBulkByScrollRequestWireSerializingTests.Wrapper> {
+public class ResumeBulkByPaginatedSearchRequestWireSerializingTests extends AbstractWireSerializingTestCase<
+    ResumeBulkByPaginatedSearchRequestWireSerializingTests.Wrapper> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -39,28 +39,28 @@ public class ResumeBulkByScrollRequestWireSerializingTests extends AbstractWireS
 
     @Override
     protected Wrapper createTestInstance() {
-        return new Wrapper(new ResumeBulkByScrollRequest(newRandomReindexWireInstance()));
+        return new Wrapper(new ResumeBulkByPaginatedSearchRequest(newRandomReindexWireInstance()));
     }
 
     @Override
     protected Wrapper mutateInstance(Wrapper instance) throws IOException {
-        ResumeBulkByScrollRequest originalRequest = instance.request;
-        ResumeBulkByScrollRequest mutatedResumeRequest = copyInstance(instance).request;
+        ResumeBulkByPaginatedSearchRequest originalRequest = instance.request;
+        ResumeBulkByPaginatedSearchRequest mutatedResumeRequest = copyInstance(instance).request;
         ReindexRequest originalReindex = (ReindexRequest) originalRequest.getDelegate();
         ReindexRequest mutatedReindex = (ReindexRequest) mutatedResumeRequest.getDelegate();
         mutateReindexRequest(originalReindex, mutatedReindex);
-        return new Wrapper(new ResumeBulkByScrollRequest(mutatedReindex));
+        return new Wrapper(new ResumeBulkByPaginatedSearchRequest(mutatedReindex));
     }
 
     static final class Wrapper implements Writeable {
-        private final ResumeBulkByScrollRequest request;
+        private final ResumeBulkByPaginatedSearchRequest request;
 
-        Wrapper(ResumeBulkByScrollRequest request) {
+        Wrapper(ResumeBulkByPaginatedSearchRequest request) {
             this.request = request;
         }
 
         Wrapper(StreamInput streamInput) throws IOException {
-            this.request = new ResumeBulkByScrollRequest(streamInput, ReindexRequest::new);
+            this.request = new ResumeBulkByPaginatedSearchRequest(streamInput, ReindexRequest::new);
         }
 
         @Override

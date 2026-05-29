@@ -423,8 +423,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 // No mustIncRef() yet — respondAndRelease on the search path will decRef the response.
                 return new MultiSearchResponse.Item(null, e);
             }
-            searchResponse.mustIncRef();
             totalReservedBytes.addAndGet(bytes);
+            searchResponse.mustIncRef();
             return new MultiSearchResponse.Item(searchResponse, null);
         }));
         final ActionListener<MultiSearchResponse.Item> responseListener = new ActionListener<>() {

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -42,6 +44,18 @@ public class LookupGoldenTests extends GoldenTestCase {
     }
 
     /**
+     * Lookup on a keyword field with an alias filter.
+     * The bulk lookup optimization does not apply.
+     */
+    public void testKeywordLookupOnFieldWithAliasFilter() {
+        AliasFilter aliasFilter = AliasFilter.of(QueryBuilders.matchAllQuery(), "employees");
+        builder("""
+            ROW language_name = "French"
+            | LOOKUP JOIN languages_lookup ON language_name
+            """).stages(STAGES).aliasFilter(aliasFilter).run();
+    }
+
+    /**
      * Lookup on a keyword expression.
      * The bulk lookup optimization applies here.
      */
@@ -50,6 +64,18 @@ public class LookupGoldenTests extends GoldenTestCase {
             ROW name = "French"
             | LOOKUP JOIN languages_lookup ON name == language_name
             """, STAGES);
+    }
+
+    /**
+     * Lookup on a keyword expression with an alias filter.
+     * The bulk lookup optimization does not apply.
+     */
+    public void testKeywordLookupOnExpressionWithAliasFilter() {
+        AliasFilter aliasFilter = AliasFilter.of(QueryBuilders.matchAllQuery(), "employees");
+        builder("""
+            ROW name = "French"
+            | LOOKUP JOIN languages_lookup ON name == language_name
+            """).stages(STAGES).aliasFilter(aliasFilter).run();
     }
 
     /**

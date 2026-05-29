@@ -682,3 +682,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
   method: testRenameBucketColumnHasNoMetadata
   issue: https://github.com/elastic/elasticsearch/issues/150154
+- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
+  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
+  issue: https://github.com/elastic/elasticsearch/issues/150155

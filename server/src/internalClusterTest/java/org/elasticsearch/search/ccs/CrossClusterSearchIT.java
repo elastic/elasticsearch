@@ -712,31 +712,10 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         });
     }
 
-    public void testNegativeRemoteIndexNameIsRemoteIndexExclusion() throws Exception {
+    public void testNegativeRemoteIndexNameEquivalentToRemoteNegativeIndexSyntax() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");
-        SearchRequest searchRequest = new SearchRequest(REMOTE_CLUSTER + ":*", "-" + REMOTE_CLUSTER + ":prod");
-        searchRequest.setCcsMinimizeRoundtrips(true);
-        searchRequest.allowPartialSearchResults(false);
-        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
-        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
-            assertNotNull(response);
-            Clusters clusters = response.getClusters();
-            assertThat(clusters.getTotal(), equalTo(1));
-            Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            assertNull(localClusterSearchInfo);
-            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
-            assertNotNull(remoteClusterSearchInfo);
-            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
-            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("*,-prod"));
-            for (var hit : response.getHits()) {
-                assertThat(hit.getIndex(), equalTo(remoteIndex));
-            }
-        });
-    }
 
-    public void testNegativeRemoteIndexNameEquivalentToRemoteNegativeIndexSyntax() throws Exception {
-        setupTwoClusters();
         SearchRequest clusterPrefixExclusion = new SearchRequest(REMOTE_CLUSTER + ":*", "-" + REMOTE_CLUSTER + ":prod");
         clusterPrefixExclusion.setCcsMinimizeRoundtrips(randomBoolean());
         clusterPrefixExclusion.allowPartialSearchResults(false);
@@ -748,14 +727,19 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
         indexPrefixExclusion.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
 
         final long[] clusterPrefixTotalHits = new long[1];
-        final String[] clusterPrefixIndexExpression = new String[1];
         assertResponse(client(LOCAL_CLUSTER).search(clusterPrefixExclusion), clusterPrefixResponse -> {
             assertNotNull(clusterPrefixResponse);
-            clusterPrefixTotalHits[0] = Objects.requireNonNull(clusterPrefixResponse.getHits().getTotalHits()).value();
-            Cluster clusterPrefixCluster = clusterPrefixResponse.getClusters().getCluster(REMOTE_CLUSTER);
+            Clusters clusters = clusterPrefixResponse.getClusters();
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertNull(clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
+            Cluster clusterPrefixCluster = clusters.getCluster(REMOTE_CLUSTER);
             assertNotNull(clusterPrefixCluster);
             assertThat(clusterPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
-            clusterPrefixIndexExpression[0] = clusterPrefixCluster.getIndexExpression();
+            assertThat(clusterPrefixCluster.getIndexExpression(), equalTo("*,-prod"));
+            for (var hit : clusterPrefixResponse.getHits()) {
+                assertThat(hit.getIndex(), equalTo(remoteIndex));
+            }
+            clusterPrefixTotalHits[0] = Objects.requireNonNull(clusterPrefixResponse.getHits().getTotalHits()).value();
         });
         assertResponse(client(LOCAL_CLUSTER).search(indexPrefixExclusion), indexPrefixResponse -> {
             assertNotNull(indexPrefixResponse);
@@ -763,7 +747,7 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             Cluster indexPrefixCluster = indexPrefixResponse.getClusters().getCluster(REMOTE_CLUSTER);
             assertNotNull(indexPrefixCluster);
             assertThat(indexPrefixCluster.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
-            assertThat(indexPrefixCluster.getIndexExpression(), equalTo(clusterPrefixIndexExpression[0]));
+            assertThat(indexPrefixCluster.getIndexExpression(), equalTo("*,-prod"));
         });
     }
 

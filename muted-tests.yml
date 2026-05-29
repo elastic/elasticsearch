@@ -655,9 +655,6 @@ tests:
 - class: org.elasticsearch.index.query.IntervalQueryBuilderTests
   method: testCacheability
   issue: https://github.com/elastic/elasticsearch/issues/150117
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150120
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/150123
@@ -707,3 +704,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/150217
 - class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/150217
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
+  issue: https://github.com/elastic/elasticsearch/issues/150226

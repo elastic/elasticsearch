@@ -51,22 +51,26 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
         "Rebalancing of search shards is enabled"
     );
 
-    private static final Decision SEARCH_OR_INDEX_TIER_REBALANCING_ENABLED = new Decision.Single(
-        Decision.Type.YES,
-        NAME,
-        "Either search or index tier rebalancing is enabled"
-    );
-
     private static final Decision NO_REBALANCE = new Decision.Single(Decision.Type.NO, NAME, "Rebalancing is disabled");
 
     public enum RebalancingEnabled {
         ALWAYS {
+            @Override
+            Decision canRebalance() {
+                return ALWAYS_REBALANCE;
+            }
+
             @Override
             Decision canRebalance(ShardRouting shardRouting) {
                 return ALWAYS_REBALANCE;
             }
         },
         SEARCH_TIER_ONLY {
+            @Override
+            Decision canRebalance() {
+                return SEARCH_REBALANCING_ENABLED;
+            }
+
             @Override
             Decision canRebalance(ShardRouting shardRouting) {
                 return shardRouting.role() == ShardRouting.Role.SEARCH_ONLY ? SEARCH_REBALANCING_ENABLED : INDEX_REBALANCING_DISABLED;
@@ -84,9 +88,7 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
             }
         };
 
-        Decision canRebalance() {
-            return SEARCH_OR_INDEX_TIER_REBALANCING_ENABLED;
-        }
+        abstract Decision canRebalance();
 
         abstract Decision canRebalance(ShardRouting shardRouting);
     }

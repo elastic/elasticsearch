@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -17,11 +16,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergeState;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
@@ -41,15 +37,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_CANDIDATE_ENCODINGS;
+import static org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture.CALIBRATION_RERANK_OVERSAMPLES;
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration.DEFAULT_CALIBRATED_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -464,7 +459,24 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         assertThat(config.quantEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
-        assertTrue(isCandidateEncoding(config.quantEncoding()));
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.quantEncoding()));
+    }
+
+    public void testCalibrateFullOnSyntheticCorpus() throws IOException {
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION + 500,
+            8,
+            32,
+            47L
+        );
+        IvfAutoCalibration selector = new IvfAutoCalibration(VPC);
+
+        IvfSegmentConfig config = selector.calibrate(vectors, VectorSimilarityFunction.EUCLIDEAN);
+
+        assertThat(config.quantEncoding(), notNullValue());
+        assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(config.quantEncoding()));
+        assertTrue(Float.isFinite(config.rescoreOversample()));
+        assertTrue(config.rescoreOversample() > 0f);
     }
 
     public void testCalibrateFastDotProductSimilarity() throws IOException {
@@ -479,35 +491,54 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.COSINE);
     }
 
-    public void testProductionMergeResolverPersistsCalibratedOversample() throws IOException {
+    public void testProductionMergeResolverPersistsCalibratedConfig() throws IOException {
         Random rnd = random();
         int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
         try (Directory dir = newDirectory()) {
-            AtomicInteger flushSequence = new AtomicInteger(0);
-            IvfFlushConfigSource flushConfig = (state, fieldInfo) -> {
-                if (ESNextRescoreOversampleTestFixture.FIELD_NAME.equals(fieldInfo.name) == false) {
-                    return Optional.empty();
-                }
-                flushSequence.getAndIncrement();
-                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
-            };
-            Codec codec = ESNextRescoreOversampleTestFixture.createDiskBbqCodec(
-                flushConfig,
-                ESNextRescoreOversampleTestFixture.productionMergeResolver(VPC)
-            );
-            IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec)
-                .setMergePolicy(NoMergePolicy.INSTANCE);
-            ESNextRescoreOversampleTestFixture.writeTwoCommits(rnd, vectorsPerSegment, 8, dir, iwcNoMerge);
-
-            IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec);
-            try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
-                mergeWriter.forceMerge(1);
+            try (
+                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildForceMergedWithDisagreeingFlushCalibration(
+                    dir,
+                    rnd,
+                    8,
+                    vectorsPerSegment,
+                    VPC
+                )
+            ) {
+                IvfSegmentConfig persisted = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(
+                    reader.leaves().getFirst().reader()
+                );
+                assertNotNull(persisted);
+                assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(persisted.quantEncoding()));
+                assertTrue(Float.isFinite(persisted.rescoreOversample()));
+                assertTrue(
+                    "calibrated oversample should be a rerank ratio, not flush-injected 2f",
+                    CALIBRATION_RERANK_OVERSAMPLES.contains(persisted.rescoreOversample()) || persisted.rescoreOversample() != 2f
+                );
             }
-            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+        }
+    }
+
+    public void testBackgroundMergeRecalibratesOnEncodingDisagreement() throws IOException {
+        Random rnd = random();
+        int vectorsPerSegment = IvfAutoCalibration.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
+        try (Directory dir = newDirectory()) {
+            try (
+                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildBackgroundMergedWithDisagreeingFlushCalibration(
+                    dir,
+                    rnd,
+                    8,
+                    vectorsPerSegment,
+                    VPC
+                )
+            ) {
                 assertEquals(1, reader.leaves().size());
-                float oversample = ESNextRescoreOversampleTestFixture.persistedOversampleOnLeaf(reader.leaves().getFirst().reader());
-                assertTrue(Float.isFinite(oversample));
-                assertThat(oversample, greaterThan(0f));
+                IvfSegmentConfig persisted = ESNextRescoreOversampleTestFixture.readPersistedSegmentConfig(
+                    reader.leaves().getFirst().reader()
+                );
+                assertNotNull(persisted);
+                assertTrue(CALIBRATION_CANDIDATE_ENCODINGS.contains(persisted.quantEncoding()));
+                assertThat(persisted.rescoreOversample(), not(equalTo(2f)));
+                assertThat(persisted.rescoreOversample(), not(equalTo(3f)));
             }
         }
     }
@@ -522,15 +553,6 @@ public class IvfAutoCalibrationTests extends ESTestCase {
         assertThat(config.quantEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
-    }
-
-    private static boolean isCandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding encoding) {
-        return Set.of(
-            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
-            ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
-            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
-            ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
-        ).contains(encoding);
     }
 
     private static SegmentInfo forceMergeSegmentInfo(Directory dir) throws IOException {

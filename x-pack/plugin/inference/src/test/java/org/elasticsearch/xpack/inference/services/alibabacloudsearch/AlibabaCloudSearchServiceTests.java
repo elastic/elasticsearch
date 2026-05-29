@@ -361,7 +361,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -380,7 +380,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.CLASSIFICATION, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -586,7 +586,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
         try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = createModelForTaskType(randomFrom(TaskType.SPARSE_EMBEDDING, TaskType.TEXT_EMBEDDING), null);
 
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
         }
         assertThat(listener.actionGet(TIMEOUT), empty());
@@ -601,7 +601,7 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
             var model = createModelForTaskType(taskType, chunkingSettings);
 
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
+            service.chunkedInfer(model, input, new HashMap<>(), InputTypeTests.randomWithIngestAndSearch(), null, listener);
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));

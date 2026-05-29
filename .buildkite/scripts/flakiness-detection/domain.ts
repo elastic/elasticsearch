@@ -32,10 +32,13 @@ export const SOURCE_SET_PATTERNS = [
 type PatternKind = (typeof SOURCE_SET_PATTERNS)[number]["kind"];
 export type TestKind = PatternKind | "yamlRestTestCase";
 
+// Data-backed rollout caps sized from recent gradle-tests p95 durations
+// multiplied by each kind's flakiness iteration count, targeting roughly
+// 50 minutes of projected test runtime per batch.
 export const BATCH_CAPS: Record<TestKind, number> = {
-  test: 360,
-  internalClusterTest: 36,
-  javaRestTest: 4,
+  test: 3,
+  internalClusterTest: 2,
+  javaRestTest: 1,
   yamlRestTestSuite: 4,
   yamlRestTestRunner: 1,
   yamlRestTestCase: 4,

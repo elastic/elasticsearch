@@ -43,7 +43,6 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -1916,7 +1915,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             try {
                 return advanceRowGroup();
             } catch (IOException e) {
-                throw new ElasticsearchException(
+                throw new IllegalArgumentException(
                     "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
                     e
                 );
@@ -2030,10 +2029,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                             } else {
                                 blocks[col] = readColumnBlock(columnReaders[col], info, rowsToRead, col);
                             }
+                        } catch (CircuitBreakingException e) {
+                            Releasables.closeExpectNoException(blocks);
+                            throw e;
                         } catch (Exception e) {
                             Releasables.closeExpectNoException(blocks);
                             Attribute attr = attributes.get(col);
-                            throw new ElasticsearchException(
+                            throw new IllegalArgumentException(
                                 "Failed to read Parquet column ["
                                     + attr.name()
                                     + "] (type "
@@ -2051,11 +2053,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         }
                     }
                 }
-            } catch (ElasticsearchException e) {
+            } catch (IllegalArgumentException | CircuitBreakingException e) {
                 throw e;
             } catch (Exception e) {
                 Releasables.closeExpectNoException(blocks);
-                throw new ElasticsearchException(
+                throw new IllegalArgumentException(
                     "Failed to create Page batch at row group ["
                         + (rowGroupOrdinal + 1)
                         + "] page batch ["
@@ -2223,7 +2225,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                         case INT32 -> BigInteger.valueOf(cr.getInteger());
                         case INT64 -> BigInteger.valueOf(cr.getLong());
                         case BINARY, FIXED_LEN_BYTE_ARRAY -> new BigInteger(cr.getBinary().getBytes());
-                        default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
+                        default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
                     };
                     values[i] = new java.math.BigDecimal(unscaled, scale).doubleValue();
                 }

@@ -21,6 +21,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -90,6 +92,59 @@ public class IndexingPressureIT extends ESIntegTestCase {
     @Override
     protected int numberOfShards() {
         return 1;
+    }
+
+    public void testCancellableTransportWriteAction() throws InterruptedException {
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
+        String primaryName = primaryReplicaNodeNames.v1();
+        String replicaName = primaryReplicaNodeNames.v2();
+        String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
+        final MockTransportService primaryTransportService = (MockTransportService) primaryService;
+        TransportService replicaService = internalCluster().getInstance(TransportService.class, replicaName);
+        final MockTransportService replicaTransportService = (MockTransportService) replicaService;
+
+        TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
+        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, primaryName);
+
+        AtomicReference<ReplicationTask> replicationTask = new AtomicReference<>();
+        final CountDownLatch waitForPreSubmissionTaskCancellation = new CountDownLatch(1);
+
+        primaryTransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]",
+            (handler, request, channel, task) -> {
+                assertThat(task, instanceOf(ReplicationTask.class));
+                assertThat(indexingPressure.stats().getTotalCancelledOps(), is(0L));
+                replicationTask.set((ReplicationTask) task);
+                taskManager.cancel(replicationTask.get(), "presubmission-cancellation", () -> {});
+                assertThat(((ReplicationTask) task).isCancelled(), is(true));
+                waitForPreSubmissionTaskCancellation.countDown();
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < randomIntBetween(50, 80); ++i) {
+            IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
+                .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
+            bulkRequest.add(request);
+        }
+
+        try {
+            final ActionFuture<BulkResponse> successFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+            waitForPreSubmissionTaskCancellation.await();
+
+        } finally {
+            if (waitForPreSubmissionTaskCancellation.getCount() > 0) {
+                waitForPreSubmissionTaskCancellation.countDown();
+            }
+
+        }
+
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {

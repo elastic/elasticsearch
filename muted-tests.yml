@@ -682,3 +682,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedDuringMerge
   issue: https://github.com/elastic/elasticsearch/issues/150158
+- class: org.elasticsearch.search.vectors.DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests
+  method: testSlicesDense
+  issue: https://github.com/elastic/elasticsearch/issues/150165

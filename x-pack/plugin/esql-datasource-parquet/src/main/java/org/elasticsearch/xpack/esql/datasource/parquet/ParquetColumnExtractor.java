@@ -286,7 +286,11 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @SuppressWarnings("unchecked")
         Set<String>[] perColumnProjections = new Set[colCount];
         for (int c = 0; c < colCount; c++) {
-            perColumnSchemas[c] = new MessageType(schema.getName(), schema.getType(columnNames[c]));
+            // Use the descriptor's first path segment as the top-level field name. For flat
+            // columns and LIST<primitive> this equals columnNames[c]; for dotted struct-leaf
+            // columns (e.g. "event.action") columnNames[c] is not a top-level schema field and
+            // schema.getType(columnNames[c]) would throw.
+            perColumnSchemas[c] = new MessageType(schema.getName(), schema.getType(infos[c].descriptor().getPath()[0]));
             perColumnProjections[c] = Set.of(String.join(".", infos[c].descriptor().getPath()));
         }
         String createdBy = ownedFooter.getFileMetaData().getCreatedBy();

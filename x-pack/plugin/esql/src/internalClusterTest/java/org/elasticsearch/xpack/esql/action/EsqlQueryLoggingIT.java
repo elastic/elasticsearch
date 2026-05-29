@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -29,6 +30,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
@@ -139,9 +141,9 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
             if (filter != null) {
-                assertThat(message.get(EsqlLogProducer.FILTER_FIELD), equalTo(EsqlLogContext.filterToLogString(filter)));
+                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
             } else {
-                assertNull(message.get(EsqlLogProducer.FILTER_FIELD));
+                assertNull(message.get(QUERY_FIELD_FILTER));
             }
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo(expectedIndices));
         }

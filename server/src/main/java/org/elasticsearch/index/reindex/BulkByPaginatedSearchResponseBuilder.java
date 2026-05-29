@@ -19,16 +19,16 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Helps build a {@link BulkByScrollResponse}. Used by an instance of {@link ObjectParser} when parsing from XContent.
+ * Helps build a {@link BulkByPaginatedSearchResponse}. Used by an instance of {@link ObjectParser} when parsing from XContent.
  */
-class BulkByScrollResponseBuilder extends StatusBuilder {
+class BulkByPaginatedSearchResponseBuilder extends StatusBuilder {
     private TimeValue took;
     private BulkByPaginatedSearchTask.Status status;
     private List<Failure> bulkFailures = new ArrayList<>();
     private List<PaginatedSearchFailure> searchFailures = new ArrayList<>();
     private boolean timedOut;
 
-    BulkByScrollResponseBuilder() {}
+    BulkByPaginatedSearchResponseBuilder() {}
 
     public void setTook(long took) {
         setTook(new TimeValue(took, TimeUnit.MILLISECONDS));
@@ -58,8 +58,8 @@ class BulkByScrollResponseBuilder extends StatusBuilder {
         this.timedOut = timedOut;
     }
 
-    public BulkByScrollResponse buildResponse() {
+    public BulkByPaginatedSearchResponse buildResponse() {
         status = super.buildStatus();
-        return new BulkByScrollResponse(took, status, bulkFailures, searchFailures, timedOut);
+        return new BulkByPaginatedSearchResponse(took, status, bulkFailures, searchFailures, timedOut);
     }
 }

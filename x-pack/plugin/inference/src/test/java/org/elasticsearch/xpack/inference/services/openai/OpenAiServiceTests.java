@@ -105,7 +105,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
@@ -132,7 +132,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -161,7 +161,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -216,7 +216,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -256,7 +256,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -499,7 +499,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenAiChatCompletionModelTests.createCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }
@@ -587,7 +587,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -665,7 +665,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -706,7 +706,6 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,

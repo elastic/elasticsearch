@@ -2450,6 +2450,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     // No overlap, all-in-range, or partial overlap: advance past this skipper block.
                                     iterDoc = lastDocInSkipper + 1;
                                 }
+                                // Honor the intoBitSet contract: leave the iterator positioned at the
+                                // first matching doc >= upTo (not just upTo, which may not be a match).
+                                advance(upTo);
                             }
 
                             @Override
@@ -2508,6 +2511,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
                             @Override
                             public void intoBitSet(int upTo, FixedBitSet bitSet, int offset) throws IOException {
+                                if (iterDoc >= upTo) {
+                                    return;
+                                }
                                 int firstBlock = iterDoc >>> numericBlockShift;
                                 int lastBlock = (upTo - 1) >>> numericBlockShift;
                                 for (int blockId = firstBlock; blockId <= lastBlock; blockId++) {
@@ -2518,7 +2524,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                                     int blockBase = (blockId << numericBlockShift) - offset;
                                     matches.forEach(firstInBlock, lastInBlock + 1, blockBase, bitSet::set);
                                 }
-                                iterDoc = upTo;
+                                // Honor the intoBitSet contract: leave the iterator positioned at the
+                                // first matching doc >= upTo (not just upTo, which may not be a match).
+                                advance(upTo);
                             }
 
                             @Override

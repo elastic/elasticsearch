@@ -1418,6 +1418,13 @@ public class EsqlCapabilities {
         TO_COUNTER,
 
         /**
+         * Support for {@code TO_GAUGE} function and the {@code ::gauge} cast operator, which converts
+         * {@code counter_long}, {@code counter_integer}, and {@code counter_double} values to their
+         * plain numeric (gauge) equivalents.
+         */
+        TO_GAUGE,
+
+        /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
         TO_LOWER_EMPTY_STRING,
@@ -2284,6 +2291,13 @@ public class EsqlCapabilities {
         FIX_SUM_AGG_LONG_OVERFLOW,
 
         /**
+         * AVG(long) casts the field to double up-front in its surrogate, so the intermediate sum
+         * can no longer overflow.
+         * https://github.com/elastic/elasticsearch/issues/99575
+         */
+        FIX_AVG_AGG_LONG_OVERFLOW,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
@@ -2856,6 +2870,11 @@ public class EsqlCapabilities {
          * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
+
+        /**
+         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         */
+        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
 
         /**
          * Fix for column pruning when FORK branches return no columns.

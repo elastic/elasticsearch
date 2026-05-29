@@ -136,9 +136,15 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         builder.field("status", "success");
         builder.startObject("data");
         builder.field("resultType", resultType);
-        builder.startArray("result");
-        boolean truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
-        builder.endArray(); // result
+        boolean truncated;
+        if ("scalar".equals(resultType)) {
+            writeScalarResult(builder, response, columns, stepColIdx);
+            truncated = false;
+        } else {
+            builder.startArray("result");
+            truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
+            builder.endArray(); // result
+        }
         builder.endObject(); // data
         if (truncated) {
             builder.startArray("warnings");
@@ -147,6 +153,39 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         }
         builder.endObject(); // root
         return builder;
+    }
+
+    private static void writeScalarResult(
+        XContentBuilder builder,
+        EsqlResponse response,
+        List<? extends ColumnInfo> columns,
+        int stepColIdx
+    ) throws IOException {
+        for (Iterable<Object> row : response.rows()) {
+            Object[] values = toArray(row, columns.size());
+            List<Object> valueList = toList(values[VALUE_COL_IDX]);
+            List<Object> stepList = toList(values[stepColIdx]);
+            if (valueList == null || stepList == null || valueList.isEmpty()) {
+                continue;
+            }
+            if (valueList.size() != stepList.size()) {
+                throw new IllegalStateException(
+                    "PROMQL response has misaligned collapsed step/value columns: step count ["
+                        + stepList.size()
+                        + "], value count ["
+                        + valueList.size()
+                        + "]"
+                );
+            }
+            int last = valueList.size() - 1;
+            builder.startArray("result");
+            builder.value(parseTimestamp(stepList.get(last)));
+            builder.value(formatSampleValue(valueList.get(last)));
+            builder.endArray();
+            return;
+        }
+        builder.startArray("result");
+        builder.endArray();
     }
 
     private static boolean writeResultArray(

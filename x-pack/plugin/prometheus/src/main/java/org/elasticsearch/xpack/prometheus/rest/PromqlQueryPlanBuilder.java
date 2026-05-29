@@ -43,7 +43,6 @@ import java.util.List;
 class PromqlQueryPlanBuilder {
 
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
-    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
 
     record PromqlStatementResult(EsqlStatement esqlStatement, String resultType) {}
 
@@ -174,13 +173,14 @@ class PromqlQueryPlanBuilder {
         return switch (type) {
             case INSTANT_VECTOR -> mode == QueryMode.RANGE ? "matrix" : "vector";
             case RANGE_VECTOR -> "matrix";
-            case SCALAR -> "scalar";
+            case SCALAR -> mode == QueryMode.RANGE ? "matrix" : "scalar";
+            case null -> throw new IllegalArgumentException("expected PromqlPlan, got [" + plan.getClass().getSimpleName() + "]");
         };
     }
 
     private static PromqlDataType getReturnType(LogicalPlan plan) {
         if (plan instanceof UnresolvedPromqlFunction unresolved) {
-            PromqlFunctionDefinition def = PROMQL_FUNCTION_REGISTRY.functionMetadata(unresolved.functionName());
+            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
             if (def == null) {
                 throw new IllegalArgumentException("unknown PromQL function [" + unresolved.functionName() + "]");
             }

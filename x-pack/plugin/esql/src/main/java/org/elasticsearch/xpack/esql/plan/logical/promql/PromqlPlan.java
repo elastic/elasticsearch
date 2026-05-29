@@ -21,8 +21,6 @@ import java.util.List;
  * Marker interface for PromQL-specific logical plan nodes.
  */
 public interface PromqlPlan {
-    PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
-
     /**
      * Returns any grouping attributes, for example those added via {@code by(...)},
      * or {@link FieldAttribute#timeSeriesAttribute(Source)} (group by all).
@@ -77,7 +75,7 @@ public interface PromqlPlan {
     @Nullable
     static PromqlDataType getType(@Nullable LogicalPlan plan) {
         if (plan instanceof UnresolvedPromqlFunction unresolved) {
-            PromqlFunctionDefinition def = PROMQL_FUNCTION_REGISTRY.functionMetadata(unresolved.functionName());
+            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
             return def != null ? def.functionType().outputType() : null;
         }
         if (plan instanceof PromqlPlan promqlPlan) {

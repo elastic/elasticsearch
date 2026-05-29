@@ -182,4 +182,22 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
         // resolveInstantQueryWindow respects the explicit 1m window without flooring
         assertThat(promqlCommand.resolveInstantQueryWindow(), equalTo(Duration.ofMinutes(1)));
     }
+
+    public void testBuildInstantScalarStatementResultType() {
+        Instant evaluationTime = Instant.parse("2025-01-01T00:05:00Z");
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement("time()", "*", evaluationTime, QueryMode.INSTANT);
+        assertThat(result.resultType(), equalTo("scalar"));
+    }
+
+    public void testBuildRangeScalarStatementUsesMatrixResultType() {
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
+            "time()",
+            "*",
+            "2025-01-01T00:00:00Z",
+            "2025-01-01T01:00:00Z",
+            "15s",
+            QueryMode.RANGE
+        );
+        assertThat(result.resultType(), equalTo("matrix"));
+    }
 }

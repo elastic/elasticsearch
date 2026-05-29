@@ -281,6 +281,31 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         }
     }
 
+    public void testConvertInstantScalarQuery() throws IOException {
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
+        List<List<Object>> rows = List.of(List.of(3.0, 1735689600000L));
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "scalar", QueryMode.INSTANT)) {
+            ObjectPath path = toObjectPath(builder);
+            assertThat(path.evaluate("status"), equalTo("success"));
+            assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+            assertThat(path.evaluate("data.result"), equalTo(List.of(1735689600.0, "3.0")));
+        }
+    }
+
+    public void testConvertInstantScalarQueryKeepsLastCollapsedSample() throws IOException {
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
+        List<List<Object>> rows = List.of(List.of(List.of(1.0, 2.0, 3.0), List.of(1735689600000L, 1735689660000L, 1735689720000L)));
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "scalar", QueryMode.INSTANT)) {
+            ObjectPath path = toObjectPath(builder);
+            assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+            assertThat(path.evaluate("data.result"), equalTo(List.of(1735689720.0, "3.0")));
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Limit tests
     // -------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.AutoCalibrationVectorFixtures;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,6 +47,26 @@ public class ManifoldModelTests extends ESTestCase {
         assertThat(d1, greaterThan(0f));
         assertThat(d3, greaterThan(d1));
         assertThat(d5, greaterThan(d3));
+    }
+
+    public void testIthDistanceMatchesExactRankForKnownCorpus() throws IOException {
+        float[] query = { 1f, 0f };
+        float[][] corpus = { { 1f, 0f }, { 0.9f, 0.1f }, { 0.8f, 0.2f }, { 0.7f, 0.3f }, { 0.6f, 0.4f }, { 0.5f, 0.5f } };
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(corpus), null, 2);
+        int[] ordinals = { 0, 1, 2, 3, 4, 5 };
+
+        float[] expected = new float[corpus.length];
+        for (int i = 0; i < corpus.length; i++) {
+            expected[i] = ESVectorUtil.squareDistance(query, corpus[i]);
+        }
+        java.util.Arrays.sort(expected);
+
+        ManifoldModel.ManifoldTopK topK = new ManifoldModel.ManifoldTopK(VectorSimilarityFunction.EUCLIDEAN, 6);
+        topK.add(2, query, fvv, ordinals, 0, corpus.length);
+
+        for (int rank = 1; rank <= expected.length; rank++) {
+            assertEquals(expected[rank - 1], topK.ithDistance(rank), 1e-5f);
+        }
     }
 
     public void testEstimateManifoldParametersFastReturnsFiniteCoefficients() throws IOException {

@@ -16,9 +16,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.Locale;
-import java.util.PriorityQueue;
 
 /**
  * Manifold model for distance/similarity as a function of rank and corpus size.
@@ -230,17 +229,22 @@ public final class ManifoldModel {
     }
 
     /**
-     * Max-heap of up to {@code k} smallest float distances (float dot / float squared Euclidean).
+     * Tracks up to {@code capacity} smallest distances (negated dot product for dot-like metrics).
+     * {@link #ithDistance} sorts a reusable scratch buffer instead of cloning and draining a heap.
      */
     static final class ManifoldTopK {
         private final VectorSimilarityFunction similarityFunction;
         private final int capacity;
-        private final PriorityQueue<Float> pq;
+        private final float[] buffer;
+        private final float[] scratch;
+        private int size;
+        private int maxIndex;
 
         ManifoldTopK(VectorSimilarityFunction similarityFunction, int capacity) {
             this.similarityFunction = similarityFunction;
             this.capacity = capacity;
-            this.pq = new PriorityQueue<>(capacity, Comparator.reverseOrder());
+            this.buffer = new float[capacity];
+            this.scratch = new float[capacity];
         }
 
         void add(int dim, float[] query, FloatVectorValues fvv, int[] corpusOrdinals, int startDoc, int endDoc) throws IOException {
@@ -248,11 +252,25 @@ public final class ManifoldModel {
             for (int d = startDoc; d < endDoc; d++) {
                 float[] doc = fvv.vectorValue(corpusOrdinals[d]);
                 float dist = dotLike ? -ESVectorUtil.dotProduct(query, doc) : ESVectorUtil.squareDistance(query, doc);
-                if (pq.size() < capacity) {
-                    pq.offer(dist);
-                } else if (dist < pq.peek()) {
-                    pq.poll();
-                    pq.offer(dist);
+                if (size < capacity) {
+                    buffer[size++] = dist;
+                    if (size == capacity) {
+                        updateMaxIndex();
+                    }
+                } else if (dist < buffer[maxIndex]) {
+                    buffer[maxIndex] = dist;
+                    updateMaxIndex();
+                }
+            }
+        }
+
+        private void updateMaxIndex() {
+            maxIndex = 0;
+            float max = buffer[0];
+            for (int i = 1; i < size; i++) {
+                if (buffer[i] > max) {
+                    max = buffer[i];
+                    maxIndex = i;
                 }
             }
         }
@@ -261,16 +279,12 @@ public final class ManifoldModel {
          * {@code rank}-th smallest stored distance (1-based).
          */
         float ithDistance(int rank) {
-            PriorityQueue<Float> pqCopy = new PriorityQueue<>(capacity, Comparator.reverseOrder());
-            pqCopy.addAll(pq);
-            for (int j = 0; j < capacity - rank; j++) {
-                pqCopy.poll();
-            }
-            Float top = pqCopy.peek();
-            if (top == null) {
+            if (size == 0 || rank <= 0) {
                 return 0f;
             }
-            float val = top;
+            System.arraycopy(buffer, 0, scratch, 0, size);
+            Arrays.sort(scratch, 0, size);
+            float val = scratch[Math.min(rank, size) - 1];
             return isDotLike(similarityFunction) ? -val : val;
         }
     }

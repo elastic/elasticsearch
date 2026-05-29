@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
-import static org.apache.lucene.util.VectorUtil.l2normalize;
 
 public class ErrorModelTests extends ESTestCase {
 

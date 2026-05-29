@@ -28,11 +28,6 @@ public interface AutoCalibrationSelector {
     float DEFAULT_CALIBRATED_OVERSAMPLE = 3f;
 
     /**
-     * No calibrated oversample; indicates the segment has no calibration-derived oversample.
-     */
-    float NO_CALIBRATED_OVERSAMPLE = DEFAULT_CALIBRATED_OVERSAMPLE;
-
-    /**
      * Choose the quantization encoding, oversample, and whether to precondition for the merged segment.
      *
      * @param fieldInfo          field metadata (dimension, similarity)

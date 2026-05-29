@@ -19,7 +19,7 @@ public interface CalibrationAwareReader {
 
     /**
      * Returns the calibration-derived oversample factor for the given field, or
-     * {@link AutoCalibrationSelector#NO_CALIBRATED_OVERSAMPLE} if no calibration data is available.
+     * {@link AutoCalibrationSelector#DEFAULT_CALIBRATED_OVERSAMPLE} if no calibration data is available.
      */
     float getOversampleFactor(FieldInfo fieldInfo);
 

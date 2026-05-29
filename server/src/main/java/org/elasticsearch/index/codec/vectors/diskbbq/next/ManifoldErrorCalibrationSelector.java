@@ -57,12 +57,6 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
     static final double RECALIBRATE_GROWTH_RATIO = 4.0;
 
     /**
-     * Maximum per-dimension squared centroid shift before triggering re-calibration.
-     * squareDistance(inputGlobalCentroid, mergedGlobalCentroid) / dim must stay below this.
-     */
-    static final float RECALIBRATE_DRIFT_THRESHOLD = 0.1f;
-
-    /**
      * Minimum fraction of total docs that must agree on a single encoding to skip re-calibration
      * when input segments disagree.
      */
@@ -152,7 +146,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 return calibrate(floatVectorValues, similarityFunction);
             } catch (IOException e) {
                 logger.warn("calibration failed on bounded force merge, falling back to ONE_BIT_4BIT_QUERY", e);
-                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, NO_CALIBRATED_OVERSAMPLE);
+                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
             }
         } else {
             IvfSegmentConfig reused = selectFromMergeState(fieldInfo, mergeState, mergeCtx, floatVectorValues.size());
@@ -164,7 +158,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
                 return calibrateFast(floatVectorValues, dim, similarityFunction, numVectors, mergeCtx);
             } catch (IOException e) {
                 logger.warn("fast calibration failed, falling back to ONE_BIT_4BIT_QUERY", e);
-                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, NO_CALIBRATED_OVERSAMPLE);
+                return new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, DEFAULT_CALIBRATED_OVERSAMPLE);
             }
         }
     }
@@ -588,7 +582,7 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
     ) throws IOException {
         double bestRecall = -1;
         ESNextDiskBBQVectorsFormat.QuantEncoding bestEncoding = ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-        float bestOversample = AutoCalibrationSelector.NO_CALIBRATED_OVERSAMPLE;
+        float bestOversample = AutoCalibrationSelector.DEFAULT_CALIBRATED_OVERSAMPLE;
         boolean bestPrecondition = false;
 
         Map<Integer, RepErrorStdModel> errorModelCache = new HashMap<>();

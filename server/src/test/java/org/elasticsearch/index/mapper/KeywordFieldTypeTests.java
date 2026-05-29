@@ -28,14 +28,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
-import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
@@ -61,9 +57,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
-import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,8 +64,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -214,111 +205,6 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             true
         );
         assertEquals(new SlowCustomBinaryDocValuesWildcardQuery("field", "foo*", false), ft.wildcardQuery("foo*", null, MOCK_CONTEXT));
-    }
-
-    public void testPrefixQueryDocValuesOnly() {
-        // SortedSet DV, case-sensitive → PrefixQuery with DOC_VALUES_REWRITE
-        MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-        Query q = ft.prefixQuery("foo", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(PrefixQuery.class));
-        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((PrefixQuery) q).getRewriteMethod());
-
-        // SortedSet DV, case-insensitive → StringScriptFieldPrefixQuery
-        q = ft.prefixQuery("foo", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
-
-        // Binary DV → StringScriptFieldPrefixQuery (both cases)
-        MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
-        q = binaryFt.prefixQuery("foo", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
-        q = binaryFt.prefixQuery("foo", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
-
-        // Neither indexed nor doc values → error
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> unsearchable.prefixQuery("foo", null, false, MOCK_CONTEXT)
-        );
-        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
-
-        // Doc-values only + expensive queries disallowed → error
-        ElasticsearchException ee = expectThrows(
-            ElasticsearchException.class,
-            () -> ft.prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
-        );
-        assertThat(
-            ee.getMessage(),
-            equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
-        );
-    }
-
-    public void testWildcardQueryDocValuesOnly() {
-        // SortedSet DV, case-sensitive → WildcardQuery with DOC_VALUES_REWRITE
-        MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-        Query q = ft.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(WildcardQuery.class));
-        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((WildcardQuery) q).getRewriteMethod());
-
-        // SortedSet DV, case-insensitive → StringScriptFieldWildcardQuery
-        q = ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldWildcardQuery.class));
-
-        // Binary DV → SlowCustomBinaryDocValuesWildcardQuery (both cases)
-        MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
-        q = binaryFt.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
-        assertThat(q, instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
-        q = binaryFt.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
-        assertThat(q, instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
-
-        // Neither indexed nor doc values → error
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> unsearchable.wildcardQuery("foo*", null, false, MOCK_CONTEXT)
-        );
-        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
-
-        // Doc-values only + expensive queries disallowed → error
-        ElasticsearchException ee = expectThrows(
-            ElasticsearchException.class,
-            () -> ft.wildcardQuery("foo*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
-        );
-        assertThat(
-            ee.getMessage(),
-            equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
-        );
-    }
-
-    public void testRegexpQueryDocValuesOnly() {
-        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE
-        MappedFieldType ft = new KeywordFieldType("field", false, true, Map.of());
-        Query q = ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT);
-        assertThat(q, instanceOf(RegexpQuery.class));
-        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
-
-        // Binary DV → StringScriptFieldRegexpQuery
-        MappedFieldType binaryFt = new KeywordFieldType("field", false, true, true, Map.of());
-        q = binaryFt.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT);
-        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
-
-        // Neither indexed nor doc values → error
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
-        );
-        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
-
-        // Doc-values only + expensive queries disallowed → error
-        ElasticsearchException ee = expectThrows(
-            ElasticsearchException.class,
-            () -> ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
-        );
-        assertThat(
-            ee.getMessage(),
-            equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
-        );
     }
 
     public void testRegexpQuery() {

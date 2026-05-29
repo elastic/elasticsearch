@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.hamcrest.Matchers.containsString;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
     @Override
@@ -100,6 +101,29 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
+    }
+
+    public void testRetainSearchContextsRoundTrips() throws IOException {
+        DataNodeRequest request = createTestInstance();
+        request = new DataNodeRequest(
+            request.sessionId(),
+            request.configuration(),
+            request.clusterAlias(),
+            request.shards(),
+            request.aliasFilters(),
+            request.plan(),
+            request.indices(),
+            request.indicesOptions(),
+            request.runNodeLevelReduction(),
+            request.reductionLateMaterialization(),
+            true
+        );
+        request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
+
+        DataNodeRequest copy = copyInstance(request, TransportVersion.current());
+
+        assertTrue(copy.retainSearchContexts());
+        assertThat(copy.getDescription(), containsString("retainSearchContexts=true"));
     }
 
     @Override

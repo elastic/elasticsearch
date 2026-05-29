@@ -174,6 +174,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final RemoteFetchService remoteFetchService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
@@ -208,6 +209,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.remoteFetchService = new RemoteFetchService(transportActionServices, this.bigArrays, blockFactory);
         this.inferenceService = transportActionServices.inferenceService();
         this.userAgentParserRegistry = transportActionServices.userAgentParserRegistry();
         this.ipLocationService = transportActionServices.ipLocationService();
@@ -236,6 +238,10 @@ public class ComputeService {
 
     PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
+    }
+
+    RemoteFetchService remoteFetchService() {
+        return remoteFetchService;
     }
 
     FormatReaderRegistry formatReaderRegistry() {
@@ -565,7 +571,8 @@ public class ComputeService {
             configuration,
             foldContext,
             mainExchangeSource::createExchangeSource,
-            null
+            null,
+            false
         );
 
         Runnable cancelQueryOnFailure = cancelQueryOnFailure(rootTask);
@@ -794,7 +801,8 @@ public class ComputeService {
                 configuration,
                 foldContext,
                 null,
-                exchangeSinkSupplier
+                exchangeSinkSupplier,
+                false
             );
             updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (
@@ -912,7 +920,8 @@ public class ComputeService {
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
-                            exchangeSinkSupplier
+                            exchangeSinkSupplier,
+                            false
                         ),
                         coordinatorPlan,
                         plannerSettings.get(),
@@ -1056,7 +1065,8 @@ public class ComputeService {
                     configuration,
                     foldContext,
                     exchangeSource::createExchangeSource,
-                    exchangeSinkSupplier
+                    exchangeSinkSupplier,
+                    false
                 ),
                 coordinatorPlan,
                 plannerSettings.get(),
@@ -1178,7 +1188,8 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
-        var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
+        var shardContexts = context.searchContexts()
+            .map(context.retainSearchContexts() ? ComputeSearchContext::newDetachedShardContext : ComputeSearchContext::shardContext);
         LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that

@@ -199,9 +199,9 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         }
         int startSlot = Math.max(0, slotForTimestamp(startMillis));
         int endSlot = Math.min(counts.length(), slotForTimestamp(endMillis - 1) + 1);
-        int total = 0;
+        long total = 0;
         for (int slot = startSlot; slot < endSlot; slot++) {
-            int result;
+            long result;
             int right = counts.get(slot);
             try {
                 result = Math.addExact(total, right);
@@ -210,7 +210,13 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
             }
             total = result;
         }
-        return total;
+        if (total > Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        if (total < Integer.MIN_VALUE) {
+            return Integer.MIN_VALUE;
+        }
+        return (int) total;
     }
 
     /**

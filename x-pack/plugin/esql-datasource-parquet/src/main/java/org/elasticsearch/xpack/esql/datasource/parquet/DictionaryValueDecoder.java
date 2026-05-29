@@ -11,7 +11,6 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.Dictionary;
 import org.elasticsearch.compute.data.UninitializedArrays;
-import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -75,7 +74,9 @@ final class DictionaryValueDecoder {
     void init(ByteBuffer valueBytes) {
         ByteBuffer dup = valueBytes.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         bitWidth = dup.get() & 0xFF;
-        Check.isTrue(bitWidth <= 32, "Dictionary index bit width must be <= 32, got [{}]", bitWidth);
+        if (bitWidth > 32) {
+            throw new IllegalArgumentException("Dictionary index bit width must be <= 32, got [" + bitWidth + "]");
+        }
         in = dup.slice().order(ByteOrder.LITTLE_ENDIAN);
         rleMode = true;
         rleLeft = 0;
@@ -223,7 +224,9 @@ final class DictionaryValueDecoder {
     }
 
     BytesRef[] getDictionaryBytesRefs(Dictionary dict) {
-        Check.notNull(dict, "dictionary");
+        if (dict == null) {
+            throw new IllegalArgumentException("dictionary must not be null");
+        }
         assert cachedDict == null || cachedDict == dict;
         if (cachedDictBytesRefs == null) {
             int size = dict.getMaxId() + 1;
@@ -307,7 +310,9 @@ final class DictionaryValueDecoder {
     }
 
     private void startNextRun() {
-        Check.isTrue(in.hasRemaining(), "Truncated dictionary index stream");
+        if (in.hasRemaining() == false) {
+            throw new IllegalArgumentException("Truncated dictionary index stream");
+        }
         int header = readUnsignedVarInt();
         if ((header & 1) == 0) {
             rleMode = true;
@@ -320,7 +325,9 @@ final class DictionaryValueDecoder {
             int numGroups = header >>> 1;
             packedRemaining = numGroups * 8;
             int byteLen = numGroups * bitWidth;
-            Check.isTrue(in.remaining() >= byteLen, "Truncated bit-packed dictionary index data");
+            if (in.remaining() < byteLen) {
+                throw new IllegalArgumentException("Truncated bit-packed dictionary index data");
+            }
             if (packedBytes == null || packedBytes.length < byteLen + PACKED_BYTES_PADDING) {
                 // Allocate with trailing padding so readBitsLE can do an unchecked 8-byte read at
                 // any byte offset within [0, byteLen). The padding bytes are explicitly zeroed
@@ -351,14 +358,18 @@ final class DictionaryValueDecoder {
         int shift = 0;
         int result = 0;
         while (true) {
-            Check.isTrue(in.hasRemaining(), "Truncated varint in dictionary index stream");
+            if (in.hasRemaining() == false) {
+                throw new IllegalArgumentException("Truncated varint in dictionary index stream");
+            }
             int b = in.get() & 0xFF;
             result |= (b & 0x7F) << shift;
             if ((b & 0x80) == 0) {
                 return result;
             }
             shift += 7;
-            Check.isTrue(shift <= 35, "Varint overflow in dictionary index stream");
+            if (shift > 35) {
+                throw new IllegalArgumentException("Varint overflow in dictionary index stream");
+            }
         }
     }
 
@@ -367,7 +378,9 @@ final class DictionaryValueDecoder {
         if (n == 0) {
             return 0;
         }
-        Check.isTrue(in.remaining() >= n, "Truncated padded dictionary index value");
+        if (in.remaining() < n) {
+            throw new IllegalArgumentException("Truncated padded dictionary index value");
+        }
         int v = 0;
         for (int i = 0; i < n; i++) {
             v |= (in.get() & 0xFF) << (8 * i);

@@ -11,37 +11,37 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link FirstTDigestByTimestampAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link AllFirstTDigestByLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class FirstTDigestByTimestampAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public FirstTDigestByTimestampAggregatorFunctionSupplier() {
+public final class AllFirstTDigestByLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public AllFirstTDigestByLongAggregatorFunctionSupplier() {
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return FirstTDigestByTimestampAggregatorFunction.intermediateStateDesc();
+    return AllFirstTDigestByLongAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return FirstTDigestByTimestampGroupingAggregatorFunction.intermediateStateDesc();
+    return AllFirstTDigestByLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public FirstTDigestByTimestampAggregatorFunction aggregator(DriverContext driverContext,
+  public AllFirstTDigestByLongAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new FirstTDigestByTimestampAggregatorFunction(driverContext, channels);
+    return new AllFirstTDigestByLongAggregatorFunction(driverContext, channels);
   }
 
   @Override
-  public FirstTDigestByTimestampGroupingAggregatorFunction groupingAggregator(
+  public AllFirstTDigestByLongGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new FirstTDigestByTimestampGroupingAggregatorFunction(channels, driverContext);
+    return new AllFirstTDigestByLongGroupingAggregatorFunction(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return FirstTDigestByTimestampAggregator.describe();
+    return AllFirstTDigestByLongAggregator.describe();
   }
 }

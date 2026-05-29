@@ -118,7 +118,7 @@ public class PushStatsToExternalSource extends PhysicalOptimizerRules.OptimizerR
         // the file as "all null" (columnNullCount == rowCount). Partition columns live in the directory
         // path, not the payload, so they are absent from every file's stats and would misclassify
         // IS NULL / IS NOT NULL on a partition column as MATCH/MISS for every split. Bail out so the
-        // normal scan path evaluates the partition predicate against the VirtualColumnInjector's
+        // normal scan path evaluates the partition predicate against the VirtualColumnIterator's
         // constant block. Symmetric with PushFiltersToSource keeping partition predicates in FilterExec.
         Set<String> partitionColumnNames = partitionColumnNames(externalExec);
         if (filterForClassification != null && referencesAnyColumn(filterForClassification, partitionColumnNames)) {

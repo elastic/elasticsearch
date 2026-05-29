@@ -135,8 +135,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
-    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
-
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
     // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
     // Use Instant.EPOCH / MAX_MILLIS_BEFORE_9999 instead of Long.MIN/MAX to avoid time boundary handling in the engine.
@@ -450,18 +448,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * These produce expressions without modifying the plan.
      */
     private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
-        PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
-            ctx.promqlCommand().timestamp(),
-            null,
-            ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
-        );
-        Expression function = PROMQL_FUNCTION_REGISTRY.buildEsqlFunction(
-            scalarFunction.functionName(),
-            scalarFunction.source(),
-            null,
-            promqlCtx,
-            List.of()
+        var function = scalarFunction.buildEsqlFunction(
+            new PromqlFunctionRegistry.PromqlContext(
+                ctx.promqlCommand().timestamp(),
+                null,
+                ctx.stepAttr(),
+                ctx.optimizerContext().configuration()
+            )
         );
 
         return new TranslationResult(currentPlan, function);

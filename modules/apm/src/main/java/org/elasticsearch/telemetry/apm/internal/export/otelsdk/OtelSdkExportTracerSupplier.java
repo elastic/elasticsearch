@@ -39,10 +39,6 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private final SdkTracerProvider tracerProvider;
     private final OpenTelemetrySdk openTelemetrySdk;
 
-    public OtelSdkExportTracerSupplier(Settings settings) {
-        this(settings, MeterProvider::noop);
-    }
-
     public OtelSdkExportTracerSupplier(Settings settings, Supplier<MeterProvider> meterProvider) {
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {

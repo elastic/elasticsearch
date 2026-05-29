@@ -24,14 +24,20 @@ import static org.hamcrest.Matchers.hasItem;
 public class OtelSdkExportTracerSupplierTests extends ESTestCase {
 
     public void testConstructorWithoutEndpointThrows() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new OtelSdkExportTracerSupplier(Settings.EMPTY));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new OtelSdkExportTracerSupplier(Settings.EMPTY, MeterProvider::noop)
+        );
         assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
         assertThat(e.getMessage(), containsString("telemetry.otel.traces.endpoint"));
     }
 
     public void testConstructorWithEmptyEndpointThrows() {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.getKey(), "").build();
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new OtelSdkExportTracerSupplier(settings));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> new OtelSdkExportTracerSupplier(settings, MeterProvider::noop)
+        );
         assertThat(e.getMessage(), containsString(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY));
         assertThat(e.getMessage(), containsString("telemetry.otel.traces.endpoint"));
     }

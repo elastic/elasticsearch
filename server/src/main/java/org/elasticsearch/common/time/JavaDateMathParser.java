@@ -214,9 +214,15 @@ public class JavaDateMathParser implements DateMathParser {
             // UTC by definition and exposes no local-date component to reinterpret.
             ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
             ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
+            if (zoneId != null) {
+                // Input carries its own zone/offset; apply it and ignore the timeZone parameter.
+                // Note: DateFormatters.from() does not preserve the accessor's zone, so we must
+                // re-apply it explicitly via withZoneSameLocal rather than calling toInstant() directly.
+                return DateFormatters.from(accessor).withZoneSameLocal(zoneId).toInstant();
+            }
             if (timeZone == null
-                || zoneId != null
                 || (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(ChronoField.YEAR) == false)) {
+                // No zone to apply, or epoch-based format (UTC by definition).
                 return DateFormatters.from(accessor).toInstant();
             }
 

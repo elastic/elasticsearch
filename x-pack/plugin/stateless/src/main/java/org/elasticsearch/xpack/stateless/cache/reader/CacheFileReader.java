@@ -343,6 +343,9 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryRead(ByteBuffer b, long position) throws IOException {
+        if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
+            return cacheFile.tryRead(b, position);
+        }
         final long regionStart = (position / regionSize) * regionSize;
         final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
         return cacheFile.tryRead(b, position, advice);

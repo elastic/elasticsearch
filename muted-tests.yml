@@ -327,12 +327,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StSimplifyPreserveTopologyTests
   method: "testEvaluateInManyThreads {TestCase=geo_shape with tolerance[long]. #2}"
   issue: https://github.com/elastic/elasticsearch/issues/150079
-- class: org.elasticsearch.transport.netty4.SimpleNetty4TransportTests
-  method: testActionStats
-  issue: https://github.com/elastic/elasticsearch/issues/150162
-- class: org.elasticsearch.xpack.security.transport.netty4.SimpleSecurityNetty4ServerTransportTests
-  method: testActionStats
-  issue: https://github.com/elastic/elasticsearch/issues/150164
 
 # Examples:
 #

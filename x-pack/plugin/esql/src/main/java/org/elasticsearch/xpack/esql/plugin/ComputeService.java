@@ -1143,7 +1143,7 @@ public class ComputeService {
         try {
             var workerThreadPool = transportService.getThreadPool();
             var parallelWorkerExecutor = workerThreadPool.executor(ESQL_WORKER_THREAD_POOL_NAME);
-            int parallelWorkerPoolSize = workerThreadPool.info(ESQL_WORKER_THREAD_POOL_NAME).getMax();
+            int esqlWorkerPoolSize = workerThreadPool.info(ESQL_WORKER_THREAD_POOL_NAME).getMax();
 
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -1162,7 +1162,7 @@ public class ComputeService {
                 physicalOperationProviders,
                 operatorFactoryRegistry,
                 parallelWorkerExecutor,
-                parallelWorkerPoolSize
+                esqlWorkerPoolSize
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);

@@ -532,9 +532,6 @@ tests:
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testVirtualBatchedCompoundCommitUploadMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/149864
 - class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
   method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
   issue: https://github.com/elastic/elasticsearch/issues/149874
@@ -619,6 +616,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
   issue: https://github.com/elastic/elasticsearch/issues/150099
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_half}
+  issue: https://github.com/elastic/elasticsearch/issues/150097
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_fraction}
+  issue: https://github.com/elastic/elasticsearch/issues/150098
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:k8s-timeseries-promql.scalar_float_div_compound}
+  issue: https://github.com/elastic/elasticsearch/issues/150099
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testMultiTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/150101
@@ -670,3 +676,15 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSlicesSparseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150126
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSlicesDenseWithFilter
+  issue: https://github.com/elastic/elasticsearch/issues/150152
+- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
+  method: testRenameBucketColumnHasNoMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/150154
+- class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
+  method: testSymmetric1BitDotProductMatchesNativeWhenSupported
+  issue: https://github.com/elastic/elasticsearch/issues/150155
+- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
+  method: testCacheIsWarmedDuringMerge
+  issue: https://github.com/elastic/elasticsearch/issues/150158

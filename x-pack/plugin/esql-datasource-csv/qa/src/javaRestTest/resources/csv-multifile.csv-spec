@@ -1,0 +1,78 @@
+// CSV multi-file glob coverage — replaces the external-multifile.csv-spec / external-multifile-resolution.csv-spec
+// reads that CsvFormatSpecIT lost when it stopped loading /external-* (those specs read the bracket-MV
+// employees fixture which the new multi_value_syntax: none default can't parse). Queries here use the
+// multi-file split fixture with multi_value_syntax: brackets declared explicitly — they're about glob
+// reading + per-file schema, not standard-CSV-default parsing. Standard-CSV reads are covered by
+// csv-basic.csv-spec on the bracket-free twin.
+
+multiFileFilterAndSort
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+10027          | "Divier"           | 73851
+10019          | "Lillian"          | 73717
+;
+
+multiFileAggregate
+required_capability: external_command
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+// ---- File-metadata projections under multi-file glob (relocated from external-multifile.csv-spec) ----
+// CSV-side coverage of the _file.* metadata columns under a glob read. brackets opt-in carries from
+// the same fixture having bracket-MV columns; only scalar/metadata columns are projected.
+// The 3-file count below mirrors `multifileSplitParts = 3` in
+// x-pack/plugin/esql-datasource-csv/qa/build.gradle (generateMultifileCsvSplit_employees split).
+// If that constant changes, update the names:long expectation here.
+
+multiFileDistinctFileCount
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS names = COUNT_DISTINCT(`_file.name`);
+
+names:long
+3
+;
+
+multiFileGroupByFile
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS count = COUNT(*) BY `_file.name`
+| STATS files = COUNT(*), total = SUM(count);
+
+files:long | total:long
+3          | 100
+;
+
+multiFileMetadataSizePositive
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| WHERE `_file.size` > 0
+| STATS count = COUNT(*);
+
+count:long
+100
+;

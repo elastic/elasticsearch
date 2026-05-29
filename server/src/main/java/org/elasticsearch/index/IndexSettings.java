@@ -1293,6 +1293,7 @@ public final class IndexSettings {
     private final boolean timeSeriesEs95CodecEnabled;
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
+    private final boolean experimentalAllNonMetricDimensions;
     private final boolean indexDisabledByDefault;
 
     /**
@@ -1512,6 +1513,7 @@ public final class IndexSettings {
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         useTimeSeriesSyntheticId = scopedSettings.get(SYNTHETIC_ID);
+        experimentalAllNonMetricDimensions = scopedSettings.get(IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS);
         syntheticIdBloomFilterSettings = SyntheticIdBloomFilterSettings.fromScopedSettings(scopedSettings);
         if (indexMetadata.useTimeSeriesSyntheticId() != useTimeSeriesSyntheticId) {
             throw new IllegalArgumentException(
@@ -2289,6 +2291,13 @@ public final class IndexSettings {
      */
     public boolean useTimeSeriesSyntheticId() {
         return useTimeSeriesSyntheticId;
+    }
+
+    /**
+     * @return Whether non-metric fields with doc values should be treated as time series dimensions.
+     */
+    public boolean experimentalAllNonMetricDimensions() {
+        return experimentalAllNonMetricDimensions;
     }
 
     public SyntheticIdBloomFilterSettings syntheticIdBloomFilterSettings() {

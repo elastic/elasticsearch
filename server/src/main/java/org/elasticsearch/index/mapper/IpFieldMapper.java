@@ -125,7 +125,11 @@ public class IpFieldMapper extends FieldMapper {
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.indexed = Parameter.indexParam(
+                m -> toType(m).indexed,
+                indexSettings,
+                () -> TimeSeriesParams.resolveDimension(dimension.get(), indexSettings, docValuesParameters.get().enabled(), null)
+            );
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
         }
 
@@ -246,7 +250,7 @@ public class IpFieldMapper extends FieldMapper {
                     parseNullValue(),
                     scriptValues(),
                     meta.getValue(),
-                    dimension.getValue(),
+                    TimeSeriesParams.resolveDimension(dimension.getValue(), indexSettings, docValuesParameters.get().enabled(), null),
                     context.isSourceSynthetic(),
                     usesBinaryDocValues()
                 ),
@@ -673,7 +677,7 @@ public class IpFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
-        this.dimension = builder.dimension.getValue();
+        this.dimension = fieldType().isDimension();
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();

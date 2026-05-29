@@ -59,7 +59,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     @Before
     public void setup() {
         provider = new DataStreamIndexSettingsProvider(
-            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.getKey(), false).build()
         );
         if (randomBoolean()) {
             indexVersion = IndexVersion.current();
@@ -1224,6 +1225,102 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             additionalSettings
         );
         assertFalse(additionalSettings.build().hasValue(IndexSettings.SYNTHETIC_ID.getKey()));
+    }
+
+    public void testClusterSettingsExperimentalAllNonMetricDimensionsDefault() throws Exception {
+        assumeTrue("Requires index.dimensions tsid optimization", expectedIndexDimensionsTsidOptimizationEnabled);
+        assertTrue(DataStreamIndexSettingsProvider.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.getDefault(Settings.EMPTY));
+
+        DataStreamIndexSettingsProvider defaultProvider = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
+        );
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "@timestamp": { "type": "date" },
+                        "host": { "type": "keyword" },
+                        "value": { "type": "long", "time_series_metric": "gauge" }
+                    }
+                }
+            }
+            """;
+        Settings.Builder additionalSettings = builder();
+        defaultProvider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName("metrics-app1", 1),
+            "metrics-app1",
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.builder().put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting).build(),
+            List.of(new CompressedXContent(mapping)),
+            indexVersion,
+            additionalSettings
+        );
+        Settings result = builder().put(additionalSettings.build()).put("index.mode", "time_series").build();
+        assertThat(IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.get(result), equalTo(true));
+        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host"));
+
+        DataStreamIndexSettingsProvider disabledProvider = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            Settings.builder().put(DataStreamIndexSettingsProvider.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.getKey(), false).build()
+        );
+        additionalSettings = builder();
+        disabledProvider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName("metrics-app1", 1),
+            "metrics-app1",
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.builder().put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting).build(),
+            List.of(new CompressedXContent(mapping)),
+            indexVersion,
+            additionalSettings
+        );
+        result = builder().put(additionalSettings.build()).put("index.mode", "time_series").build();
+        assertFalse(result.hasValue(IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.getKey()));
+        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+    }
+
+    public void testExperimentalAllNonMetricDimensions() throws Exception {
+        assumeTrue("Requires index.dimensions tsid optimization", expectedIndexDimensionsTsidOptimizationEnabled);
+        DataStreamIndexSettingsProvider experimentalProvider = new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName())
+        );
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "@timestamp": {
+                            "type": "date"
+                        },
+                        "host": {
+                            "type": "keyword"
+                        },
+                        "value": {
+                            "type": "long",
+                            "time_series_metric": "gauge"
+                        }
+                    }
+                }
+            }
+            """;
+        Settings.Builder additionalSettings = builder();
+        experimentalProvider.provideAdditionalSettings(
+            DataStream.getDefaultBackingIndexName("metrics-app1", 1),
+            "metrics-app1",
+            IndexMode.TIME_SERIES,
+            emptyProject(),
+            Instant.now().truncatedTo(ChronoUnit.SECONDS),
+            Settings.builder().put("index.dimensions_tsid_strategy_enabled", indexDimensionsTsidStrategyEnabledSetting).build(),
+            List.of(new CompressedXContent(mapping)),
+            indexVersion,
+            additionalSettings
+        );
+        Settings result = builder().put(additionalSettings.build()).put("index.mode", "time_series").build();
+        assertThat(IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS.get(result), equalTo(true));
+        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host"));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
     }
 
 }

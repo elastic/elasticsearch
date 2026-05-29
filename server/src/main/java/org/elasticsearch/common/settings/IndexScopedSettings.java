@@ -241,6 +241,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_ROUTING_PATH,
                 IndexMetadata.INDEX_DIMENSIONS,
                 IndexMetadata.INDEX_DIMENSIONS_TSID_STRATEGY_ENABLED,
+                IndexMetadata.EXPERIMENTAL_ALL_NON_METRIC_DIMENSIONS,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME,
                 IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING,

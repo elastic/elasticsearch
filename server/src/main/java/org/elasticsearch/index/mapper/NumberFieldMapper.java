@@ -196,7 +196,7 @@ public class NumberFieldMapper extends FieldMapper {
                     return false;
                 }
 
-                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, resolveDimension())) {
                     return false;
                 }
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
@@ -250,7 +250,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return IndexType.archivedPoints();
             }
             if (indexed.get() == false && docValuesParameters.get().enabled()) {
-                if (useTimeSeriesDocValuesSkippers(indexSettings, dimension.get())) {
+                if (useTimeSeriesDocValuesSkippers(indexSettings, resolveDimension())) {
                     return IndexType.skippers();
                 }
                 if (indexSettings.useDocValuesSkipper()
@@ -280,6 +280,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         private Parameter<MetricType> getMetric() {
             return metric;
+        }
+
+        private boolean resolveDimension() {
+            return TimeSeriesParams.resolveDimension(dimension.get(), indexSettings, docValuesParameters.get().enabled(), metric.get());
         }
 
         public Builder allowMultipleValues(boolean allowMultipleValues) {
@@ -2150,7 +2154,12 @@ public class NumberFieldMapper extends FieldMapper {
                 builder.nullValue.getValue(),
                 builder.meta.getValue(),
                 builder.scriptValues(),
-                builder.dimension.getValue(),
+                TimeSeriesParams.resolveDimension(
+                    builder.dimension.getValue(),
+                    builder.indexSettings,
+                    builder.docValuesParameters.get().enabled(),
+                    builder.metric.getValue()
+                ),
                 builder.metric.getValue(),
                 builder.indexSettings.getMode(),
                 isSyntheticSource
@@ -2449,7 +2458,12 @@ public class NumberFieldMapper extends FieldMapper {
         this.coerce = builder.coerce.getValue();
         this.nullValue = builder.nullValue.getValue();
         this.scriptValues = builder.scriptValues();
-        this.dimension = builder.dimension.getValue();
+        this.dimension = TimeSeriesParams.resolveDimension(
+            builder.dimension.getValue(),
+            builder.indexSettings,
+            builder.docValuesParameters.get().enabled(),
+            builder.metric.getValue()
+        );
         this.writeDimensionRouting = this.dimension
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();

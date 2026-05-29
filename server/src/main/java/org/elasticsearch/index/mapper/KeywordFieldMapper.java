@@ -291,7 +291,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 m -> toType(m).fieldType().isDimension(),
                 () -> docValuesParameters.getValue().enabled()
             ).precludesParameters(normalizer);
-            this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
+            this.indexed = Parameter.indexParam(
+                m -> toType(m).indexed,
+                indexSettings,
+                () -> TimeSeriesParams.resolveDimension(dimension.get(), indexSettings, docValuesParameters.get().enabled(), null)
+            );
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
 
             this.ignoreAbove = Parameter.ignoreAboveParam(
@@ -612,7 +616,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
-            this.isDimension = builder.dimension.getValue();
+            this.isDimension = TimeSeriesParams.resolveDimension(
+                builder.dimension.getValue(),
+                builder.indexSettings,
+                builder.docValuesParameters.get().enabled(),
+                null
+            );
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
             this.usesBinaryDocValuesForIgnoredFields = builder.storeIgnoredFieldsInBinaryDocValues;
             this.docValuesParams = builder.docValuesParameters();
@@ -1367,7 +1376,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.indexSettings = builder.indexSettings;
-        this.writeDimensionRouting = builder.dimension.getValue()
+        this.writeDimensionRouting = fieldType().isDimension()
             && builder.indexSettings.getIndexRouting() instanceof IndexRouting.ExtractFromSource efs
             && efs.extractDimensionsWhileMapping();
         this.forceDocValuesSkipper = builder.forceDocValuesSkipper;

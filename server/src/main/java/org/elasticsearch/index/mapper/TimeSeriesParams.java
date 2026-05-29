@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -98,6 +101,31 @@ public final class TimeSeriesParams {
                 );
             }
         });
+    }
+
+    /**
+     * Resolves whether a field is a time series dimension, including the experimental mode that treats all
+     * non-metric fields with doc values as dimensions on time series indices.
+     */
+    public static boolean resolveDimension(
+        boolean explicitDimension,
+        IndexSettings indexSettings,
+        boolean hasDocValues,
+        MetricType metricType
+    ) {
+        if (explicitDimension) {
+            return true;
+        }
+        if (metricType != null) {
+            return false;
+        }
+        if (indexSettings.getMode() != IndexMode.TIME_SERIES) {
+            return false;
+        }
+        if (indexSettings.experimentalAllNonMetricDimensions() == false) {
+            return false;
+        }
+        return hasDocValues;
     }
 
 }

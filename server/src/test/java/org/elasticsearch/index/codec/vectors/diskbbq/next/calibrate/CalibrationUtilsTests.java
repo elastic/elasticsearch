@@ -11,16 +11,19 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class CalibrationUtilsTests extends ESTestCase {
 
@@ -32,8 +35,7 @@ public class CalibrationUtilsTests extends ESTestCase {
 
     public void testNormalizeInPlaceZeroVector() {
         float[] v = { 0f, 0f, 0f };
-        CalibrationUtils.normalizeInPlace(v, v.length);
-        assertArrayEquals(new float[] { 0f, 0f, 0f }, v, 0f);
+        assertThrows(IllegalArgumentException.class, () -> CalibrationUtils.normalizeInPlace(v, v.length));
     }
 
     public void testNormalizeFullLengthMatchesLucene() {
@@ -77,6 +79,50 @@ public class CalibrationUtilsTests extends ESTestCase {
         assertArrayEquals(new float[] { 1f, 0f }, heap.vectorValue(0), 0f);
 
         assertThrows(IllegalStateException.class, () -> strict.vectorValue(0));
+    }
+
+    public void testSampleDataDisjointAndRespectsCaps() throws IOException {
+        float[][] data = new float[200][];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = new float[] { i, i + 1f };
+        }
+        FloatVectorValues fvv = KMeansFloatVectorValues.build(List.of(data), null, 2);
+        CalibrationUtils.SampledData sampled = CalibrationUtils.sampleData(fvv, 32, 64);
+        assertEquals(32, sampled.queryOrdinals().length);
+        assertEquals(64, sampled.corpusOrdinals().length);
+        HashSet<Integer> all = new HashSet<>();
+        for (int o : sampled.queryOrdinals()) {
+            assertTrue(all.add(o));
+        }
+        for (int o : sampled.corpusOrdinals()) {
+            assertTrue(all.add(o));
+        }
+    }
+
+    public void testNeedsNeyshaburSrebroLift() {
+        assertTrue(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.DOT_PRODUCT));
+        assertTrue(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT));
+        assertFalse(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.EUCLIDEAN));
+        assertFalse(CalibrationUtils.needsNeyshaburSrebroLift(VectorSimilarityFunction.COSINE));
+    }
+
+    public void testNeyshaburCorpusFloatVectorValuesAddsLiftDimension() throws IOException {
+        float[][] data = { { 1f, 0f }, { 0.5f, 0f } };
+        FloatVectorValues base = KMeansFloatVectorValues.build(List.of(data), null, 2);
+        double maxNormSq = CalibrationUtils.maxSquaredNormOverCorpusSample(base, new int[] { 0, 1 }, 2);
+        CalibrationUtils.NeyshaburCorpusFloatVectorValues lifted = new CalibrationUtils.NeyshaburCorpusFloatVectorValues(
+            base,
+            2,
+            maxNormSq
+        );
+        assertEquals(3, lifted.dimension());
+        float firstLift = lifted.vectorValue(0)[2];
+        float secondLift = lifted.vectorValue(1)[2];
+        assertThat(secondLift, greaterThan(firstLift));
+    }
+
+    public void testNormalizeInPlaceRejectsLenGreaterThanArray() {
+        assertThrows(IllegalArgumentException.class, () -> CalibrationUtils.normalizeInPlace(new float[] { 1f, 2f }, 3));
     }
 
     public void testToHeapDenseEmpty() throws IOException {

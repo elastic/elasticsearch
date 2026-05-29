@@ -124,10 +124,7 @@ public final class CalibrationUtils {
      * {@link FloatVectorValues#vectorValue(int)} for arbitrary ordinals. Lucene's merged float vector
      * implementation only allows {@code vectorValue(iterator.index())} in lockstep with a forward
      * {@link DocIndexIterator}.
-     * It effectively spills merged vectors to a temp file and opening
-     * {@link org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues#build(org.apache.lucene.store.IndexInput, org.apache.lucene.store.IndexInput, int, int)}
-     * for merge-time calibration (see {@link org.elasticsearch.index.codec.vectors.diskbbq.IVFVectorsWriter}).
-     * This helper remains useful for tests and small in-memory sources.
+     * This helper is useful for tests and small in-memory sources.
      */
     public static FloatVectorValues toHeapDenseFloatVectorValues(FloatVectorValues fvv) throws IOException {
         final int size = fvv.size();

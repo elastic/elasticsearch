@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq.next;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.index.DirectoryReader;
@@ -16,8 +17,11 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergeState;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
@@ -37,10 +41,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.next.AutoCalibrationSelector.DEFAULT_CALIBRATED_OVERSAMPLE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -243,6 +251,310 @@ public class ManifoldErrorCalibrationSelectorTests extends ESTestCase {
         assertThat(config.quantEncoding(), notNullValue());
         assertTrue(Float.isFinite(config.rescoreOversample()));
         assertTrue(config.rescoreOversample() > 0f);
+    }
+
+    public void testSelectFromMergeStateReturnsNullWhenNoCalibratedSegments() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], backgroundSegmentInfo(dir));
+            MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
+
+            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+            assertThat(selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, 100), nullValue());
+        }
+    }
+
+    public void testSelectFromMergeStateReusesOnPartialEncodingAgreement() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+        StubCalibrationKnnVectorsReader dominant = new StubCalibrationKnnVectorsReader(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            2f,
+            false
+        );
+        StubCalibrationKnnVectorsReader minority = new StubCalibrationKnnVectorsReader(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
+            2f,
+            false
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { dominant, minority },
+                new Bits[] { liveDocs(85), liveDocs(15) },
+                backgroundSegmentInfo(dir)
+            );
+            MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
+
+            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, 100);
+
+            assertThat(reused, notNullValue());
+            assertThat(reused.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+        }
+    }
+
+    public void testSelectFromMergeStateRecalibratesOnWeakEncodingAgreement() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+        StubCalibrationKnnVectorsReader segA = new StubCalibrationKnnVectorsReader(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            2f,
+            false
+        );
+        StubCalibrationKnnVectorsReader segB = new StubCalibrationKnnVectorsReader(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
+            2f,
+            false
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { segA, segB },
+                new Bits[] { liveDocs(70), liveDocs(30) },
+                backgroundSegmentInfo(dir)
+            );
+            MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
+
+            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+            assertThat(selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, 100), nullValue());
+        }
+    }
+
+    public void testSelectFromMergeStateUsesPreconditionMajorityVote() throws IOException {
+        FieldInfo fieldInfo = vectorFieldInfo(ESNextRescoreOversampleTestFixture.FIELD_NAME);
+        StubCalibrationKnnVectorsReader precondTrue = new StubCalibrationKnnVectorsReader(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            2f,
+            true
+        );
+        StubCalibrationKnnVectorsReader precondFalse = new StubCalibrationKnnVectorsReader(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            4f,
+            false
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(
+                dir,
+                new KnnVectorsReader[] { precondTrue, precondFalse },
+                new Bits[] { liveDocs(60), liveDocs(40) },
+                backgroundSegmentInfo(dir)
+            );
+            MergeCalibrationContext mergeCtx = MergeCalibrationContext.from(mergeState);
+
+            ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+            IvfSegmentConfig reused = selector.selectFromMergeState(fieldInfo, mergeState, mergeCtx, 100);
+
+            assertThat(reused, notNullValue());
+            assertTrue(reused.usePrecondition());
+            assertThat(reused.rescoreOversample(), equalTo(2.8f));
+        }
+    }
+
+    public void testSelectBoundedForceMergeSkipsFullCalibrateWhenFastMeetsTarget() throws IOException {
+        TrackingSelector selector = new TrackingSelector(VPC) {
+            @Override
+            protected FastCalibrationOutcome runFastCalibration(
+                FloatVectorValues floatVectorValues,
+                int dim,
+                VectorSimilarityFunction similarityFunction,
+                int N,
+                MergeCalibrationContext mergeCtx
+            ) throws IOException {
+                return new FastCalibrationOutcome(
+                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY, false, 2.5f),
+                    true
+                );
+            }
+        };
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            ManifoldErrorCalibrationSelector.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            42L
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], forceMergeSegmentInfo(dir));
+
+            IvfSegmentConfig config = selector.select(fieldInfo, vectors, mergeState);
+
+            assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY));
+            assertThat(config.rescoreOversample(), equalTo(2.5f));
+            assertEquals(0, selector.fullCalibrateInvocations);
+        }
+    }
+
+    public void testSelectBoundedForceMergeRunsFullCalibrateWhenFastMissesTarget() throws IOException {
+        TrackingSelector selector = new TrackingSelector(VPC) {
+            @Override
+            protected FastCalibrationOutcome runFastCalibration(
+                FloatVectorValues floatVectorValues,
+                int dim,
+                VectorSimilarityFunction similarityFunction,
+                int N,
+                MergeCalibrationContext mergeCtx
+            ) throws IOException {
+                return new FastCalibrationOutcome(
+                    new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 1.0f),
+                    false
+                );
+            }
+        };
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(
+            ManifoldErrorCalibrationSelector.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            16,
+            43L
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], forceMergeSegmentInfo(dir));
+
+            IvfSegmentConfig config = selector.select(fieldInfo, vectors, mergeState);
+
+            assertThat(config.quantEncoding(), notNullValue());
+            assertThat(selector.fullCalibrateInvocations, equalTo(1));
+            assertTrue(Float.isFinite(config.rescoreOversample()));
+        }
+    }
+
+    public void testSelectIOExceptionOnBoundedForceMergeFallsBack() throws IOException {
+        ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.failingHeapVectors(
+            ManifoldErrorCalibrationSelector.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            44L
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], forceMergeSegmentInfo(dir));
+
+            IvfSegmentConfig config = selector.select(fieldInfo, vectors, mergeState);
+
+            assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertFalse(config.usePrecondition());
+            assertThat(config.rescoreOversample(), equalTo(DEFAULT_CALIBRATED_OVERSAMPLE));
+        }
+    }
+
+    public void testSelectIOExceptionOnBackgroundMergeFallsBack() throws IOException {
+        ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+        FieldInfo fieldInfo = vectorFieldInfo("f");
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.failingHeapVectors(
+            ManifoldErrorCalibrationSelector.MIN_VECTORS_FOR_CALIBRATION,
+            DIM,
+            45L
+        );
+        try (Directory dir = newDirectory()) {
+            MergeState mergeState = mergeState(dir, new KnnVectorsReader[0], new Bits[0], backgroundSegmentInfo(dir));
+
+            IvfSegmentConfig config = selector.select(fieldInfo, vectors, mergeState);
+
+            assertThat(config.quantEncoding(), is(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY));
+            assertThat(config.rescoreOversample(), equalTo(DEFAULT_CALIBRATED_OVERSAMPLE));
+        }
+    }
+
+    public void testCalibrateFastOnLargeSyntheticCorpus() throws IOException {
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(10_500, 8, 32, 46L);
+        ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+        MergeCalibrationContext mergeCtx = new MergeCalibrationContext(2, null, false);
+
+        IvfSegmentConfig config = selector.calibrateFast(vectors, 8, VectorSimilarityFunction.EUCLIDEAN, vectors.size(), mergeCtx);
+
+        assertThat(config.quantEncoding(), notNullValue());
+        assertTrue(Float.isFinite(config.rescoreOversample()));
+        assertTrue(config.rescoreOversample() > 0f);
+        assertTrue(isCandidateEncoding(config.quantEncoding()));
+    }
+
+    public void testCalibrateFastDotProductSimilarity() throws IOException {
+        assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.DOT_PRODUCT);
+    }
+
+    public void testCalibrateFastMaximumInnerProductSimilarity() throws IOException {
+        assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT);
+    }
+
+    public void testCalibrateFastCosineSimilarity() throws IOException {
+        assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction.COSINE);
+    }
+
+    public void testProductionMergeResolverPersistsCalibratedOversample() throws IOException {
+        Random rnd = random();
+        int vectorsPerSegment = ManifoldErrorCalibrationSelector.MIN_VECTORS_FOR_CALIBRATION / 2 + 100;
+        try (Directory dir = newDirectory()) {
+            AtomicInteger flushSequence = new AtomicInteger(0);
+            IvfFlushConfigSource flushConfig = (state, fieldInfo) -> {
+                if (ESNextRescoreOversampleTestFixture.FIELD_NAME.equals(fieldInfo.name) == false) {
+                    return Optional.empty();
+                }
+                flushSequence.getAndIncrement();
+                return Optional.of(new IvfSegmentConfig(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, false, 2f));
+            };
+            Codec codec = ESNextRescoreOversampleTestFixture.createDiskBbqCodec(
+                flushConfig,
+                ESNextRescoreOversampleTestFixture.productionMergeResolver(VPC)
+            );
+            IndexWriterConfig iwcNoMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec)
+                .setMergePolicy(NoMergePolicy.INSTANCE);
+            ESNextRescoreOversampleTestFixture.writeTwoCommits(rnd, vectorsPerSegment, 8, dir, iwcNoMerge);
+
+            IndexWriterConfig iwcMerge = new IndexWriterConfig(new StandardAnalyzer()).setCodec(codec);
+            try (IndexWriter mergeWriter = new IndexWriter(dir, iwcMerge)) {
+                mergeWriter.forceMerge(1);
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                float oversample = ESNextRescoreOversampleTestFixture.persistedOversampleOnLeaf(reader.leaves().getFirst().reader());
+                assertTrue(Float.isFinite(oversample));
+                assertThat(oversample, greaterThan(0f));
+            }
+        }
+    }
+
+    private void assertCalibrateFastProducesFiniteConfig(VectorSimilarityFunction similarityFunction) throws IOException {
+        FloatVectorValues vectors = AutoCalibrationVectorFixtures.clusteredHeapVectors(1200, DIM, 8, similarityFunction.ordinal());
+        ManifoldErrorCalibrationSelector selector = new ManifoldErrorCalibrationSelector(VPC);
+        MergeCalibrationContext mergeCtx = new MergeCalibrationContext(1, null, false);
+
+        IvfSegmentConfig config = selector.calibrateFast(vectors, DIM, similarityFunction, vectors.size(), mergeCtx);
+
+        assertThat(config.quantEncoding(), notNullValue());
+        assertTrue(Float.isFinite(config.rescoreOversample()));
+        assertTrue(config.rescoreOversample() > 0f);
+    }
+
+    private static boolean isCandidateEncoding(ESNextDiskBBQVectorsFormat.QuantEncoding encoding) {
+        return Set.of(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC
+        ).contains(encoding);
+    }
+
+    private static SegmentInfo forceMergeSegmentInfo(Directory dir) throws IOException {
+        SegmentInfo info = backgroundSegmentInfo(dir);
+        info.addDiagnostics(Map.of("mergeMaxNumSegments", "1"));
+        return info;
+    }
+
+    /**
+     * Tracks whether full {@link ManifoldErrorCalibrationSelector#calibrate} ran during {@link #select}.
+     */
+    private static class TrackingSelector extends ManifoldErrorCalibrationSelector {
+        int fullCalibrateInvocations;
+
+        TrackingSelector(int vectorsPerCluster) {
+            super(vectorsPerCluster);
+        }
+
+        @Override
+        public IvfSegmentConfig calibrate(FloatVectorValues floatVectorValues, VectorSimilarityFunction similarityFunction)
+            throws IOException {
+            fullCalibrateInvocations++;
+            return super.calibrate(floatVectorValues, similarityFunction);
+        }
     }
 
     private static KnnVectorsReader calibrationReader(LeafReader leaf) throws IOException {

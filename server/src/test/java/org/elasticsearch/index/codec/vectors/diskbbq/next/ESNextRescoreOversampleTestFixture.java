@@ -154,7 +154,7 @@ public final class ESNextRescoreOversampleTestFixture {
         return reader;
     }
 
-    private static void writeTwoCommits(Random rnd, int vectorsPerSegment, int vectorDimensions, Directory dir, IndexWriterConfig iwc)
+    static void writeTwoCommits(Random rnd, int vectorsPerSegment, int vectorDimensions, Directory dir, IndexWriterConfig iwc)
         throws IOException {
         try (IndexWriter writer = new IndexWriter(dir, iwc)) {
             for (int c = 0; c < 2; c++) {

@@ -8,33 +8,22 @@
 package org.elasticsearch.xpack.inference.highlight;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.inference.InferenceString;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xcontent.Text;
-import org.elasticsearch.xpack.inference.mapper.SemanticFieldContent;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper.SemanticFieldType;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SemanticTextFieldType;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.OffsetAndScore;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractOffsetAndScores;
 import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.extractQueries;
-import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkUtils.getContentFromLegacyNestedSources;
 
 /**
  * A {@link Highlighter} designed for the {@link SemanticTextFieldMapper}.
@@ -87,78 +76,24 @@ public class SemanticTextHighlighter implements Highlighter {
             chunks = chunks.subList(0, size);
             chunks.sort(Comparator.comparingInt(OffsetAndScore::index));
         }
-        Text[] snippets = new Text[size];
-        final Function<OffsetAndScore, String> offsetToContent;
-        if (fieldType instanceof SemanticTextFieldType stft && stft.useLegacyFormat()) {
-            List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources(
-                fieldType.getChunksField().fullPath(),
-                fieldContext.hitContext.source().source()
-            );
-            offsetToContent = entry -> getContentFromLegacyNestedSources(fieldType.name(), entry, nestedSources);
-        } else {
-            Map<String, SemanticFieldContent> fieldToContent = new HashMap<>();
-            offsetToContent = entry -> {
-                SemanticFieldContent content = fieldToContent.computeIfAbsent(entry.offset().field(), key -> {
-                    try {
-                        return extractFieldContent(
-                            fieldContext.context.getSearchExecutionContext(),
-                            fieldContext.hitContext,
-                            entry.offset().field()
-                        );
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Error extracting field content from field " + entry.offset().field(), e);
-                    }
-                });
 
-                String offsetContent;
-                if (entry.offset().inputIndex() != null) {
-                    InferenceString inferenceString = content.getInferenceStringValue(entry.offset().inputIndex());
-                    if (inferenceString == null) {
-                        throw new IllegalStateException(
-                            "Invalid content detected for field ["
-                                + entry.offset().field()
-                                + "]: missing InferenceString value at index ["
-                                + entry.offset().inputIndex()
-                                + "]"
-                        );
-                    }
-                    offsetContent = inferenceString.value();
-                } else {
-                    try {
-                        offsetContent = content.getChunkText(entry.offset().start(), entry.offset().end());
-                    } catch (IndexOutOfBoundsException e) {
-                        throw new IllegalStateException("Invalid content detected for field [" + entry.offset().field() + "]", e);
-                    }
-                }
-                return offsetContent;
-            };
-        }
+        ChunkContentExtractor contentExtractor = fieldType instanceof SemanticTextFieldType stft && stft.useLegacyFormat()
+            ? new LegacyChunkContentExtractor(stft, fieldContext)
+            : new SemanticChunkContentExtractor(fieldContext);
+        Text[] snippets = new Text[size];
         for (int i = 0; i < size; i++) {
             var chunk = chunks.get(i);
 
             String content;
             try {
-                content = offsetToContent.apply(chunk);
+                content = contentExtractor.getContent(chunk);
             } catch (Exception e) {
                 throw new IllegalStateException("Internal error encountered while highlighting on field [" + fieldType.name() + "]", e);
             }
 
             snippets[i] = new Text(content);
         }
+
         return new HighlightField(fieldContext.fieldName, snippets);
-    }
-
-    private SemanticFieldContent extractFieldContent(
-        SearchExecutionContext searchContext,
-        FetchSubPhase.HitContext hitContext,
-        String sourceField
-    ) throws IOException {
-        var sourceFieldType = searchContext.getMappingLookup().getFieldType(sourceField);
-        if (sourceFieldType == null) {
-            throw new IllegalStateException("Field [" + sourceField + "] is not mapped");
-        }
-
-        List<Object> rawFieldValues = HighlightUtils.loadFieldValues(sourceFieldType, searchContext, hitContext);
-        return new SemanticFieldContent(rawFieldValues);
     }
 }

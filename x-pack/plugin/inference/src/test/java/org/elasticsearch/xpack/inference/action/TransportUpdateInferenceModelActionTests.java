@@ -72,7 +72,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -206,15 +205,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockBuildModelFromConfigAndSecretsToReturnNewModel();
 
         doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(6);
             listener.onFailure(new RuntimeException("validation failed"));
             return Void.TYPE;
         }).when(service)
             .infer(
                 any(GoogleVertexAiEmbeddingsModel.class),
-                isNull(),
-                isNull(),
-                isNull(),
                 anyList(),
                 anyBoolean(),
                 anyMap(),
@@ -513,7 +509,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private void mockServiceInferCallToReturnDenseEmbeddingFloatResults() {
         doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(6);
             listener.onResponse(
                 new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
             );
@@ -521,9 +517,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(service)
             .infer(
                 any(GoogleVertexAiEmbeddingsModel.class),
-                isNull(),
-                isNull(),
-                isNull(),
                 anyList(),
                 anyBoolean(),
                 anyMap(),

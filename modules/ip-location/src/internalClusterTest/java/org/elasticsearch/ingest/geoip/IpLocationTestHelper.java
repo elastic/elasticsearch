@@ -98,6 +98,21 @@ public final class IpLocationTestHelper {
         Object expectedValue
     ) throws IOException {
         IpLocationService service = cluster.getAnyMasterNodeInstance(IpLocationService.class);
+        assertDatabaseAvailable(service, projectId, databaseFile, ip, expectedField, expectedValue);
+    }
+
+    /**
+     * Asserts that the given database is available and that a lookup for the
+     * given IP returns the expected value for the specified field.
+     */
+    public static void assertDatabaseAvailable(
+        IpLocationService service,
+        String projectId,
+        String databaseFile,
+        String ip,
+        String expectedField,
+        Object expectedValue
+    ) throws IOException {
         IpDataLookup lookup = service.createIpDataLookup(projectId, databaseFile, null);
         assertNotNull("database [" + databaseFile + "] should be available", lookup);
         Map<String, Object> result = lookup.lookup(ip);

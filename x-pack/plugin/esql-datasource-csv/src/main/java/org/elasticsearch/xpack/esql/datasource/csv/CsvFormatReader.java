@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
@@ -110,7 +110,9 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
  *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
- *   <tr><td>{@code multi_value_syntax}</td><td>{@code brackets}</td><td>Multi-value field syntax</td></tr>
+ *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td>
+ *       <td>Multi-value field syntax; see "Bracket multi-value syntax" below for the
+ *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
  *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
  *       <td>When {@code false}, no header row is read; column names are synthesized from
@@ -951,254 +953,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
-            return findNextRecordBoundaryQuotedFieldsOnly(stream);
-        }
-        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
-        int markLimit = recordBoundaryMarkLimit();
-        long maxMvcSuffixBytes = Math.max(0L, markLimit - 1L);
-        return findNextRecordBoundaryBracketCommaMvc(bis, markLimit, maxMvcSuffixBytes);
+        return recordSplitter().findNextRecordBoundary(stream);
     }
 
-    /**
-     * Override the SPI default for the QuotedFieldsOnly path so the streaming segmentator gets a
-     * single-pass answer instead of dispatching the per-record scanner once per record.
-     * Bracket-comma MVC stays on the inherited default — its scanner has no per-call bulk
-     * allocation, and the bracket-region state machine (depth, leading-whitespace gating,
-     * mark limit) is non-trivial to fold into a single pass.
-     */
     @Override
     public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
-            return findLastRecordBoundaryQuotedFieldsOnly(buf, length);
-        }
-        return SegmentableFormatReader.super.findLastRecordBoundary(buf, length);
+        return recordSplitter().findLastRecordBoundary(buf, length);
     }
 
-    /**
-     * Quoting rule mirrors the tokenizer {@link #readCsvRecord}: a {@code quoteChar} opens a quoted field
-     * only at field start (after an unquoted {@code delimiter} or {@code \n}, optionally past field-leading
-     * whitespace); a mid-field {@code quoteChar} is a literal and does not toggle quote state.
-     * <p>
-     * Best-effort/open-tail contract: the scan assumes the buffer begins at a record boundary and advances
-     * {@code lastBoundary} only on a true unquoted {@code \n}. So a chunk the segmentator cut mid-record
-     * yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
-     * {@code inQuotes == true} so its trailing {@code \n}s are skipped — the rule the grow loop requires.
-     */
-    private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
-        if (length <= 0) {
-            return -1;
-        }
-        int lastBoundary = -1;
-        boolean inQuotes = false;
-        boolean fieldHasNonWhitespace = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        byte delimAsByte = (byte) options.delimiter();
-        for (int i = 0; i < length; i++) {
-            byte b = buf[i];
-            if (inQuotes) {
-                if (b == quoteAsByte) {
-                    if (i + 1 < length && buf[i + 1] == quoteAsByte) {
-                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
-                        i++;
-                    } else {
-                        inQuotes = false;
-                    }
-                }
-                continue;
-            }
-            if (b == '\n') {
-                // only true unquoted '\n's advance the boundary (see open-tail contract above)
-                lastBoundary = i;
-                fieldHasNonWhitespace = false;
-            } else if (b == delimAsByte) {
-                fieldHasNonWhitespace = false;
-            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-            } else if (isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
-                fieldHasNonWhitespace = true;
-            }
-        }
-        return lastBoundary;
+    @Override
+    public RecordSplitter recordSplitter() {
+        return recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
 
-    /**
-     * Upper bound for {@link BufferedInputStream#mark(int)} while probing bracket MVC cells during record-boundary
-     * scans. Matches {@link CsvFormatOptions#maxFieldSize()} so an unclosed bracket cell cannot invalidate the mark
-     * before we reset and treat {@code [} as a literal byte.
-     */
-    private int recordBoundaryMarkLimit() {
-        int maxField = options.maxFieldSize();
-        if (maxField <= 0) {
-            return Math.min(64 * 1024 * 1024, Integer.MAX_VALUE - 8);
-        }
-        return Math.min(maxField + 1024, Integer.MAX_VALUE - 8);
+    @Override
+    public RecordSplitter recordSplitter(int maxRecordBytes) {
+        return new CsvRecordSplitter(options, maxRecordBytes);
     }
 
-    /**
-     * Bytes consumed after an opening {@code [} until bracket depth returns to zero, or {@code -1} if EOF was reached
-     * first or the scan exceeded {@link CsvFormatOptions#maxFieldSize()} (unclosed cell).
-     */
-    private long consumeBracketMvcSuffixBytes(BufferedInputStream in, long maxSuffixBytes) throws IOException {
-        int depth = 1;
-        long bytes = 0;
-        while (depth > 0) {
-            if (bytes >= maxSuffixBytes) {
-                return -1;
-            }
-            int ib = in.read();
-            if (ib == -1) {
-                return -1;
-            }
-            bytes++;
-            byte b = (byte) ib;
-            if (b == '[') {
-                depth++;
-            } else if (b == ']') {
-                depth--;
-            }
-        }
-        return bytes;
-    }
-
-    private static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
+    static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
         return ib == ' ' || ib == '\t' || ib == '\f';
-    }
-
-    /**
-     * Record boundary scan for comma-delimited CSV with bracket MVC. Newlines inside {@code [..]} or quoted fields
-     * must not end the record. Quote opening follows RFC 4180 — only at field start, optionally preceded by whitespace
-     * — so stray {@code "} chars in unquoted cells do not trigger multi-line gluing or pathological segment splits.
-     */
-    private long findNextRecordBoundaryBracketCommaMvc(BufferedInputStream bis, int markLimit, long maxMvcSuffixBytes) throws IOException {
-        long consumed = 0;
-        boolean inQuotes = false;
-        boolean fieldHasNonWhitespace = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        byte escAsByte = (byte) options.escapeChar();
-        byte delimAsByte = (byte) options.delimiter();
-
-        while (true) {
-            int ib = bis.read();
-            if (ib == -1) {
-                return -1;
-            }
-            consumed++;
-            byte b = (byte) ib;
-
-            if (inQuotes) {
-                if (b == quoteAsByte) {
-                    bis.mark(2);
-                    int ib2 = bis.read();
-                    if (ib2 == -1) {
-                        inQuotes = false;
-                        continue;
-                    }
-                    if ((byte) ib2 == quoteAsByte) {
-                        consumed++;
-                        continue;
-                    }
-                    bis.reset();
-                    inQuotes = false;
-                } else if (b == escAsByte) {
-                    bis.mark(2);
-                    int ib2 = bis.read();
-                    if (ib2 != -1 && (byte) ib2 == delimAsByte) {
-                        consumed++;
-                        continue;
-                    }
-                    bis.reset();
-                }
-                continue;
-            }
-
-            if (b == '\n') {
-                return consumed;
-            }
-            if (b == delimAsByte) {
-                fieldHasNonWhitespace = false;
-                continue;
-            }
-            if (b == quoteAsByte && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-                continue;
-            }
-            if (b == '[' && fieldHasNonWhitespace == false) {
-                bis.mark(markLimit);
-                long suffix = consumeBracketMvcSuffixBytes(bis, maxMvcSuffixBytes);
-                if (suffix >= 0) {
-                    consumed += suffix;
-                    fieldHasNonWhitespace = true;
-                    continue;
-                }
-                bis.reset();
-                fieldHasNonWhitespace = true;
-                continue;
-            }
-            if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
-                fieldHasNonWhitespace = true;
-            }
-        }
-    }
-
-    /**
-     * Returns the next byte without consuming it (or {@code -1} at EOF). Encapsulates the single-byte
-     * {@code mark}/{@code read}/{@code reset} so callers cannot invalidate the mark with a second read.
-     */
-    private static int peekByte(BufferedInputStream bis) throws IOException {
-        bis.mark(1);
-        int b = bis.read();
-        bis.reset();
-        return b;
-    }
-
-    /**
-     * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
-     * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
-     * Applies the same field-start quoting rule as the actual tokenizer {@link #readCsvRecord} and as
-     * {@link #findNextRecordBoundaryBracketCommaMvc}: a {@code quoteChar} opens a quoted field only at
-     * field start (optionally after field-leading whitespace); a mid-field {@code quoteChar} is a
-     * literal and does not toggle quote state. Returns the byte count up to and including the first
-     * record-terminating {@code \n} that is outside a quoted field, or {@code -1} at EOF.
-     */
-    private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
-        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
-        long consumed = 0;
-        boolean inQuotes = false;
-        boolean fieldHasNonWhitespace = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        byte delimAsByte = (byte) options.delimiter();
-        while (true) {
-            int ib = bis.read();
-            if (ib == -1) {
-                return -1;
-            }
-            consumed++;
-            byte b = (byte) ib;
-            if (inQuotes) {
-                if (b == quoteAsByte) {
-                    // A doubled "" is a literal (stay in quotes); a lone " closes the field. peekByte
-                    // leaves the non-doubled byte in the stream to be re-read by the next iteration.
-                    if ((byte) peekByte(bis) == quoteAsByte) {
-                        bis.read(); // consume the second quote of the doubled pair
-                        consumed++;
-                        continue;
-                    }
-                    inQuotes = false;
-                }
-                continue;
-            }
-            if (b == '\n') {
-                return consumed;
-            }
-            if (b == delimAsByte) {
-                fieldHasNonWhitespace = false;
-            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-            } else if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
-                fieldHasNonWhitespace = true;
-            }
-        }
     }
 
     @Override
@@ -1337,16 +1111,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * context terminates the record — lone {@code \r} outside quotes also terminates (for
      * {@code \r}-only line-ending files) but is not included in the returned string.
      *
-     * <p>Mirrors the quoting contract of {@link #findNextRecordBoundaryBracketCommaMvc} and
-     * {@link #findNextRecordBoundaryQuotedFieldsOnly}.
+     * <p>Mirrors the quoting contract of {@link CsvRecordSplitter}.
      *
      * <p><b>Divergence from chunk-layer boundary scanners:</b>
-     * {@link #findNextRecordBoundaryBracketCommaMvc} and {@link #findNextRecordBoundaryQuotedFieldsOnly}
-     * treat lone {@code \r} outside quotes as data (only {@code \n} terminates). This method treats
-     * unquoted lone {@code \r} as a record terminator (Mac-classic line endings). The divergence is
-     * acceptable because macro-split boundaries are always re-aligned at the row layer, and Mac-classic
-     * files are vanishingly rare in modern data pipelines. A future unification under a single record
-     * splitter SPI will reconcile both layers.
+     * {@link CsvRecordSplitter} treats lone {@code \r} outside quotes as data (only {@code \n} terminates).
+     * This method treats unquoted lone {@code \r} as a record terminator (Mac-classic line endings). The divergence is
+     * acceptable because macro-split boundaries are always re-aligned at the row layer, and Mac-classic files are
+     * vanishingly rare in modern data pipelines. A future byte row-reader will reconcile both layers.
      *
      * <p>Uses the same ASCII-only whitespace predicate ({@code ' '}, {@code '\t'}, {@code '\f'}) as
      * the boundary scanners for field-start detection, via {@link #isAsciiCsvFieldLeadingWhitespace}.

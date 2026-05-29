@@ -34,7 +34,9 @@ import java.nio.ByteBuffer;
  *       common path) fails immediately and loudly instead of corrupting results. Cost is a handful
  *       of bytes written per buffer free — negligible against any real scan, so it is safe to leave
  *       enabled in production and on a performance run. When disabled the hot path is a single
- *       field read.</li>
+ *       field read. Note: on a coalesced buffer (one {@code DirectReadBuffer} spanning several
+ *       merged ranges) only the first constituent's header sits in the poisoned region; a
+ *       use-after-free deeper in the buffer is caught only by the full-buffer mode below.</li>
  *   <li><b>{@code es.arrow.debug_buffers}</b> (default: on when assertions are enabled) — the
  *       thorough, opt-in mode for a correctness-validation pass. Poisons the <em>whole</em> buffer
  *       and enables {@link DirectReadBuffer}'s allocation/free stack-trace capture plus its
@@ -73,7 +75,7 @@ public final class DirectMemoryDebug {
      * Whether the thorough debug mode ({@code es.arrow.debug_buffers}) is on. {@link DirectReadBuffer}
      * gates its allocation/free stack-trace capture and its double-free / use-after-close checks on this.
      */
-    public static boolean trackingEnabled() {
+    static boolean trackingEnabled() {
         return DEBUG_TRACKING;
     }
 

@@ -24,8 +24,7 @@ import java.nio.ByteBuffer;
  * The caller must invoke {@link #close()} once the bytes have been consumed: closing decrements
  * the {@code ArrowBuf}'s reference count, which is what actually returns the memory to the
  * underlying allocator. Closing the allocator alone is not enough — Arrow's
- * {@code BaseAllocator.close()} treats outstanding {@code ArrowBuf}s as a leak (see
- * esql-planning#851).
+ * {@code BaseAllocator.close()} treats outstanding {@code ArrowBuf}s as a leak.
  *
  * <p>Using {@link #buffer()} after {@link #close()} reads dangling memory; the underlying chunk
  * may have been recycled into another allocation.

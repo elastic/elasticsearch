@@ -2298,6 +2298,13 @@ public class EsqlCapabilities {
         FIX_SUM_AGG_LONG_OVERFLOW,
 
         /**
+         * AVG(long) casts the field to double up-front in its surrogate, so the intermediate sum
+         * can no longer overflow.
+         * https://github.com/elastic/elasticsearch/issues/99575
+         */
+        FIX_AVG_AGG_LONG_OVERFLOW,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD(Build.current().isSnapshot()),
@@ -2931,6 +2938,11 @@ public class EsqlCapabilities {
          * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
          */
         FIRST_AGG_EXTENDED_TYPES,
+
+        /**
+         * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram, tdigest.
+         */
+        FIRST_AGG_EXTENDED_TYPES_2,
 
         /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.

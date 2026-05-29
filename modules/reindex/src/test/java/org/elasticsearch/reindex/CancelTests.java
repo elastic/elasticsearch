@@ -22,8 +22,8 @@ import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -78,7 +78,7 @@ public class CancelTests extends ReindexTestCase {
      * Executes the cancellation test
      */
     private void testCancel(
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder,
         CancelAssertion assertion,
         Matcher<String> taskDescriptionMatcher
@@ -113,7 +113,7 @@ public class CancelTests extends ReindexTestCase {
         ALLOWED_OPERATIONS.release(numModifiedDocs - request.getSlices());
 
         // Now execute the reindex action...
-        ActionFuture<? extends BulkByScrollResponse> future = client().execute(action, request);
+        ActionFuture<? extends BulkByPaginatedSearchResponse> future = client().execute(action, request);
 
         /* ... and wait for the indexing operation listeners to block. It
          * is important to realize that some of the workers might have
@@ -178,7 +178,7 @@ public class CancelTests extends ReindexTestCase {
         });
 
         // And check the status of the response
-        BulkByScrollResponse response;
+        BulkByPaginatedSearchResponse response;
         try {
             response = future.get(30, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -311,7 +311,7 @@ public class CancelTests extends ReindexTestCase {
      * Used to check the result of the cancel test.
      */
     private interface CancelAssertion {
-        void assertThat(BulkByScrollResponse response, int total, int modified);
+        void assertThat(BulkByPaginatedSearchResponse response, int total, int modified);
     }
 
     public static class ReindexCancellationPlugin extends Plugin {

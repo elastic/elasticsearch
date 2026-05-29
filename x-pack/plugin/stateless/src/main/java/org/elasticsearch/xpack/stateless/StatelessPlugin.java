@@ -144,6 +144,7 @@ import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSett
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
+import org.elasticsearch.xpack.stateless.cache.TimeSlottedAccumulator;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
 import org.elasticsearch.xpack.stateless.cache.WarmingRatioProviderFactory;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
@@ -1259,6 +1260,9 @@ public class StatelessPlugin extends Plugin
             SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING,
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB,
+            TimeSlottedAccumulator.TIME_SLOTS_GRANULARITY_SETTING,
+            TimeSlottedAccumulator.TIME_SLOTS_PAST_COUNT_SETTING,
+            TimeSlottedAccumulator.TIME_SLOTS_FUTURE_COUNT_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,

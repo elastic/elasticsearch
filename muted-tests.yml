@@ -454,9 +454,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/149586
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testStatsWithMultiBucket
-  issue: https://github.com/elastic/elasticsearch/issues/149595
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
@@ -673,9 +670,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSlicesDenseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150152
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testRenameBucketColumnHasNoMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/150154
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
@@ -703,3 +697,13 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testDimensionMismatch
   issue: https://github.com/elastic/elasticsearch/issues/150191
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSearchBoost
+  issue: https://github.com/elastic/elasticsearch/issues/150211
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/150214
+- class: org.elasticsearch.test.rest.yaml.CcsVectorsYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/150217
+- class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/150217

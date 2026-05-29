@@ -19,7 +19,6 @@ import java.util.Optional;
 public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
 
     public static final String PROFILE_PREFIX = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.profile.";
-    public static final String FILTER_FIELD = QueryLogging.ES_QUERY_FIELDS_PREFIX + "esql.filter";
 
     @Override
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
@@ -36,7 +35,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
                 }
             }
         });
-        context.getFilter().ifPresent(filter -> msg.field(FILTER_FIELD, filter));
+        context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
 
         var clusters = context.getClusters();
         var remotes = context.getRemoteClusterAliases(clusters);

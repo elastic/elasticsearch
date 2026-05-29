@@ -454,9 +454,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
   issue: https://github.com/elastic/elasticsearch/issues/149586
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testStatsWithMultiBucket
-  issue: https://github.com/elastic/elasticsearch/issues/149595
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testStress
   issue: https://github.com/elastic/elasticsearch/issues/147850
@@ -658,9 +655,6 @@ tests:
 - class: org.elasticsearch.index.query.IntervalQueryBuilderTests
   method: testCacheability
   issue: https://github.com/elastic/elasticsearch/issues/150117
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testOutageBuffersToDiskAndDrainsOnRecovery
-  issue: https://github.com/elastic/elasticsearch/issues/150120
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/150123
@@ -673,9 +667,6 @@ tests:
 - class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
   method: testSlicesDenseWithFilter
   issue: https://github.com/elastic/elasticsearch/issues/150152
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testRenameBucketColumnHasNoMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/150154
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155
@@ -697,3 +688,22 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
   issue: https://github.com/elastic/elasticsearch/issues/150188
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testFilterWithNoVectorMatches
+  issue: https://github.com/elastic/elasticsearch/issues/150190
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testDimensionMismatch
+  issue: https://github.com/elastic/elasticsearch/issues/150191
+- class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
+  method: testSearchBoost
+  issue: https://github.com/elastic/elasticsearch/issues/150211
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/150214
+- class: org.elasticsearch.test.rest.yaml.CcsVectorsYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/150217
+- class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/150217
+- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
+  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
+  issue: https://github.com/elastic/elasticsearch/issues/150226

@@ -226,6 +226,8 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
+        new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
+        new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),

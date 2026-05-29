@@ -21,7 +21,7 @@ public interface TimestampAccumulator {
 
     /**
      * Adds {@code delta} (can be negative to subtract) to the count in the slot containing {@code timestampMillis}.
-     * Callers are expected to keep per-slot counts non-negative; use the return value to verify that invariant.
+     * If callers are expected to keep per-slot counts non-negative, use the return value to verify that invariant.
      *
      * @return the slot count after applying {@code delta}
      */

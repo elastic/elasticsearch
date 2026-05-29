@@ -434,13 +434,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
             .prepareGetSettings(TEST_REQUEST_TIMEOUT, firstGenerationFailureIndex)
             .get();
 
-        assertThat(
-            settingsResponse.getSetting(
-                firstGenerationFailureIndex,
-                IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS
-            ),
-            equalTo("0-1")
-        );
+        assertThat(settingsResponse.getSetting(firstGenerationFailureIndex, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
         assertThat(firstGenerationFailureIndex, dataStreamIndexEqualTo(dataStreamName, 2, true));
 
         // prevent new indices from being created (ie. future rollovers)

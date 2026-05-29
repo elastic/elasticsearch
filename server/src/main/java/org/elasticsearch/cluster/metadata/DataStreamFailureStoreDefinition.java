@@ -217,8 +217,8 @@ public class DataStreamFailureStoreDefinition {
             builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
         }
 
-        if (builder.keys().contains(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == false &&
-            builder.keys().contains(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS) == false) {
+        if (builder.keys().contains(IndexMetadata.SETTING_NUMBER_OF_REPLICAS) == false
+            && builder.keys().contains(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS) == false) {
 
             builder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
         }

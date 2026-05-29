@@ -473,6 +473,13 @@ FROM my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001
 | LIMIT 10
 ```
 
+{applies_to}`stack: ga 9.5` The form `-my_cluster:my_index` is also accepted as an alternative for `my_cluster:-my_index` (the two are equivalent for any non-`*` index pattern). For example, the following query is equivalent to the one above:
+
+```esql
+FROM my-index-000001,cluster*:my-index-*,-cluster_three:my-index-000001
+| LIMIT 10
+```
+
 
 ## Skipping problematic remote clusters [ccq-skip-unavailable-clusters]
 

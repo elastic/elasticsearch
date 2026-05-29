@@ -125,7 +125,7 @@ public class RemoteClusterAwareTests extends ESTestCase {
         assertThat(groupedIndices.get("cluster2"), containsInAnyOrder("*", "index*", "index1", "-noindex"));
     }
 
-    public void testGroupClusterIndicesRemoteIndexExclusionSugar() {
+    public void testGroupClusterIndicesRemoteIndexExclusionAlternativeFormat() {
         RemoteClusterAwareTest remoteClusterAware = new RemoteClusterAwareTest();
         Set<String> remoteClusterNames = Set.of("cluster1", "cluster2", "some-cluster3");
 

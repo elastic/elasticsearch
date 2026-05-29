@@ -350,7 +350,9 @@ public class CrossProjectIndexResolutionValidator {
                 }
                 return new IndexNotFoundException(remoteExpression);
             } else {
-                assert hasProjectWildcardExclusion(localExpressions, projectAlias)
+                assert localExpressions.expressions()
+                    .stream()
+                    .anyMatch(e -> e.remoteExpressions().stream().anyMatch(Strings.format("-%s:*", projectAlias)::equals))
                     : Strings.format("Expected cluster exclusion for %s", projectAlias);
 
                 return checkResolutionFailure(
@@ -375,14 +377,6 @@ public class CrossProjectIndexResolutionValidator {
         }
 
         return checkResolutionFailure(matchingExpression, remoteExpression, indicesOptions);
-    }
-
-    private static boolean hasProjectWildcardExclusion(ResolvedIndexExpressions localExpressions, String projectAlias) {
-        final String aliasPrefixForm = Strings.format("-%s:*", projectAlias);
-        final String indexPrefixForm = Strings.format("%s:-*", projectAlias);
-        return localExpressions.expressions()
-            .stream()
-            .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.equals(aliasPrefixForm) || r.equals(indexPrefixForm)));
     }
 
     private static boolean hasProjectExclusionPrefix(ResolvedIndexExpressions localExpressions, String projectAlias) {

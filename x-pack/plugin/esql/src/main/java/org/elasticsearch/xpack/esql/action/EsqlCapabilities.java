@@ -1418,6 +1418,13 @@ public class EsqlCapabilities {
         TO_COUNTER,
 
         /**
+         * Support for {@code TO_GAUGE} function and the {@code ::gauge} cast operator, which converts
+         * {@code counter_long}, {@code counter_integer}, and {@code counter_double} values to their
+         * plain numeric (gauge) equivalents.
+         */
+        TO_GAUGE,
+
+        /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
         TO_LOWER_EMPTY_STRING,
@@ -2282,6 +2289,13 @@ public class EsqlCapabilities {
          * Makes SUM(long) agg return null+warning instead of a 500 overflow.
          */
         FIX_SUM_AGG_LONG_OVERFLOW,
+
+        /**
+         * AVG(long) casts the field to double up-front in its surrogate, so the intermediate sum
+         * can no longer overflow.
+         * https://github.com/elastic/elasticsearch/issues/99575
+         */
+        FIX_AVG_AGG_LONG_OVERFLOW,
 
         /**
          * Support for requesting the "_tier" metadata field.

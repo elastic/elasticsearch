@@ -145,7 +145,7 @@ The connector service has the following known issues:
 
     Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar; navigating to it returned a 403.
 
-    **Affected versions**: Kibana 9.0 through 9.4 prior to the fix. Earlier versions are unaffected because the Content Connectors UI was introduced in 9.0.
+    **Affected versions**: Kibana 9.0 through 9.4.
 
     **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3, 9.4, and 9.5. The management app is now registered synchronously in `setup()` so Kibana's capability sweep correctly hides it for users without the `content_connectors` capability.
 

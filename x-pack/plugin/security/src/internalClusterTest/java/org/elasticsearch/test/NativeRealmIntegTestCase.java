@@ -20,8 +20,8 @@ import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
 
@@ -67,9 +67,11 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
      */
     private void awaitSecurityIndexAvailableOnAllNodes() throws Exception {
         assertBusy(() -> {
-            for (SecuritySystemIndices systemIndices : internalCluster().getInstances(SecuritySystemIndices.class)) {
+            for (NativePrivilegeStore privilegeStore : internalCluster().getInstances(NativePrivilegeStore.class)) {
                 assertThat(
-                    systemIndices.getMainIndexManager().forCurrentProject().isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS),
+                    privilegeStore.getSecurityIndexManager()
+                        .forCurrentProject()
+                        .isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS),
                     is(true)
                 );
             }

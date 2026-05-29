@@ -40,8 +40,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
@@ -216,18 +220,34 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
         }
 
-        private DenseEmbeddingFloatResults makeTextEmbeddingResults(List<String> input, ServiceSettings serviceSettings) {
-            List<DenseEmbeddingFloatResults.Embedding> embeddings = new ArrayList<>();
+        private DenseEmbeddingResults<?> makeTextEmbeddingResults(List<String> input, ServiceSettings serviceSettings) {
+            List<List<Float>> floatEmbeddings = new ArrayList<>();
             for (String inputString : input) {
-                List<Float> floatEmbeddings = generateEmbedding(
-                    inputString,
-                    serviceSettings.dimensions(),
-                    serviceSettings.elementType(),
-                    serviceSettings.similarity()
+                floatEmbeddings.add(
+                    generateEmbedding(
+                        inputString,
+                        serviceSettings.dimensions(),
+                        serviceSettings.elementType(),
+                        serviceSettings.similarity()
+                    )
                 );
-                embeddings.add(DenseEmbeddingFloatResults.Embedding.of(floatEmbeddings));
             }
-            return new DenseEmbeddingFloatResults(embeddings);
+
+            return switch (serviceSettings.elementType()) {
+                case FLOAT, BFLOAT16 -> new DenseEmbeddingFloatResults(
+                    floatEmbeddings.stream().map(DenseEmbeddingFloatResults.Embedding::of).toList()
+                );
+                case BYTE -> new DenseEmbeddingByteResults(
+                    floatEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList()
+                );
+                case BIT -> new DenseEmbeddingBitResults(
+                    floatEmbeddings.stream()
+                        .map(floats -> EmbeddingByteResults.Embedding.of(floats.stream().map(f -> (byte) f.floatValue()).toList()))
+                        .toList()
+                );
+            };
         }
 
         private InferenceServiceResults makeGenericEmbeddingResults(List<InferenceStringGroup> input, ServiceSettings serviceSettings) {
@@ -291,9 +311,9 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var results = new ArrayList<ChunkedInference>();
             for (ChunkInferenceInput input : inputs) {
                 List<ChunkedInput> chunkedInput = chunkInputs(input);
-                List<DenseEmbeddingFloatResults.Chunk> chunks = chunkedInput.stream()
+                List<EmbeddingResults.Chunk> chunks = chunkedInput.stream()
                     .map(
-                        c -> new DenseEmbeddingFloatResults.Chunk(
+                        c -> new EmbeddingResults.Chunk(
                             makeTextEmbeddingResults(List.of(c.input()), serviceSettings).embeddings().get(0),
                             new ChunkedInference.TextOffset(c.startOffset(), c.endOffset())
                         )

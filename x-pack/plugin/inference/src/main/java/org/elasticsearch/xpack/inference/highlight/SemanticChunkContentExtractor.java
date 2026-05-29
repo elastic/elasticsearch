@@ -21,11 +21,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SemanticChunkContentExtractor implements ChunkContentExtractor {
+class SemanticChunkContentExtractor implements ChunkContentExtractor {
     private final FieldHighlightContext context;
     private final Map<String, SemanticFieldContent> fieldToContent;
 
-    public SemanticChunkContentExtractor(FieldHighlightContext context) {
+    SemanticChunkContentExtractor(FieldHighlightContext context) {
         this.context = context;
         this.fieldToContent = new HashMap<>();
     }

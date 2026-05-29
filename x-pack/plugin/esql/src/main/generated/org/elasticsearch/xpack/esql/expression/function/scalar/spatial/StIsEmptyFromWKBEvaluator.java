@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -29,14 +31,17 @@ public final class StIsEmptyFromWKBEvaluator implements ExpressionEvaluator {
 
   private final ExpressionEvaluator wkbBlock;
 
+  private final BytesRef scratch;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StIsEmptyFromWKBEvaluator(Source source, ExpressionEvaluator wkbBlock,
+  public StIsEmptyFromWKBEvaluator(Source source, ExpressionEvaluator wkbBlock, BytesRef scratch,
       DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
+    this.scratch = scratch;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +71,7 @@ public final class StIsEmptyFromWKBEvaluator implements ExpressionEvaluator {
           continue position;
         }
         try {
-          StIsEmpty.fromWellKnownBinary(result, p, wkbBlockBlock);
+          StIsEmpty.fromWellKnownBinary(result, p, wkbBlockBlock, this.scratch);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -98,14 +103,18 @@ public final class StIsEmptyFromWKBEvaluator implements ExpressionEvaluator {
 
     private final ExpressionEvaluator.Factory wkbBlock;
 
-    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock) {
+    private final Function<DriverContext, BytesRef> scratch;
+
+    public Factory(Source source, ExpressionEvaluator.Factory wkbBlock,
+        Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.wkbBlock = wkbBlock;
+      this.scratch = scratch;
     }
 
     @Override
     public StIsEmptyFromWKBEvaluator get(DriverContext context) {
-      return new StIsEmptyFromWKBEvaluator(source, wkbBlock.get(context), context);
+      return new StIsEmptyFromWKBEvaluator(source, wkbBlock.get(context), scratch.apply(context), context);
     }
 
     @Override

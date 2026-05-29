@@ -700,3 +700,6 @@ tests:
 - class: org.elasticsearch.search.vectors.IVFKnnFloatSlicedVectorQueryTests
   method: testSearchBoost
   issue: https://github.com/elastic/elasticsearch/issues/150211
+- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
+  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
+  issue: https://github.com/elastic/elasticsearch/issues/150214

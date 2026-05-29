@@ -143,8 +143,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         // PIT searches must not set explicit indices on SearchRequest (see ReindexRequest#convertSearchRequestToUsePit)
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -238,8 +240,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -345,8 +349,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
 
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))
@@ -440,8 +446,10 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
 
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(request))
-            .actionGet();
+        ResumeBulkByScrollResponse resumeResponse = client().execute(
+            ResumeReindexAction.INSTANCE,
+            new ResumeBulkByPaginatedSearchRequest(request)
+        ).actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
             .setWaitForCompletion(true)
             .setTimeout(TimeValue.timeValueSeconds(30))

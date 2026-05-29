@@ -33,8 +33,10 @@ public class ResumeBulkByPaginatedSearchRequest extends ActionRequest implements
         this.delegate = Objects.requireNonNull(delegate, "delegate request cannot be null");
     }
 
-    public ResumeBulkByPaginatedSearchRequest(StreamInput in, Writeable.Reader<? extends AbstractBulkByPaginatedSearchRequest<?>> delegateReader)
-        throws IOException {
+    public ResumeBulkByPaginatedSearchRequest(
+        StreamInput in,
+        Writeable.Reader<? extends AbstractBulkByPaginatedSearchRequest<?>> delegateReader
+    ) throws IOException {
         super(in);
         this.delegate = delegateReader.read(in);
     }

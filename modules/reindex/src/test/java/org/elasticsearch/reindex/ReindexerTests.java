@@ -395,7 +395,8 @@ public class ReindexerTests extends ESTestCase {
             TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
             handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
             return null;
-        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
+        }).when(transportService)
+            .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -544,7 +545,8 @@ public class ReindexerTests extends ESTestCase {
             TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
             handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
             return null;
-        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
+        }).when(transportService)
+            .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -563,7 +565,12 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
         assertTrue(future.isDone());
-        verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
+        verify(transportService).sendRequest(
+            eq(targetNode),
+            eq(ResumeReindexAction.NAME),
+            any(ResumeBulkByPaginatedSearchRequest.class),
+            any()
+        );
         verify(resumeListener).onResponse(any());
         verifyNoMoreInteractions(resumeListener);
     }

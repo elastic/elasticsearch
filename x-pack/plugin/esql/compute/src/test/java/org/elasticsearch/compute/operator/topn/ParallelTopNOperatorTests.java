@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
@@ -159,7 +160,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
         // the total input because the rest was processed by background workers.
         int totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
         int totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
-        org.elasticsearch.test.MapMatcher matcher = org.elasticsearch.test.MapMatcher.matchesMap().extraOk();
+        MapMatcher matcher = MapMatcher.matchesMap().extraOk();
         if (map.containsKey("pages_processed")) {
             matcher = matcher.entry("pages_processed", greaterThanOrEqualTo(0));
         } else {
@@ -169,7 +170,7 @@ public class ParallelTopNOperatorTests extends TopNOperatorTests {
             matcher = matcher.entry("pages_emitted", output.size());
         }
         matcher = matcher.entry("rows_received", lessThanOrEqualTo(totalInputRows)).entry("rows_emitted", totalOutputRows);
-        org.elasticsearch.test.MapMatcher.assertMap(map, matcher);
+        MapMatcher.assertMap(map, matcher);
     }
 
     /**

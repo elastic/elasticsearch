@@ -245,6 +245,21 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Hard cap on the number of background worker threads a single
+     * {@link org.elasticsearch.compute.operator.topn.ParallelTopNOperator} may use. The actual
+     * worker count is {@code max(1, min(this, esql_worker_pool_size / 2))}, so by default
+     * (Integer.MAX_VALUE) the operator uses half the thread pool, leaving the other half
+     * available for concurrent queries. Lower this to bound per-query thread usage.
+     */
+    public static final Setting<Integer> PARALLEL_TOPN_MAX_WORKERS = Setting.intSetting(
+        "esql.parallel_topn_max_workers",
+        Integer.MAX_VALUE,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -263,7 +278,8 @@ public class PlannerSettings {
             BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
             BYTES_REF_RAM_OVERESTIMATE_FACTOR,
             DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
-            PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS
+            PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS,
+            PARALLEL_TOPN_MAX_WORKERS
         );
     }
 
@@ -315,6 +331,7 @@ public class PlannerSettings {
                 PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS,
                 v -> settings.updateAndGet(s -> s.parallelTopNPromotionThresholdRows(v))
             );
+            clusterSettings.initializeAndWatch(PARALLEL_TOPN_MAX_WORKERS, v -> settings.updateAndGet(s -> s.parallelTopNMaxWorkers(v)));
         }
 
         public PlannerSettings get() {
@@ -338,6 +355,7 @@ public class PlannerSettings {
     private final double bytesRefRamOverestimateFactor;
     private final int docSequenceBytesRefFieldThreshold;
     private final long parallelTopNPromotionThresholdRows;
+    private final int parallelTopNMaxWorkers;
 
     /**
      * Defaults.
@@ -358,7 +376,8 @@ public class PlannerSettings {
         BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
         DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
-        PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY)
+        PARALLEL_TOPN_PROMOTION_THRESHOLD_ROWS.getDefault(Settings.EMPTY),
+        PARALLEL_TOPN_MAX_WORKERS.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -380,7 +399,8 @@ public class PlannerSettings {
         ByteSizeValue bytesRefRamOverestimateThreshold,
         double bytesRefRamOverestimateFactor,
         int docSequenceBytesRefFieldThreshold,
-        long parallelTopNPromotionThresholdRows
+        long parallelTopNPromotionThresholdRows,
+        int parallelTopNMaxWorkers
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -398,6 +418,7 @@ public class PlannerSettings {
         this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
         this.parallelTopNPromotionThresholdRows = parallelTopNPromotionThresholdRows;
+        this.parallelTopNMaxWorkers = parallelTopNMaxWorkers;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -417,7 +438,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -442,7 +464,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -467,7 +490,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -506,7 +530,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -531,7 +556,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -556,7 +582,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -581,7 +608,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -613,7 +641,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -641,7 +670,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -669,7 +699,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -694,7 +725,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -719,7 +751,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -744,7 +777,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -769,7 +803,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -794,7 +829,8 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
@@ -819,12 +855,39 @@ public class PlannerSettings {
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
             docSequenceBytesRefFieldThreshold,
-            parallelTopNPromotionThresholdRows
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
         );
     }
 
     public long parallelTopNPromotionThresholdRows() {
         return parallelTopNPromotionThresholdRows;
+    }
+
+    public PlannerSettings parallelTopNMaxWorkers(int parallelTopNMaxWorkers) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            parallelTopNPromotionThresholdRows,
+            parallelTopNMaxWorkers
+        );
+    }
+
+    public int parallelTopNMaxWorkers() {
+        return parallelTopNMaxWorkers;
     }
 
 }

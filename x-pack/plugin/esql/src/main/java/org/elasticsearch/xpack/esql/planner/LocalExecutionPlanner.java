@@ -241,6 +241,7 @@ public class LocalExecutionPlanner {
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     @Nullable
     private final Executor parallelWorkerExecutor;
+    private final int parallelWorkerPoolSize;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -258,7 +259,8 @@ public class LocalExecutionPlanner {
         UserAgentParserRegistry userAgentParserRegistry,
         AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry,
-        @Nullable Executor parallelWorkerExecutor
+        @Nullable Executor parallelWorkerExecutor,
+        int parallelWorkerPoolSize
     ) {
 
         this.sessionId = sessionId;
@@ -277,6 +279,7 @@ public class LocalExecutionPlanner {
         this.physicalOperationProviders = physicalOperationProviders;
         this.operatorFactoryRegistry = operatorFactoryRegistry;
         this.parallelWorkerExecutor = parallelWorkerExecutor;
+        this.parallelWorkerPoolSize = parallelWorkerPoolSize;
     }
 
     /**
@@ -725,9 +728,10 @@ public class LocalExecutionPlanner {
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         TopNOperator.ParallelWorkerConfig parallelWorkerConfig = null;
         if (parallelWorkerExecutor != null && TopNOperator.PARALLEL_TOPN_FEATURE_FLAG.isEnabled()) {
+            int workerCount = Math.max(1, Math.min(context.plannerSettings.parallelTopNMaxWorkers(), parallelWorkerPoolSize / 2));
             parallelWorkerConfig = new TopNOperator.ParallelWorkerConfig(
                 parallelWorkerExecutor,
-                4,
+                workerCount,
                 16,
                 context.plannerSettings.parallelTopNPromotionThresholdRows()
             );

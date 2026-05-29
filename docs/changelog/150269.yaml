@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 150269
+summary: "ES|QL: Only materialize referenced fields in FROM and ENRICH (major memory/CPU improvement for wide mappings)"
+type: enhancement

@@ -44,6 +44,8 @@ public class AnalyzerContext {
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
     private final TimestampBounds timestampBounds;
+    @Nullable
+    private final Set<String> referencedFieldNames;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -73,10 +75,39 @@ public class AnalyzerContext {
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
         this.timestampBounds = timestampBounds;
+        this.referencedFieldNames = null;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
             : "AnalyzerContext [" + minimumVersion + "] is not on or before current transport version [" + TransportVersion.current() + "]";
+    }
+
+    /**
+     * Copy constructor that sets {@link #referencedFieldNames}.
+     */
+    private AnalyzerContext(AnalyzerContext other, @Nullable Set<String> referencedFieldNames) {
+        this.configuration = other.configuration;
+        this.functionRegistry = other.functionRegistry;
+        this.promqlFunctionRegistry = other.promqlFunctionRegistry;
+        this.projectMetadata = other.projectMetadata;
+        this.indexResolution = other.indexResolution;
+        this.lookupResolution = other.lookupResolution;
+        this.linkedResolution = other.linkedResolution;
+        this.enrichResolution = other.enrichResolution;
+        this.inferenceResolution = other.inferenceResolution;
+        this.externalSourceResolution = other.externalSourceResolution;
+        this.minimumVersion = other.minimumVersion;
+        this.unmappedResolution = other.unmappedResolution;
+        this.timestampBounds = other.timestampBounds;
+        this.referencedFieldNames = referencedFieldNames;
+    }
+
+    /**
+     * Returns a new {@code AnalyzerContext} with the given referenced field names.
+     * Pass {@code null} to materialize the full mapping (default).
+     */
+    public AnalyzerContext withReferencedFieldNames(@Nullable Set<String> referencedFieldNames) {
+        return new AnalyzerContext(this, referencedFieldNames);
     }
 
     // for testing only
@@ -106,6 +137,14 @@ public class AnalyzerContext {
             unmappedResolution,
             null
         );
+    }
+
+    /**
+     * Field names requested during pre-analysis for field caps, or {@code null} to materialize the full mapping.
+     */
+    @Nullable
+    public Set<String> referencedFieldNames() {
+        return referencedFieldNames;
     }
 
     public Configuration configuration() {
@@ -219,5 +258,7 @@ public class AnalyzerContext {
             unmappedResolution,
             timestampBounds
         );
+        // Apply pre-analysis field names if available
+        // Note: the withReferencedFieldNames method is used by callers who need partial mapping
     }
 }

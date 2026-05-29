@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
@@ -355,7 +356,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributesForContext(plan.source(), esIndex.mapping(), context.referencedFieldNames());
             attributes.addAll(metadata.stream().map(NamedExpression::toAttribute).toList());
 
             return new EsRelation(
@@ -430,40 +431,128 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return list;
     }
 
+    /**
+     * Like {@link #mappingAsAttributes(Source, Map)} but only materializes the given field names (and subtrees for {@code prefix.*}).
+     */
+    static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping, Collection<String> fieldNames) {
+        for (String fieldName : fieldNames) {
+            if (Regex.isSimpleMatchPattern(fieldName) && fieldName.endsWith(".*") == false) {
+                return mappingAsAttributes(source, mapping);
+            }
+        }
+        var list = new ArrayList<Attribute>();
+        for (String fieldName : fieldNames) {
+            if (MetadataAttribute.INDEX.equals(fieldName)) {
+                continue;
+            }
+            if (fieldName.endsWith(".*")) {
+                String prefix = fieldName.substring(0, fieldName.length() - 2);
+                mappingAsAttributesForPath(list, source, null, mapping, prefix);
+            } else {
+                mappingAsAttributesForPath(list, source, null, mapping, fieldName);
+            }
+        }
+        list.sort(Comparator.comparing(Attribute::name));
+        return list;
+    }
+
+    private static List<Attribute> mappingAsAttributesForContext(
+        Source source,
+        Map<String, EsField> mapping,
+        @Nullable Set<String> referencedFieldNames
+    ) {
+        if (useFullFieldMapping(referencedFieldNames)) {
+            return mappingAsAttributes(source, mapping);
+        }
+        return mappingAsAttributes(source, mapping, referencedFieldNames);
+    }
+
+    private static boolean useFullFieldMapping(@Nullable Set<String> referencedFieldNames) {
+        if (referencedFieldNames == null || referencedFieldNames.isEmpty() || referencedFieldNames.contains("*")) {
+            return true;
+        }
+        for (String fieldName : referencedFieldNames) {
+            if (Regex.isSimpleMatchPattern(fieldName) && fieldName.endsWith(".*") == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Set<String> enrichRequiredFieldNames(Enrich plan, EnrichPolicy policy) {
+        Set<String> names = new HashSet<>();
+        names.add(policy.getMatchField());
+        names.addAll(policy.getEnrichFields());
+        if (plan.enrichFields() != null) {
+            for (NamedExpression enrichField : plan.enrichFields()) {
+                names.add(Expressions.name(enrichField instanceof Alias a ? a.child() : enrichField));
+            }
+        }
+        return names;
+    }
+
+    private static void mappingAsAttributesForPath(
+        List<Attribute> list,
+        Source source,
+        @Nullable String parentName,
+        Map<String, EsField> mapping,
+        String fieldPath
+    ) {
+        int dot = fieldPath.indexOf('.');
+        if (dot < 0) {
+            EsField field = mapping.get(fieldPath);
+            if (field != null) {
+                mappingAsAttributesFromField(list, source, parentName, fieldPath, field);
+            }
+            return;
+        }
+        String head = fieldPath.substring(0, dot);
+        String tail = fieldPath.substring(dot + 1);
+        EsField parent = mapping.get(head);
+        if (parent != null && parent.getProperties().isEmpty() == false) {
+            String qualifiedParent = parentName == null ? head : parentName + "." + head;
+            mappingAsAttributesForPath(list, source, qualifiedParent, parent.getProperties(), tail);
+        }
+    }
+
+    private static void mappingAsAttributesFromField(
+        List<Attribute> list,
+        Source source,
+        @Nullable String parentName,
+        String name,
+        EsField t
+    ) {
+        name = parentName == null ? name : parentName + "." + name;
+        var fieldProperties = t.getProperties();
+        var type = t.getDataType().widenSmallNumeric();
+        if (type != t.getDataType()) {
+            t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
+        }
+
+        Attribute attribute;
+        if (t instanceof UnsupportedEsField uef) {
+            attribute = new UnsupportedAttribute(source, name, uef);
+        } else if (t instanceof InvalidMappedTsField imtf) {
+            // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
+            var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
+            attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
+        } else {
+            attribute = new FieldAttribute(source, parentName, null, name, t);
+        }
+        if (DataType.isPrimitive(type)) {
+            list.add(attribute);
+        }
+        if (fieldProperties.isEmpty() == false) {
+            mappingAsAttributes(list, source, attribute.name(), fieldProperties);
+        }
+    }
+
     private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
-
             if (t != null) {
-                name = parentName == null ? name : parentName + "." + name;
-                var fieldProperties = t.getProperties();
-                var type = t.getDataType().widenSmallNumeric();
-                // due to a bug also copy the field since the Attribute hierarchy extracts the data type
-                // directly even if the data type is passed explicitly
-                if (type != t.getDataType()) {
-                    t = new EsField(t.getName(), type, t.getProperties(), t.isAggregatable(), t.isAlias(), t.getTimeSeriesFieldType());
-                }
-
-                FieldAttribute attribute;
-                if (t instanceof UnsupportedEsField uef) {
-                    attribute = new UnsupportedAttribute(source, name, uef);
-                } else if (t instanceof InvalidMappedTsField imtf) {
-                    // Convert the TS role conflict directly to an UnsupportedAttribute with a meaningful message.
-                    // The original types don't matter. We pass a custom error message, anyway, which will fail the query in the verifier.
-                    var carrier = new UnsupportedEsField(imtf.getName(), List.of(), null, imtf.getProperties());
-                    attribute = new UnsupportedAttribute(source, name, carrier, imtf.errorMessage());
-                } else {
-                    attribute = new FieldAttribute(source, parentName, null, name, t);
-                }
-                // primitive branch
-                if (DataType.isPrimitive(type)) {
-                    list.add(attribute);
-                }
-                // allow compound object even if they are unknown
-                if (fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, attribute.name(), fieldProperties);
-                }
+                mappingAsAttributesFromField(list, source, parentName, name, t);
             }
         }
     }
@@ -499,7 +588,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return shadow;
             }
             EsIndex esIndex = resolution.get();
-            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+            var attributes = mappingAsAttributesForContext(shadow.source(), esIndex.mapping(), context.referencedFieldNames());
             return new EsRelation(
                 shadow.source(),
                 esIndex.name(),
@@ -595,7 +684,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    mappingAsAttributes(plan.source(), resolved.mapping(), enrichRequiredFieldNames(plan, policy)),
                     plan.enrichFields(),
                     policy
                 );

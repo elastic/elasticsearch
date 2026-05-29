@@ -17,6 +17,7 @@ PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20
 | SORT step;
 
 sum:double | step:datetime
+2.0        | 2024-05-10T00:00:00.000Z
 2.0        | 2024-05-10T00:10:00.000Z
 2.0        | 2024-05-10T00:20:00.000Z
 ;
@@ -30,7 +31,7 @@ PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20
 | TS_COLLAPSE;
 
 sum:double         | step:datetime
-[2.0, 2.0]        | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]
+[2.0, 2.0, 2.0]   | [2024-05-10T00:00:00.000Z, 2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]
 ;
 
 // for TS, the analyzer rejects queries that are foldable to a constant "expected an aggregate function but found [1 + 1]"

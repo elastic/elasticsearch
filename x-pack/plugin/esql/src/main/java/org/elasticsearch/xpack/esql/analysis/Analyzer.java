@@ -172,7 +172,6 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.MarkJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
-import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
@@ -791,17 +790,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolvePromql(PromqlCommand promql, List<Attribute> childrenOutput) {
-            if ((promql.child() instanceof EsRelation esRelation) && esRelation.concreteQualifiedIndices().isEmpty()) {
-                var source = promql.source();
-                var localRelation = new LocalRelation(
-                    source,
-                    List.of(promql.valueAttribute(), promql.stepAttribute()),
-                    EmptyLocalSupplier.EMPTY
-                );
-                // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
-                // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
-                return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
-            }
             LogicalPlan promqlPlan = promql.promqlPlan();
             Function<UnresolvedAttribute, Expression> lambda = ua -> ResolveRefs.maybeResolveAttribute(ua, childrenOutput, log);
             // resolve the nested plan

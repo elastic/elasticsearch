@@ -56,9 +56,12 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
@@ -152,30 +155,58 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         /* Label matcher flows up until an aggregate that folds it / push to relation */
         Expression pendingFilter,
         /* What aggregate labels the child subtree exposes */
-        LabelSetSpec labelSetSpec
+        LabelSetSpec labelSetSpec,
+        /* true when the subtree resolved to a constant/empty plan (no aggregation needed) */
+        boolean constFolded
     ) {
         TranslationResult(LogicalPlan plan, Expression expression) {
-            this(plan, expression, null, LabelSetSpec.none());
+            this(plan, expression, null, LabelSetSpec.none(), false);
         }
 
-        TranslationResult(LogicalPlan plan, Expression expression, Expression selectorFilter) {
-            this(plan, expression, selectorFilter, LabelSetSpec.none());
+        TranslationResult(LogicalPlan plan, Expression expression, Expression pendingFilter, LabelSetSpec labelSetSpec) {
+            this(plan, expression, pendingFilter, labelSetSpec, false);
         }
     }
 
     /** Context flows downward */
-    private record TranslationContext(
+    private static final class TranslationContext {
         /* The root PromQL command. */
-        PromqlCommand promqlCommand,
+        private final PromqlCommand promqlCommand;
         /* Analyzer context (configuration, transport version, etc.). */
-        AnalyzerContext analyzerContext,
-        /* Alias for the step bucket expression used in all aggregation groupings. */
-        Alias stepBucketAlias,
+        private final AnalyzerContext analyzerContext;
         /*  What aggregate labels the child subtree MUST expose */
-        LabelSetSpec labelSetSpec
-    ) {
+        private final LabelSetSpec labelSetSpec;
+        /* Alias for the step bucket expression used in all aggregation groupings. */
+        private Alias stepBucketAlias;
+
+        private TranslationContext(PromqlCommand promqlCommand, AnalyzerContext analyzerContext, LabelSetSpec labelSetSpec, Alias alias) {
+            this.promqlCommand = promqlCommand;
+            this.analyzerContext = analyzerContext;
+            this.labelSetSpec = labelSetSpec;
+            this.stepBucketAlias = alias;
+        }
+
+        PromqlCommand promqlCommand() {
+            return promqlCommand;
+        }
+
+        AnalyzerContext analyzerContext() {
+            return analyzerContext;
+        }
+
+        LabelSetSpec labelSetSpec() {
+            return labelSetSpec;
+        }
+
+        Alias stepBucketAlias() {
+            if (stepBucketAlias == null) {
+                stepBucketAlias = createStepBucketAlias(promqlCommand, analyzerContext);
+            }
+            return stepBucketAlias;
+        }
+
         Attribute stepAttr() {
-            return stepBucketAlias.toAttribute();
+            return stepBucketAlias().toAttribute();
         }
     }
 
@@ -186,27 +217,24 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     @Override
     protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
-        Alias stepBucketAlias = createStepBucketAlias(cmd, context);
-
-        TranslationContext ctx = new TranslationContext(cmd, context, stepBucketAlias, LabelSetSpec.none());
-
+        TranslationContext ctx = new TranslationContext(cmd, context, LabelSetSpec.none(), null);
         TranslationResult result = translateNode(cmd.promqlPlan(), cmd.child(), ctx);
+
+        result = maybeTranslateToScalarPlan(result, cmd, ctx);
 
         var plan = result.plan();
         var valueExpr = result.expression();
-        var filter = result.pendingFilter();
+        var filterExpr = result.pendingFilter();
 
-        // TODO: Fix selector-free PromQL evaluation to produce values even when no data
-        // See https://github.com/elastic/elasticsearch/issues/149791
-
-        if (filter != null) {
-            plan = applyLabelFilter(plan, filter, cmd);
+        if (result.constFolded() && plan instanceof MvExpand == false) {
+            return plan;
         }
 
-        // TimeSeriesAggregate always applies because InstantSelectors adds implicit last_over_time().
-        // TODO: If we ever support metric references without last_over_time, we could
-        // skip TimeSeriesAggregate and use plain Aggregate instead (see #141501 discussion).
-        if (findAggregate(plan, Aggregate.class) == null) {
+        if (filterExpr != null) {
+            plan = applyLabelFilter(plan, filterExpr, cmd);
+        }
+
+        if (result.constFolded() == false && findAggregate(plan, Aggregate.class) == null) {
             plan = createInnermostAggregatePlan(ctx, plan, LabelSetSpec.of(cmd.promqlPlan().output()), valueExpr);
             valueExpr = getValueOutput(plan);
         }
@@ -222,29 +250,54 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         plan = applyNullOutputFilter(cmd, plan);
 
-        plan = withTimestampFilter(cmd, plan, context.configuration());
+        if (result.constFolded() == false) {
+            plan = withTimestampFilter(cmd, plan, context.configuration());
+        }
 
         return plan;
     }
 
+    /**
+     * If the entire translated expression is constant (references only the step bucket attribute, no index fields),
+     * and time params are available, const-fold. This handles cases like standalone {@code time()},
+     * {@code year()}, or {@code time() + 42} on non-empty indices.
+     */
+    private static TranslationResult maybeTranslateToScalarPlan(TranslationResult result, PromqlCommand cmd, TranslationContext ctx) {
+        if (result.constFolded() || cmd.start().value() == null) {
+            return result;
+        }
+        Attribute stepAttr = cmd.stepAttribute();
+        boolean constOnly = result.expression().references().stream().allMatch(ref -> ref.semanticEquals(stepAttr));
+        if (constOnly == false) {
+            return result;
+        }
+        var plan = PromqlLogicalPlanBuilder.buildLocalRelation(cmd);
+        var step = plan.output().getFirst();
+        var value = result.expression().transformUp(Attribute.class, attr -> attr.semanticEquals(stepAttr) ? step : attr);
+        return new TranslationResult(plan, value, result.pendingFilter(), result.labelSetSpec(), true);
+    }
+
     private static LogicalPlan applyProjection(PromqlCommand command, LogicalPlan plan) {
-        var lookupMap = new HashMap<String, Attribute>();
-        for (var attr : plan.output()) {
-            lookupMap.put(attr.name(), attr);
+        var attributes = plan.output();
+
+        var in = new HashMap<String, Attribute>(attributes.size());
+        for (var attr : attributes) {
+            in.put(attr.name(), attr);
         }
 
-        var projected = new ArrayList<>(command.output());
-        for (int i = 0; i < projected.size(); i++) {
-            var attr = projected.get(i);
-            var lookupAttr = lookupMap.get(attr.name());
+        var out = new ArrayList<>(command.output());
+        for (int i = 0; i < out.size(); i++) {
+            var attr = out.get(i);
+            var lookupAttr = in.get(attr.name());
+            // Handle dynamic attributes (e.g. _timeseries)
             if (lookupAttr != null && lookupAttr.semanticEquals(attr) == false) {
                 final var tsFieldAttrAlias = new Alias(lookupAttr.source(), attr.name(), lookupAttr, attr.id());
                 plan = new Eval(command.source(), plan, List.of(tsFieldAttrAlias));
-                projected.set(i, tsFieldAttrAlias.toAttribute());
+                out.set(i, tsFieldAttrAlias.toAttribute());
             }
         }
 
-        return new Project(command.source(), plan, projected);
+        return new Project(command.source(), plan, out);
     }
 
     /**
@@ -335,10 +388,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         TranslationContext childCtx = new TranslationContext(
             ctx.promqlCommand,
             ctx.analyzerContext,
-            ctx.stepBucketAlias,
-            importAggregateLabels
+            importAggregateLabels,
+            ctx.stepBucketAlias
         );
         TranslationResult childResult = translateNode(agg.child(), currentPlan, childCtx);
+
+        if (childResult.constFolded()) {
+            return childResult;
+        }
 
         LabelSetSpec exportAggregateLabels = switch (agg.grouping()) {
             case BY -> LabelSetSpec.by(childResult.labelSetSpec, agg.output());
@@ -354,7 +411,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             /* group by _tsid, timestamp and compute optional aggregates, e.g., avg_over_time() */
             : createInnermostAggregatePlan(ctx, childResult.plan(), exportAggregateLabels, aggExpression);
 
-        return new TranslationResult(resultPlan, getValueOutput(resultPlan), childResult.pendingFilter(), exportAggregateLabels);
+        return new TranslationResult(
+            resultPlan,
+            getValueOutput(resultPlan),
+            childResult.pendingFilter(),
+            exportAggregateLabels,
+            childResult.constFolded()
+        );
     }
 
     /** scalar() collapse to one value per step. */
@@ -370,7 +433,9 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             return new TranslationResult(
                 childResult.plan(),
                 new ToDouble(scalarFunc.source(), childResult.expression()),
-                childResult.pendingFilter()
+                childResult.pendingFilter(),
+                LabelSetSpec.none(),
+                childResult.constFolded()
             );
         }
 
@@ -387,11 +452,11 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
                 List.of(stepAttr),
                 List.of(aggAlias, stepAttr)
             );
-            return new TranslationResult(aggregate, getValueOutput(aggregate), childResult.pendingFilter());
+            return new TranslationResult(aggregate, getValueOutput(aggregate), childResult.pendingFilter(), LabelSetSpec.none());
         }
 
         LogicalPlan timeSeriesAgg = createInnermostAggregatePlan(ctx, childResult.plan(), LabelSetSpec.none(), scalarExpr);
-        return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg), childResult.pendingFilter());
+        return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg), childResult.pendingFilter(), LabelSetSpec.none());
     }
 
     /** The first output attribute is always the value column. */
@@ -426,10 +491,22 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         if (findAggregate(childResult.plan(), Aggregate.class) != null) {
             Alias evalAlias = new Alias(function.source(), ctx.promqlCommand().valueColumnName(), function);
             LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), childResult.plan(), List.of(evalAlias));
-            return new TranslationResult(evalPlan, evalAlias.toAttribute(), childResult.pendingFilter(), childResult.labelSetSpec());
+            return new TranslationResult(
+                evalPlan,
+                evalAlias.toAttribute(),
+                childResult.pendingFilter(),
+                childResult.labelSetSpec(),
+                childResult.constFolded()
+            );
         }
 
-        return new TranslationResult(childResult.plan(), function, childResult.pendingFilter(), childResult.labelSetSpec());
+        return new TranslationResult(
+            childResult.plan(),
+            function,
+            childResult.pendingFilter(),
+            childResult.labelSetSpec(),
+            childResult.constFolded()
+        );
     }
 
     private static boolean isImplicitRangePlaceholder(Expression range) {
@@ -439,19 +516,15 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
     }
 
     /**
-     * Translates a scalar function (time(), etc.).
-     * These produce expressions without modifying the plan.
+     * Translates a scalar function (time(), year(), etc.).
+     * These produce expressions without modifying the plan. Const-folding for purely scalar expressions
+     * is handled at the top level by {@link #maybeTranslateToScalarPlan}.
      */
     private TranslationResult translateScalarFunction(ScalarFunction scalarFunction, LogicalPlan currentPlan, TranslationContext ctx) {
-        var function = scalarFunction.buildEsqlFunction(
-            new PromqlFunctionRegistry.PromqlContext(
-                ctx.promqlCommand().timestamp(),
-                null,
-                ctx.stepAttr(),
-                ctx.analyzerContext().configuration()
-            )
+        PromqlCommand cmd = ctx.promqlCommand();
+        Expression function = scalarFunction.buildEsqlFunction(
+            new PromqlFunctionRegistry.PromqlContext(cmd.timestamp(), null, cmd.stepAttribute(), ctx.analyzerContext().configuration())
         );
-
         return new TranslationResult(currentPlan, function);
     }
 
@@ -464,7 +537,13 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         Expression leftExpr = new ToDouble(leftResult.expression().source(), leftResult.expression());
 
         if (binaryOp instanceof VectorBinaryComparison comp && comp.filterMode()) {
-            return new TranslationResult(leftResult.plan(), leftExpr, leftResult.pendingFilter(), leftResult.labelSetSpec());
+            return new TranslationResult(
+                leftResult.plan(),
+                leftExpr,
+                leftResult.pendingFilter(),
+                leftResult.labelSetSpec(),
+                leftResult.constFolded()
+            );
         }
 
         TranslationResult rightResult = translateNode(binaryOp.right(), currentPlan, ctx);
@@ -474,17 +553,22 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
             .asFunction()
             .create(binaryOp.source(), leftExpr, rightExpr, ctx.analyzerContext().configuration());
 
+        boolean constFolded = leftResult.constFolded() && rightResult.constFolded();
+
         boolean leftAgg = findAggregate(leftResult.plan(), Aggregate.class) != null;
         boolean rightAgg = findAggregate(rightResult.plan(), Aggregate.class) != null;
 
-        // Both aggregated -> fold into one; otherwise take the aggregated side's plan.
+        // Both aggregated -> fold into one; otherwise take the aggregated side's plan;
+        // when one side is const-folded, prefer the non-const-folded upstream plan.
         LogicalPlan resultPlan;
         if (leftAgg && rightAgg) {
             resultPlan = foldBinaryOperatorAggregate(leftResult, rightResult);
         } else if (leftAgg) {
             resultPlan = leftResult.plan();
-        } else {
+        } else if (rightAgg || rightResult.constFolded() == false) {
             resultPlan = rightResult.plan();
+        } else {
+            resultPlan = leftResult.plan();
         }
 
         Expression pendingFilter = null;
@@ -500,10 +584,10 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         if (findAggregate(resultPlan, Aggregate.class) != null) {
             Alias evalAlias = new Alias(binaryExpr.source(), ctx.promqlCommand().valueColumnName(), binaryExpr);
             LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), resultPlan, List.of(evalAlias));
-            return new TranslationResult(evalPlan, evalAlias.toAttribute(), pendingFilter, grouping);
+            return new TranslationResult(evalPlan, evalAlias.toAttribute(), pendingFilter, grouping, constFolded);
         }
 
-        return new TranslationResult(resultPlan, binaryExpr, pendingFilter, grouping);
+        return new TranslationResult(resultPlan, binaryExpr, pendingFilter, grouping, constFolded);
     }
 
     /**
@@ -565,26 +649,38 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
      * Adds label filter conditions to the context.
      */
     private TranslationResult translateSelector(Selector selector, LogicalPlan currentPlan, TranslationContext ctx) {
-        Expression matcherCondition = translateLabelMatchers(
+        PromqlCommand cmd = ctx.promqlCommand();
+
+        LogicalPlan foldedPlan = PromqlLogicalPlanBuilder.tryFoldRelation(cmd, currentPlan);
+
+        Expression filter = translateLabelMatchers(
             selector.source(),
             selector.labels(),
             selector.labelMatchers(),
             ctx.analyzerContext().configuration()
         );
-        Expression expr;
-        if (selector instanceof LiteralSelector literalSelector) {
-            expr = literalSelector.literal();
-        } else if (selector instanceof InstantSelector) {
-            // InstantSelector maps to LastOverTime to get latest sample per time series
-            expr = new LastOverTime(selector.source(), selector.series(), AggregateFunction.NO_WINDOW, ctx.promqlCommand().timestamp());
-        } else {
-            expr = selector.series();
+
+        if (selector instanceof LiteralSelector literal) {
+            if (foldedPlan != null) {
+                return new TranslationResult(foldedPlan, literal.literal(), filter, LabelSetSpec.none(), true);
+            }
+            return new TranslationResult(currentPlan, literal.literal(), filter, LabelSetSpec.none());
         }
 
-        // Non-literal selectors pass through parent demand; EsRelation must have required dimensions.
-        LabelSetSpec grouping = (selector instanceof LiteralSelector) ? LabelSetSpec.none() : ctx.labelSetSpec();
+        if (foldedPlan != null) {
+            var empty = new LocalRelation(cmd.source(), List.of(cmd.valueAttribute(), cmd.stepAttribute()), EmptyLocalSupplier.EMPTY);
+            return new TranslationResult(empty, Literal.NULL, null, LabelSetSpec.none(), true);
+        }
 
-        return new TranslationResult(currentPlan, expr, matcherCondition, grouping);
+        return switch (selector) {
+            case InstantSelector instant -> {
+                // InstantSelector maps to LastOverTime to get latest sample per time series
+                var expr = new LastOverTime(instant.source(), instant.series(), AggregateFunction.NO_WINDOW, cmd.timestamp());
+                yield new TranslationResult(currentPlan, expr, filter, ctx.labelSetSpec());
+            }
+            case RangeSelector range -> new TranslationResult(currentPlan, range.series(), filter, ctx.labelSetSpec());
+            default -> throw new QlIllegalArgumentException("Unsupported selector type: {}", selector);
+        };
     }
 
     /**
@@ -844,13 +940,14 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     /** Ensure value column is double */
     private static LogicalPlan applyValueToDoubleConversion(PromqlCommand promqlCommand, LogicalPlan plan, Expression valueExpr) {
-        Alias convertedValue = new Alias(
-            promqlCommand.source(),
-            promqlCommand.valueColumnName(),
-            new ToDouble(promqlCommand.source(), valueExpr),
-            promqlCommand.valueId()
-        );
-        return new Eval(promqlCommand.source(), plan, List.of(convertedValue));
+        Source source = promqlCommand.source();
+
+        if ((valueExpr instanceof Attribute == false && valueExpr.resolved() && valueExpr.dataType() == DataType.DOUBLE) == false) {
+            valueExpr = new ToDouble(source, valueExpr);
+        }
+
+        var value = new Alias(source, promqlCommand.valueColumnName(), valueExpr, promqlCommand.valueId());
+        return new Eval(source, plan, List.of(value));
     }
 
     private static Alias createStepBucketAlias(PromqlCommand p, AnalyzerContext context) {

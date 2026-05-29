@@ -3049,6 +3049,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_SCALAR_FLOAT_DIV,
 
         /**
+         * Fix for PromQL constant scalar expressions (e.g. {@code 3.14}, {@code pi()}) that were previously
+         * evaluated through the full PromqlCommand pipeline and produced no results when the index was empty.
+         * They are now folded at planning time and emitted as a {@code ROW} without touching the index.
+         */
+        FIX_PROMQL_SCALAR_CONSTANT_RESULTS,
+
+        /**
          * Bugfix in query approximation to not rewrite non-approximable FORK branches:
          * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
          */

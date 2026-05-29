@@ -329,6 +329,11 @@ public class ParallelTopNOperator implements Operator, Accountable {
         size += mergeTarget.ramBytesUsed();
         // Workers run on their own threads and own non-thread-safe mutable state; only read
         // their accounting after they have exited and closed themselves.
+        // NOTE: during the collecting phase the worker input queues are not reflected here,
+        // which is a monitoring gap. The memory is still protected by the circuit breaker
+        // (each worker's LocalCircuitBreaker charges allocations to the parent breaker as
+        // they happen). Fixing this would require storing the LocalCircuitBreaker references
+        // and summing their getUsed() — left as a known limitation for now.
         if (allWorkersDone.isDone()) {
             for (TopNOperator worker : workers) {
                 size += worker.ramBytesUsed();

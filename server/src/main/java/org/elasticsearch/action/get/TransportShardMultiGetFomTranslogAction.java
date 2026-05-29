@@ -77,7 +77,8 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                                 item.versionType(),
                                 item.fetchSourceContext(),
                                 multiGetShardRequest.isForceSyntheticSource(),
-                                SplitShardCountSummary.UNSET
+                                SplitShardCountSummary.UNSET,
+                                multiGetShardRequest.refresh()
                             );
                         GetResponse getResponse = null;
                         if (result == null) {

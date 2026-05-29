@@ -81,7 +81,7 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     @Override
     protected ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder) throws IOException {
         BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
-        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor);
+        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor, defaultMappingHints);
         var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
         context.groupDataPoints(metricsServiceRequest);
         if (context.totalItems() == 0) {

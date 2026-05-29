@@ -15,6 +15,7 @@ import io.opentelemetry.proto.metrics.v1.Metric;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -56,7 +57,7 @@ public class HistogramToTDigestConverterTests extends ESTestCase {
                 )
                 .build()
         );
-        assertThat(histogram.isValid(new HashSet<>()), equalTo(valid));
+        assertThat(histogram.isValid(new HashSet<>(), MappingHints.DEFAULT_TDIGEST), equalTo(valid));
         if (valid == false) {
             return;
         }

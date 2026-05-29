@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
@@ -61,6 +64,10 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         if (Strings.hasLength(dataPointGroup.unit())) {
             builder.field("unit", dataPointGroup.unit());
         }
+        String temporality = temporalityToString(dataPointGroup.temporality());
+        if (temporality != null) {
+            builder.field("temporality", temporality);
+        }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
         builder.field("_metric_names_hash", metricNamesHash);
 
@@ -92,6 +99,20 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
         tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
         return tsidBuilder.buildTsid(indexVersion);
+    }
+
+    /**
+     * Converts an {@link AggregationTemporality} to the string value stored in the temporality dimension field.
+     */
+    public static @Nullable String temporalityToString(@Nullable AggregationTemporality temporality) {
+        if (temporality == null) {
+            return null;
+        }
+        return switch (temporality) {
+            case AGGREGATION_TEMPORALITY_CUMULATIVE -> "cumulative";
+            case AGGREGATION_TEMPORALITY_DELTA -> "delta";
+            default -> null;
+        };
     }
 
 }

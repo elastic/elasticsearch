@@ -9,13 +9,10 @@ package org.elasticsearch.test;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -23,7 +20,8 @@ import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
-import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
 
@@ -33,7 +31,6 @@ import java.util.List;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Test case with method to handle the starting and stopping the stores for native users and roles
@@ -43,7 +40,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Before
     public void ensureNativeStoresStarted() throws Exception {
         createSecurityIndexWithWaitForActiveShards();
-        awaitQueryableBuiltInRolesSyncSettled();
+        awaitSecurityIndexAvailableOnAllNodes();
         if (shouldSetReservedUserPasswords()) {
             setupReservedPasswords();
         }
@@ -52,7 +49,6 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @After
     public void stopESNativeStores() throws Exception {
         deleteSecurityIndex();
-        awaitQueryableBuiltInRolesSyncSettled();
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster
@@ -60,25 +56,21 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         }
     }
 
-    private void awaitQueryableBuiltInRolesSyncSettled() throws Exception {
-        if (QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED == false) {
-            return;
-        }
-        String masterNode = internalCluster().getMasterName();
-        QueryableBuiltInRolesSynchronizer synchronizer = internalCluster().getInstance(QueryableBuiltInRolesSynchronizer.class, masterNode);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, masterNode);
-        // The digest is only set after a successful sync, which requires an active primary,
-        // so it is a reliable signal that any reactive recreation has fully completed.
+    /**
+     * Wait until every node observes the security index as available for primary shards.
+     *
+     * {@link #createSecurityIndexWithWaitForActiveShards()} only waits for shards to be active in the cluster state on the
+     * master; non-master nodes update their per-node {@link SecurityIndexManager} state asynchronously via a cluster state
+     * listener. Authenticating reserved users (e.g. via {@link #setupReservedPasswords()}) routes through whichever node
+     * receives the request, and {@code NativeUsersStore#getReservedUserInfo} fails with {@code UnavailableShardsException}
+     * if that node has not yet applied the cluster state — which surfaces as a 503 from {@code ReservedRealm}.
+     */
+    private void awaitSecurityIndexAvailableOnAllNodes() throws Exception {
         assertBusy(() -> {
-            assertThat(synchronizer.isSynchronizationInProgress(), is(false));
-            IndexMetadata indexMetadata = clusterService.state()
-                .metadata()
-                .getProject()
-                .index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
-            if (indexMetadata != null) {
+            for (SecuritySystemIndices systemIndices : internalCluster().getInstances(SecuritySystemIndices.class)) {
                 assertThat(
-                    indexMetadata.getCustomData(QueryableBuiltInRolesSynchronizer.METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY),
-                    is(notNullValue())
+                    systemIndices.getMainIndexManager().forCurrentProject().isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS),
+                    is(true)
                 );
             }
         });

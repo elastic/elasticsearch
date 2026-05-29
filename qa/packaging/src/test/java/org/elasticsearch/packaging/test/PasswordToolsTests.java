@@ -145,8 +145,9 @@ public class PasswordToolsTests extends PackagingTestCase {
      * user because the reserved realm checks the security index first.
      * This is because we check the security index too early (just after the creation) when all shards did not get allocated yet.
      * Hence, the call can result in an `UnavailableShardsException` which is surfaced either as a `401 Unauthorized`
-     * (legacy behaviour) or as a `503` authentication-process error (current behaviour); we retry on both for a
-     * couple of seconds just to verify that this is not the case.
+     * (legacy behaviour) or as a `503` whose body carries the production message
+     * `failed to retrieve password hash for reserved user`. We retry on these for a couple of seconds just to verify
+     * that this is not the case.
      */
     private <R> R retryOnAuthenticationErrors(final Callable<R> callable) throws Exception {
         Exception failure = null;
@@ -158,7 +159,7 @@ public class PasswordToolsTests extends PackagingTestCase {
                 if (e.getMessage() != null
                     && (e.getMessage().contains("401 Unauthorized")
                         || e.getMessage().contains("Failed to authenticate user")
-                        || e.getMessage().contains("Unexpected response code [503]"))) {
+                        || e.getMessage().contains("failed to retrieve password hash for reserved user"))) {
                     logger.info(
                         "Authentication failed (possibly due to UnavailableShardsException for the security index), retrying [{}].",
                         retries,

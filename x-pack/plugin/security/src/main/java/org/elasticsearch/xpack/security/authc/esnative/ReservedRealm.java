@@ -264,7 +264,12 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 listener.onResponse(users);
             }, (e) -> {
                 logger.error("failed to retrieve reserved users", e);
-                listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
+                if (ExceptionsHelper.unwrapCause(e) instanceof UnavailableShardsException) {
+                    // Surface a 503 so callers retry, mirroring getUserInfo.
+                    listener.onFailure(Exceptions.authenticationProcessError("failed to retrieve reserved users", e));
+                } else {
+                    listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
+                }
             }));
         }
     }

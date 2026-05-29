@@ -350,9 +350,23 @@ public class KnnSearcher {
     public record SearchSetup(float[][] floatQueries, byte[][] byteQueries, FilterQueryProvider provider, ResultsConsumer consumer) {}
 
     /** Executes searches using the pre-built setup and populates result metrics. */
-    void search(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir, SearchSetup setup, TestConfiguration testConfiguration)
-        throws IOException {
-        doSearch(finalResults, searchParameters, dir, setup.floatQueries(), setup.byteQueries(), setup.provider(), setup.consumer(), testConfiguration);
+    void search(
+        KnnIndexTester.Results finalResults,
+        SearchParameters searchParameters,
+        Directory dir,
+        SearchSetup setup,
+        TestConfiguration testConfiguration
+    ) throws IOException {
+        doSearch(
+            finalResults,
+            searchParameters,
+            dir,
+            setup.floatQueries(),
+            setup.byteQueries(),
+            setup.provider(),
+            setup.consumer(),
+            testConfiguration
+        );
     }
 
     /**
@@ -368,7 +382,8 @@ public class KnnSearcher {
         byte[][] byteQueries,
         FilterQueryProvider filterProvider,
         ResultsConsumer resultsConsumer,
-        TestConfiguration testConfiguration) throws IOException {
+        TestConfiguration testConfiguration
+    ) throws IOException {
         if (sliced && indexType != KnnIndexTester.IndexType.IVF) {
             logger.info("Data configurartion is sliced but this setting has no effect for index type \"{}\"", indexType);
         }
@@ -435,7 +450,14 @@ public class KnnSearcher {
                         if (vectorEncoding.equals(VectorEncoding.BYTE)) {
                             results[searchIdx] = doVectorQuery(byteQueries[qIdx], searcher, filter, searchParameters);
                         } else {
-                            results[searchIdx] = doVectorQuery(floatQueries[qIdx], searcher, filter, searchParameters, partition, testConfiguration);
+                            results[searchIdx] = doVectorQuery(
+                                floatQueries[qIdx],
+                                searcher,
+                                filter,
+                                searchParameters,
+                                partition,
+                                testConfiguration
+                            );
                         }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
@@ -756,8 +778,7 @@ public class KnnSearcher {
         SearchParameters searchParameters,
         BytesRef partition,
         TestConfiguration testConfiguration
-    )
-        throws IOException {
+    ) throws IOException {
         Query knnQuery;
         final int resultK = searchParameters.topK();
         int overSampledTopK = resultK;

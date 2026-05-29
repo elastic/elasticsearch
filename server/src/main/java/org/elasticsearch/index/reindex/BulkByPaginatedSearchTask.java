@@ -788,7 +788,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append("BulkIndexByScrollResponse[");
+            builder.append("BulkIndexByPaginatedSearchResponse[");
             innerToString(builder);
             return builder.append(']').toString();
         }

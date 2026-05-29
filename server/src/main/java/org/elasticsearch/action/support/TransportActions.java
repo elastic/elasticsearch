@@ -16,6 +16,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.rest.RestStatus;
 
 public class TransportActions {
 
@@ -27,6 +28,29 @@ public class TransportActions {
             || actual instanceof NoShardAvailableActionException
             || actual instanceof UnavailableShardsException
             || actual instanceof AlreadyClosedException);
+    }
+
+    /**
+     * Returns {@code false} if the exception signals a deterministic failure that will reproduce identically on every shard copy, making a
+     * retry on a different replica pointless. Returns {@code true} for transient failures where a different replica may succeed.
+     * <p>
+     * Shard-not-available exceptions (see {@link #isShardNotAvailableException}) are always considered retriable regardless of their HTTP
+     * status. All other 4xx exceptions are treated as non-retriable — a malformed query, a missing alias, or a bad aggregation path will
+     * fail in exactly the same way on every replica — with two exceptions: {@link RestStatus#REQUEST_TIMEOUT} (408) and
+     * {@link RestStatus#TOO_MANY_REQUESTS} (429) indicate transient conditions that may not affect a different replica. No Elasticsearch
+     * exception currently maps to 408; the carve-out is reserved for future use.
+     * <p>
+     * This logic reflects search retry semantics. Other code paths, including indexing, should evaluate carefully before adopting it.
+     */
+    public static boolean isRetriableShardLevelException(Throwable e) {
+        if (isShardNotAvailableException(e)) {
+            return true;
+        }
+        int status = ExceptionsHelper.status(e).getStatus();
+        return status < 400
+            || status >= 500
+            || status == RestStatus.REQUEST_TIMEOUT.getStatus()
+            || status == RestStatus.TOO_MANY_REQUESTS.getStatus();
     }
 
     /**

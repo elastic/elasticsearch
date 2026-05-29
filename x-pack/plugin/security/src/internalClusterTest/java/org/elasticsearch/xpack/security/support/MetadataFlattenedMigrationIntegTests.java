@@ -62,8 +62,8 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         internalCluster().startNode();
         ensureGreen();
 
-        waitForMigrationCompletion();
         var roles = createRoles();
+        waitForMigrationCompletion();
         final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
         PlainActionFuture<Void> roleUpdatesCompleteListener = new PlainActionFuture<>();
         ExecutorService executor = Executors.newSingleThreadExecutor();

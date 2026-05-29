@@ -211,7 +211,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         queryDepth++;
         if (queryDepth > MAX_QUERY_DEPTH) {
             throw new ParsingException(
-                "ESQL statement exceeded the maximum query depth allowed ({}): [{}]",
+                "ES|QL statement exceeded the maximum query depth allowed ({}): [{}]",
                 MAX_QUERY_DEPTH,
                 ctx.getText()
             );
@@ -651,7 +651,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     stats.groupings(),
                     stats.aggregates(),
                     null,
-                    new UnresolvedTimestamp(source(ctx))
+                    new UnresolvedTimestamp(source(ctx)),
+                    TimeSeriesAggregate.Origin.TS_COMMAND
                 );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());

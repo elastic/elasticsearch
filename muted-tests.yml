@@ -644,3 +644,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
   issue: https://github.com/elastic/elasticsearch/issues/150226
+- class: org.elasticsearch.snapshots.SnapshotsServiceIT
+  method: testDeleteSnapshotWhenNotWaitingForCompletion
+  issue: https://github.com/elastic/elasticsearch/issues/150257

@@ -51,12 +51,15 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
+    private static boolean columnarEnabled = true;
+
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("path.repo", () -> getRepoPath())
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .setting("cluster.columnar.enabled", columnarEnabled ? "true" : "false")
         .build();
 
     @ClassRule
@@ -323,7 +326,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     static void assertDataStream(String dataStreamName, final String sourceMode) throws IOException {
         String indexName = getWriteBackingIndex(dataStreamName, 0);
         var flatSettings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName).get(indexName)).get("settings");
-        assertThat(flatSettings, hasEntry("index.mode", "logsdb"));
+        assertThat(flatSettings, hasEntry("index.mode", columnarEnabled ? "logsdb_columnar" : "logsdb"));
         assertThat(flatSettings, hasEntry("index.mapping.source.mode", sourceMode));
     }
 

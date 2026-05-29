@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.Mapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +47,12 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
         settings -> Boolean.toString(LOGSDB_PRIOR_LOGS_USAGE.get(settings) == false),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Boolean> CLUSTER_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.columnar.enabled",
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -78,6 +86,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_COLUMNAR_ENABLED,
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeColumnarEnabled
+        );
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -99,13 +111,19 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            FALLBACK_SETTING,
-            CLUSTER_LOGSDB_ENABLED,
-            LOGSDB_PRIOR_LOGS_USAGE,
-            PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING,
-            LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE
+        List<Setting<?>> settings = new ArrayList<>(
+            Arrays.asList(
+                FALLBACK_SETTING,
+                CLUSTER_LOGSDB_ENABLED,
+                LOGSDB_PRIOR_LOGS_USAGE,
+                PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING,
+                LOGSDB_DEFAULT_SORT_ON_MESSAGE_TEMPLATE
+            )
         );
+        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
+            settings.add(CLUSTER_COLUMNAR_ENABLED);
+        }
+        return settings;
     }
 
     @Override

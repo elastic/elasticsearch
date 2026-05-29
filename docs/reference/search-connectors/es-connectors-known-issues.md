@@ -147,7 +147,7 @@ The connector service has the following known issues:
 
     **Affected versions**: Kibana 9.0 through 9.4.
 
-    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3, 9.4, and 9.5. The management app is now registered synchronously in `setup()` so Kibana's capability sweep correctly hides it for users without the `content_connectors` capability.
+    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3, 9.4, and 9.5. 
 
 
 ## Individual connector known issues [es-connectors-known-issues-specific]

@@ -49,7 +49,7 @@ public class AllFirstExponentialHistogramByIntAggregator {
         ExponentialHistogramBlock values,
         boolean seen
     ) {
-        if (seen && values.isNull(0) == false) {
+        if (seen) {
             ExponentialHistogram value = values.getExponentialHistogram(values.getFirstValueIndex(0), new ExponentialHistogramScratch());
             if (current.isSeen()) {
                 combine(current, value, (int) sortKey);
@@ -86,7 +86,7 @@ public class AllFirstExponentialHistogramByIntAggregator {
         boolean seen,
         int otherPosition
     ) {
-        if (seen && values.isNull(otherPosition) == false) {
+        if (seen) {
             ExponentialHistogram value = values.getExponentialHistogram(
                 values.getFirstValueIndex(otherPosition),
                 new ExponentialHistogramScratch()

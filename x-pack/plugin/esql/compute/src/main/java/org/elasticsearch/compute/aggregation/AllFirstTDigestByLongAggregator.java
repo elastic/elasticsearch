@@ -43,7 +43,7 @@ public class AllFirstTDigestByLongAggregator {
     }
 
     public static void combineIntermediate(TDigestStates.WithLongSingleState current, long sortKey, TDigestBlock values, boolean seen) {
-        if (seen && values.isNull(0) == false) {
+        if (seen) {
             TDigestHolder tdigest = values.getTDigestHolder(values.getFirstValueIndex(0), new TDigestHolder());
             if (current.isSeen()) {
                 combine(current, tdigest, sortKey);
@@ -75,7 +75,7 @@ public class AllFirstTDigestByLongAggregator {
         boolean seen,
         int otherPosition
     ) {
-        if (seen && values.isNull(otherPosition) == false) {
+        if (seen) {
             TDigestHolder tdigest = values.getTDigestHolder(values.getFirstValueIndex(otherPosition), new TDigestHolder());
             combine(current, groupId, tdigest, sortKey);
         }

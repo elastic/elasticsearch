@@ -435,17 +435,7 @@ public final class ExponentialHistogramStates {
         private final BigArrays bigArrays;
 
         SeenGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            ObjectArray<BreakingExponentialHistogramHolder> histogramValues = null;
-            boolean success = false;
-            try {
-                histogramValues = bigArrays.newObjectArray(1);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(histogramValues);
-                }
-            }
-            this.histogramValues = histogramValues;
+            this.histogramValues = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
             this.breaker = breaker;
         }

@@ -43,6 +43,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParallelParsingCoordinatorTests extends ESTestCase {
@@ -133,7 +134,14 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
     }
 
-    public void testParallelReadPreservesOrder() throws Exception {
+    /**
+     * Completeness across a multi-segment file: every row is emitted exactly once. This replaces a former
+     * "preserves order" assertion. Pages are now emitted in completion (as-ready) order, not segment order,
+     * so cross-segment row order is intentionally not preserved (an external scan has no order guarantee
+     * absent an explicit SORT). The contract this test guards is exactly-once delivery of all rows, so it
+     * sorts before comparing.
+     */
+    public void testParallelReadEmitsAllRowsExactlyOnce() throws Exception {
         StringBuilder sb = new StringBuilder();
         int lineCount = 200;
         for (int i = 0; i < lineCount; i++) {
@@ -152,6 +160,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             totalCoverage += seg[1];
         }
         assertEquals("Segments must cover entire file", contentBytes.length, totalCoverage);
+        assertThat("test needs a genuinely multi-segment file to be meaningful", segments.size(), Matchers.greaterThan(1));
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
@@ -171,8 +180,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
 
             assertEquals("All lines should be read", lineCount, allLines.size());
+            // Order-insensitive: emission order is as-ready, so sort before comparing the set.
+            List<String> sorted = new ArrayList<>(allLines);
+            Collections.sort(sorted);
             for (int i = 0; i < lineCount; i++) {
-                assertEquals("Lines must be in order", "line-" + String.format(java.util.Locale.ROOT, "%04d", i), allLines.get(i));
+                assertEquals(
+                    "every line must appear exactly once",
+                    "line-" + String.format(java.util.Locale.ROOT, "%04d", i),
+                    sorted.get(i)
+                );
             }
         } finally {
             exec.shutdown();
@@ -375,10 +391,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Tightest window: {@code max_concurrent_open_segments == 1}. This is where the "the head segment is
-     * force-submitted so it can never be starved" invariant matters most — get it wrong and an in-order
-     * consumer deadlocks. Asserts only one segment stream is ever open at a time, the read completes (no
-     * deadlock), and rows come back in full file order.
+     * Tightest window: {@code max_concurrent_open_segments == 1}. Asserts only one segment stream is ever
+     * open at a time and the read completes (no deadlock). At cap=1 segments run strictly one after another
+     * — the next is submitted only in the previous worker's finally — so the single FIFO shared queue
+     * happens to yield rows in file order. That ordering is a <em>consequence</em> of serial execution here,
+     * not a general contract: with cap &gt; 1 pages emit in as-ready order (see
+     * {@link #testParallelReadEmitsAllRowsExactlyOnce} and {@link #testEmitsReadySegmentBeforeSlowerEarlierSegment}).
      */
     public void testCapOfOneIsSerialPreservesOrderAndProgresses() throws Exception {
         final int parallelism = 8; // many threads available, but the cap must keep opens to 1
@@ -871,6 +889,233 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             assertTrue("reader with null metadata must still produce rows", rows > 0);
         } finally {
             exec.shutdown();
+        }
+    }
+
+    /**
+     * As-ready emission (the root-fix behaviour): a later segment whose reader finishes quickly must be
+     * emitted before an earlier segment that is artificially slowed. If pages were still gated on segment
+     * order, the first row out would belong to segment 0 and this would fail.
+     * <p>
+     * The first-split segment (segment 0) stalls before producing its first page; every other segment runs
+     * at full speed. With the cap wide enough for both to be open at once, a later segment must reach the
+     * consumer first. Rows are prefixed with their segment's start offset so the test can tell which segment
+     * emitted them.
+     */
+    public void testEmitsReadySegmentBeforeSlowerEarlierSegment() throws Exception {
+        int rows = 800;
+        byte[] content = repeatedLines(rows);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+
+        // Sanity: confirm the fixture is genuinely multi-segment so "later segment" is meaningful.
+        int segmentCount = ParallelParsingCoordinator.computeSegments(new LineFormatReader(blockFactory()), obj, content.length, 4, 1)
+            .size();
+        assertThat("test needs multiple segments", segmentCount, Matchers.greaterThan(1));
+
+        // Segment 0 (the file-leader split) blocks before emitting any page until a later segment has emitted
+        // at least one. So if the iterator hands us any page while segment 0 is still blocked, that page came
+        // from a later segment — proving as-ready emission. A regressed in-order implementation would gate
+        // every page behind segment 0, which is blocked, and the read would time out instead of passing.
+        java.util.concurrent.CountDownLatch laterSegmentEmitted = new java.util.concurrent.CountDownLatch(1);
+        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), laterSegmentEmitted);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        String firstLineEmitted = null;
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    4,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    4 // wide window so the slowed segment 0 and a fast later segment are open together
+                )
+            ) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    if (firstLineEmitted == null && p.getPositionCount() > 0) {
+                        BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                        firstLineEmitted = block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()).utf8ToString();
+                    }
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        // The leader segment owns the file's leading bytes, hence line-00000. It is structurally blocked from
+        // emitting until a later segment has produced a page, so the first page reaching the consumer cannot
+        // be the leader's: the first line out must not be line-00000. Under strict segment-order emission it
+        // would have been (and the read would have deadlocked on the stalled leader instead).
+        assertNotNull("expected at least one page", firstLineEmitted);
+        assertThat(
+            "first emitted row must come from a later segment, not the stalled leader",
+            firstLineEmitted,
+            Matchers.not(Matchers.equalTo("line-00000"))
+        );
+    }
+
+    /**
+     * Reset-resilience (the hardening fix): a one-shot {@code SocketException("Connection reset")} is
+     * injected partway through a non-first segment's read. The coordinator must re-open that segment, skip
+     * the rows it already delivered, and resume — so every row is returned exactly once and no exception
+     * surfaces to the consumer.
+     */
+    public void testConnectionResetMidSegmentResumesAndDeliversAllRowsOnce() throws Exception {
+        int rows = 1200;
+        byte[] content = repeatedLines(rows);
+        InMemoryStorageObject obj = new InMemoryStorageObject(content);
+
+        // Inject the reset into a non-first segment (segmentIndex 1) after a few pages so resume has work to do.
+        ResetInjectingLineReader reader = new ResetInjectingLineReader(blockFactory(), 1, 3);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        List<String> read = new ArrayList<>();
+        try {
+            try (CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec)) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        read.add(block.getBytesRef(block.getFirstValueIndex(i), scratch).utf8ToString());
+                    }
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        assertTrue("the injected reset must actually have fired", reader.resetFired.get());
+        assertEquals("every row must be delivered exactly once despite the reset", rows, read.size());
+        List<String> sorted = new ArrayList<>(read);
+        Collections.sort(sorted);
+        for (int i = 0; i < rows; i++) {
+            assertEquals(
+                "no row may be dropped or duplicated by the reset-resume",
+                String.format(java.util.Locale.ROOT, "line-%05d", i),
+                sorted.get(i)
+            );
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} variant where the segment owning the file leader ({@code firstSplit=true})
+     * blocks before emitting its first page until a later segment has emitted; every other segment runs at
+     * full speed. Proves the coordinator emits pages as they become ready rather than in segment order.
+     */
+    private static class FirstSegmentStallingReader extends LineFormatReader {
+        private final java.util.concurrent.CountDownLatch laterSegmentEmitted;
+
+        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch laterSegmentEmitted) {
+            super(blockFactory);
+            this.laterSegmentEmitted = laterSegmentEmitted;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            boolean isFirstSplit = context.firstSplit();
+            CloseableIterator<Page> delegate = super.read(object, context);
+            return new CloseableIterator<>() {
+                private boolean firstPage = true;
+
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    if (firstPage) {
+                        firstPage = false;
+                        if (isFirstSplit) {
+                            // Block the leader segment before emitting anything until a later segment emits.
+                            try {
+                                laterSegmentEmitted.await(30, TimeUnit.SECONDS);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                        } else {
+                            // A later segment is producing its first page; unblock the leader.
+                            laterSegmentEmitted.countDown();
+                        }
+                    }
+                    return delegate.next();
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegate.close();
+                }
+            };
+        }
+    }
+
+    /**
+     * {@link LineFormatReader} variant that throws a one-shot {@link java.net.SocketException} mid-read for a
+     * chosen segment, modelling an object-store connection reset. The segment is identified by its read
+     * sequence number: segment dispatch order matches read-call order, so the {@code targetReadIndex}-th read
+     * call is the one that fails on its {@code failAfterPages}-th page. The reset fires exactly once; the
+     * coordinator's re-open then reads the segment cleanly to completion.
+     */
+    private static class ResetInjectingLineReader extends LineFormatReader {
+        private final int targetReadIndex;
+        private final int failAfterPages;
+        private final AtomicInteger readCallCount = new AtomicInteger(0);
+        final AtomicBoolean resetFired = new AtomicBoolean(false);
+
+        ResetInjectingLineReader(BlockFactory blockFactory, int targetReadIndex, int failAfterPages) {
+            super(blockFactory);
+            this.targetReadIndex = targetReadIndex;
+            this.failAfterPages = failAfterPages;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            int thisReadIndex = readCallCount.getAndIncrement();
+            CloseableIterator<Page> delegate = super.read(object, context);
+            // Only the first read of the target segment injects the fault; the re-opened read (a later
+            // read-call index) reads through cleanly.
+            boolean injectHere = thisReadIndex == targetReadIndex && resetFired.get() == false;
+            if (injectHere == false) {
+                return delegate;
+            }
+            return new CloseableIterator<>() {
+                private int pagesEmitted = 0;
+
+                @Override
+                public boolean hasNext() {
+                    return delegate.hasNext();
+                }
+
+                @Override
+                public Page next() {
+                    if (pagesEmitted >= failAfterPages && resetFired.compareAndSet(false, true)) {
+                        // Model a transport-layer reset surfacing mid-read, after a few pages have already
+                        // been delivered. The coordinator must catch this, re-open the segment, and resume
+                        // from the start, skipping the pages already delivered before this point.
+                        throw new RuntimeException("read failed", new java.net.SocketException("Connection reset"));
+                    }
+                    Page p = delegate.next();
+                    pagesEmitted++;
+                    return p;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegate.close();
+                }
+            };
         }
     }
 

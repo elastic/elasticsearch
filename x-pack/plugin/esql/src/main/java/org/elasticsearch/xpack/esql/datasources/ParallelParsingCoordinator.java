@@ -22,27 +22,44 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.Locale;
+import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Coordinates parallel parsing of a single file by splitting it into byte-range
- * segments and dispatching each segment to a parser thread. Results are reassembled
- * in segment order so that row ordering is preserved.
+ * segments and dispatching each segment to a parser thread. Pages are emitted to the
+ * consumer in completion (as-ready) order, not segment order: any segment whose pages
+ * are ready drains immediately, so a fully-parsed later segment never waits behind a
+ * slower earlier one.
  * <p>
  * Inspired by ClickHouse's {@code ParallelParsingInputFormat}. The approach:
  * <ol>
  *   <li>A segmentator divides the file into N byte-range segments at record boundaries</li>
  *   <li>Each segment is parsed independently on a separate executor thread</li>
- *   <li>The coordinator yields pages in segment order via a {@link CloseableIterator}</li>
+ *   <li>The coordinator yields pages as they become ready via a {@link CloseableIterator}</li>
  * </ol>
+ * <p>
+ * <b>Row ordering.</b> Cross-segment row order is intentionally <em>not</em> preserved:
+ * an external scan has no row-order guarantee absent an explicit {@code SORT}, and the
+ * read schema is bound up-front (see {@link #parallelRead}) so segment 0 has no obligation
+ * to emit first. Holding pages back to reconstruct segment order is what created the bug
+ * this design fixes: a parsed-but-not-yet-emitted segment kept its object-store socket open
+ * and idle until the in-order cursor reached it; on S3 that idle socket exceeds the server
+ * idle timeout and is reset, surfacing as an HTTP 500. Emitting as-ready lets each segment's
+ * socket close as soon as its pages are consumed.
  * <p>
  * This coordinator only works with {@link SegmentableFormatReader} implementations
  * (line-oriented formats like CSV and NDJSON). Columnar formats have their own
@@ -65,10 +82,10 @@ public final class ParallelParsingCoordinator {
      * Creates a parallel-parsing iterator over a single storage object.
      * <p>
      * The file is divided into {@code parallelism} segments at record boundaries.
-     * Each segment is parsed independently and results are yielded in order.
-     * If the file is too small for meaningful parallelism (below the reader's
-     * {@link SegmentableFormatReader#minimumSegmentSize()} per segment), falls
-     * back to single-threaded reading.
+     * Each segment is parsed independently and pages are yielded as they become ready
+     * (completion order, not segment order). If the file is too small for meaningful
+     * parallelism (below the reader's {@link SegmentableFormatReader#minimumSegmentSize()}
+     * per segment), falls back to single-threaded reading.
      *
      * @param reader            the segmentable format reader
      * @param storageObject     the file to read
@@ -76,7 +93,7 @@ public final class ParallelParsingCoordinator {
      * @param batchSize         rows per page
      * @param parallelism       number of parallel parser threads
      * @param executor          executor for parser threads
-     * @return an iterator that yields pages in segment order
+     * @return an iterator that yields pages as they become ready (cross-segment row order not preserved)
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -210,9 +227,9 @@ public final class ParallelParsingCoordinator {
 
     /**
      * Full-control overload that also takes the {@code max_concurrent_open_segments} cap — the per-file
-     * limit on byte-range segments whose read streams are open at once. Because the consumer drains
-     * segments in order, only the head segments need be open; this caps the open-stream / buffer count
-     * independent of file count and length. See {@link OrderedParallelIterator}.
+     * limit on byte-range segments whose read streams are open at once. A sliding window dispatches at
+     * most {@code maxConcurrentOpenSegments} segments at a time; each completion opens the next. This caps
+     * the open-stream / buffer count independent of file count and length. See {@link AsReadyParallelIterator}.
      *
      * @param maxConcurrentOpenSegments per-file cap on concurrently-open segment streams (>= 1)
      */
@@ -297,7 +314,7 @@ public final class ParallelParsingCoordinator {
             return parallelReader.read(storageObject, baseCtx);
         }
 
-        OrderedParallelIterator iterator = new OrderedParallelIterator(
+        AsReadyParallelIterator iterator = new AsReadyParallelIterator(
             parallelReader,
             storageObject,
             projectedColumns,
@@ -310,7 +327,7 @@ public final class ParallelParsingCoordinator {
             splitIncludesFileLeader,
             readSchema
         );
-        // Fully constructed and published before any worker is dispatched — see OrderedParallelIterator#start.
+        // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
         return iterator;
     }
@@ -394,17 +411,41 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Iterator that dispatches segment parsing to an executor and yields pages
-     * in strict segment order. Each segment's pages are fully consumed before
-     * moving to the next segment.
+     * Iterator that dispatches segment parsing to an executor and yields pages to the consumer
+     * as they become ready — in completion order, not segment order. Cross-segment row order is
+     * intentionally not preserved (external scans carry no order guarantee absent an explicit
+     * {@code SORT}); see the class-level Javadoc on {@link ParallelParsingCoordinator}.
      * <p>
-     * Parser threads push pages into per-segment queues. The consumer thread
-     * (the driver calling {@code next()}) drains queues in order.
+     * Parser threads push pages into a single shared bounded queue. The consumer thread (the driver
+     * calling {@code next()}) drains that one queue. A segment's object-store stream therefore closes
+     * as soon as its pages are consumed, rather than waiting for an in-order cursor to reach it — which
+     * is what let an idle socket sit open long enough to be reset by the server.
+     * <p>
+     * A sliding window still bounds the number of segment streams open at once
+     * ({@code maxConcurrentSegments}): {@link #start()} dispatches the first window and each
+     * completing segment, in {@link #parseSegment}'s finally, submits the one {@code maxConcurrentSegments}
+     * positions ahead.
      */
-    private static final class OrderedParallelIterator implements CloseableIterator<Page> {
+    private static final class AsReadyParallelIterator implements CloseableIterator<Page> {
 
-        private static final Page POISON = new Page(0);
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
+        /**
+         * Per-segment cap on bytes of buffered pages before this rewrite used a 16-deep per-segment queue.
+         * The shared queue keeps the same per-segment budget so total buffered pages stay roughly
+         * {@code maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT}, preserving backpressure pressure.
+         */
+        private static final int PAGES_PER_OPEN_SEGMENT = 16;
+        /**
+         * How many times a worker re-opens its segment after a connection-reset-class failure before
+         * giving up and propagating. Bounded so a persistently-resetting endpoint fails fast rather than
+         * looping forever.
+         */
+        private static final int MAX_STREAM_RESET_RETRIES = 3;
+        /**
+         * Fixed delay between a connection-reset re-open and the retry, giving a momentarily-unhealthy
+         * endpoint a beat to recover rather than hammering it back-to-back.
+         */
+        private static final long RESET_RETRY_BACKOFF_MILLIS = 100;
 
         private final SegmentableFormatReader reader;
         private final StorageObject storageObject;
@@ -418,15 +459,23 @@ public final class ParallelParsingCoordinator {
         private final List<long[]> segments;
         private final Executor executor;
         private final int maxConcurrentSegments;
-        private final List<BlockingQueue<Page>> segmentQueues;
+        /**
+         * Single bounded queue shared by every segment worker. {@code offer} with a timeout provides
+         * backpressure; the consumer drains in as-ready order. The consumer never blocks indefinitely on
+         * it: {@link #takeNextPage()} polls with a 200ms timeout and re-checks the completion counter on
+         * every wake-up, so termination depends only on that poll, not on any wake-up signal from the
+         * workers.
+         */
+        private final BlockingQueue<Page> sharedQueue;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
+        /** Counts segments still running. Reaches 0 when every worker has finished (success or failure). */
+        private final AtomicInteger remainingSegments;
         private final CountDownLatch allDone;
 
-        private int currentSegment = 0;
         private Page buffered = null;
         private volatile boolean closed = false;
 
-        OrderedParallelIterator(
+        AsReadyParallelIterator(
             SegmentableFormatReader reader,
             StorageObject storageObject,
             List<String> projectedColumns,
@@ -451,12 +500,11 @@ public final class ParallelParsingCoordinator {
             // Single clamp site for the effective window: the configured cap, never more than the parser
             // thread pool can run nor more segments than exist, floored at 1.
             this.maxConcurrentSegments = Math.max(1, Math.min(maxConcurrentOpenSegments, Math.min(parallelism, segments.size())));
+            this.remainingSegments = new AtomicInteger(segments.size());
             this.allDone = new CountDownLatch(segments.size());
-
-            this.segmentQueues = new ArrayList<>(segments.size());
-            for (int i = 0; i < segments.size(); i++) {
-                segmentQueues.add(new ArrayBlockingQueue<>(16));
-            }
+            // Bound total buffered pages to the open-segment window times the per-segment page budget, so
+            // backpressure scales with how many streams may be open rather than with the segment count.
+            this.sharedQueue = new LinkedBlockingQueue<>(Math.max(1, maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT));
             // Work is dispatched by start(), not here, so no parser thread can observe a partially
             // constructed instance — the constructor fully publishes before any worker runs.
         }
@@ -464,11 +512,9 @@ public final class ParallelParsingCoordinator {
         /**
          * Begins the sliding-window dispatch: submit the first {@code maxConcurrentSegments} segments; each
          * segment, on completion, submits the one that many positions ahead (see parseSegment's finally).
-         * This bounds open streams without stalling the in-order consumer, which runs on the driver thread,
-         * so the head segment always progresses. Called once by {@link #parallelRead} after construction —
-         * keeping it out of the constructor avoids leaking {@code this} to worker threads. A permit acquired
-         * inside parseSegment would instead deadlock: a later segment could hold it while blocked on a full
-         * queue, starving the head segment the consumer is waiting on.
+         * This bounds open streams while pages drain in as-ready order, so no segment is gated on an earlier
+         * one finishing. Called once by {@link #parallelRead} after construction — keeping it out of the
+         * constructor avoids leaking {@code this} to worker threads.
          */
         void start() {
             // maxConcurrentSegments is already clamped to <= segments.size() in the constructor.
@@ -479,8 +525,9 @@ public final class ParallelParsingCoordinator {
 
         /**
          * Submits the segment at {@code startIndex}. On {@link RejectedExecutionException} (executor shutting
-         * down) it cannot run, so we poison its queue, count it down, and cascade to the next in the
-         * window-chain ({@code startIndex + maxConcurrentSegments}) so no latch is left dangling on teardown.
+         * down) it cannot run, so we record the error, mark it finished, and cascade to the next in the
+         * window-chain ({@code startIndex + maxConcurrentSegments}) so the completion counter is never left
+         * dangling on teardown.
          */
         private void submitSegment(int startIndex) {
             int segIdx = startIndex;
@@ -492,63 +539,23 @@ public final class ParallelParsingCoordinator {
                     return;
                 } catch (RejectedExecutionException e) {
                     firstError.compareAndSet(null, e);
-                    enqueuePoison(segmentQueues.get(idx));
-                    allDone.countDown();
+                    finishSegment();
                     segIdx += maxConcurrentSegments;
                 }
             }
         }
 
         private void parseSegment(int segmentIndex, long offset, long length) {
-            BlockingQueue<Page> queue = segmentQueues.get(segmentIndex);
             try {
-                // Teardown or earlier failure: skip opening a stream; finally still poisons + cascades.
+                // Teardown or earlier failure: skip opening a stream; finally still finishes + cascades.
                 if (closed || firstError.get() != null) {
                     return;
                 }
-                boolean lastSplit = segmentIndex == segmentQueues.size() - 1;
-                StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
-
-                // Per-flag semantics:
-                // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
-                // computeSegments probes the next record boundary so segments 1..N start on a
-                // complete record, but for header-bearing formats (CSV) "first split" still means
-                // "the segment that contains the header"; otherwise non-first segments would re-run
-                // header inference on data rows.
-                // - lastSplit: only the trailing segment runs to fileLength; non-final segments
-                // end on a record-terminator byte and must NOT be marked lastSplit, so the
-                // codec/reader can correctly handle the segment-boundary tail (see
-                // ParallelParsingCoordinator's segmentation contract).
-                // - recordAligned: every segment is guaranteed to start at a record boundary
-                // (computeSegments probes the next record boundary), so line-oriented readers
-                // can skip the "drop leading partial line" workaround used for byte-range
-                // macro-splits where the leading bytes belong to a previous split. Setting this
-                // also lets readers (e.g. NDJSON) skip the byte-by-byte trailing-partial-line
-                // scan that the format would otherwise apply per chunk.
-                FormatReadContext ctx = FormatReadContext.builder()
-                    .projectedColumns(projectedColumns)
-                    .batchSize(batchSize)
-                    .errorPolicy(errorPolicy)
-                    .firstSplit(splitIncludesFileLeader && segmentIndex == 0)
-                    .lastSplit(lastSplit)
-                    .recordAligned(true)
-                    .readSchema(readSchema)
-                    .build();
-                CloseableIterator<Page> pages = reader.read(segObj, ctx);
-                try (pages) {
-                    while (pages.hasNext()) {
-                        if (firstError.get() != null || closed) {
-                            break;
-                        }
-                        Page page = pages.next();
-                        enqueueOrRelease(queue, page);
-                    }
-                }
+                readSegmentWithResetRetries(segmentIndex, offset, length);
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
             } finally {
-                enqueuePoison(queue);
-                allDone.countDown();
+                finishSegment();
                 // Slide the window: this stream is now closed, so the segment maxConcurrentSegments ahead may open.
                 int next = segmentIndex + maxConcurrentSegments;
                 if (next < segments.size()) {
@@ -557,30 +564,212 @@ public final class ParallelParsingCoordinator {
             }
         }
 
-        private void enqueueOrRelease(BlockingQueue<Page> queue, Page page) throws InterruptedException {
+        /**
+         * Reads one segment, re-opening and resuming on connection-reset-class failures.
+         * <p>
+         * Segments are {@code recordAligned} and the underlying read is deterministic, so re-opening from the
+         * segment start reproduces the same page sequence. On a reset we re-read from the start and skip the
+         * rows this worker already enqueued (tracked by {@code deliveredRows}), so each row reaches the shared
+         * queue exactly once. {@link InterruptedException} and genuine data/parse errors are not reset-class
+         * and propagate immediately; retries are bounded by {@link #MAX_STREAM_RESET_RETRIES}.
+         */
+        private void readSegmentWithResetRetries(int segmentIndex, long offset, long length) throws Exception {
+            boolean lastSplit = segmentIndex == segments.size() - 1;
+            StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
+
+            // Per-flag semantics:
+            // - firstSplit: only segment 0 owns the file's leading bytes (and any header).
+            // computeSegments probes the next record boundary so segments 1..N start on a
+            // complete record, but for header-bearing formats (CSV) "first split" still means
+            // "the segment that contains the header"; otherwise non-first segments would re-run
+            // header inference on data rows.
+            // - lastSplit: only the trailing segment runs to fileLength; non-final segments
+            // end on a record-terminator byte and must NOT be marked lastSplit, so the
+            // codec/reader can correctly handle the segment-boundary tail (see
+            // ParallelParsingCoordinator's segmentation contract).
+            // - recordAligned: every segment is guaranteed to start at a record boundary
+            // (computeSegments probes the next record boundary), so line-oriented readers
+            // can skip the "drop leading partial line" workaround used for byte-range
+            // macro-splits where the leading bytes belong to a previous split. Setting this
+            // also lets readers (e.g. NDJSON) skip the byte-by-byte trailing-partial-line
+            // scan that the format would otherwise apply per chunk.
+            FormatReadContext ctx = FormatReadContext.builder()
+                .projectedColumns(projectedColumns)
+                .batchSize(batchSize)
+                .errorPolicy(errorPolicy)
+                .firstSplit(splitIncludesFileLeader && segmentIndex == 0)
+                .lastSplit(lastSplit)
+                .recordAligned(true)
+                .readSchema(readSchema)
+                .build();
+
+            // Running count of rows from this segment already delivered to the shared queue. Held in a
+            // single-element array so the count survives a mid-read throw: readSegmentOnce updates it as it
+            // enqueues, so on a reset-resume we re-read from the segment start and skip exactly this many
+            // rows, never delivering any row twice.
+            long[] deliveredRows = { 0 };
+            int attempt = 0;
             while (true) {
-                if (closed || firstError.get() != null) {
-                    if (page.getPositionCount() > 0) {
-                        page.releaseBlocks();
+                try {
+                    readSegmentOnce(segObj, ctx, deliveredRows);
+                    return;
+                } catch (InterruptedException ie) {
+                    throw ie;
+                } catch (Exception e) {
+                    boolean canRetry = attempt < MAX_STREAM_RESET_RETRIES
+                        && closed == false
+                        && firstError.get() == null
+                        && isConnectionReset(e);
+                    if (canRetry == false) {
+                        throw e;
                     }
-                    return;
-                }
-                if (queue.offer(page, 500, TimeUnit.MILLISECONDS)) {
-                    return;
+                    attempt++;
+                    logger.debug(
+                        "segment [{}] hit a connection reset after [{}] delivered rows; re-opening (attempt [{}]/[{}])",
+                        segmentIndex,
+                        deliveredRows[0],
+                        attempt,
+                        MAX_STREAM_RESET_RETRIES
+                    );
+                    // Brief backoff so a momentarily-unhealthy endpoint gets a beat to recover rather than
+                    // being hammered with an immediate re-open. Interrupt-aware: an interrupt during the
+                    // wait aborts the read promptly.
+                    try {
+                        Thread.sleep(RESET_RETRY_BACKOFF_MILLIS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw ie;
+                    }
                 }
             }
         }
 
-        private static void enqueuePoison(BlockingQueue<Page> queue) {
-            boolean poisoned = false;
-            while (poisoned == false) {
-                try {
-                    queue.put(POISON);
-                    poisoned = true;
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
+        /**
+         * Reads the segment from its start, skipping the first {@code deliveredRows[0]} rows (already delivered
+         * on a prior attempt), and enqueues the remaining pages onto the shared queue. {@code deliveredRows[0]}
+         * is advanced only as pages are actually enqueued, in place, so it reflects truly-delivered progress
+         * even if this method throws partway through — a subsequent reset-resume then knows exactly where to
+         * pick up.
+         * <p>
+         * The skip is performed at the <em>row</em> level, not the page level. A {@link SegmentableFormatReader}
+         * is only required to reproduce the same row sequence on a re-read, not the same pagination (a reader
+         * that fills pages by buffer or timing legitimately repaginates). So when the skip lands inside a page,
+         * the already-delivered prefix of that page is dropped and only the remaining
+         * {@code pageRows - toSkip} rows are enqueued; whole earlier pages are dropped outright.
+         */
+        private void readSegmentOnce(StorageObject segObj, FormatReadContext ctx, long[] deliveredRows) throws Exception {
+            long toSkip = deliveredRows[0];
+            CloseableIterator<Page> pages = reader.read(segObj, ctx);
+            try (pages) {
+                while (pages.hasNext()) {
+                    if (firstError.get() != null || closed) {
+                        break;
+                    }
+                    Page page = pages.next();
+                    int pageRows = page.getPositionCount();
+                    if (toSkip > 0) {
+                        // Replay path: this page (or a prefix of it) was already delivered before the reset.
+                        if (toSkip >= pageRows) {
+                            // Entire page already delivered: drop it and move on.
+                            toSkip -= pageRows;
+                            page.releaseBlocks();
+                            continue;
+                        }
+                        // The skip lands inside this page: the first `toSkip` rows were already delivered, the
+                        // remaining `pageRows - toSkip` rows have not. Slice out the undelivered tail and
+                        // enqueue only that. Page#slice builds independent blocks, so the original page is
+                        // released here regardless of whether the slice is enqueued.
+                        int skipInPage = (int) toSkip;
+                        Page remainder = page.slice(skipInPage, pageRows);
+                        page.releaseBlocks();
+                        toSkip = 0;
+                        int remainderRows = remainder.getPositionCount();
+                        if (enqueueOrRelease(remainder)) {
+                            deliveredRows[0] += remainderRows;
+                        }
+                        continue;
+                    }
+                    if (enqueueOrRelease(page)) {
+                        deliveredRows[0] += pageRows;
+                    }
                 }
             }
+        }
+
+        /**
+         * True if {@code t} (or any cause in its chain) is a transient transport fault whose segment stream
+         * can be safely re-opened and resumed, as opposed to a genuine data or parse error (which must
+         * propagate without retry).
+         * <p>
+         * <b>Type first.</b> Classification keys off the exception <em>type</em>: the JDK transport types
+         * {@link SocketException} (covers "Connection reset" / "Connection reset by peer" / "Broken pipe"),
+         * {@link SocketTimeoutException}, and {@link InterruptedIOException} (a read timeout surfaces as one of
+         * these from the object-store HTTP client). The s3 datasource ({@code esql-datasource-s3}) wraps its
+         * transport failures: {@code S3StorageObject} rethrows them as {@link IOException} ("Range request
+         * failed", "Failed to read object"), and the AWS SDK's own
+         * {@code software.amazon.awssdk.core.exception.SdkClientException} / {@code AbortedException} carry the
+         * underlying {@code SocketException} as a cause — both of which are caught by the cause-chain walk
+         * above. (The esql plugin does not depend on the AWS SDK, so those concrete types cannot be referenced
+         * here by class; they are matched through their JDK transport cause.)
+         * <p>
+         * <b>Message fallback is narrow and documented.</b> Some HTTP clients surface a reset as a bare
+         * {@link IOException} with no transport-typed cause; only for that case do we fall back to a tight
+         * substring check on the message. A throwable that cannot be type-identified as transport and does not
+         * match that narrow phrase is treated as a real error and is <em>not</em> retried — a genuine
+         * data/parse error never gets retried as transient.
+         */
+        static boolean isConnectionReset(Throwable t) {
+            for (Throwable c = t; c != null; c = c.getCause()) {
+                // Type-based detection: JDK transport exception types are the authoritative signal.
+                if (c instanceof SocketException || c instanceof SocketTimeoutException || c instanceof InterruptedIOException) {
+                    return true;
+                }
+                // Narrow, documented message fallback: only a bare IOException whose message is exactly a
+                // connection-reset/closed phrase. Deliberately does NOT match arbitrary throwables — a data or
+                // parse error that merely mentions the phrase must not be retried.
+                if (c instanceof IOException) {
+                    String msg = c.getMessage();
+                    if (msg != null) {
+                        String lower = msg.toLowerCase(Locale.ROOT);
+                        if (lower.contains("connection reset") || lower.contains("connection closed")) {
+                            return true;
+                        }
+                    }
+                }
+                if (c.getCause() == c) {
+                    break;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Offers {@code page} to the shared queue, blocking with a timeout for backpressure. Returns
+         * {@code true} if the page was enqueued (and is now owned by the consumer), {@code false} if it was
+         * released here because the iterator was closed or an error flipped before it could be enqueued. The
+         * caller uses the return value to advance {@code deliveredRows} only on a genuine enqueue, so the
+         * resume cursor reflects truly-delivered rows.
+         */
+        private boolean enqueueOrRelease(Page page) throws InterruptedException {
+            while (true) {
+                if (closed || firstError.get() != null) {
+                    page.releaseBlocks();
+                    return false;
+                }
+                if (sharedQueue.offer(page, 500, TimeUnit.MILLISECONDS)) {
+                    return true;
+                }
+            }
+        }
+
+        /**
+         * Marks one segment finished. The consumer does not need an explicit wake-up: {@link #takeNextPage()}
+         * polls the shared queue with a 200ms timeout and re-checks the completion counter on every wake-up,
+         * so it observes the final segment finishing within one poll interval.
+         */
+        private void finishSegment() {
+            allDone.countDown();
+            remainingSegments.decrementAndGet();
         }
 
         @Override
@@ -603,26 +792,32 @@ public final class ParallelParsingCoordinator {
         @Override
         public Page next() {
             if (hasNext() == false) {
-                throw new java.util.NoSuchElementException();
+                throw new NoSuchElementException();
             }
             Page result = buffered;
             buffered = null;
             return result;
         }
 
+        /**
+         * Drains the shared queue in as-ready order. Returns the next data page, or {@code null} once every
+         * segment has finished and the queue is empty. Polls with a timeout (rather than blocking forever) so
+         * the loop re-checks the completion counter and any error within one poll interval — termination does
+         * not depend on any wake-up signal from the workers.
+         */
         private Page takeNextPage() throws InterruptedException {
-            while (currentSegment < segmentQueues.size()) {
+            while (true) {
                 checkError();
-                BlockingQueue<Page> queue = segmentQueues.get(currentSegment);
-                Page page = queue.take();
-                if (page == POISON) {
-                    currentSegment++;
-                    continue;
+                Page page = sharedQueue.poll(200, TimeUnit.MILLISECONDS);
+                if (page != null) {
+                    return page;
                 }
-                return page;
+                // No page available: if all segments are done and the queue is now empty, we're finished.
+                if (remainingSegments.get() == 0 && sharedQueue.isEmpty()) {
+                    checkError();
+                    return null;
+                }
             }
-            checkError();
-            return null;
         }
 
         private void checkError() {
@@ -641,7 +836,7 @@ public final class ParallelParsingCoordinator {
                 return;
             }
             closed = true;
-            drainAllQueues();
+            drainQueue();
             try {
                 if (allDone.await(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {
                     logger.warn("Timed out waiting for parallel parsing threads to finish after [{}]s", CLOSE_TIMEOUT_SECONDS);
@@ -649,17 +844,13 @@ public final class ParallelParsingCoordinator {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            drainAllQueues();
+            drainQueue();
         }
 
-        private void drainAllQueues() {
-            for (BlockingQueue<Page> queue : segmentQueues) {
-                Page p;
-                while ((p = queue.poll()) != null) {
-                    if (p != POISON && p.getPositionCount() > 0) {
-                        p.releaseBlocks();
-                    }
-                }
+        private void drainQueue() {
+            Page p;
+            while ((p = sharedQueue.poll()) != null) {
+                p.releaseBlocks();
             }
         }
     }

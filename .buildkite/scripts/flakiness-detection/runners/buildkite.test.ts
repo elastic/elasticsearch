@@ -73,10 +73,14 @@ describe("toBuildkitePipeline end-to-end", () => {
     // Each parallel batch is independently wrapped under the inner timeout.
     expect(step.env!["BATCH_COMMAND_0"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
     expect(step.env!["BATCH_COMMAND_4"]).toContain("timeout --foreground --signal=TERM --kill-after=30s 58m bash");
-    expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
-    // The `$$` escape prevents Buildkite pipeline interpolation from trying to
-    // parse `${!VARNAME}` (bash indirect expansion) as a Buildkite variable,
-    // which fails with "Expected identifier to start with a letter, got !".
+    // Both `$$` escapes defer interpolation past BK's pipeline-upload pass:
+    //   * BUILDKITE_PARALLEL_JOB is a per-job runtime var; if not escaped, BK
+    //     substitutes empty at upload time and the indirect lookup becomes a
+    //     no-op (the bug observed on build 150689).
+    //   * `${!VARNAME}` (bash indirect expansion) can't be parsed by BK as a
+    //     variable identifier because of the leading `!`.
+    expect(step.command).toContain('$${BUILDKITE_PARALLEL_JOB}');
+    expect(step.command).not.toMatch(/[^$]\$\{BUILDKITE_PARALLEL_JOB\}/);
     expect(step.command).toContain('$${!VARNAME}');
     expect(step.command).not.toMatch(/[^$]\$\{!VARNAME\}/);
 

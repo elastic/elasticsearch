@@ -96,7 +96,6 @@ public class SemanticFieldContent {
             if (value instanceof Map<?, ?> map) {
                 mapValues.put(valueIndex, map);
             } else {
-                // TODO: Null value handling
                 textValues.add(value.toString());
             }
 

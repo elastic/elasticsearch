@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LongValues;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Clone of {@link SortedNumericDocValues} for long values.
@@ -149,18 +150,47 @@ public abstract class SortedNumericLongValues {
      * a {@link LongValues} instance via {@link #unwrapSingleton(SortedNumericLongValues)}
      */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
-        NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        LongValues longValues = singleton == null ? null : new LongValues() {
-            @Override
-            public long longValue() throws IOException {
-                return singleton.longValue();
-            }
+        return wrap(values, -1);
+    }
 
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return singleton.advanceExact(doc);
+    public static SortedNumericLongValues wrap(SortedNumericDocValues values, int maxDoc) {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        final LongValues longValues;
+        if (singleton == null) {
+            longValues = null;
+        } else {
+            final boolean isDense;
+            try {
+                isDense = singleton.docIDRunEnd() == maxDoc;
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        };
+            if (isDense) {
+                longValues = new DenseLongValues() {
+                    @Override
+                    protected void doAdvanceExact(int doc) throws IOException {
+                        singleton.advanceExact(doc);
+                    }
+
+                    @Override
+                    public long longValue() throws IOException {
+                        return singleton.longValue();
+                    }
+                };
+            } else {
+                longValues = new LongValues() {
+                    @Override
+                    public long longValue() throws IOException {
+                        return singleton.longValue();
+                    }
+
+                    @Override
+                    public boolean advanceExact(int doc) throws IOException {
+                        return singleton.advanceExact(doc);
+                    }
+                };
+            }
+        }
         return new SortedNumericLongValues(singleton != null, values) {
             @Override
             public boolean advanceExact(int target) throws IOException {

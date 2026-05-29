@@ -195,7 +195,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         public SortedNumericLongValues getLongValuesAsNanos() {
             try {
-                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
+                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName), reader.maxDoc());
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }
@@ -239,7 +239,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public SortedNumericLongValues getLongValues() {
             try {
-                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, field));
+                return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, field), reader.maxDoc());
             } catch (IOException e) {
                 throw new IllegalStateException("Cannot load doc values", e);
             }

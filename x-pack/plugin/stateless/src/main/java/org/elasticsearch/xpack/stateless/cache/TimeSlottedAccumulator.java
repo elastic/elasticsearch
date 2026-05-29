@@ -168,8 +168,9 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
 
     /**
      * Adds {@code delta} to the slot containing {@code timestampMillis}. A negative {@code delta} subtracts from the slot.
+     * Callers are expected to keep per-slot counts non-negative.
      *
-     * @return the slot count after applying {@code delta}
+     * @return the slot count after applying {@code delta}; callers should assert this is not negative
      */
     @Override
     public int accumulate(long timestampMillis, int delta) {

@@ -162,12 +162,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         assertThat(accumulator.accumulate(anchorSlot, firstDelta), equalTo(firstDelta));
         assertThat(accumulator.accumulate(anchorSlot, secondDelta), equalTo(firstDelta + secondDelta));
         assertThat(accumulator.accumulate(anchorSlot, 0), equalTo(firstDelta + secondDelta));
-
-        int overSubtract = randomIntBetween(firstDelta + secondDelta + 1, firstDelta + secondDelta + 100);
-        int slotCount = accumulator.accumulate(anchorSlot, -overSubtract);
-        assertThat(slotCount, lessThan(0));
-        assertThat(slotCount, equalTo(firstDelta + secondDelta - overSubtract));
-        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(slotCount));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(firstDelta + secondDelta));
     }
 
     public void testConcurrentAdds() throws Exception {

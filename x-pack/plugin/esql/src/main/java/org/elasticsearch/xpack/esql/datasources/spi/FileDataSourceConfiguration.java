@@ -16,9 +16,11 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
 /**
  * Base configuration for file-based external sources (S3, GCS, Azure). Handles common
  * authentication: the {@code auth} field, anonymous access detection, and validation
- * that auth=none is not combined with explicit credentials. Credential conflict detection
- * is automatic — any field marked {@link DataSourceConfigDefinition#secret(String) secret}
- * that has a value set is treated as an explicit credential.
+ * that auth=none is not combined with explicit credentials or keyless authentication
+ * settings. Credential conflict detection is automatic — any field marked
+ * {@link DataSourceConfigDefinition#secret(String) secret} or
+ * {@link DataSourceConfigDefinition#asKeylessAuth() keyless auth} that has a value set is
+ * treated as an authentication setting, and the two kinds cannot be combined.
  */
 public abstract class FileDataSourceConfiguration extends DataSourceConfiguration {
 
@@ -37,7 +39,19 @@ public abstract class FileDataSourceConfiguration extends DataSourceConfiguratio
         if (isAnonymous() && hasAnySecretValue()) {
             errors.addValidationError("auth=none cannot be combined with explicit credentials; anonymous access uses no credentials");
         }
+        if (isAnonymous() && hasKeylessAuth()) {
+            errors.addValidationError(
+                "auth=none cannot be combined with keyless authentication settings; anonymous access uses no credentials"
+            );
+        }
+        if (hasAnySecretValue() && hasKeylessAuth()) {
+            errors.addValidationError("explicit credentials cannot be combined with keyless authentication settings");
+        }
+        validateCredentials(errors);
     }
+
+    /** Subclass hook for datasource-specific credential validation. */
+    protected void validateCredentials(ValidationException errors) {}
 
     public String auth() {
         return get(AUTH.name());

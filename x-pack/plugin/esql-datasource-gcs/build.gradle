@@ -17,7 +17,7 @@ esplugin {
   name = 'esql-datasource-gcs'
   description = 'Google Cloud Storage provider for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.gcs.GcsDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'workload-identity']
 }
 
 base {
@@ -30,6 +30,9 @@ dependencies {
   compileOnly project(path: xpackModule('esql-core'))
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
+
+  // OIDC JWT issuer-client SPI, provided at runtime via the 'workload-identity' extended plugin.
+  compileOnly project(':modules:workload-identity:spi')
 
   // Google Cloud Storage client library - versions consistent with repository-gcs module
   implementation 'com.google.cloud:google-cloud-storage:2.50.0'

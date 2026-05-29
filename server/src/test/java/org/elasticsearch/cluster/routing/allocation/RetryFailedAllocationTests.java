@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -33,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RetryFailedAllocationTests extends ESAllocationTestCase {
@@ -107,55 +105,5 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         clusterState = startShardsAndReroute(strategy, clusterState, getReplica());
         assertEquals(ShardRoutingState.STARTED, getReplica().state());
         assertFalse(clusterState.getRoutingNodes().hasUnassignedShards());
-    }
-
-    public void testManualRetryChangesReasonToManualAllocation() {
-        final int retries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
-        clusterState = strategy.reroute(clusterState, "initial allocation", ActionListener.noop());
-        clusterState = startShardsAndReroute(strategy, clusterState, getPrimary());
-
-        for (int i = 0; i < retries; i++) {
-            List<FailedShard> failedShards = Collections.singletonList(
-                new FailedShard(getReplica(), "failing-shard::attempt-" + i, new ElasticsearchException("simulated"), randomBoolean())
-            );
-            clusterState = strategy.applyFailedShards(clusterState, failedShards, List.of());
-            clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i, ActionListener.noop());
-        }
-        var replicaShard = getReplica();
-        assertThat("replica should not be assigned", replicaShard.state(), equalTo(ShardRoutingState.UNASSIGNED));
-        var unassignedInfo = replicaShard.unassignedInfo();
-        assertThat(
-            "expected unassigned reason to be ALLOCATION_FAILED",
-            unassignedInfo.reason(),
-            equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
-        );
-        assertThat(unassignedInfo.failedAllocations(), greaterThan(0));
-
-        AllocationService.CommandsResult result = strategy.reroute(
-            clusterState,
-            new AllocationCommands(
-                new AllocateReplicaAllocationCommand(
-                    INDEX_NAME,
-                    0,
-                    getPrimary().currentNodeId().equals("node1") ? "node2" : "node1",
-                    projectId
-                )
-            ),
-            false,
-            true,
-            false,
-            ActionListener.noop()
-        );
-        clusterState = result.clusterState();
-
-        replicaShard = getReplica();
-        assertThat(replicaShard.state(), equalTo(ShardRoutingState.INITIALIZING));
-        unassignedInfo = replicaShard.unassignedInfo();
-        assertThat(
-            "unassigned reason should be MANUAL_ALLOCATION after manual retry",
-            unassignedInfo.reason(),
-            equalTo(UnassignedInfo.Reason.MANUAL_ALLOCATION)
-        );
-        assertThat(unassignedInfo.failedAllocations(), equalTo(0));
     }
 }

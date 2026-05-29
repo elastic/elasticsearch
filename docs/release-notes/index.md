@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.4.2 [elasticsearch-9.4.2-release-notes]
-```{applies_to}
-stack: ga 9.4.2
-```
 
 ### Features and enhancements [elasticsearch-9.4.2-features-enhancements]
 
@@ -109,10 +106,9 @@ Vector Search:
 * Fix gpu close resource ordering [#149054](https://github.com/elastic/elasticsearch/pull/149054)
 * GPU codec: fall back to CPU graph build on flush when GPU is busy [#149373](https://github.com/elastic/elasticsearch/pull/149373)
 
+
+
 ## 9.3.5 [elasticsearch-9.3.5-release-notes]
-```{applies_to}
-stack: ga 9.3.5
-```
 
 ### Features and enhancements [elasticsearch-9.3.5-features-enhancements]
 
@@ -5151,4 +5147,5 @@ Vector Search:
 
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
+
 

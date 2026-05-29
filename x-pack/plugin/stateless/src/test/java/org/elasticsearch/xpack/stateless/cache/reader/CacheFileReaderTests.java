@@ -29,9 +29,10 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.InputStream;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
@@ -47,19 +48,17 @@ public class CacheFileReaderTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool("CacheFileReaderTests", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    @Before
+    public void startThreadPool() throws Exception {
+        threadPool = new TestThreadPool("CacheFileReaderTests", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, randomBoolean()));
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+    @After
+    public void stopThreadPool() throws Exception {
+        assertTrue(terminate(threadPool));
     }
 
-    public void testTryPrefetchOnSearchNodeFetchesAndPrefetches() throws Exception {
+    public void testTryPrefetchFetches() throws Exception {
         Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
@@ -277,7 +276,6 @@ public class CacheFileReaderTests extends ESTestCase {
 
     private Settings nodeSettings() {
         return Settings.builder()
-            // .putList("node.roles", "search")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
             .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .put(

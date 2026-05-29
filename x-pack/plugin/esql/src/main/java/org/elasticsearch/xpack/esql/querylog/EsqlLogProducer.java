@@ -37,6 +37,17 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
         });
         context.getFilter().ifPresent(filter -> msg.field(QueryLogging.QUERY_FIELD_FILTER, filter));
 
+        var namedParams = context.namedParams();
+        if (namedParams.isEmpty()) {
+            var params = context.params();
+            if (params.isEmpty() == false) {
+                msg.field(QueryLogging.QUERY_FIELD_PARAMS, params);
+            }
+        } else {
+            msg.field(QueryLogging.QUERY_FIELD_PARAMS, namedParams.values());
+            msg.field(QueryLogging.QUERY_FIELD_PARAM_NAMES, namedParams.keySet());
+        }
+
         // Query-level rollup counters from the response root, surfaced unconditionally so the slow
         // log carries the same I/O / row / CPU cost signal that {@code profile=true} would show
         // under the top-level {@code profile.*} keys. Field names mirror the JSON profile so log

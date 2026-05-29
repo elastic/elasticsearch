@@ -37,6 +37,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -329,6 +330,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     JAVA_FLOAT,  // queryBitScale
                     JAVA_FLOAT,  // indexBitScale
                     JAVA_FLOAT,  // centroidDp
+                    JAVA_BYTE,   // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     ADDRESS      // scores
                 );
 
@@ -964,6 +966,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -980,6 +983,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1000,6 +1004,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -1016,6 +1021,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1036,6 +1042,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             float queryBitScale,
             float indexBitScale,
             float centroidDp,
+            byte readComponentSumAsInt,
             MemorySegment scores
         ) {
             try {
@@ -1052,6 +1059,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryBitScale,
                     indexBitScale,
                     centroidDp,
+                    readComponentSumAsInt,
                     scores
                 );
             } catch (Throwable t) {
@@ -1431,6 +1439,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     float.class,          // queryBitScale
                     float.class,          // indexBitScale
                     float.class,          // centroidDp
+                    byte.class,           // readComponentSumAsInt (0 = 2-byte format, 1 = 4-byte format)
                     MemorySegment.class   // scores
                 );
 

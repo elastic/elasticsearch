@@ -1344,6 +1344,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             matchFieldExpression = expression(ctx.fieldExp);
         }
 
-        return new MatchOperator(source(ctx), matchFieldExpression, expression(ctx.matchQuery));
+        return new MatchOperator(source(ctx), matchFieldExpression, expression(ctx.matchQuery), ConfigurationAware.CONFIGURATION_MARKER);
     }
 }

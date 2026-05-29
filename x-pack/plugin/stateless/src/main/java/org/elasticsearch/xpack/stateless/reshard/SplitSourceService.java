@@ -293,8 +293,11 @@ public class SplitSourceService {
             throw new IllegalStateException(message);
         }
 
-        commitService.markSplitting(sourceShardId, targetShardId);
-        SubscribableListener.<Releasable>newForked(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
+        SubscribableListener.newForked(l -> {
+            commitService.markSplitting(sourceShardId, targetShardId);
+            l.onResponse(null);
+        })
+            .<Releasable>andThen(l -> sourceShard.acquirePrimaryOperationPermit(l, clusterService.threadPool().generic()))
             .<Releasable>andThen((l, permit) -> {
                 try (Releasable ignore = permit) {
                     objectStoreService.copyShard(task, sourceShardId, targetShardId, sourcePrimaryTerm);
@@ -400,6 +403,15 @@ public class SplitSourceService {
     private void setupSourceShardStateMachine(IndexShard sourceShard) {
         activeSourceShards.compute(sourceShard, (shard, stateMachine) -> {
             if (stateMachine == null) {
+                // We should handle a race with `cancelSplits` when creating a new state machine.
+                // We use shard state to do that.
+                // If this function runs first and observes CLOSED, `cancelSplits` may have been executed already
+                // so we need to handle that.
+                // If we don't observe CLOSED, we can rely on `cancelSplits` to be executed (either in the future on right after this).
+                if (shard.state() == IndexShardState.CLOSED) {
+                    return null;
+                }
+
                 var newMachine = new SourceShardStateMachine(shard, () -> this.activeSourceShards.remove(shard));
                 newMachine.run();
                 return newMachine;
@@ -874,7 +886,19 @@ public class SplitSourceService {
                         return true;
                     }
 
-                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    Index index = indexShard.shardId().getIndex();
+                    Optional<IndexMetadata> indexMetadata = state.metadata()
+                        .lookupProject(index)
+                        .flatMap(p -> Optional.ofNullable(p.index(index)));
+
+                    if (indexMetadata.isEmpty()) {
+                        // Index was deletedm but we didn't observe it yet via the `cancelled` flag.
+                        // We'll wait for the cancel.
+                        return false;
+                    }
+
+                    assert indexMetadata.get().getReshardingMetadata() != null;
+                    IndexReshardingState.Split split = indexMetadata.get().getReshardingMetadata().getSplit();
                     // This shouldn't be possible.
                     // If there is a new instance of the shard that already completed the split,
                     // current instance of the shard should be removed and we would hit the cancelled branch above.

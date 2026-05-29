@@ -70,7 +70,6 @@ public class RankFeaturePhase extends SearchPhase {
         this.queryPhaseResults = queryPhaseResults;
         this.aggregatedDfs = aggregatedDfs;
         this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
-        rankPhaseResults.setDirectoryMetricsSink(context::accumulateDirectoryMetrics);
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
     }
@@ -184,6 +183,7 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
+        context.accumulateDirectoryMetrics(rankPhaseResults.getDirectoryMetrics());
         ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
             context::execute,
             new ActionListener<>() {

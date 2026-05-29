@@ -14,7 +14,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -22,25 +22,24 @@ import java.util.stream.Stream;
  */
 abstract class SearchPhaseResults<Result extends SearchPhaseResult> implements Releasable {
     private final int numShards;
-    private volatile Consumer<DirectoryMetrics> directoryMetricsSink = m -> {};
+    private final AtomicReference<DirectoryMetrics> directoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     SearchPhaseResults(int numShards) {
         this.numShards = numShards;
     }
 
     /**
-     * Wires the destination for {@link DirectoryMetrics} that this collection observes on each shard result.
-     * Called once by the owning {@link AbstractSearchAsyncAction} (or sub-phase) before any shard responses
-     * arrive. The default sink is a no-op, which is the right behavior for data-node-side consumers
+     * Accumulates the {@link DirectoryMetrics} carried by each shard result as it is consumed. Shard results are
+     * consumed concurrently from transport worker threads, so the merge is performed atomically.
      */
-    void setDirectoryMetricsSink(Consumer<DirectoryMetrics> sink) {
-        this.directoryMetricsSink = sink;
+    protected void accumulateDirectoryMetrics(DirectoryMetrics m) {
+        if (m.isEmpty() == false) {
+            directoryMetrics.accumulateAndGet(m, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+        }
     }
 
-    protected void publishDirectoryMetrics(DirectoryMetrics m) {
-        if (m.isEmpty() == false) {
-            directoryMetricsSink.accept(m);
-        }
+    DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics.get();
     }
 
     /**

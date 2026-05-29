@@ -127,7 +127,6 @@ class FetchSearchPhase extends SearchPhase {
         long phaseStartTimeInNanos
     ) {
         ArraySearchPhaseResults<FetchSearchResult> fetchResults = new ArraySearchPhaseResults<>(numShards);
-        fetchResults.setDirectoryMetricsSink(context::accumulateDirectoryMetrics);
         final List<Map<Integer, RankDoc>> rankDocsPerShard = false == shouldExplainRankScores(context.getRequest())
             ? null
             : splitRankDocsPerShard(scoreDocs, numShards);
@@ -140,6 +139,7 @@ class FetchSearchPhase extends SearchPhase {
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
             () -> {
                 try (fetchResults) {
+                    context.accumulateDirectoryMetrics(fetchResults.getDirectoryMetrics());
                     moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
                 }
             },

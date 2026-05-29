@@ -62,8 +62,6 @@ class DfsQueryPhase extends SearchPhase {
         this.queryResult = queryResult;
         this.client = client;
         this.context = context;
-        // forward per-shard DirectoryMetrics observed during this sub-phase straight into the request-level accumulator
-        queryResult.setDirectoryMetricsSink(context::accumulateDirectoryMetrics);
     }
 
     // protected for testing
@@ -137,6 +135,7 @@ class DfsQueryPhase extends SearchPhase {
     }
 
     private void onFinish(AggregatedDfs dfs) {
+        context.accumulateDirectoryMetrics(queryResult.getDirectoryMetrics());
         context.getSearchResponseMetrics()
             .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
         context.executeNextPhase(NAME, () -> nextPhase(dfs));

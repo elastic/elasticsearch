@@ -388,7 +388,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
-    public void testDirectoryMetricsPublishedToSinkAcrossShards() throws Exception {
+    public void testDirectoryMetricsAccumulatedAcrossShards() throws Exception {
         int numShards = 5;
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
@@ -406,7 +406,6 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 }
             )
         ) {
-            AtomicReference<DirectoryMetrics> sink = ArraySearchPhaseResultsTests.wireSink(consumer);
             CountDownLatch latch = new CountDownLatch(numShards);
             long expectedBytesRead = 0;
             for (int i = 0; i < numShards; i++) {
@@ -416,7 +415,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             }
             assertTrue(latch.await(10, TimeUnit.SECONDS));
 
-            DirectoryMetrics observed = sink.get();
+            DirectoryMetrics observed = consumer.getDirectoryMetrics();
             assertFalse(observed.isEmpty());
             assertEquals(expectedBytesRead, observed.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
         }
@@ -440,17 +439,16 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 }
             )
         ) {
-            AtomicReference<DirectoryMetrics> sink = ArraySearchPhaseResultsTests.wireSink(consumer);
             CountDownLatch latch = new CountDownLatch(numShards);
             for (int i = 0; i < numShards; i++) {
                 consumer.consumeResult(querySearchResultWithMetrics(i, null), latch::countDown);
             }
             assertTrue(latch.await(10, TimeUnit.SECONDS));
-            assertTrue(sink.get().isEmpty());
+            assertTrue(consumer.getDirectoryMetrics().isEmpty());
         }
     }
 
-    public void testDirectoryMetricsConcurrentSinkPublishing() throws Exception {
+    public void testDirectoryMetricsConcurrentAccumulation() throws Exception {
         int numShards = randomIntBetween(40, 100);
         long perShardBytes = 17L;
         SearchRequest searchRequest = new SearchRequest("index");
@@ -472,7 +470,6 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
                 }
             )
         ) {
-            AtomicReference<DirectoryMetrics> sink = ArraySearchPhaseResultsTests.wireSink(consumer);
             CountDownLatch consumed = new CountDownLatch(numShards);
             List<Callable<Void>> tasks = IntStream.range(0, numShards).mapToObj(idx -> (Callable<Void>) () -> {
                 consumer.consumeResult(querySearchResultWithMetrics(idx, storeMetrics(perShardBytes)), consumed::countDown);
@@ -481,7 +478,10 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             consumerExecutor.invokeAll(tasks);
             assertTrue(consumed.await(10, TimeUnit.SECONDS));
 
-            assertEquals(numShards * perShardBytes, sink.get().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
+            assertEquals(
+                numShards * perShardBytes,
+                consumer.getDirectoryMetrics().metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead()
+            );
         } finally {
             terminate(consumerExecutor);
         }

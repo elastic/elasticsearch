@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
 
@@ -90,10 +89,9 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
-    public void testDirectoryMetricsPublishedToSinkAcrossShards() throws Exception {
+    public void testDirectoryMetricsAccumulatedAcrossShards() throws Exception {
         int numShards = 6;
         try (CountOnlyQueryPhaseResultConsumer consumer = new CountOnlyQueryPhaseResultConsumer(SearchProgressListener.NOOP, numShards)) {
-            AtomicReference<DirectoryMetrics> sink = ArraySearchPhaseResultsTests.wireSink(consumer);
             AtomicInteger nextCounter = new AtomicInteger(0);
             long expectedBytesRead = 0;
             for (int i = 0; i < numShards; i++) {
@@ -110,7 +108,7 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             }
             assertEquals(numShards, nextCounter.get());
 
-            DirectoryMetrics observed = sink.get();
+            DirectoryMetrics observed = consumer.getDirectoryMetrics();
             assertFalse(observed.isEmpty());
             assertEquals(expectedBytesRead, observed.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
         }

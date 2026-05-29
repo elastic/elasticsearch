@@ -105,10 +105,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
      * <p>
-     * Per-shard {@link DirectoryMetrics} are forwarded to whatever sink the owning action has installed via
-     * {@link SearchPhaseResults#setDirectoryMetricsSink}. The default is a no-op, which is also the right behavior for
-     * data-node-side consumers: there the per-shard {@link DirectoryMetrics} ride back inside each query search result
-     * and are accumulated on the coordinator via the coordinator-side consumer to avoid double counting.
+     * Per-shard {@link DirectoryMetrics} are accumulated into this collection as each result is consumed
+     * On the coordinating node: there the per-shard {@link DirectoryMetrics} go back inside each query
+     * search result and are summed by the coordinator-side consumer. Data-node-side consumers never
+     * observe non-empty metrics here, so nothing is double counted.
      * </p>
      */
     public QueryPhaseResultConsumer(

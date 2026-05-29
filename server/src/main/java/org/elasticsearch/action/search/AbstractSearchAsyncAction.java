@@ -177,10 +177,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
         addReleasable(resultConsumer);
-        // route per-shard DirectoryMetrics observed by the action's own SearchPhaseResults straight into the request-level
-        // accumulator. Sub-phases that build their own SearchPhaseResults (DfsQueryPhase, RankFeaturePhase, FetchSearchPhase)
-        // wire up the same sink themselves.
-        resultConsumer.setDirectoryMetricsSink(this::accumulateDirectoryMetrics);
         this.clusters = clusters;
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
@@ -624,6 +620,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
+        accumulateDirectoryMetrics(results.getDirectoryMetrics());
         createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();

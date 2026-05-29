@@ -594,9 +594,7 @@ public final class ErrorModel {
         double r2c = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logCFit, cparams);
         double r2q = repErrorStdR2(logNDocsPerCluster, logSampleSizes, logQFit, qparams);
         logger.debug(
-            "Fit error scaling models in {}s\n"
-                + "centroid error {} (L/N)^{} (R² = {})\n"
-                + "quantization error ∝ (L/N)^{} (R² = {})",
+            "Fit error scaling models in {}s\n" + "centroid error {} (L/N)^{} (R² = {})\n" + "quantization error ∝ (L/N)^{} (R² = {})",
             String.format(Locale.ROOT, "%.5f", scalingSeconds),
             String.format(Locale.ROOT, "%.4f", Math.exp(cparams.beta0())),
             String.format(Locale.ROOT, "%.4f", cparams.beta1()),

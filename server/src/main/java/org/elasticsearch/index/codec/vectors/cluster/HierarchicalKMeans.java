@@ -321,10 +321,8 @@ public class HierarchicalKMeans<V> {
         return subPartitions.centroids().length - 1;
     }
 
-    private void logClusterQualityStatistics(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate) throws IOException
-    {
+    private void logClusterQualityStatistics(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate)
+        throws IOException {
         // We assume that kMeansIntermediate.centroids().length > 0.
         float inertia = kMeansMeanInertia(vectors, kMeansIntermediate);
         int[] clusterSizes = kMeansIntermediate.clusterCounts();
@@ -361,10 +359,7 @@ public class HierarchicalKMeans<V> {
         );
     }
 
-    private float kMeansMeanInertia(
-        ClusteringVectorValues<V> vectors,
-        KMeansIntermediate<V> kMeansIntermediate) throws IOException
-    {
+    private float kMeansMeanInertia(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
         int[] assignments = kMeansIntermediate.assignments();
         V[] centroids = kMeansIntermediate.centroids();
 

@@ -34,6 +34,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
      * @param visitRatio    IVF visit ratio
      * @param sliceField    index-sort slice field (e.g. {@code _routing})
      * @param sliceId       slice term to restrict the search doc id space
+     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
         String field,
@@ -45,9 +46,10 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         float visitRatio,
         boolean doPrecondition,
         String sliceField,
-        BytesRef sliceId
+        BytesRef sliceId,
+        float overSampleFactor
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, sliceField, sliceId);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, sliceField, sliceId, overSampleFactor);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 

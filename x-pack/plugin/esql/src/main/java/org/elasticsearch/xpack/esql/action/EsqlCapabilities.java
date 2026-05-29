@@ -2098,6 +2098,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
+         * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
+         * and floating point junk from dividing by small {@code to_nearest} values.
+         */
+        FIX_PROMQL_ROUND_TO_NEAREST,
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,

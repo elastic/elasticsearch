@@ -56,6 +56,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
     }
 
     public void testRoundToNearestMatchesPrometheusFormula() {
+        assertPromqlRoundToNearest(0.0215, 0.001);
         assertPromqlRoundToNearest(11.298657, 0.001);
         assertPromqlRoundToNearest(15.92077, 0.001);
         assertPromqlRoundToNearest(1.8376549999999998, 0.001);

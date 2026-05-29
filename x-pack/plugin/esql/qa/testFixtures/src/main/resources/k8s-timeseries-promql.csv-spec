@@ -531,6 +531,24 @@ result:double | step:datetime
 5.0           | 2024-05-10T00:00:00.000Z
 ;
 
+round_to_nearest_scalar
+required_capability: promql_command_v0
+required_capability: fix_promql_round_to_nearest
+PROMQL index=k8s step=1h result=(round(vector(0.0215), 0.001));
+
+result:double | step:datetime
+0.022         | 2024-05-10T00:00:00.000Z
+;
+
+round_to_nearest_scalar_fp
+required_capability: promql_command_v0
+required_capability: fix_promql_round_to_nearest
+PROMQL index=k8s step=1h result=(round(vector(15.92077), 0.001));
+
+result:double | step:datetime
+15.921        | 2024-05-10T00:00:00.000Z
+;
+
 quantile
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h quantile=(round(quantile by (cluster) (0.5, quantile_over_time(0.5, network.bytes_in[1h])), 0.001))

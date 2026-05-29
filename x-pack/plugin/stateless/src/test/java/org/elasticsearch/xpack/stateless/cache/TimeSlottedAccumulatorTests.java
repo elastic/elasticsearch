@@ -73,7 +73,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
             .put(TimeSlottedAccumulator.TIME_SLOTS_PAST_COUNT_SETTING.getKey(), pastCount)
             .put(TimeSlottedAccumulator.TIME_SLOTS_FUTURE_COUNT_SETTING.getKey(), futureCount)
             .build();
-        TimeProvider timeProvider = fixedAbsoluteTime(randomLongBetween(0, 1_000_000));
+        long anchorMillis = randomAnchorSlot(granularity.millis(), pastCount);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorMillis);
         TimeSlottedAccumulator accumulator = (TimeSlottedAccumulator) TimeSlottedAccumulator.createFromSettings(settings, timeProvider);
         assertThat(accumulator.granularity(), equalTo(granularity));
         assertThat(accumulator.slots(), equalTo(pastCount + futureCount));

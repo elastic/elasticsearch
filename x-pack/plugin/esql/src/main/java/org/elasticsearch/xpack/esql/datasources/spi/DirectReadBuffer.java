@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.datasources.spi;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -54,6 +56,8 @@ import java.nio.ByteBuffer;
  */
 public final class DirectReadBuffer implements Releasable {
 
+    private static final Logger logger = LogManager.getLogger(DirectReadBuffer.class);
+
     private final ByteBuffer buffer;
     private final Releasable release;
 
@@ -66,6 +70,12 @@ public final class DirectReadBuffer implements Releasable {
         this.buffer = buffer;
         this.release = release;
         this.allocSite = DirectMemoryDebug.trackingEnabled() ? new Throwable("DirectReadBuffer allocated here") : null;
+        logger.info(
+            "[DBG-ZSTD][drb] alloc id={} cap={} direct={}",
+            System.identityHashCode(this),
+            buffer == null ? -1 : buffer.capacity(),
+            buffer != null && buffer.isDirect()
+        );
     }
 
     /**
@@ -114,6 +124,7 @@ public final class DirectReadBuffer implements Releasable {
 
     @Override
     public void close() {
+        logger.info("[DBG-ZSTD][drb] close id={} head={}", System.identityHashCode(this), DirectMemoryDebug.hex(buffer, 16));
         if (DirectMemoryDebug.trackingEnabled()) {
             // A second close would double-free the ArrowBuf. Surface it here with both stacks
             // rather than letting Arrow throw a context-free IllegalReferenceCountException.

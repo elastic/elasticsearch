@@ -105,4 +105,46 @@ public final class DirectMemoryDebug {
             written++;
         }
     }
+
+    private static final char[] HEX = "0123456789abcdef".toCharArray();
+
+    public static String hex(ByteBuffer buffer, int maxBytes) {
+        if (buffer == null) {
+            return "<null>";
+        }
+        ByteBuffer view = buffer.duplicate();
+        int n = Math.min(maxBytes, view.remaining());
+        if (n <= 0) {
+            return "<empty rem=" + view.remaining() + ">";
+        }
+        StringBuilder sb = new StringBuilder(n * 2 + 8);
+        for (int i = 0; i < n; i++) {
+            byte b = view.get();
+            sb.append(HEX[(b >>> 4) & 0xF]).append(HEX[b & 0xF]);
+        }
+        if (view.remaining() > 0) {
+            sb.append("..(+").append(view.remaining()).append(")");
+        }
+        return sb.toString();
+    }
+
+    public static String hex(byte[] arr, int off, int maxBytes) {
+        if (arr == null) {
+            return "<null>";
+        }
+        int n = Math.min(maxBytes, arr.length - off);
+        if (n <= 0) {
+            return "<empty len=" + arr.length + " off=" + off + ">";
+        }
+        StringBuilder sb = new StringBuilder(n * 2 + 8);
+        for (int i = 0; i < n; i++) {
+            byte b = arr[off + i];
+            sb.append(HEX[(b >>> 4) & 0xF]).append(HEX[b & 0xF]);
+        }
+        int rem = arr.length - off - n;
+        if (rem > 0) {
+            sb.append("..(+").append(rem).append(")");
+        }
+        return sb.toString();
+    }
 }

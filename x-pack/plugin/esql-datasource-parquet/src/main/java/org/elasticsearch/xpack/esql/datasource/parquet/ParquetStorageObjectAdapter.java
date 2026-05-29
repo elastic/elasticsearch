@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.datasources.cache.FooterByteCache;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectMemoryDebug;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
@@ -148,7 +149,26 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
      * thanks to the {@code volatile} field, though typical usage is single-threaded.
      */
     void installPreWarmedChunks(NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks) {
-        this.preWarmedChunks = (chunks == null || chunks.isEmpty()) ? null : chunks;
+        if (chunks == null || chunks.isEmpty()) {
+            logger.info("[DBG-ZSTD][install] file={} chunks=null/empty", storageObject.path());
+            this.preWarmedChunks = null;
+            return;
+        }
+        logger.info("[DBG-ZSTD][install] file={} chunkCount={}", storageObject.path(), chunks.size());
+        for (Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> e : chunks.entrySet()) {
+            ColumnChunkPrefetcher.PrefetchedChunk c = e.getValue();
+            ByteBuffer view = c.data();
+            logger.info(
+                "[DBG-ZSTD][install]   chunk key={} offset={} length={} dataRem={} direct={} head={}",
+                e.getKey(),
+                c.offset(),
+                c.length(),
+                view.remaining(),
+                view.isDirect(),
+                DirectMemoryDebug.hex(view, 16)
+            );
+        }
+        this.preWarmedChunks = chunks;
     }
 
     /**
@@ -191,6 +211,8 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private long position;
         private boolean closed;
 
+        private final int streamId = System.identityHashCode(this);
+
         WindowedSeekableInputStream(
             StorageObject storageObject,
             FooterByteCache.Key cacheKey,
@@ -209,6 +231,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             this.windowLength = 0;
             this.position = 0;
             this.closed = false;
+            logger.info(
+                "[DBG-ZSTD][stream-open] streamId={} file={} length={} windowSize={}",
+                streamId,
+                storageObject.path(),
+                length,
+                windowSize
+            );
         }
 
         @Override
@@ -240,6 +269,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private void fetchWindowAt(long pos) throws IOException {
             long remaining = length - pos;
             long toRead = Math.min(windowSize, remaining);
+            logger.info("[DBG-ZSTD][fetch] streamId={} pos={} toRead={} remaining={}", streamId, pos, toRead, remaining);
             if (toRead <= 0) {
                 windowStart = pos;
                 windowLength = 0;
@@ -252,6 +282,13 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
 
             FooterByteCache tailCache = FooterByteCache.getInstance();
             if (fillFromTailCache(tailCache, pos, (int) toRead)) {
+                logger.info(
+                    "[DBG-ZSTD][fill] streamId={} source=tail-cache pos={} toRead={} winHead={}",
+                    streamId,
+                    pos,
+                    toRead,
+                    windowHeadHex(16)
+                );
                 return;
             }
 
@@ -260,6 +297,14 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 try {
                     byte[] tailBytes = tailCache.getOrLoad(cacheKey, k -> readTailBytes(pos, (int) toRead));
                     if (tailBytes.length > 0 && fillFromCachedTail(tailBytes, pos, (int) toRead)) {
+                        logger.info(
+                            "[DBG-ZSTD][fill] streamId={} source=tail-cache-load pos={} toRead={} cachedLen={} winHead={}",
+                            streamId,
+                            pos,
+                            toRead,
+                            tailBytes.length,
+                            windowHeadHex(16)
+                        );
                         return;
                     }
                 } catch (ExecutionException e) {
@@ -290,12 +335,31 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
                 windowStart = pos;
                 windowLength = totalRead;
             }
+            logger.info(
+                "[DBG-ZSTD][fill] streamId={} source=sync-get pos={} toRead={} totalRead={} winHead={}",
+                streamId,
+                pos,
+                toRead,
+                windowLength,
+                windowHeadHex(16)
+            );
 
             if (windowLength > 0 && windowStart + windowLength == length) {
                 byte[] tailBytes = UninitializedArrays.newByteArray(windowLength);
                 window.getBytes(0L, tailBytes, 0, windowLength);
                 tailCache.put(cacheKey, tailBytes);
             }
+        }
+
+        /** Returns the first {@code n} bytes of the current window as hex, for diagnostic logging. */
+        private String windowHeadHex(int n) {
+            int len = Math.min(n, windowLength);
+            if (len <= 0) {
+                return "<empty winLen=" + windowLength + ">";
+            }
+            byte[] tmp = new byte[len];
+            window.getBytes(0L, tmp, 0, len);
+            return DirectMemoryDebug.hex(tmp, 0, len);
         }
 
         private byte[] readTailBytes(long pos, int toRead) throws IOException {
@@ -336,15 +400,25 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         private boolean fillFromPreWarmedChunk(long pos, int toRead) {
             NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> chunks = preWarmedChunksSupplier.get();
             if (chunks == null) {
+                logger.info("[DBG-ZSTD][prewarm-lookup] streamId={} pos={} toRead={} result=no-chunks-map", streamId, pos, toRead);
                 return false;
             }
             Map.Entry<Long, ColumnChunkPrefetcher.PrefetchedChunk> entry = chunks.floorEntry(pos);
             if (entry == null) {
+                logger.info("[DBG-ZSTD][prewarm-lookup] streamId={} pos={} toRead={} result=no-floor-entry", streamId, pos, toRead);
                 return false;
             }
             ColumnChunkPrefetcher.PrefetchedChunk chunk = entry.getValue();
             long chunkEnd = chunk.offset() + chunk.length();
             if (pos >= chunkEnd) {
+                logger.info(
+                    "[DBG-ZSTD][prewarm-lookup] streamId={} pos={} toRead={} chunk=[{}..{}) result=pos-past-end",
+                    streamId,
+                    pos,
+                    toRead,
+                    chunk.offset(),
+                    chunkEnd
+                );
                 return false;
             }
             long availableInChunk = chunkEnd - pos;
@@ -357,17 +431,50 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             try {
                 offsetInChunk = Math.toIntExact(pos - chunk.offset());
             } catch (ArithmeticException e) {
+                logger.info(
+                    "[DBG-ZSTD][prewarm-lookup] streamId={} pos={} toRead={} chunk=[{}..{}) result=offset-overflow",
+                    streamId,
+                    pos,
+                    toRead,
+                    chunk.offset(),
+                    chunkEnd
+                );
                 return false;
             }
+
+            ByteBuffer src = chunk.data().duplicate();
+            int srcReadPos = src.position() + offsetInChunk;
+            ByteBuffer srcView = src.duplicate();
+            srcView.position(srcReadPos);
+            logger.info(
+                "[DBG-ZSTD][prewarm-lookup] streamId={} pos={} toRead={} chunk=[{}..{}) "
+                    + "offsetInChunk={} copyLen={} srcDirect={} srcHead={}",
+                streamId,
+                pos,
+                toRead,
+                chunk.offset(),
+                chunkEnd,
+                offsetInChunk,
+                copyLen,
+                src.isDirect(),
+                DirectMemoryDebug.hex(srcView, 32)
+            );
 
             // Invalidate before mutating — partial copies must never leave a half-populated window
             // visible if a later step throws.
             windowStart = -1;
             windowLength = 0;
-            ByteBuffer src = chunk.data().duplicate();
-            window.setBytes(0L, src, src.position() + offsetInChunk, copyLen);
+            window.setBytes(0L, src, srcReadPos, copyLen);
             windowStart = pos;
             windowLength = copyLen;
+            logger.info(
+                "[DBG-ZSTD][fill] streamId={} source=prewarm pos={} toRead={} copyLen={} winHead={}",
+                streamId,
+                pos,
+                toRead,
+                copyLen,
+                windowHeadHex(16)
+            );
             return true;
         }
 
@@ -429,15 +536,27 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
             if (len <= 0) {
                 return 0;
             }
+            long entryPos = position;
             ensureWindow();
             int availableInWindow = windowLength - (int) (position - windowStart);
             if (availableInWindow <= 0) {
+                logger.info("[DBG-ZSTD][read] streamId={} pos={} len={} result=-1", streamId, entryPos, len);
                 return -1;
             }
             int toRead = Math.min(len, availableInWindow);
             int offset = (int) (position - windowStart);
             window.getBytes(offset, b, off, toRead);
             position += toRead;
+            logger.info(
+                "[DBG-ZSTD][read] streamId={} pos={} len={} returned={} winStart={} winLen={} head={}",
+                streamId,
+                entryPos,
+                len,
+                toRead,
+                windowStart,
+                windowLength,
+                DirectMemoryDebug.hex(b, off, Math.min(toRead, 16))
+            );
             return toRead;
         }
 
@@ -466,6 +585,7 @@ public class ParquetStorageObjectAdapter implements org.apache.parquet.io.InputF
         @Override
         public void close() throws IOException {
             if (closed == false) {
+                logger.info("[DBG-ZSTD][stream-close] streamId={} file={}", streamId, storageObject.path());
                 closed = true;
                 windowStart = -1;
                 windowLength = 0;

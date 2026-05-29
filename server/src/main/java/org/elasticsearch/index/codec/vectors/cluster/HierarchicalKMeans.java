@@ -113,6 +113,14 @@ public class HierarchicalKMeans {
      * @throws IOException is thrown if vectors is inaccessible
      */
     public KMeansResult cluster(ClusteringFloatVectorValues vectors, int targetSize) throws IOException {
+        return cluster(vectors, targetSize, null);
+    }
+
+    /**
+     * Like {@link #cluster(ClusteringFloatVectorValues, int)} but seeds the top-level Lloyd pass with
+     * {@code warmStartCentroids} when its length matches the computed cluster count for {@code targetSize}.
+     */
+    public KMeansResult cluster(ClusteringFloatVectorValues vectors, int targetSize, float[][] warmStartCentroids) throws IOException {
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
         }
@@ -135,7 +143,7 @@ public class HierarchicalKMeans {
         }
 
         // partition the space
-        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize);
+        KMeansIntermediate kMeansIntermediate = clusterAndSplit(vectors, targetSize, warmStartCentroids);
 
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
@@ -145,19 +153,30 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    private KMeansIntermediate clusterAndSplit(final ClusteringFloatVectorValues vectors, final int targetSize) throws IOException {
+    /**
+     * Number of top-level clusters {@link #cluster(ClusteringFloatVectorValues, int)} targets before recursive splitting.
+     */
+    public static int numClustersForTargetSize(int vectorCount, int targetSize) {
+        return Math.clamp((int) ((vectorCount + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
+    }
+
+    private KMeansIntermediate clusterAndSplit(
+        final ClusteringFloatVectorValues vectors,
+        final int targetSize,
+        float[][] warmStartCentroids
+    ) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
 
-        int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
+        int k = numClustersForTargetSize(vectors.size(), targetSize);
         int m = Math.min(k * samplesPerCluster, vectors.size());
 
         // TODO: instead of creating a sub-cluster assignments reuse the parent array each time
         int[] assignments = new int[vectors.size()];
         // ensure we don't over assign to cluster 0 without adjusting it
         Arrays.fill(assignments, -1);
-        float[][] centroids = LloydKMeansLocal.pickInitialCentroids(vectors, k);
+        float[][] centroids = initialCentroidsForClustering(vectors, k, warmStartCentroids);
         KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, assignments, vectors::ordToDoc);
         KMeansLocal kMeansLocal = buildKmeansLocal(vectors.size(), m);
         kMeansLocal.cluster(vectors, kMeansIntermediate);
@@ -180,13 +199,25 @@ public class HierarchicalKMeans {
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
                 // subsequently reconcile and flatten the space of all centroids and assignments into one structure we can return
-                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize);
+                KMeansIntermediate subPartitions = clusterAndSplit(sample, targetSize, null);
                 // Update offset: split replaces 1 centroid with subPartitions.centroids().length centroids
                 centroidIndexOffset += updateAssignmentsWithRecursiveSplit(kMeansIntermediate, adjustedCentroid, subPartitions);
             }
         }
 
         return kMeansIntermediate;
+    }
+
+    private static float[][] initialCentroidsForClustering(ClusteringFloatVectorValues vectors, int k, float[][] warmStartCentroids)
+        throws IOException {
+        if (warmStartCentroids != null && warmStartCentroids.length == k) {
+            float[][] centroids = new float[k][];
+            for (int i = 0; i < k; i++) {
+                centroids[i] = warmStartCentroids[i].clone();
+            }
+            return centroids;
+        }
+        return LloydKMeansLocal.pickInitialCentroids(vectors, k);
     }
 
     private KMeansLocal buildKmeansLocal(int numVectors, int localSampleSize) {

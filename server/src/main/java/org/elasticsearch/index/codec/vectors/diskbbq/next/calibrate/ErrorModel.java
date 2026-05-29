@@ -71,7 +71,21 @@ public final class ErrorModel {
     static final int[] N_DOCS_PER_CLUSTER_MAGNITUDE_FAST = { 64, 80, 96, 112, 128 };
     static final int SAMPLE_SIZE_MAGNITUDE = 4096;
 
+    /**
+     * Stop scaling/magnitude sweeps once the quantization-error OLS reaches this R².
+     */
+    private static final double SCALING_R2_EARLY_EXIT = 0.95;
+
+    /**
+     * Minimum sweep points before {@link #SCALING_R2_EARLY_EXIT} can truncate the sweep.
+     */
+    private static final int MIN_SWEEP_POINTS_BEFORE_EARLY_EXIT = 3;
+
     private ErrorModel() {}
+
+    private static HierarchicalKMeans calibrationKMeans(int dim) {
+        return HierarchicalKMeans.ofSerial(dim);
+    }
 
     /**
      * Exact similarity between two vectors, consistent with the metric convention
@@ -284,16 +298,11 @@ public final class ErrorModel {
     }
 
     /**
-     * Clusters the corpus and measures both centroid and quantized representation error
-     * standard deviations for the given configuration.
+     * Clusters the corpus and measures centroid and quantized representation error standard deviations.
      *
-     * @param fvv the vector values source for lazy access
-     * @param corpusOrdinals ordinal indices into {@code fvv}
-     * @param cosine if true, normalize corpus vectors on-the-fly
-     * @return {@code double[]{centroidStd, quantizedStd}}
-     */
-    /**
      * @param corpusLength number of corpus vectors to use (prefix of {@code corpusOrdinals}).
+     * @param warmStartCentroids optional centroids from a prior sweep with the same top-level cluster count
+     * @return {@code double[]{centroidStd, quantizedStd}}
      */
     static double[] repErrorStds(
         VectorSimilarityFunction sim,
@@ -308,15 +317,57 @@ public final class ErrorModel {
         int nDocsPerCluster,
         int qbits,
         int dbits,
-        int k
+        int k,
+        float[][] warmStartCentroids
+    ) throws IOException {
+        return repErrorStdsWithCentroids(
+            sim,
+            dim,
+            queries,
+            usePreconditioned,
+            fvv,
+            corpusOrdinals,
+            corpusLength,
+            cosine,
+            nQueryClusters,
+            nDocsPerCluster,
+            qbits,
+            dbits,
+            k,
+            warmStartCentroids
+        ).stds();
+    }
+
+    /**
+     * Like {@link #repErrorStds} but also returns centroids for warm-starting the next sweep.
+     */
+    static RepErrorStdComputeResult repErrorStdsWithCentroids(
+        VectorSimilarityFunction sim,
+        int dim,
+        CalibrationQueries queries,
+        boolean usePreconditioned,
+        FloatVectorValues fvv,
+        int[] corpusOrdinals,
+        int corpusLength,
+        boolean cosine,
+        int nQueryClusters,
+        int nDocsPerCluster,
+        int qbits,
+        int dbits,
+        int k,
+        float[][] warmStartCentroids
     ) throws IOException {
         KMeansFloatVectorValues corpusVectors = KMeansFloatVectorValues.wrap(fvv, corpusOrdinals, corpusLength);
-        KMeansResult docClusters = HierarchicalKMeans.ofSerial(dim).cluster(corpusVectors, nDocsPerCluster);
+        int expectedClusters = HierarchicalKMeans.numClustersForTargetSize(corpusLength, nDocsPerCluster);
+        float[][] initialCentroids = warmStartCentroids != null && warmStartCentroids.length == expectedClusters
+            ? warmStartCentroids
+            : null;
+        KMeansResult docClusters = calibrationKMeans(dim).cluster(corpusVectors, nDocsPerCluster, initialCentroids);
 
         float[][] centroids = docClusters.centroids();
         int[] flatAssignments = docClusters.assignments();
         if (centroids.length == 0) {
-            return new double[] { 1.0, 1.0 };
+            return new RepErrorStdComputeResult(new double[] { 1.0, 1.0 }, centroids);
         }
 
         int nClusters = centroids.length;
@@ -361,8 +412,10 @@ public final class ErrorModel {
             k
         );
 
-        return new double[] { cStd, qStd };
+        return new RepErrorStdComputeResult(new double[] { cStd, qStd }, centroids);
     }
+
+    record RepErrorStdComputeResult(double[] stds, float[][] centroids) {}
 
     /**
      * Plug-in regression that reuses the slope from the scaling model and only fits the
@@ -477,6 +530,7 @@ public final class ErrorModel {
         double[] logNDocsRow = new double[m];
         double[] logSampleRow = new double[m];
         int mActual = 0;
+        float[][] warmStartCentroids = null;
 
         for (int i = 0; i < m; i++) {
             int ss = sampleSizesArray[i];
@@ -487,7 +541,7 @@ public final class ErrorModel {
                 continue;
             }
             try {
-                double[] stds = repErrorStds(
+                RepErrorStdComputeResult computed = repErrorStdsWithCentroids(
                     similarityFunction,
                     dim,
                     queries,
@@ -500,8 +554,11 @@ public final class ErrorModel {
                     nDocsPerClusterArray[i],
                     1,
                     1,
-                    k
+                    k,
+                    warmStartCentroids
                 );
+                warmStartCentroids = computed.centroids();
+                double[] stds = computed.stds();
                 logNDocsRow[mActual] = Math.log(nDocsPerClusterArray[i]);
                 logSampleRow[mActual] = Math.log(sampleSizesArray[i]);
                 x[mActual] = logNDocsRow[mActual] - logSampleRow[mActual];
@@ -510,6 +567,11 @@ public final class ErrorModel {
                 mActual++;
                 if (mActual % 5 == 0) {
                     logger.debug("Processed {}/{} samples", mActual, m);
+                }
+                if (mActual >= MIN_SWEEP_POINTS_BEFORE_EARLY_EXIT
+                    && shouldEarlyExitScalingSweep(mActual, logNDocsRow, logSampleRow, logQStd)) {
+                    logger.debug("Early exit scaling sweep after {} points (R² >= {})", mActual, SCALING_R2_EARLY_EXIT);
+                    break;
                 }
             } catch (IOException e) {
                 logger.warn("failed to compute rep error stds for sample size [{}]", ss, e);
@@ -559,6 +621,31 @@ public final class ErrorModel {
             x[i] = logNDocsPerCluster[i] - logSampleSizes[i];
         }
         return Regression.rSquared(x, logErrorStd, res);
+    }
+
+    private static boolean shouldEarlyExitScalingSweep(int mActual, double[] logNDocsRow, double[] logSampleRow, double[] logQStd) {
+        double[] xFit = new double[mActual];
+        double[] logQFit = new double[mActual];
+        for (int i = 0; i < mActual; i++) {
+            xFit[i] = logNDocsRow[i] - logSampleRow[i];
+            logQFit[i] = logQStd[i];
+        }
+        Regression.OLSResult qparams = Regression.fitOls(xFit, logQFit);
+        return repErrorStdR2(logNDocsRow, logSampleRow, logQFit, qparams) >= SCALING_R2_EARLY_EXIT;
+    }
+
+    private static boolean shouldEarlyExitMagnitudeSweep(
+        RepErrorStdModel scalingModel,
+        int mActual,
+        double[] logNDocs,
+        double[] logSizes,
+        double[] logQStd
+    ) {
+        double[] logNDocsTrim = Arrays.copyOf(logNDocs, mActual);
+        double[] logSizesTrim = Arrays.copyOf(logSizes, mActual);
+        double[] logQTrim = Arrays.copyOf(logQStd, mActual);
+        Regression.OLSResult qparams = fitRepErrorStdPlugin(scalingModel, logNDocsTrim, logSizesTrim, logQTrim);
+        return repErrorStdR2(logNDocsTrim, logSizesTrim, logQTrim, qparams) >= SCALING_R2_EARLY_EXIT;
     }
 
     /**
@@ -653,9 +740,10 @@ public final class ErrorModel {
         double[] logSizes = new double[m];
         double[] logQStd = new double[m];
         int mActual = 0;
+        float[][] warmStartCentroids = null;
         for (int i = 0; i < m; i++) {
             try {
-                double[] stds = repErrorStds(
+                RepErrorStdComputeResult computed = repErrorStdsWithCentroids(
                     similarityFunction,
                     dim,
                     queries,
@@ -668,12 +756,20 @@ public final class ErrorModel {
                     nDocsPerClusterArray[i],
                     qbits,
                     dbits,
-                    k
+                    k,
+                    warmStartCentroids
                 );
+                warmStartCentroids = computed.centroids();
+                double[] stds = computed.stds();
                 logNDocs[mActual] = Math.log(nDocsPerClusterArray[i]);
                 logSizes[mActual] = Math.log(sampleSize);
                 logQStd[mActual] = Math.log(Math.max(stds[1], 1e-38));
                 mActual++;
+                if (mActual >= MIN_SWEEP_POINTS_BEFORE_EARLY_EXIT
+                    && shouldEarlyExitMagnitudeSweep(scalingModel, mActual, logNDocs, logSizes, logQStd)) {
+                    logger.debug("Early exit magnitude sweep after {} points (R² >= {})", mActual, SCALING_R2_EARLY_EXIT);
+                    break;
+                }
             } catch (IOException e) {
                 logger.warn("failed to compute rep error stds for magnitude iteration [{}]", i, e);
             }

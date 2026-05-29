@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.cluster.CentroidOps;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
@@ -43,8 +44,8 @@ public final class ErrorModel {
 
     private ErrorModel() {}
 
-    private static HierarchicalKMeans calibrationKMeans(int dim) {
-        return HierarchicalKMeans.ofSerial(dim);
+    private static HierarchicalKMeans<float[]> calibrationKMeans(int dim) {
+        return HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim);
     }
 
     /**
@@ -102,7 +103,8 @@ public final class ErrorModel {
         } else {
             int targetSize = Math.max(1, nDocClusters / effectiveQueryClusters);
             KMeansFloatVectorValues centroidVectors = KMeansFloatVectorValues.build(Arrays.asList(docCentroids), null, dim);
-            KMeansResult queryClustering = HierarchicalKMeans.ofSerial(dim).cluster(centroidVectors, targetSize);
+            KMeansResult<float[]> queryClustering = HierarchicalKMeans.ofSerial(CentroidOps.FLOAT, dim)
+                .cluster(centroidVectors, targetSize);
             queryCentroids = queryClustering.centroids();
             docCentroidAssignments = queryClustering.assignments();
         }
@@ -227,7 +229,7 @@ public final class ErrorModel {
         float[][] initialCentroids = warmStartCentroids != null && warmStartCentroids.length == expectedClusters
             ? warmStartCentroids
             : null;
-        KMeansResult docClusters = calibrationKMeans(dim).cluster(corpusVectors, nDocsPerCluster, initialCentroids);
+        KMeansResult<float[]> docClusters = calibrationKMeans(dim).cluster(corpusVectors, nDocsPerCluster, initialCentroids);
 
         float[][] centroids = docClusters.centroids();
         int[] flatAssignments = docClusters.assignments();

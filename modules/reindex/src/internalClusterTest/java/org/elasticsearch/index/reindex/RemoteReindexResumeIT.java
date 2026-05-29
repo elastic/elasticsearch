@@ -176,7 +176,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
 
             ResumeBulkByScrollResponse resumeResponse = client().execute(
                 ResumeReindexAction.INSTANCE,
-                new ResumeBulkByScrollRequest(request)
+                new ResumeBulkByPaginatedSearchRequest(request)
             ).actionGet();
             GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
                 .setWaitForCompletion(true)
@@ -256,7 +256,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
 
             ResumeBulkByScrollResponse resumeResponse = client().execute(
                 ResumeReindexAction.INSTANCE,
-                new ResumeBulkByScrollRequest(request)
+                new ResumeBulkByPaginatedSearchRequest(request)
             ).actionGet();
             GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
                 .setWaitForCompletion(true)
@@ -297,7 +297,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request)).actionGet()
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(request)).actionGet()
         );
 
         assertTrue(e.getMessage().contains("reindex from remote sources doesn't support slices > 1"));
@@ -330,7 +330,7 @@ public class RemoteReindexResumeIT extends ESIntegTestCase {
 
         ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request)).actionGet()
+            () -> client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByPaginatedSearchRequest(request)).actionGet()
         );
 
         assertTrue(e.getMessage().contains("reindex from remote sources doesn't support source.slice"));

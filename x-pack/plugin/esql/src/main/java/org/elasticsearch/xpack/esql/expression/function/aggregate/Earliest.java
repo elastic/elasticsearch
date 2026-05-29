@@ -44,7 +44,9 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
+            "exponential_histogram",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -54,6 +56,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version" },
         description = """
@@ -72,7 +75,9 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
+                "exponential_histogram",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -82,6 +87,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "unsigned_long",
                 "text",
                 "version" },
@@ -138,13 +144,19 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEO_SHAPE
                 || dt == DataType.GEOHASH
                 || dt == DataType.GEOTILE
-                || dt == DataType.GEOHEX,
+                || dt == DataType.GEOHEX
+                || dt == DataType.DENSE_VECTOR
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
             "date",
+            "dense_vector",
+            "exponential_histogram",
             "ip",
             "string",
+            "tdigest",
             "numeric except counter types"
         ).and(
             isType(

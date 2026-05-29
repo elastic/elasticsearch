@@ -114,10 +114,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
-    public APMTracer(Settings settings) {
-        this(settings, MeterProvider::noop);
-    }
-
     public APMTracer(Settings settings, Supplier<MeterProvider> meterProvider) {
         this(settings, traceSupplierFor(settings, meterProvider), otelTracesEnabled(), initialMaxTraceDepth(settings));
     }

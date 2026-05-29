@@ -63,6 +63,25 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         this.sliceId = Objects.requireNonNull(sliceId);
     }
 
+    /**
+     * Backwards-compatible constructor preserved so older subclass checkouts (e.g. BWC builds) that
+     * predate the {@code overSampleFactor} parameter still compile. Defaults {@code overSampleFactor}
+     * to {@code 1f} (no oversampling).
+     */
+    public IVFKnnFloatSlicedVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        boolean doPrecondition,
+        String sliceField,
+        BytesRef sliceId
+    ) {
+        this(field, query, k, numCands, filter, visitRatio, doPrecondition, sliceField, sliceId, 1f);
+    }
+
     @Override
     TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {

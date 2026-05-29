@@ -7,10 +7,16 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -19,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
@@ -41,9 +48,20 @@ public class PreAnalyzer {
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
         boolean hasTimeSeriesAggregation,
-        List<String> icebergPaths
+        List<String> icebergPaths,
+        List<String> inferenceIds
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), Set.of(), false, false, false, List.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(
+            Map.of(),
+            List.of(),
+            List.of(),
+            Set.of(),
+            false,
+            false,
+            false,
+            List.of(),
+            List.of()
+        );
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -86,7 +104,7 @@ public class PreAnalyzer {
         List<String> icebergPaths = new ArrayList<>();
         plan.forEachUp(UnresolvedExternalRelation.class, p -> {
             if (p.tablePath() instanceof Literal literal && literal.value() != null) {
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
+                String path = BytesRefs.toString(literal.value());
                 icebergPaths.add(path);
             } else {
                 throw new IllegalStateException(
@@ -109,6 +127,11 @@ public class PreAnalyzer {
          * nodes that don't have 9.2.1 or 9.3.0. If all nodes in the cluster have 9.2.1 or 9.3.0
          * this code doesn't do anything.
          */
+        List<String> inferenceIds = new ArrayList<>();
+        // Inference commands require a literal inference_id at parse time, unlike
+        // UnresolvedFunction calls where the ID may be dynamic.
+        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.add(inferenceId(inferencePlan)));
+
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
@@ -117,6 +140,12 @@ public class PreAnalyzer {
             }
         });
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
+            if (isInferenceFunction(fn.name())) {
+                String inferenceId = inferenceId(fn);
+                if (inferenceId != null) {
+                    inferenceIds.add(inferenceId);
+                }
+            }
             if (fn.name().equalsIgnoreCase("knn")
                 || fn.name().equalsIgnoreCase("to_dense_vector")
                 || fn.name().equalsIgnoreCase("v_cosine")
@@ -147,7 +176,27 @@ public class PreAnalyzer {
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
             hasTimeSeriesAggregation.get(),
-            icebergPaths
+            icebergPaths,
+            inferenceIds
         );
+    }
+
+    private static boolean isInferenceFunction(String functionName) {
+        return TextEmbedding.DEFINITION.name().equalsIgnoreCase(functionName) || Embedding.DEFINITION.name().equalsIgnoreCase(functionName);
+    }
+
+    private static String inferenceId(InferencePlan<?> plan) {
+        return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
+    }
+
+    private static String inferenceId(UnresolvedFunction function) {
+        if (function.arguments().size() <= 1) {
+            return null;
+        }
+        Expression inferenceId = function.arguments().get(1);
+        if (inferenceId != null && inferenceId.foldable() && DataType.isString(inferenceId.dataType())) {
+            return BytesRefs.toString(inferenceId.fold(FoldContext.small()));
+        }
+        return null;
     }
 }

@@ -1110,8 +1110,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * @return true if successful, i.e., not evicted and data available, false if evicted
          */
         boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
+        }
+
+        /**
+         * Optimistically try to read from the region, applying the given madvise advice.
+         * @return true if successful, i.e., not evicted and data available, false if evicted
+         */
+        boolean tryRead(ByteBuffer buf, long offset, int advice) throws IOException {
             SharedBytes.IO ioRef = nonVolatileIO();
             if (ioRef != null) {
+                ioRef.madvise(advice);
                 int readBytes = ioRef.read(buf, blobCacheService.getRegionRelativePosition(offset));
                 if (isEvicted()) {
                     buf.position(buf.position() - readBytes);
@@ -1431,6 +1440,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         public boolean tryRead(ByteBuffer buf, long offset) throws IOException {
+            return tryRead(buf, offset, SharedBytes.MADV_NORMAL);
+        }
+
+        public boolean tryRead(ByteBuffer buf, long offset, int advice) throws IOException {
             assert assertOffsetsWithinFileLength(offset, buf.remaining(), length);
             final int startRegion = getRegion(offset);
             final long end = offset + buf.remaining();
@@ -1454,7 +1467,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean res = region.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset, advice);
             lastAccessedRegion = res ? fileRegion : null;
             if (res && incrementReads) {
                 blobCacheMetrics.recordRead();

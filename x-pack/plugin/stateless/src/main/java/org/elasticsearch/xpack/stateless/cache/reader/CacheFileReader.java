@@ -18,13 +18,11 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.CachePopulationSource;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -35,10 +33,8 @@ import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY;
@@ -347,7 +343,9 @@ public class CacheFileReader {
      * @throws IOException if an I/O error occurs
      */
     public final boolean tryRead(ByteBuffer b, long position) throws IOException {
-        return cacheFile.tryRead(b, position);
+        final long regionStart = (position / regionSize) * regionSize;
+        final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
+        return cacheFile.tryRead(b, position, advice);
     }
 
     /**
@@ -442,8 +440,12 @@ public class CacheFileReader {
                 // Determine madvise advice for this read. For compound sub-files, only ranges
                 // that fall entirely within the exclusive interior get MADV_RANDOM; boundary
                 // ranges that may share a region with adjacent files get MADV_NORMAL.
-                rangeMissingHandler = new AdvisingRangeMissingHandler(rangeMissingHandler, adviceForRange(rangeToWrite));
+                final int advice = adviceForRange(rangeToWrite);
                 bytesRead = cacheFile.populateAndRead(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
+                    // Apply madvise so the kernel uses the correct access pattern for this region.
+                    // Covers both already-resident regions (warmed by prefetch/prewarm services)
+                    // and freshly-filled regions. The call is idempotent — skipped when unchanged.
+                    channel.madvise(advice);
                     logger.trace(
                         "{}: reading cached [{}][{}-{}]",
                         initiator.toString(),
@@ -497,43 +499,4 @@ public class CacheFileReader {
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
         () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
-
-    /**
-     * Wraps a {@link SharedBlobCacheService.RangeMissingHandler} to apply {@code madvise} on the
-     * region being written to. The advice is set once per region write; the volatile
-     * {@code currentAdvice} field on {@link SharedBytes.IO} ensures redundant syscalls are skipped.
-     */
-    static class AdvisingRangeMissingHandler implements SharedBlobCacheService.RangeMissingHandler {
-        private final SharedBlobCacheService.RangeMissingHandler delegate;
-        private final int advice;
-
-        AdvisingRangeMissingHandler(SharedBlobCacheService.RangeMissingHandler delegate, int advice) {
-            this.delegate = delegate;
-            this.advice = advice;
-        }
-
-        // visible for testing
-        int advice() {
-            return advice;
-        }
-
-        @Override
-        public SharedBlobCacheService.SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
-            return delegate.sharedInputStreamFactory(gaps);
-        }
-
-        @Override
-        public void fillCacheRange(
-            SharedBytes.IO channel,
-            int channelPos,
-            @Nullable SharedBlobCacheService.SourceInputStreamFactory streamFactory,
-            int relativePos,
-            int length,
-            IntConsumer progressUpdater,
-            ActionListener<Void> completionListener
-        ) throws IOException {
-            channel.madvise(advice);
-            delegate.fillCacheRange(channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener);
-        }
-    }
 }

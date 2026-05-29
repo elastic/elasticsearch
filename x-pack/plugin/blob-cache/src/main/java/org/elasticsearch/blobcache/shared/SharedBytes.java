@@ -27,6 +27,8 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
@@ -344,6 +346,16 @@ public class SharedBytes extends AbstractRefCounted {
 
     public final class IO {
 
+        private static final VarHandle VH_CURRENT_ADVICE;
+
+        static {
+            try {
+                VH_CURRENT_ADVICE = MethodHandles.lookup().findVarHandle(IO.class, "currentAdvice", int.class);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new ExceptionInInitializerError(e);
+            }
+        }
+
         private final long pageStart;
 
         private final CloseableMappedByteBuffer mappedByteBuffer;
@@ -351,7 +363,9 @@ public class SharedBytes extends AbstractRefCounted {
         // Cached reference to the region's ByteBuffer
         private final ByteBuffer mmapBuffer;
 
-        private volatile int currentAdvice = MADV_NORMAL;
+        // Racy but safe: opaque access avoids a memory fence on the hot read path.
+        // A stale read may cause a redundant (but idempotent) madvise syscall.
+        private int currentAdvice = MADV_NORMAL;
 
         private IO(final int sharedBytesPos, CloseableMappedByteBuffer mappedByteBuffer) {
             long physicalOffset = (long) sharedBytesPos * regionSize;
@@ -376,15 +390,15 @@ public class SharedBytes extends AbstractRefCounted {
          * @param advice the posix_madvise access pattern advice constant
          */
         public void madvise(int advice) {
-            if (mmap && currentAdvice != advice) {
+            if (mmap && (int) VH_CURRENT_ADVICE.getOpaque(this) != advice) {
                 mappedByteBuffer.madvise(0, regionSize, advice);
-                currentAdvice = advice;
+                VH_CURRENT_ADVICE.setOpaque(this, advice);
             }
         }
 
         // visible for testing
         int currentAdvice() {
-            return currentAdvice;
+            return (int) VH_CURRENT_ADVICE.getOpaque(this);
         }
 
         @SuppressForbidden(reason = "Use positional reads on purpose")

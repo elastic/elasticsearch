@@ -21,7 +21,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class TimeSlottedAccumulatorTests extends ESTestCase {
@@ -54,6 +53,13 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots / 2 + 1, maxTotalSlots / 2 + 1, timeProvider)
+        );
+        TimeValue granularity = randomGranularity();
+        int pastSlots = randomIntBetween(3, 6);
+        TimeProvider earlyTimeProvider = fixedAbsoluteTime(randomLongBetween(-1_000_000, -1));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), earlyTimeProvider)
         );
     }
 
@@ -512,17 +518,16 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         assertThat(accumulator.sum(queryStart, anchorSlot + granularityMillis), equalTo(firstDelta + secondDelta));
     }
 
-    public void testEarlyEpochTimeRetainsNonNegativeTail() {
+    public void testConstructorRejectsTooEarlyTime() {
         TimeValue granularity = randomGranularity();
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 6);
-        TimeProvider timeProvider = fixedAbsoluteTime(randomLongBetween(-1_000_000, -1));
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
-
-        int delta = randomNonZeroDelta();
-        accumulator.accumulate(0, delta);
-        assertThat(accumulator.sum(0, granularityMillis), equalTo(delta));
-        assertThat(accumulator.sum(-granularityMillis, granularityMillis), equalTo(delta));
+        long minAnchorSlotStartMillis = (long) (pastSlots - 1) * granularityMillis;
+        TimeProvider timeProvider = fixedAbsoluteTime(minAnchorSlotStartMillis - granularityMillis);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider)
+        );
     }
 
     private static int randomFutureSlotCount() {

@@ -16,4 +16,6 @@ fi
 
 pnpm install
 
+ls -alh node_modules/ # TODO debugging
+
 cd -

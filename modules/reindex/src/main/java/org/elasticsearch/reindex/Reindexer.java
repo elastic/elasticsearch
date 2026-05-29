@@ -64,7 +64,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
@@ -798,7 +798,7 @@ public class Reindexer {
             request.setResumeInfo(
                 new ResumeInfo(resumeInfo.relocationOrigin(), resumeInfo.worker(), resumeInfo.slices(), sourceTaskResult)
             );
-            final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
+            final ResumeBulkByPaginatedSearchRequest resumeRequest = new ResumeBulkByPaginatedSearchRequest(request);
             final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
                 onRelocationResponseListener.onResponse(resp);
                 l.onFailure(new TaskRelocatedException(resumeInfo.relocationOrigin().originalTaskId(), resp.getTaskId()));

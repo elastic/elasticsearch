@@ -62,7 +62,7 @@ import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
@@ -395,7 +395,7 @@ public class ReindexerTests extends ESTestCase {
             TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
             handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
             return null;
-        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -535,7 +535,7 @@ public class ReindexerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
-            ResumeBulkByScrollRequest resumeRequest = invocation.getArgument(2);
+            ResumeBulkByPaginatedSearchRequest resumeRequest = invocation.getArgument(2);
             TaskResult sourceTaskResult = resumeRequest.getDelegate().getResumeInfo().get().sourceTaskResult();
             assertNotNull("source task result should be set on the resume request", sourceTaskResult);
             assertThat(sourceTaskResult.getTask().taskId(), equalTo(new TaskId("source-node", 987)));
@@ -544,7 +544,7 @@ public class ReindexerTests extends ESTestCase {
             TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
             handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
             return null;
-        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -563,14 +563,14 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
         assertTrue(future.isDone());
-        verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
         verify(resumeListener).onResponse(any());
         verifyNoMoreInteractions(resumeListener);
     }
 
     public void testRelocationSetsRequestRpsFromWorkerTask() {
         final float workerRps = randomFloatBetween(0.1f, 1000f, true);
-        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+        final AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest = new AtomicReference<>();
 
         final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -597,7 +597,7 @@ public class ReindexerTests extends ESTestCase {
         final float leaderRps = randomFloatBetween(1f, 1000f, true);
         final int totalSlices = randomIntBetween(3, 6);
         final int completedSliceCount = randomIntBetween(1, totalSlices - 1);
-        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+        final AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest = new AtomicReference<>();
 
         final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -3225,7 +3225,7 @@ public class ReindexerTests extends ESTestCase {
         return clusterService;
     }
 
-    private static TransportService relocationTransportService(AtomicReference<ResumeBulkByScrollRequest> capturedRequest) {
+    private static TransportService relocationTransportService(AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest) {
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
             capturedRequest.set(invocation.getArgument(2));
@@ -3233,7 +3233,7 @@ public class ReindexerTests extends ESTestCase {
             handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
-            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
         return transportService;
     }
 

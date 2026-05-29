@@ -8,9 +8,6 @@
  */
 
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 

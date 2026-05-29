@@ -147,7 +147,7 @@ echo ""
 # ============================== MERGE ======================================
 
 echo "--- Merging task-status into multi-run format ---"
-node $NODE_FLAGS "$SCRIPT_DIR/merge-task-status.ts" "$TASK_STATUS" "$MULTI_RUN" "$MULTI_RUN"
+node $NODE_FLAGS "$SCRIPT_DIR/finalize-task-status.ts" "$TASK_STATUS" "$MULTI_RUN" "$MULTI_RUN"
 echo "  Wrote $MULTI_RUN"
 echo ""
 
@@ -179,7 +179,11 @@ echo "--- Run 2: Retry build (smart-retry active) ---"
 echo ""
 
 set +e
-bash -c "cd '$REPO_ROOT' && $GRADLE_CMD" 2>&1
+if [[ -n "$EXTRA_ENV" ]]; then
+  env $EXTRA_ENV bash -c "cd '$REPO_ROOT' && $GRADLE_CMD" 2>&1
+else
+  bash -c "cd '$REPO_ROOT' && $GRADLE_CMD" 2>&1
+fi
 RUN2_EXIT=$?
 set -e
 
@@ -190,7 +194,7 @@ echo ""
 # Merge run 2 into the multi-run artifact
 if [[ -f "$TASK_STATUS" ]]; then
   echo "--- Merging Run 2 task-status ---"
-  node $NODE_FLAGS "$SCRIPT_DIR/merge-task-status.ts" "$TASK_STATUS" "$MULTI_RUN" "$MULTI_RUN"
+  node $NODE_FLAGS "$SCRIPT_DIR/finalize-task-status.ts" "$TASK_STATUS" "$MULTI_RUN" "$MULTI_RUN"
   echo ""
 
   echo "--- Final Summary (both runs) ---"

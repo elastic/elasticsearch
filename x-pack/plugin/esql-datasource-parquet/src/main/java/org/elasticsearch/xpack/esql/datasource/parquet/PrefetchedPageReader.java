@@ -114,7 +114,15 @@ final class PrefetchedPageReader implements PageReader, Releasable {
             return cachedDictionaryPage;
         }
         try {
-            BytesInput decompressed = decompressToDirectBuffer(
+            // Use the heap decompressor path (not decompressToDirectBuffer) so the
+            // returned BytesInput is backed by a plain byte[] rather than an ArrowBuf.
+            // DictionaryPageReader (parquet-mr) caches this DictionaryPage indefinitely
+            // in a ConcurrentHashMap; if the bytes aliased an ArrowBuf they would become
+            // dangling as soon as the owning PrefetchedPageReader is closed at row-group
+            // rollover, causing Zstd "Src size is incorrect" on the second query execution.
+            // Dictionary pages are small and read once, so the direct→direct JNI fast
+            // path is not performance-critical here.
+            BytesInput decompressed = decompressor.decompress(
                 compressedDictionaryPage.getBytes(),
                 compressedDictionaryPage.getUncompressedSize()
             );

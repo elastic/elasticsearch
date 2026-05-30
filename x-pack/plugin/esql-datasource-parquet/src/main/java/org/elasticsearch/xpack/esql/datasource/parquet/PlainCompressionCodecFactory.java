@@ -83,12 +83,12 @@ import java.util.zip.GZIPOutputStream;
  * can be released (the underlying JNI native libraries cannot be unloaded), so there is nothing
  * to clear. The method exists only because the {@link CompressionCodecFactory} SPI requires it.
  */
-final class PlainCompressionCodecFactory implements CompressionCodecFactory {
+public final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
     private final Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> decompressors;
     private final Map<CompressionCodecName, LazyInitializable<BytesInputCompressor, RuntimeException>> compressors;
 
-    PlainCompressionCodecFactory() {
+    public PlainCompressionCodecFactory() {
         Map<CompressionCodecName, LazyInitializable<BytesInputDecompressor, RuntimeException>> dec = new EnumMap<>(
             CompressionCodecName.class
         );

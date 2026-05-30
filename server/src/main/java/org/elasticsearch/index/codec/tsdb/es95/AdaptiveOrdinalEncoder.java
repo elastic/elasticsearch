@@ -15,6 +15,7 @@ import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -22,9 +23,9 @@ import java.util.Locale;
  * CONST, RLE, BITPACK_LOCAL, or LEGACY. The chosen mode minimizes serialized
  * bytes for the block. Wire format: 1 mode byte + mode-specific payload.
  *
- * <p>This skeleton only implements LEGACY (fixed-width bit packing at the
- * segment-global {@code bitsPerOrd}); CONST, BITPACK_LOCAL, and RLE land in
- * subsequent commits.
+ * <p>This commit lands CONST (single distinct value collapsed to one vlong)
+ * on top of the LEGACY baseline. RLE and BITPACK_LOCAL follow in subsequent
+ * commits.
  */
 final class AdaptiveOrdinalEncoder {
 
@@ -42,9 +43,24 @@ final class AdaptiveOrdinalEncoder {
     /**
      * Encodes one block of ordinals to {@code out}. May mutate {@code in} for
      * certain {@code bitsPerOrd} branches inside {@link DocValuesForUtil#encode};
-     * callers that need the original must copy beforehand.
+     * callers that need the original must copy beforehand. {@code in} must have
+     * length equal to the encoder block size; empty arrays are not supported.
      */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
+        long first = in[0];
+        boolean allSame = true;
+        for (int i = 1; i < in.length; i++) {
+            if (in[i] != first) {
+                allSame = false;
+                break;
+            }
+        }
+        if (allSame) {
+            out.writeByte(MODE_CONST);
+            out.writeVLong(first);
+            return;
+        }
+
         out.writeByte(MODE_LEGACY);
         forUtil.encode(in, bitsPerOrd, out);
     }
@@ -52,6 +68,11 @@ final class AdaptiveOrdinalEncoder {
     void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
         byte mode = in.readByte();
         switch (mode) {
+            case MODE_CONST: {
+                long constValue = in.readVLong();
+                Arrays.fill(out, constValue);
+                return;
+            }
             case MODE_LEGACY:
                 forUtil.decode(bitsPerOrd, in, out);
                 return;

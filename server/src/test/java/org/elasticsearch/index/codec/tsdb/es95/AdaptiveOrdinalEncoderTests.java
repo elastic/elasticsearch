@@ -15,6 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  * Round-trip and mode-selection tests for {@link AdaptiveOrdinalEncoder}.
  * Each test crafts a 128-value block whose distribution forces a specific
@@ -40,5 +42,33 @@ public class AdaptiveOrdinalEncoderTests extends ESTestCase {
         encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);
 
         assertArrayEquals(in, decoded);
+    }
+
+    public void testConstModeChosenForUniformBlock() throws Exception {
+        long[] in = new long[128];
+        Arrays.fill(in, 42L);
+
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        assertEquals(AdaptiveOrdinalEncoder.MODE_CONST, peek.readByte());
+
+        long[] decoded = new long[128];
+        encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, 16);
+        assertArrayEquals(in, decoded);
+    }
+
+    public void testConstBlockEncodesToVeryFewBytes() throws Exception {
+        long[] in = new long[128];
+        Arrays.fill(in, 12345L);
+
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+
+        // NOTE: 1 byte mode + 2-byte vlong for 12345 = 3 bytes total
+        assertThat(out.size(), equalTo(3L));
     }
 }

@@ -221,7 +221,7 @@ public class PromqlVerifierTests extends ESTestCase {
         tsdb.error(
             "PROMQL index=test step=5m rate(host[5m])",
             containsString(
-                "first argument of [rate(host[5m])] must be [counter_long, counter_integer or counter_double], "
+                "argument of [rate(host[5m])] must be [counter_double or counter_integer or counter_long or double or integer or long], "
                     + "found value [host] type [keyword]"
             )
         );

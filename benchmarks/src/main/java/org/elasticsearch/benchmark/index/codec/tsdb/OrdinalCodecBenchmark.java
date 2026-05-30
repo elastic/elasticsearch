@@ -10,7 +10,6 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.es95.SortedOrdinalCodec;
@@ -42,25 +41,29 @@ import java.util.concurrent.TimeUnit;
  * Benchmark matrix comparing the legacy {@link TSDBDocValuesEncoder} ordinal
  * encoder against the per-field-type adaptive encoders: {@link SortedOrdinalCodec}
  * for the {@code TSID_RUNS} shape (SORTED fields) and {@link SortedSetOrdinalCodec}
- * for the {@code MULTIVALUE_CYCLE} shape (SORTED_SET fields with the K-cycle
- * pattern). Two cardinality regimes:
+ * for the multi-valued shapes (SORTED_SET fields). Two cardinality regimes:
  *
  * <ul>
- *   <li>{@code LOW} models a segment with ~16 unique ordinals
- *       ({@code bitsPerOrd = 4}); the headline goal here is "no regression".</li>
- *   <li>{@code HIGH} models a segment with ~65536 unique ordinals
- *       ({@code bitsPerOrd = 16}); the headline goal here is "measurable
- *       improvement" thanks to {@code BITPACK_LOCAL} on tsid-run blocks whose
- *       local value range is far narrower than the segment-global one.</li>
+ *   <li>{@code LOW} ({@code bitsPerOrd = 4}): the headline goal here is "no regression".</li>
+ *   <li>{@code HIGH} ({@code bitsPerOrd = 16}): the headline goal is "measurable
+ *       improvement" thanks to {@code BITPACK_LOCAL} on tsid-run blocks and
+ *       {@code TupleRunCodec} on multi-valued cycle blocks where the K cycle ords
+ *       are scattered across the segment-global bit range.</li>
  * </ul>
  *
- * <p>For both regimes the per-block input is a {@code NARROW_RANGE} pattern:
- * 128 ordinals drawn from a 64-wide window. This shape mimics a single tsid
- * run inside a TSDB segment, where consecutive documents carry the same
- * keyword dimension value across long stretches but the segment as a whole
- * holds many more unique values. The local 6-bit window plus the
- * segment-global {@code bitsPerOrd} gap is exactly what {@code BITPACK_LOCAL}
- * is designed to exploit.
+ * <p>Block shapes:
+ *
+ * <ul>
+ *   <li>{@code TSID_RUNS}: single-valued ords, {@code runsPerBlock} contiguous equal-ord
+ *       runs (SORTED field with one or a few tsid transitions).</li>
+ *   <li>{@code MULTIVALUE_CYCLE}: multi-valued ords, one tuple-run of period
+ *       {@code runsPerBlock} filling the block (SORTED_SET field, pure mid-tsid block).</li>
+ *   <li>{@code MULTIVALUE_BOUNDARY}: multi-valued ords with two tuple-runs of the same K,
+ *       modeling a block that crosses a tsid boundary where both tsids share K.</li>
+ *   <li>{@code MULTIVALUE_VARYING_K}: multi-valued ords with two tuple-runs whose K
+ *       differs across the boundary, modeling docs where the second tsid emits a
+ *       different number of values (e.g. one host has 3 IPs, the next has 5).</li>
+ * </ul>
  *
  * <p>JMH primary score: encode throughput. Secondary aux counter:
  * {@code encodedBytes} captures total bytes the encoder writes; dividing it
@@ -96,22 +99,11 @@ public class OrdinalCodecBenchmark {
         }
     }
 
-    /**
-     * Block content shape:
-     *
-     * <ul>
-     *   <li>{@code TSID_RUNS}: {@code runsPerBlock} contiguous equal-ordinal runs.
-     *       Models a single-valued field (sorted) across one or a few tsid boundaries.</li>
-     *   <li>{@code MULTIVALUE_CYCLE}: a cycle of period {@code runsPerBlock} repeating
-     *       across the 128-element block. Models a multi-valued sorted-set field
-     *       (host.ip, host.mac) where each doc emits {@code runsPerBlock} ordinals
-     *       drawn from a fixed set and consecutive docs in the same tsid share the
-     *       set, producing a perfect cycle in the flat ord stream.</li>
-     * </ul>
-     */
     public enum BlockShape {
         TSID_RUNS,
-        MULTIVALUE_CYCLE
+        MULTIVALUE_CYCLE,
+        MULTIVALUE_BOUNDARY,
+        MULTIVALUE_VARYING_K
     }
 
     static final int BLOCK_SIZE = 128;
@@ -122,62 +114,53 @@ public class OrdinalCodecBenchmark {
     @Param({ "LOW", "HIGH" })
     private Cardinality cardinality;
 
-    @Param({ "TSID_RUNS", "MULTIVALUE_CYCLE" })
+    @Param({ "TSID_RUNS", "MULTIVALUE_CYCLE", "MULTIVALUE_BOUNDARY", "MULTIVALUE_VARYING_K" })
     private BlockShape blockShape;
 
-    // NOTE: For TSID_RUNS, this is the number of distinct tsids represented in the block,
-    // modeled as the number of contiguous equal-ordinal runs. 1 is the typical mid-tsid
-    // block (CONST candidate); 2 is a single boundary; 4 and 6 are heavier boundary blocks.
-    // For MULTIVALUE_CYCLE, this is the cycle period K (i.e., the number of ordinals each
-    // doc emits, repeating across consecutive docs of the same tsid). 1 reduces to CONST;
-    // 2, 3, 5 are typical for multi-valued fields like host.ip (~3 values per doc).
+    // NOTE: TSID_RUNS uses this as the number of tsid runs in the block. MULTIVALUE shapes
+    // use it as the K of the (first) tsid run; boundary/varying-K shapes derive the second
+    // tuple deterministically from K.
     @Param({ "1", "2", "4", "6" })
     private int runsPerBlock;
 
     private int bitsPerOrd;
     private long[] inputBlock;
+    private int[] perDocK;
+    private int numDocs;
+    private int headOffset;
+    private int tailMissing;
     private long[] scratchBlock;
     private byte[] outputBuffer;
     private ByteArrayDataOutput dataOutput;
 
     private TSDBDocValuesEncoder tsdbOrdinalCodec;
-    private BlockEncoder adaptiveOrdinalCodec;
-
-    /**
-     * Encoder shape shared by {@link SortedOrdinalCodec#encodeOrdinals} and
-     * {@link SortedSetOrdinalCodec#encodeOrdinals}, so the benchmark methods can
-     * stay shape-agnostic and the right codec is wired up once in
-     * {@link #setupTrial} based on the {@link BlockShape} param.
-     */
-    @FunctionalInterface
-    private interface BlockEncoder {
-        void encode(long[] in, DataOutput out, int bitsPerOrd) throws IOException;
-    }
+    private SortedOrdinalCodec sortedOrdinalCodec;
+    private SortedSetOrdinalCodec sortedSetOrdinalCodec;
 
     @Setup(Level.Trial)
     public void setupTrial() {
         bitsPerOrd = cardinality.bitsPerOrd;
-        inputBlock = switch (blockShape) {
+        final BlockInputs in = switch (blockShape) {
             case TSID_RUNS -> generateTsidRunBlock(bitsPerOrd, runsPerBlock);
             case MULTIVALUE_CYCLE -> generateMultivalueCycleBlock(bitsPerOrd, runsPerBlock);
+            case MULTIVALUE_BOUNDARY -> generateMultivalueBoundaryBlock(bitsPerOrd, runsPerBlock);
+            case MULTIVALUE_VARYING_K -> generateMultivalueVaryingKBlock(bitsPerOrd, runsPerBlock);
         };
+        inputBlock = in.ords;
+        perDocK = in.perDocK;
+        numDocs = in.numDocs;
+        headOffset = in.headOffset;
+        tailMissing = in.tailMissing;
+
         scratchBlock = new long[BLOCK_SIZE];
         outputBuffer = new byte[OUTPUT_BUFFER_BYTES];
         dataOutput = new ByteArrayDataOutput(outputBuffer);
 
         tsdbOrdinalCodec = new TSDBDocValuesEncoder(BLOCK_SIZE);
-        adaptiveOrdinalCodec = switch (blockShape) {
-            case TSID_RUNS -> new SortedOrdinalCodec(BLOCK_SIZE)::encodeOrdinals;
-            case MULTIVALUE_CYCLE -> new SortedSetOrdinalCodec(BLOCK_SIZE)::encodeOrdinals;
-        };
+        sortedOrdinalCodec = new SortedOrdinalCodec(BLOCK_SIZE);
+        sortedSetOrdinalCodec = new SortedSetOrdinalCodec(BLOCK_SIZE);
     }
 
-    /**
-     * Secondary metric reported in the JMH JSON: total bytes the encoder under
-     * test writes. With {@link AuxCounters.Type#OPERATIONS} in Throughput
-     * mode the reported value is {@code totalBytes / elapsedTime}, so dividing
-     * by the primary throughput gives the per-block byte count.
-     */
     @State(Scope.Thread)
     @AuxCounters(AuxCounters.Type.OPERATIONS)
     public static class StorageMetric {
@@ -211,18 +194,23 @@ public class OrdinalCodecBenchmark {
         for (int i = 0; i < BLOCKS_PER_INVOCATION; i++) {
             System.arraycopy(inputBlock, 0, scratchBlock, 0, BLOCK_SIZE);
             dataOutput.reset(outputBuffer);
-            adaptiveOrdinalCodec.encode(scratchBlock, dataOutput, bitsPerOrd);
+            encodeAdaptive();
             total += dataOutput.getPosition();
         }
         metric.encodedBytes += total;
         bh.consume(total);
     }
 
+    private void encodeAdaptive() throws IOException {
+        if (blockShape == BlockShape.TSID_RUNS) {
+            sortedOrdinalCodec.encodeOrdinals(scratchBlock, dataOutput, bitsPerOrd);
+        } else {
+            sortedSetOrdinalCodec.encodeOrdinals(scratchBlock, perDocK, numDocs, headOffset, tailMissing, dataOutput, bitsPerOrd);
+        }
+    }
+
     @TearDown(Level.Trial)
     public void reportEncodedSizes() throws IOException {
-        // NOTE: emit a deterministic [storage] line per cardinality combo, capturing exact
-        // per-block byte counts for both encoders. Grep-friendly summary; captured by the
-        // runner script via JMH's `-o` stdout file.
         System.arraycopy(inputBlock, 0, scratchBlock, 0, BLOCK_SIZE);
         dataOutput.reset(outputBuffer);
         tsdbOrdinalCodec.encodeOrdinals(scratchBlock, dataOutput, bitsPerOrd);
@@ -230,7 +218,7 @@ public class OrdinalCodecBenchmark {
 
         System.arraycopy(inputBlock, 0, scratchBlock, 0, BLOCK_SIZE);
         dataOutput.reset(outputBuffer);
-        adaptiveOrdinalCodec.encode(scratchBlock, dataOutput, bitsPerOrd);
+        encodeAdaptive();
         final int adaptiveBytes = dataOutput.getPosition();
 
         final double ratio = tsdbBytes == 0 ? Double.NaN : ((double) adaptiveBytes) / tsdbBytes;
@@ -247,13 +235,15 @@ public class OrdinalCodecBenchmark {
         );
     }
 
-    // NOTE: TSDB index-sort groups docs by `_tsid`, so within a doc-values block consecutive
-    // docs that belong to the same tsid share the same ordinal. A block at a tsid run boundary
-    // therefore looks like a small number of CONTIGUOUS RUNS of identical ordinals, not random
-    // values. We model a block that crosses `runsPerBlock` tsid runs, each contributing one
-    // ordinal drawn from a 64-wide window inside the segment-global bit range. runsPerBlock = 1
-    // models the dominant mid-tsid case; larger runsPerBlock values exercise the boundary cases.
-    private static long[] generateTsidRunBlock(int bitsPerOrd, int runsPerBlock) {
+    private record BlockInputs(long[] ords, int[] perDocK, int numDocs, int headOffset, int tailMissing) {}
+
+    private static BlockInputs singleValuedBlock(long[] ords) {
+        final int[] perDocK = new int[BLOCK_SIZE + 1];
+        Arrays.fill(perDocK, 0, BLOCK_SIZE, 1);
+        return new BlockInputs(ords, perDocK, BLOCK_SIZE, 0, 0);
+    }
+
+    private static BlockInputs generateTsidRunBlock(int bitsPerOrd, int runsPerBlock) {
         final Random random = new Random(SEED);
         final long mask = bitsPerOrd >= 63 ? Long.MAX_VALUE : (1L << bitsPerOrd) - 1L;
         final long base = Math.floorMod(random.nextLong(), Math.max(1L, mask - 64L));
@@ -265,28 +255,98 @@ public class OrdinalCodecBenchmark {
             final int end = (r == runsPerBlock - 1) ? BLOCK_SIZE : start + runLength;
             Arrays.fill(out, start, end, ordForRun);
         }
-        return out;
+        return singleValuedBlock(out);
     }
 
-    // NOTE: Multi-valued SortedSetDocValuesField shape. Each doc emits `cyclePeriod` distinct
-    // ordinals; consecutive docs in the same tsid share the same K-value set, so the flat ord
-    // stream is `[v0, v1, ..., v(K-1), v0, v1, ...]` with period K. Cycle ordinals are spread
-    // evenly across the full segment-global bit range to model the realistic case where the K
-    // values come from terms that sort far apart in the term dictionary: e.g. the three IPs
-    // emitted by hostmetricsreceiver for a single host (loopback `127.0.0.1`, a private
-    // `10.x.x.x`, a docker `172.17.x.x`) all sort into completely different positions in the
-    // dictionary, so `max - min` is essentially the full bit range and BITPACK_LOCAL cannot
-    // absorb the cost. This is the scenario where legacy's CYCLE detection wins big.
-    private static long[] generateMultivalueCycleBlock(int bitsPerOrd, int cyclePeriod) {
+    private static BlockInputs generateMultivalueCycleBlock(int bitsPerOrd, int cyclePeriod) {
+        final long[] tuple = scatteredTuple(bitsPerOrd, cyclePeriod, 0);
+        return tupleRunBlock(tuple);
+    }
+
+    // NOTE: two tuple-runs of the same K across a tsid boundary.
+    private static BlockInputs generateMultivalueBoundaryBlock(int bitsPerOrd, int K) {
+        if (K < 2) {
+            return generateMultivalueCycleBlock(bitsPerOrd, K);
+        }
+        final long[] tupleA = scatteredTuple(bitsPerOrd, K, 0);
+        final long[] tupleB = scatteredTuple(bitsPerOrd, K, 1);
+        return concatTupleRuns(K, tupleA, K, tupleB);
+    }
+
+    // NOTE: two tuple-runs with different K. First run K, second run K+1 (or K-1 when K==6).
+    private static BlockInputs generateMultivalueVaryingKBlock(int bitsPerOrd, int K) {
+        if (K < 2) {
+            return generateMultivalueCycleBlock(bitsPerOrd, K);
+        }
+        final int K2 = K >= 6 ? K - 1 : K + 1;
+        final long[] tupleA = scatteredTuple(bitsPerOrd, K, 0);
+        final long[] tupleB = scatteredTuple(bitsPerOrd, K2, 1);
+        return concatTupleRuns(K, tupleA, K2, tupleB);
+    }
+
+    private static long[] scatteredTuple(int bitsPerOrd, int K, int offset) {
         final long mask = bitsPerOrd >= 63 ? Long.MAX_VALUE : (1L << bitsPerOrd) - 1L;
-        final long[] cycleValues = new long[cyclePeriod];
-        for (int i = 0; i < cyclePeriod; i++) {
-            cycleValues[i] = (mask / Math.max(1, cyclePeriod)) * i;
+        final long step = mask / Math.max(1, K + 2);
+        final long[] tuple = new long[K];
+        long cursor = step / 2 + offset * (step / 4);
+        for (int i = 0; i < K; i++) {
+            tuple[i] = cursor;
+            cursor += step;
         }
+        return tuple;
+    }
+
+    private static BlockInputs tupleRunBlock(long[] tuple) {
+        final int K = tuple.length;
         final long[] out = new long[BLOCK_SIZE];
-        for (int i = 0; i < out.length; i++) {
-            out[i] = cycleValues[i % cyclePeriod];
+        final int[] perDocK = new int[BLOCK_SIZE + 1];
+        int pos = 0;
+        int doc = 0;
+        while (pos + K <= BLOCK_SIZE) {
+            perDocK[doc++] = K;
+            for (int k = 0; k < K; k++) {
+                out[pos++] = tuple[k];
+            }
         }
-        return out;
+        final int tailLeft = BLOCK_SIZE - pos;
+        int tailMissing = 0;
+        if (tailLeft > 0) {
+            perDocK[doc++] = K;
+            for (int k = 0; k < tailLeft; k++) {
+                out[pos++] = tuple[k];
+            }
+            tailMissing = K - tailLeft;
+        }
+        return new BlockInputs(out, perDocK, doc, 0, tailMissing);
+    }
+
+    private static BlockInputs concatTupleRuns(int Ka, long[] tupleA, int Kb, long[] tupleB) {
+        final long[] out = new long[BLOCK_SIZE];
+        final int[] perDocK = new int[BLOCK_SIZE + 1];
+        final int halfDocs = BLOCK_SIZE / (2 * Ka);
+        int pos = 0;
+        int doc = 0;
+        for (int d = 0; d < halfDocs; d++) {
+            perDocK[doc++] = Ka;
+            for (int k = 0; k < Ka; k++) {
+                out[pos++] = tupleA[k];
+            }
+        }
+        while (pos + Kb <= BLOCK_SIZE) {
+            perDocK[doc++] = Kb;
+            for (int k = 0; k < Kb; k++) {
+                out[pos++] = tupleB[k];
+            }
+        }
+        final int tailLeft = BLOCK_SIZE - pos;
+        int tailMissing = 0;
+        if (tailLeft > 0) {
+            perDocK[doc++] = Kb;
+            for (int k = 0; k < tailLeft; k++) {
+                out[pos++] = tupleB[k];
+            }
+            tailMissing = Kb - tailLeft;
+        }
+        return new BlockInputs(out, perDocK, doc, 0, tailMissing);
     }
 }

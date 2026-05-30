@@ -620,3 +620,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.GenerateInitialTransportVersionFuncTest
   method: cannot create upper bound file for patch
   issue: https://github.com/elastic/elasticsearch/issues/150296
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/150297

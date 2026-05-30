@@ -596,3 +596,6 @@ tests:
 - class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
   method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
   issue: https://github.com/elastic/elasticsearch/issues/150281
+- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
+  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=NONE, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150282

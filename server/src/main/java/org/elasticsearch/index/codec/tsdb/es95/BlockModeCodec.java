@@ -16,29 +16,56 @@ import java.io.IOException;
 
 /**
  * Per-mode encoder/decoder for one block of ordinals. The enclosing
- * AdaptiveOrdinalCodec wrapper writes the mode byte and dispatches to the
- * cheapest codec; each implementation handles only its own payload bytes.
+ * AdaptiveOrdinalCodec wrapper picks the cheapest codec via exact byte cost,
+ * delegates the full payload write (including the leading vlong header), then
+ * on decode reads the leading vlong itself and dispatches by the trailing
+ * one-bits count.
+ *
+ * <p>The wire format mirrors the legacy {@code TSDBDocValuesEncoder} ordinal
+ * encoder. The header is a vlong whose trailing one-bits count selects the
+ * encoding:
+ * <ul>
+ *   <li>0: CONST (single run, value embedded in the header bits)</li>
+ *   <li>1: TWO_RUN (first ord embedded; run length and delta follow)</li>
+ *   <li>2: BIT_PACKED (full block packed at the segment-global bitsPerOrd)</li>
+ *   <li>3: ADAPTIVE_EXTRA (sub-mode byte selects RLE_N or BITPACK_LOCAL)</li>
+ * </ul>
+ *
+ * <p>Encodings 0, 1, and 2 are byte-for-byte identical to the legacy format so
+ * the common constant-per-tsid and two-run boundary cases cost the same as
+ * legacy. Encoding 3 carries a one-byte sub-mode selector and is used only
+ * when its payload beats every other codec.
  *
  * <p>Implementations are stateless singletons; any mutable scratch buffers
  * required during encode/decode are supplied via the shared
  * {@link CodecContext} threaded through {@link #encodePayload} and
  * {@link #decodePayload}.
  */
-sealed interface BlockModeCodec permits LegacyCodec, ConstantCodec, RleCodec, BitpackCodec {
+sealed interface BlockModeCodec permits ConstantCodec, TwoRunCodec, BitPackedCodec, RleCodec, BitpackCodec {
 
-    /** The wire-format mode byte that identifies this codec. */
-    byte mode();
+    /** The wire-format encoding identifier (0..3) derived from trailing one-bits. */
+    int encoding();
 
     /**
      * Returns the estimated payload byte cost of encoding {@code in} given
-     * the precomputed {@code stats}. Returns {@link Long#MAX_VALUE} when this
-     * codec does not apply to the block.
+     * the precomputed {@code stats}. The estimate includes the leading
+     * vlong header and any sub-mode byte and must equal the actual bytes
+     * written by {@link #encodePayload}. Returns {@link Long#MAX_VALUE}
+     * when this codec does not apply to the block.
      */
     long estimateSize(long[] in, BlockStats stats, int bitsPerOrd);
 
-    /** Encodes the payload (no mode byte). Caller has already written the mode byte. */
+    /**
+     * Encodes the full payload, including the leading vlong header and (for
+     * encoding 3) the sub-mode byte. The wrapper does not write any prefix.
+     */
     void encodePayload(long[] in, BlockStats stats, CodecContext ctx, DataOutput out, int bitsPerOrd) throws IOException;
 
-    /** Decodes the payload (no mode byte). Caller has already consumed the mode byte. */
-    void decodePayload(CodecContext ctx, DataInput in, long[] out, int bitsPerOrd) throws IOException;
+    /**
+     * Decodes the payload. The wrapper has already consumed the leading
+     * vlong and dispatched on its trailing one-bits count; the consumed
+     * value is passed back as {@code leadingVLong} so the codec can recover
+     * the header bits (CONST value, TWO_RUN first ord, etc.).
+     */
+    void decodePayload(CodecContext ctx, DataInput in, long[] out, int bitsPerOrd, long leadingVLong) throws IOException;
 }

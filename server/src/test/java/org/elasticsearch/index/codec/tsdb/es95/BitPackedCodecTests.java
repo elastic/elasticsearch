@@ -16,13 +16,13 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 
 /**
- * Payload round-trip tests for {@link LegacyCodec}. The wrapper-level
+ * Payload round-trip tests for {@link BitPackedCodec}. The wrapper-level
  * dispatch is tested in {@link AdaptiveOrdinalCodecTests}; this suite
  * exercises the codec in isolation by populating a {@link BlockStats},
- * driving {@link LegacyCodec#INSTANCE} directly, and asserting that
+ * driving {@link BitPackedCodec#INSTANCE} directly, and asserting that
  * encode + decode is the identity for arbitrary uniform-random inputs.
  */
-public class LegacyCodecTests extends ESTestCase {
+public class BitPackedCodecTests extends ESTestCase {
 
     public void testPayloadRoundTripUniformRandom() throws Exception {
         int bitsPerOrd = 16;
@@ -36,10 +36,12 @@ public class LegacyCodecTests extends ESTestCase {
         final CodecContext ctx = new CodecContext(128);
 
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        LegacyCodec.INSTANCE.encodePayload(Arrays.copyOf(in, in.length), stats, ctx, out, bitsPerOrd);
+        BitPackedCodec.INSTANCE.encodePayload(Arrays.copyOf(in, in.length), stats, ctx, out, bitsPerOrd);
 
+        ByteBuffersDataInput reader = new ByteBuffersDataInput(out.toBufferList());
+        long v1 = reader.readVLong();
         long[] decoded = new long[128];
-        LegacyCodec.INSTANCE.decodePayload(ctx, new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);
+        BitPackedCodec.INSTANCE.decodePayload(ctx, reader, decoded, bitsPerOrd, v1);
         assertArrayEquals(in, decoded);
     }
 
@@ -53,9 +55,9 @@ public class LegacyCodecTests extends ESTestCase {
         stats.recompute(in);
         final CodecContext ctx = new CodecContext(128);
 
-        long estimate = LegacyCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd);
+        long estimate = BitPackedCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd);
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        LegacyCodec.INSTANCE.encodePayload(Arrays.copyOf(in, in.length), stats, ctx, out, bitsPerOrd);
+        BitPackedCodec.INSTANCE.encodePayload(Arrays.copyOf(in, in.length), stats, ctx, out, bitsPerOrd);
         // NOTE: estimate must match the actual payload byte count
         assertEquals(estimate, out.size());
     }

@@ -16,37 +16,40 @@ import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import java.io.IOException;
 
 /**
- * Fallback codec: bit-pack the entire block at the segment-global
- * {@code bitsPerOrd}. Stateless; access via {@link #INSTANCE}. The
- * required {@link org.elasticsearch.index.codec.tsdb.DocValuesForUtil}
- * scratch is supplied via {@link CodecContext}.
+ * Full-block bit-packed codec (encoding 2). Writes the constant header
+ * {@code 0b11} as a single byte, then bit-packs the entire block at the
+ * segment-global {@code bitsPerOrd}. Byte-for-byte identical to the legacy
+ * bit-packed encoding. Stateless; access via {@link #INSTANCE}.
  */
-final class LegacyCodec implements BlockModeCodec {
+final class BitPackedCodec implements BlockModeCodec {
 
-    static final byte MODE = 0;
-    static final LegacyCodec INSTANCE = new LegacyCodec();
+    static final int ENCODING = 2;
+    static final BitPackedCodec INSTANCE = new BitPackedCodec();
 
-    private LegacyCodec() {}
+    private BitPackedCodec() {}
 
     @Override
-    public byte mode() {
-        return MODE;
+    public int encoding() {
+        return ENCODING;
     }
 
     @Override
     public long estimateSize(final long[] in, final BlockStats stats, int bitsPerOrd) {
         int roundedBits = DocValuesForUtil.roundBits(bitsPerOrd);
-        return ((long) in.length * roundedBits + 7) / 8;
+        // NOTE: 1-byte header (vlong 0b11) + bit-packed payload
+        return 1L + ((long) in.length * roundedBits + 7) / 8;
     }
 
     @Override
     public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
         throws IOException {
+        out.writeVLong(0b11);
         ctx.forUtil.encode(in, bitsPerOrd, out);
     }
 
     @Override
-    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd, long leadingVLong)
+        throws IOException {
         ctx.forUtil.decode(bitsPerOrd, in, out);
     }
 }

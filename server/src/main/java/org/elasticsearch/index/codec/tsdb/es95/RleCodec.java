@@ -18,29 +18,34 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Run-length encoded block codec. Applies when the block resolves to at
- * most {@link BlockStats#MAX_TRACKED_RUNS} runs. Payload is
- * {@code [n_runs:vint][(ord:vlong, run:vint) * n_runs]}. Stateless;
- * access via {@link #INSTANCE}.
+ * Run-length encoded block codec (encoding 3, sub-mode {@link #SUB_MODE}).
+ * Applies when the block resolves to between 3 and
+ * {@link BlockStats#MAX_TRACKED_RUNS} runs; the 1-run and 2-run cases are
+ * handled by {@link ConstantCodec} and {@link TwoRunCodec} at zero header
+ * overhead. Payload after the encoding-3 header and sub-mode byte is
+ * {@code [n_runs:vint][(ord:vlong, run:vint) * n_runs]}. Stateless; access
+ * via {@link #INSTANCE}.
  */
 final class RleCodec implements BlockModeCodec {
 
-    static final byte MODE = 2;
+    static final int ENCODING = 3;
+    static final byte SUB_MODE = 0;
     static final RleCodec INSTANCE = new RleCodec();
 
     private RleCodec() {}
 
     @Override
-    public byte mode() {
-        return MODE;
+    public int encoding() {
+        return ENCODING;
     }
 
     @Override
     public long estimateSize(final long[] in, final BlockStats stats, int bitsPerOrd) {
-        if (stats.nRuns > BlockStats.MAX_TRACKED_RUNS) {
+        if (stats.nRuns < 3 || stats.nRuns > BlockStats.MAX_TRACKED_RUNS) {
             return Long.MAX_VALUE;
         }
-        long size = vIntSize(stats.nRuns);
+        // NOTE: 1-byte header (vlong 0b111) + 1-byte sub-mode + payload
+        long size = 1L + 1L + vIntSize(stats.nRuns);
         for (int r = 0; r < stats.nRuns; r++) {
             size += vLongSize(stats.runOrds[r]) + vIntSize(stats.runLens[r]);
         }
@@ -50,6 +55,8 @@ final class RleCodec implements BlockModeCodec {
     @Override
     public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
         throws IOException {
+        out.writeVLong(0b111);
+        out.writeByte(SUB_MODE);
         out.writeVInt(stats.nRuns);
         for (int r = 0; r < stats.nRuns; r++) {
             out.writeVLong(stats.runOrds[r]);
@@ -58,7 +65,8 @@ final class RleCodec implements BlockModeCodec {
     }
 
     @Override
-    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd, long leadingVLong)
+        throws IOException {
         int n = in.readVInt();
         if (n < 1 || n > BlockStats.MAX_TRACKED_RUNS) {
             throw new CorruptIndexException(String.format(Locale.ROOT, "invalid RLE run count %d", n), in);

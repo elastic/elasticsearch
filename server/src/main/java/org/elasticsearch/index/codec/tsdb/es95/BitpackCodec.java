@@ -18,35 +18,40 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Locally bit-packed block codec: subtract {@code min}, pack at the bits
- * needed for {@code max - min}. Payload is {@code [min:vlong][localBits:1]
- * [packed]}. Stateless; access via {@link #INSTANCE}. Uses
- * {@link CodecContext#scratch} for the min-subtracted buffer and
- * {@link CodecContext#forUtil} for bit-packing.
+ * Locally bit-packed block codec (encoding 3, sub-mode {@link #SUB_MODE}).
+ * Subtracts {@code min}, then packs at the bits needed for {@code max - min}.
+ * Payload after the encoding-3 header and sub-mode byte is
+ * {@code [min:vlong][localBits:1][packed]}. Stateless; access via
+ * {@link #INSTANCE}. Uses {@link CodecContext#scratch} for the min-subtracted
+ * buffer and {@link CodecContext#forUtil} for bit-packing.
  */
 final class BitpackCodec implements BlockModeCodec {
 
-    static final byte MODE = 3;
+    static final int ENCODING = 3;
+    static final byte SUB_MODE = 1;
     static final BitpackCodec INSTANCE = new BitpackCodec();
 
     private BitpackCodec() {}
 
     @Override
-    public byte mode() {
-        return MODE;
+    public int encoding() {
+        return ENCODING;
     }
 
     @Override
     public long estimateSize(final long[] in, final BlockStats stats, int bitsPerOrd) {
         int localBits = bitsRequired(stats.max - stats.min);
         int roundedLocalBits = DocValuesForUtil.roundBits(localBits);
-        return vLongSize(stats.min) + 1L + ((long) in.length * roundedLocalBits + 7) / 8;
+        // NOTE: 1-byte header (vlong 0b111) + 1-byte sub-mode + vlong(min) + 1-byte localBits + bit-packed payload
+        return 1L + 1L + vLongSize(stats.min) + 1L + ((long) in.length * roundedLocalBits + 7) / 8;
     }
 
     @Override
     public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
         throws IOException {
         int localBits = bitsRequired(stats.max - stats.min);
+        out.writeVLong(0b111);
+        out.writeByte(SUB_MODE);
         out.writeVLong(stats.min);
         out.writeByte((byte) localBits);
         final long[] scratch = ctx.scratch;
@@ -57,7 +62,8 @@ final class BitpackCodec implements BlockModeCodec {
     }
 
     @Override
-    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd, long leadingVLong)
+        throws IOException {
         long minVal = in.readVLong();
         int bits = in.readByte() & 0xff;
         if (bits > 63) {

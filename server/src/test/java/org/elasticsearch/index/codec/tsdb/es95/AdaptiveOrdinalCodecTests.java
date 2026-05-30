@@ -19,18 +19,23 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Round-trip and mode-selection tests for {@link AdaptiveOrdinalCodec}, the
- * wrapper that delegates to per-mode codec classes implementing the sealed
- * {@link BlockModeCodec} interface ({@link LegacyCodec},
- * {@link ConstantCodec}, {@link RleCodec}, {@link BitpackCodec}). Each test
- * crafts a 128-value block whose distribution forces a specific mode, then
- * verifies encode/decode symmetry and (where relevant) the mode-byte
- * selection by peeking the wire format directly.
+ * Round-trip and encoding-selection tests for {@link AdaptiveOrdinalCodec},
+ * the wrapper that delegates to per-mode codec classes implementing the
+ * sealed {@link BlockModeCodec} interface ({@link ConstantCodec},
+ * {@link TwoRunCodec}, {@link BitPackedCodec}, {@link RleCodec},
+ * {@link BitpackCodec}).
+ *
+ * <p>The wire format mirrors legacy {@code TSDBDocValuesEncoder}: each block
+ * starts with a vlong header whose trailing one-bits count selects the
+ * encoding (0 CONST, 1 TWO_RUN, 2 BIT_PACKED, 3 ADAPTIVE_EXTRA). Each test
+ * crafts a 128-value block whose distribution forces a specific encoding,
+ * then verifies encode/decode symmetry and peeks the leading vlong to
+ * confirm the encoding selection.
  */
 public class AdaptiveOrdinalCodecTests extends ESTestCase {
 
-    public void testLegacyRoundTripUniformRandom() throws Exception {
-        // NOTE: 128 random ords spread across the full bits range -> forces LEGACY
+    public void testBitPackedRoundTripUniformRandom() throws Exception {
+        // NOTE: 128 random ords spread across the full bits range -> forces BIT_PACKED
         int bitsPerOrd = 16;
         long mask = (1L << bitsPerOrd) - 1L;
         long[] in = new long[128];
@@ -48,7 +53,7 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         assertArrayEquals(in, decoded);
     }
 
-    public void testConstModeChosenForUniformBlock() throws Exception {
+    public void testConstEncodingChosenForUniformBlock() throws Exception {
         long[] in = new long[128];
         Arrays.fill(in, 42L);
 
@@ -56,15 +61,14 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
 
-        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        assertEquals(ConstantCodec.MODE, peek.readByte());
+        assertEquals(ConstantCodec.ENCODING, peekEncoding(out));
 
         long[] decoded = new long[128];
         codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, 16);
         assertArrayEquals(in, decoded);
     }
 
-    public void testConstBlockEncodesToVeryFewBytes() throws Exception {
+    public void testConstBlockMatchesLegacyByteCount() throws Exception {
         long[] in = new long[128];
         Arrays.fill(in, 12345L);
 
@@ -72,8 +76,36 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
 
-        // NOTE: 1 byte mode + 2-byte vlong for 12345 = 3 bytes total
+        // NOTE: 12345 << 1 = 24690 -> 3-byte vlong; byte-for-byte tie with legacy CONST
         assertThat(out.size(), equalTo(3L));
+    }
+
+    public void testSmallConstFitsInOneByte() throws Exception {
+        long[] in = new long[128];
+        Arrays.fill(in, 7L);
+
+        AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+
+        // NOTE: 7 << 1 = 14 -> 1-byte vlong; legacy CONST costs 2 bytes for the same value
+        assertThat(out.size(), equalTo(1L));
+    }
+
+    public void testTwoRunEncodingChosen() throws Exception {
+        long[] in = new long[128];
+        Arrays.fill(in, 0, 80, 7L);
+        Arrays.fill(in, 80, 128, 11L);
+
+        AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+
+        assertEquals(TwoRunCodec.ENCODING, peekEncoding(out));
+
+        long[] decoded = new long[128];
+        codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, 16);
+        assertArrayEquals(in, decoded);
     }
 
     public void testBitpackLocalChosenWhenRangeIsNarrow() throws Exception {
@@ -89,17 +121,21 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, segmentBitsPerOrd);
 
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        assertEquals(BitpackCodec.MODE, peek.readByte());
+        assertEquals(AdaptiveOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
+        assertEquals(BitpackCodec.SUB_MODE, peek.readByte());
 
         long[] decoded = new long[128];
         codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, segmentBitsPerOrd);
         assertArrayEquals(in, decoded);
     }
 
-    public void testRleChosenForTwoRunBlock() throws Exception {
+    public void testRleChosenForManyShortRuns() throws Exception {
         long[] in = new long[128];
-        Arrays.fill(in, 0, 80, 7L);
-        Arrays.fill(in, 80, 128, 11L);
+        // NOTE: 4 runs of 32 each (in budget for RLE_N)
+        Arrays.fill(in, 0, 32, 7L);
+        Arrays.fill(in, 32, 64, 11L);
+        Arrays.fill(in, 64, 96, 13L);
+        Arrays.fill(in, 96, 128, 17L);
         int segmentBitsPerOrd = 16;
 
         AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
@@ -107,14 +143,15 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, segmentBitsPerOrd);
 
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        assertEquals(RleCodec.MODE, peek.readByte());
+        assertEquals(AdaptiveOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
+        assertEquals(RleCodec.SUB_MODE, peek.readByte());
 
         long[] decoded = new long[128];
         codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, segmentBitsPerOrd);
         assertArrayEquals(in, decoded);
     }
 
-    public void testLegacyChosenForHighEntropyBlock() throws Exception {
+    public void testBitPackedChosenForHighEntropyBlock() throws Exception {
         long[] in = new long[128];
         for (int i = 0; i < in.length; i++) {
             in[i] = randomLongBetween(0, (1L << 16) - 1);
@@ -122,12 +159,11 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
-        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        // NOTE: 128 random 16-bit ords spread across the full range -> LEGACY wins
-        assertEquals(LegacyCodec.MODE, peek.readByte());
+        // NOTE: 128 random 16-bit ords spread across the full range -> BIT_PACKED wins
+        assertEquals(BitPackedCodec.ENCODING, peekEncoding(out));
     }
 
-    public void testBitpackLocalBeatsLegacyOnNarrowRangeWithManyDistinct() throws Exception {
+    public void testBitpackLocalBeatsBitPackedOnNarrowRangeWithManyDistinct() throws Exception {
         long[] in = new long[128];
         for (int i = 0; i < in.length; i++) {
             // NOTE: 64 distinct values in [5000, 5063] - local bits = 6 vs segment bits = 16
@@ -137,13 +173,24 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        assertEquals(BitpackCodec.MODE, peek.readByte());
+        assertEquals(AdaptiveOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
+        assertEquals(BitpackCodec.SUB_MODE, peek.readByte());
     }
 
-    public void testCorruptModeByteThrows() {
+    public void testCorruptEncodingThrows() throws Exception {
         AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        // NOTE: 99 is not any of LegacyCodec.MODE=0, ConstantCodec.MODE=1, RleCodec.MODE=2, BitpackCodec.MODE=3
+        // NOTE: vlong with 5 trailing one-bits (0b11111) selects a non-existent encoding
+        out.writeVLong(0b11111L);
+        long[] dst = new long[128];
+        expectThrows(CorruptIndexException.class, () -> codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), dst, 16));
+    }
+
+    public void testCorruptAdaptiveExtraSubModeThrows() throws Exception {
+        AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        // NOTE: encoding 3 header (0b111), then an unknown sub-mode byte
+        out.writeVLong(0b111L);
         out.writeByte((byte) 99);
         long[] dst = new long[128];
         expectThrows(CorruptIndexException.class, () -> codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), dst, 16));
@@ -152,11 +199,17 @@ public class AdaptiveOrdinalCodecTests extends ESTestCase {
     public void testRleRunOverflowThrows() throws Exception {
         AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        out.writeByte(RleCodec.MODE);
-        out.writeVInt(1);          // NOTE: one run claimed
+        // NOTE: encoding 3 header (0b111), RLE_N sub-mode, then an out-of-range run length
+        out.writeVLong(0b111L);
+        out.writeByte(RleCodec.SUB_MODE);
+        out.writeVInt(1);
         out.writeVLong(42);
-        out.writeVInt(200);        // NOTE: run length 200 overflows the 128-slot destination
+        out.writeVInt(200);
         long[] dst = new long[128];
         expectThrows(CorruptIndexException.class, () -> codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), dst, 16));
+    }
+
+    private static int peekEncoding(final ByteBuffersDataOutput out) throws Exception {
+        return Long.numberOfTrailingZeros(~new ByteBuffersDataInput(out.toBufferList()).readVLong());
     }
 }

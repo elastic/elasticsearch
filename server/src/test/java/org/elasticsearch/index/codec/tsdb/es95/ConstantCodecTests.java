@@ -17,10 +17,10 @@ import java.util.Arrays;
 
 /**
  * Payload round-trip and applicability tests for {@link ConstantCodec}.
- * Verifies that a uniform block encodes to exactly one vlong and decodes
- * back to the original, and that {@link ConstantCodec#estimateSize}
- * returns {@code Long.MAX_VALUE} for non-uniform input so the wrapper
- * does not select this codec when it does not apply.
+ * The codec writes a single vlong of {@code value << 1} (trailing zero
+ * indicates CONST). Uniform blocks decode by reading back the leading vlong
+ * and right-shifting; non-uniform input returns {@code Long.MAX_VALUE} from
+ * {@code estimateSize} so the wrapper never selects this codec.
  */
 public class ConstantCodecTests extends ESTestCase {
 
@@ -34,8 +34,10 @@ public class ConstantCodecTests extends ESTestCase {
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         ConstantCodec.INSTANCE.encodePayload(in, stats, ctx, out, 16);
 
+        ByteBuffersDataInput reader = new ByteBuffersDataInput(out.toBufferList());
+        long v1 = reader.readVLong();
         long[] decoded = new long[128];
-        ConstantCodec.INSTANCE.decodePayload(ctx, new ByteBuffersDataInput(out.toBufferList()), decoded, 16);
+        ConstantCodec.INSTANCE.decodePayload(ctx, reader, decoded, 16, v1);
         assertArrayEquals(in, decoded);
     }
 
@@ -47,5 +49,20 @@ public class ConstantCodecTests extends ESTestCase {
         stats.recompute(in);
 
         assertEquals(Long.MAX_VALUE, ConstantCodec.INSTANCE.estimateSize(in, stats, 16));
+    }
+
+    public void testEstimateSizeMatchesActualPayload() throws Exception {
+        long[] in = new long[128];
+        Arrays.fill(in, 12345L);
+        final BlockStats stats = new BlockStats();
+        stats.recompute(in);
+        final CodecContext ctx = new CodecContext(128);
+
+        long estimate = ConstantCodec.INSTANCE.estimateSize(in, stats, 16);
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        ConstantCodec.INSTANCE.encodePayload(in, stats, ctx, out, 16);
+        // NOTE: 12345 << 1 = 24690 -> 3-byte vlong; matches legacy CONST cost
+        assertEquals(estimate, out.size());
+        assertEquals(3L, out.size());
     }
 }

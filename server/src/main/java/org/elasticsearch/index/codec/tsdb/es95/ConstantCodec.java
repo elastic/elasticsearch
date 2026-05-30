@@ -16,35 +16,41 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * Single-value block codec: writes one vlong, fills the decoded array
- * uniformly. Stateless; access via {@link #INSTANCE}.
+ * Single-value block codec (encoding 0). Writes {@code value << 1} as a
+ * single vlong with trailing zero indicating CONST; the decoder shifts the
+ * value back and fills the destination. Byte-for-byte identical to the
+ * legacy single-run encoding so the common mid-tsid constant case carries
+ * zero overhead. Stateless; access via {@link #INSTANCE}.
  */
 final class ConstantCodec implements BlockModeCodec {
 
-    static final byte MODE = 1;
+    static final int ENCODING = 0;
     static final ConstantCodec INSTANCE = new ConstantCodec();
 
     private ConstantCodec() {}
 
     @Override
-    public byte mode() {
-        return MODE;
+    public int encoding() {
+        return ENCODING;
     }
 
     @Override
     public long estimateSize(final long[] in, final BlockStats stats, int bitsPerOrd) {
-        return stats.allSame ? vLongSize(in[0]) : Long.MAX_VALUE;
+        if (stats.allSame == false || bitsPerOrd >= 63) {
+            return Long.MAX_VALUE;
+        }
+        return vLongSize(in[0] << 1);
     }
 
     @Override
     public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
         throws IOException {
-        out.writeVLong(in[0]);
+        out.writeVLong(in[0] << 1);
     }
 
     @Override
-    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
-        Arrays.fill(out, in.readVLong());
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd, long leadingVLong) {
+        Arrays.fill(out, leadingVLong >>> 1);
     }
 
     private static int vLongSize(long value) {

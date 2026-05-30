@@ -131,7 +131,39 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         final FallbackDecoderFactory fallbackDecoderFactory,
         boolean adaptiveOrdinalBlocks
     ) {
-        super(CODEC_NAME);
+        this(
+            CODEC_NAME,
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
+            numericBlockShift,
+            writePrefixPartitions,
+            blockBytesThreshold,
+            blockCountThreshold,
+            numericCodecFactory,
+            fallbackDecoderFactory,
+            adaptiveOrdinalBlocks
+        );
+    }
+
+    protected ES95TSDBDocValuesFormat(
+        final String codecName,
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        final BinaryDVCompressionMode binaryDVCompressionMode,
+        boolean enablePerBlockCompression,
+        int numericBlockShift,
+        boolean writePrefixPartitions,
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        final NumericCodecFactory numericCodecFactory,
+        final FallbackDecoderFactory fallbackDecoderFactory,
+        boolean adaptiveOrdinalBlocks
+    ) {
+        super(codecName);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");

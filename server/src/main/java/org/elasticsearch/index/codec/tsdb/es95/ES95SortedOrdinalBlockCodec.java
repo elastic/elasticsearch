@@ -13,29 +13,21 @@ import org.elasticsearch.index.codec.tsdb.NumericReadContext;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldWriter;
-import org.elasticsearch.index.codec.tsdb.SortedOrdinalBlockCodec;
-import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldWriter;
+import org.elasticsearch.index.codec.tsdb.TSDBSortedOrdinalBlockCodec;
 
 /**
- * Transitional ordinal block codec that encodes ordinal value blocks via
- * {@link AdaptiveOrdinalCodec}, the per-block adaptive codec that picks the cheapest
- * of CONST, RLE, BITPACK_LOCAL, or BIT_PACKED for each block.
+ * ES95 specialization of {@link TSDBSortedOrdinalBlockCodec} that swaps in the per-block
+ * adaptive ordinal encoder for SORTED fields.
  *
- * <p>Implements both {@link SortedOrdinalBlockCodec} and {@link SortedSetOrdinalBlockCodec}
- * with the same per-block encoding. A later commit replaces this single class with two
- * ES95-specific subclasses, one per field type, so each can diverge independently.
- *
- * <p>Each call to {@link #createReader} and {@link #createWriter} returns a fresh
- * {@link AdaptiveOrdinalCodec} instance so that each producer or consumer owns its own
- * scratch buffers without shared mutable state. The per-mode codec singletons are
- * stateless and shared across all instances; per-segment scratch (a {@link CodecContext})
- * lives on each {@link AdaptiveOrdinalCodec}.
+ * <p>Overrides {@link #createReader} and {@link #createWriter} to construct an
+ * {@link AdaptiveOrdinalCodec} per producer or consumer, so each instance owns its own
+ * scratch buffers without shared mutable state.
  */
-final class AdaptiveOrdinalBlockCodec implements SortedOrdinalBlockCodec, SortedSetOrdinalBlockCodec {
+final class ES95SortedOrdinalBlockCodec extends TSDBSortedOrdinalBlockCodec {
 
-    AdaptiveOrdinalBlockCodec() {}
+    ES95SortedOrdinalBlockCodec() {}
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {

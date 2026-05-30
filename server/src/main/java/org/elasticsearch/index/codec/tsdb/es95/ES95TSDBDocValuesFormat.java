@@ -38,7 +38,8 @@ import java.io.IOException;
  * ES95 TSDB doc values format. Uses pipeline-based encoding for numeric fields via
  * {@link ES95NumericCodec} and per-field-type baselines ({@link TSDBSortedOrdinalBlockCodec},
  * {@link TSDBSortedSetOrdinalBlockCodec}) for ordinals, with adaptive selection via
- * {@link AdaptiveOrdinalBlockCodec} when the feature flag is enabled.
+ * ES95 specializations ({@link ES95SortedOrdinalBlockCodec},
+ * {@link ES95SortedSetOrdinalBlockCodec}) when the feature flag is enabled.
  * Non-numeric field types are handled identically to ES819 by the shared abstract
  * base classes. Each numeric field writes a self-describing
  * {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor} so decoders
@@ -177,9 +178,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
         if (adaptiveOrdinalBlocks) {
-            final AdaptiveOrdinalBlockCodec adaptive = new AdaptiveOrdinalBlockCodec();
-            this.sortedOrdinalCodec = adaptive;
-            this.sortedSetOrdinalCodec = adaptive;
+            this.sortedOrdinalCodec = new ES95SortedOrdinalBlockCodec();
+            this.sortedSetOrdinalCodec = new ES95SortedSetOrdinalBlockCodec();
         } else {
             this.sortedOrdinalCodec = new TSDBSortedOrdinalBlockCodec();
             this.sortedSetOrdinalCodec = new TSDBSortedSetOrdinalBlockCodec();

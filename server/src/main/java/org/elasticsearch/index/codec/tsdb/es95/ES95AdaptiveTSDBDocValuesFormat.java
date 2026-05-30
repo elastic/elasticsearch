@@ -14,12 +14,12 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 /**
  * Adaptive ordinal variant of {@link ES95TSDBDocValuesFormat}. Identical to the
- * base format except that ordinal blocks are encoded by
- * {@link AdaptiveOrdinalBlockCodec} (per block adaptive selection of CONST,
- * RLE, BITPACK_LOCAL, or BIT_PACKED mode) instead of the legacy fixed width
- * bit packing provided by
- * {@link org.elasticsearch.index.codec.tsdb.TSDBSortedOrdinalBlockCodec} and
- * {@link org.elasticsearch.index.codec.tsdb.TSDBSortedSetOrdinalBlockCodec}.
+ * base format except that ordinal blocks are encoded by per-field-type adaptive
+ * subclasses ({@link ES95SortedOrdinalBlockCodec},
+ * {@link ES95SortedSetOrdinalBlockCodec}) that pick the cheapest of CONST, RLE,
+ * BITPACK_LOCAL, or BIT_PACKED mode instead of the legacy fixed-width bit packing
+ * provided by {@link org.elasticsearch.index.codec.tsdb.TSDBSortedOrdinalBlockCodec}
+ * and {@link org.elasticsearch.index.codec.tsdb.TSDBSortedSetOrdinalBlockCodec}.
  *
  * <p>Carries a distinct {@link #CODEC_NAME} so that segments written with the
  * adaptive ordinal block path are decoded back through the same path after

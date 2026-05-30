@@ -593,15 +593,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotsServiceIT
   method: testDeleteSnapshotWhenNotWaitingForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/150257
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
-  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150281
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
-  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=NONE, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150282
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
-  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150283
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testLatestCommitDependenciesUsesTheRightGenerations
   issue: https://github.com/elastic/elasticsearch/issues/150287

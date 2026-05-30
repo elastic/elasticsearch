@@ -18,12 +18,10 @@ import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldWriter;
 import org.elasticsearch.index.codec.tsdb.TSDBSortedSetOrdinalBlockCodec;
 
 /**
- * ES95 specialization of {@link TSDBSortedSetOrdinalBlockCodec} that swaps in the per-block
- * adaptive ordinal encoder for SORTED_SET fields.
- *
- * <p>Mirrors {@link ES95SortedOrdinalBlockCodec} today. Holding it as a sibling class lets
- * SORTED_SET specialization (cycle detection, tuple run encoding) land here without
- * touching the SORTED path.
+ * ES95 specialization of {@link TSDBSortedSetOrdinalBlockCodec} that swaps in the
+ * SORTED_SET adaptive ordinal encoder. Drives {@link SortedSetOrdinalCodec}, which
+ * extends the SORTED dispatch with {@link CycleCodec} to absorb the K-cycle pattern
+ * produced by multi-valued docs sharing the same ord set within a tsid run.
  */
 final class ES95SortedSetOrdinalBlockCodec extends TSDBSortedSetOrdinalBlockCodec {
 
@@ -31,13 +29,13 @@ final class ES95SortedSetOrdinalBlockCodec extends TSDBSortedSetOrdinalBlockCode
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {
-        final SortedOrdinalCodec codec = new SortedOrdinalCodec(ctx.blockSize());
+        final SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(ctx.blockSize());
         return new TSDBOrdinalFieldReader(codec::decodeOrdinals);
     }
 
     @Override
     public OrdinalFieldWriter createWriter(final NumericWriteContext ctx) {
-        final SortedOrdinalCodec codec = new SortedOrdinalCodec(ctx.blockSize());
+        final SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(ctx.blockSize());
         return new TSDBOrdinalFieldWriter(ctx, codec::encodeOrdinals);
     }
 }

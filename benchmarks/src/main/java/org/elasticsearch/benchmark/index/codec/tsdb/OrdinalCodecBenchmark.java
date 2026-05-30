@@ -10,9 +10,11 @@
 package org.elasticsearch.benchmark.index.codec.tsdb;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.es95.SortedOrdinalCodec;
+import org.elasticsearch.index.codec.tsdb.es95.SortedSetOrdinalCodec;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,10 +39,11 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Four-cell benchmark matrix comparing the legacy {@link TSDBDocValuesEncoder}
- * ordinal encoder (used by {@code TSDBOrdinalBlockCodec}) and the new
- * {@link SortedOrdinalCodec} (used by {@code AdaptiveOrdinalBlockCodec})
- * under two cardinality regimes:
+ * Benchmark matrix comparing the legacy {@link TSDBDocValuesEncoder} ordinal
+ * encoder against the per-field-type adaptive encoders: {@link SortedOrdinalCodec}
+ * for the {@code TSID_RUNS} shape (SORTED fields) and {@link SortedSetOrdinalCodec}
+ * for the {@code MULTIVALUE_CYCLE} shape (SORTED_SET fields with the K-cycle
+ * pattern). Two cardinality regimes:
  *
  * <ul>
  *   <li>{@code LOW} models a segment with ~16 unique ordinals
@@ -66,7 +69,7 @@ import java.util.concurrent.TimeUnit;
  * <h2>Ready to run command</h2>
  *
  * <pre>{@code
- * ./gradlew :benchmarks:run --args="SortedOrdinalCodecBenchmark \
+ * ./gradlew :benchmarks:run --args="OrdinalCodecBenchmark \
  *   -wi 5 -i 5 -f 3"
  * }</pre>
  */
@@ -76,7 +79,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-public class SortedOrdinalCodecBenchmark {
+public class OrdinalCodecBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
@@ -138,7 +141,18 @@ public class SortedOrdinalCodecBenchmark {
     private ByteArrayDataOutput dataOutput;
 
     private TSDBDocValuesEncoder tsdbOrdinalCodec;
-    private SortedOrdinalCodec adaptiveOrdinalCodec;
+    private BlockEncoder adaptiveOrdinalCodec;
+
+    /**
+     * Encoder shape shared by {@link SortedOrdinalCodec#encodeOrdinals} and
+     * {@link SortedSetOrdinalCodec#encodeOrdinals}, so the benchmark methods can
+     * stay shape-agnostic and the right codec is wired up once in
+     * {@link #setupTrial} based on the {@link BlockShape} param.
+     */
+    @FunctionalInterface
+    private interface BlockEncoder {
+        void encode(long[] in, DataOutput out, int bitsPerOrd) throws IOException;
+    }
 
     @Setup(Level.Trial)
     public void setupTrial() {
@@ -152,7 +166,10 @@ public class SortedOrdinalCodecBenchmark {
         dataOutput = new ByteArrayDataOutput(outputBuffer);
 
         tsdbOrdinalCodec = new TSDBDocValuesEncoder(BLOCK_SIZE);
-        adaptiveOrdinalCodec = new SortedOrdinalCodec(BLOCK_SIZE);
+        adaptiveOrdinalCodec = switch (blockShape) {
+            case TSID_RUNS -> new SortedOrdinalCodec(BLOCK_SIZE)::encodeOrdinals;
+            case MULTIVALUE_CYCLE -> new SortedSetOrdinalCodec(BLOCK_SIZE)::encodeOrdinals;
+        };
     }
 
     /**
@@ -194,7 +211,7 @@ public class SortedOrdinalCodecBenchmark {
         for (int i = 0; i < BLOCKS_PER_INVOCATION; i++) {
             System.arraycopy(inputBlock, 0, scratchBlock, 0, BLOCK_SIZE);
             dataOutput.reset(outputBuffer);
-            adaptiveOrdinalCodec.encodeOrdinals(scratchBlock, dataOutput, bitsPerOrd);
+            adaptiveOrdinalCodec.encode(scratchBlock, dataOutput, bitsPerOrd);
             total += dataOutput.getPosition();
         }
         metric.encodedBytes += total;
@@ -213,7 +230,7 @@ public class SortedOrdinalCodecBenchmark {
 
         System.arraycopy(inputBlock, 0, scratchBlock, 0, BLOCK_SIZE);
         dataOutput.reset(outputBuffer);
-        adaptiveOrdinalCodec.encodeOrdinals(scratchBlock, dataOutput, bitsPerOrd);
+        adaptiveOrdinalCodec.encode(scratchBlock, dataOutput, bitsPerOrd);
         final int adaptiveBytes = dataOutput.getPosition();
 
         final double ratio = tsdbBytes == 0 ? Double.NaN : ((double) adaptiveBytes) / tsdbBytes;

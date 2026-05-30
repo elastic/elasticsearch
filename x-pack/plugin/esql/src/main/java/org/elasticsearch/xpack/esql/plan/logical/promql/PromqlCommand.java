@@ -52,9 +52,11 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan implements TelemetryAware, TimestampAware, TimestampBoundsAware.OfLogicalPlan {
-    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
-
+public class PromqlCommand extends UnaryPlan
+    implements
+        TelemetryAware,
+        TimestampAware,
+        TimestampBoundsAware.OfLogicalPlan {
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
      */
@@ -441,7 +443,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     }
                 }
                 case PromqlFunctionCall functionCall -> {
-                    // ok
+                    // ok — counter/gauge type mismatches are coerced during translation
                 }
                 case ScalarFunction scalarFunction -> {
                     // ok

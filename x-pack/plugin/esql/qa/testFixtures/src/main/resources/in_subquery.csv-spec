@@ -2063,7 +2063,10 @@ required_capability: where_in_subquery_without_view
 required_capability: knn_function_v5
 
 FROM colors
-| WHERE id IN (FROM colors | WHERE knn(rgb_vector, [255, 0, 0]) AND primary == true | KEEP id)
+| WHERE id IN (FROM colors
+               | WHERE knn(rgb_vector, [255, 0, 0]) AND primary == true
+               | KEEP id
+               | LIMIT 60)
 | SORT color
 | KEEP color
 ;

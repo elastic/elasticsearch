@@ -16,6 +16,12 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 /**
  * Factory for creating {@link ES95TSDBDocValuesFormat} instances with block size
  * configuration matching index settings.
+ *
+ * <p>The 3-arg {@link #get(boolean, boolean, boolean)} overload returns a cached
+ * format with adaptive ordinal blocks disabled and is preserved for call sites
+ * that have not yet been updated. The 4-arg
+ * {@link #get(boolean, boolean, boolean, boolean)} overload threads the new
+ * adaptive ordinal blocks flag through to the format constructor.
  */
 public final class ES95TSDBDocValuesFormatFactory {
 
@@ -35,14 +41,19 @@ public final class ES95TSDBDocValuesFormatFactory {
         for (int n = 0; n < 2; n++) {
             for (int b = 0; b < 2; b++) {
                 for (int p = 0; p < 2; p++) {
-                    cache[(n << 2) + (b << 1) + p] = build(n == 1, b == 1, p == 1);
+                    cache[(n << 2) + (b << 1) + p] = build(n == 1, b == 1, p == 1, false);
                 }
             }
         }
         return cache;
     }
 
-    private static DocValuesFormat build(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
+    private static DocValuesFormat build(
+        boolean useLargeNumericBlockSize,
+        boolean useLargeBinaryBlockSize,
+        boolean writePartitions,
+        boolean adaptiveOrdinalBlocks
+    ) {
         final int numericBlockShift = useLargeNumericBlockSize
             ? ES95TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT
             : ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
@@ -60,13 +71,15 @@ public final class ES95TSDBDocValuesFormatFactory {
             blockCountThreshold,
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder,
-            // NOTE: adaptive ordinal blocks - wired through factory in next commit
-            false
+            adaptiveOrdinalBlocks
         );
     }
 
     /**
-     * Returns a cached ES95 doc values format matching the given settings.
+     * Returns a cached ES95 doc values format matching the given settings, with
+     * adaptive ordinal blocks disabled. Forwards to
+     * {@link #get(boolean, boolean, boolean, boolean)} with
+     * {@code adaptiveOrdinalBlocks = false}.
      *
      * @param useLargeNumericBlockSize whether to use numeric blocks of 512 values (vs 128)
      * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
@@ -74,8 +87,32 @@ public final class ES95TSDBDocValuesFormatFactory {
      * @return the configured format (shared, do not mutate)
      */
     public static DocValuesFormat get(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
-        final int idx = (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0) + (writePartitions ? 1 : 0);
-        return INSTANCES[idx];
+        return get(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions, false);
+    }
+
+    /**
+     * Returns an ES95 doc values format matching the given settings. When
+     * {@code adaptiveOrdinalBlocks} is {@code false} a cached instance is
+     * returned; otherwise a fresh instance is allocated since the cache only
+     * covers the legacy fixed block path.
+     *
+     * @param useLargeNumericBlockSize whether to use numeric blocks of 512 values (vs 128)
+     * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
+     * @param writePartitions          whether to write prefix partitioned sorted fields
+     * @param adaptiveOrdinalBlocks    whether to use adaptive per-block ordinal encoding
+     * @return the configured format
+     */
+    public static DocValuesFormat get(
+        boolean useLargeNumericBlockSize,
+        boolean useLargeBinaryBlockSize,
+        boolean writePartitions,
+        boolean adaptiveOrdinalBlocks
+    ) {
+        if (adaptiveOrdinalBlocks == false) {
+            final int idx = (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0) + (writePartitions ? 1 : 0);
+            return INSTANCES[idx];
+        }
+        return build(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions, true);
     }
 
     /**
@@ -89,6 +126,6 @@ public final class ES95TSDBDocValuesFormatFactory {
      * @return a freshly allocated format with the requested parameters
      */
     public static DocValuesFormat create(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
-        return build(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
+        return build(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions, false);
     }
 }

@@ -91,4 +91,22 @@ public class AdaptiveOrdinalEncoderTests extends ESTestCase {
         encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, segmentBitsPerOrd);
         assertArrayEquals(in, decoded);
     }
+
+    public void testRleChosenForTwoRunBlock() throws Exception {
+        long[] in = new long[128];
+        Arrays.fill(in, 0, 80, 7L);
+        Arrays.fill(in, 80, 128, 11L);
+        int segmentBitsPerOrd = 16;
+
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, segmentBitsPerOrd);
+
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        assertEquals(AdaptiveOrdinalEncoder.MODE_RLE, peek.readByte());
+
+        long[] decoded = new long[128];
+        encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, segmentBitsPerOrd);
+        assertArrayEquals(in, decoded);
+    }
 }

@@ -23,9 +23,8 @@ import java.util.Locale;
  * CONST, RLE, BITPACK_LOCAL, or LEGACY. The chosen mode minimizes serialized
  * bytes for the block. Wire format: 1 mode byte + mode-specific payload.
  *
- * <p>This commit lands CONST (single distinct value collapsed to one vlong)
- * on top of the LEGACY baseline. RLE and BITPACK_LOCAL follow in subsequent
- * commits.
+ * <p>This commit adds BITPACK_LOCAL (pack at bits for `max - min`, subtracting
+ * `min` first) on top of CONST and LEGACY. RLE lands in a subsequent commit.
  */
 final class AdaptiveOrdinalEncoder {
 
@@ -35,9 +34,11 @@ final class AdaptiveOrdinalEncoder {
     static final byte MODE_LEGACY = 3;
 
     private final DocValuesForUtil forUtil;
+    private final long[] scratch;
 
     AdaptiveOrdinalEncoder(int blockSize) {
         this.forUtil = new DocValuesForUtil(blockSize);
+        this.scratch = new long[blockSize];
     }
 
     /**
@@ -48,16 +49,41 @@ final class AdaptiveOrdinalEncoder {
      */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
         long first = in[0];
+        long min = first;
+        long max = first;
         boolean allSame = true;
         for (int i = 1; i < in.length; i++) {
-            if (in[i] != first) {
+            long v = in[i];
+            if (v != first) {
                 allSame = false;
-                break;
+            }
+            if (v < min) {
+                min = v;
+            }
+            if (v > max) {
+                max = v;
             }
         }
         if (allSame) {
             out.writeByte(MODE_CONST);
             out.writeVLong(first);
+            return;
+        }
+
+        int localBits = bitsRequired(max - min);
+        int roundedLocalBits = DocValuesForUtil.roundBits(localBits);
+        int roundedSegmentBits = DocValuesForUtil.roundBits(bitsPerOrd);
+        long bytesLegacy = 1L + ((long) in.length * roundedSegmentBits + 7) / 8;
+        long bytesLocal = 1L + vLongSize(min) + 1L + ((long) in.length * roundedLocalBits + 7) / 8;
+
+        if (bytesLocal < bytesLegacy) {
+            out.writeByte(MODE_BITPACK_LOCAL);
+            out.writeVLong(min);
+            out.writeByte((byte) localBits);
+            for (int i = 0; i < in.length; i++) {
+                scratch[i] = in[i] - min;
+            }
+            forUtil.encode(scratch, localBits, out);
             return;
         }
 
@@ -73,11 +99,38 @@ final class AdaptiveOrdinalEncoder {
                 Arrays.fill(out, constValue);
                 return;
             }
+            case MODE_BITPACK_LOCAL: {
+                long minVal = in.readVLong();
+                int bits = in.readByte() & 0xff;
+                if (bits > 63) {
+                    throw new CorruptIndexException(String.format(Locale.ROOT, "invalid BITPACK_LOCAL bits %d", bits), in);
+                }
+                forUtil.decode(bits, in, out);
+                for (int i = 0; i < out.length; i++) {
+                    out[i] += minVal;
+                }
+                return;
+            }
             case MODE_LEGACY:
                 forUtil.decode(bitsPerOrd, in, out);
                 return;
             default:
                 throw new CorruptIndexException(String.format(Locale.ROOT, "unknown adaptive ordinal block mode 0x%02x", mode & 0xff), in);
         }
+    }
+
+    private static int bitsRequired(long range) {
+        return range == 0 ? 0 : 64 - Long.numberOfLeadingZeros(range);
+    }
+
+    private static int vLongSize(long value) {
+        // NOTE: Lucene VLong is 1 byte per 7 bits, plus a final byte. Cap at 9 for max long.
+        int bytes = 1;
+        long unsigned = value;
+        while ((unsigned & ~0x7FL) != 0) {
+            bytes++;
+            unsigned >>>= 7;
+        }
+        return bytes;
     }
 }

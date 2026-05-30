@@ -71,4 +71,24 @@ public class AdaptiveOrdinalEncoderTests extends ESTestCase {
         // NOTE: 1 byte mode + 2-byte vlong for 12345 = 3 bytes total
         assertThat(out.size(), equalTo(3L));
     }
+
+    public void testBitpackLocalChosenWhenRangeIsNarrow() throws Exception {
+        // NOTE: segment bits says 16; block uses ords in [1000, 1015] so local bits = 4
+        long[] in = new long[128];
+        for (int i = 0; i < in.length; i++) {
+            in[i] = 1000L + randomIntBetween(0, 15);
+        }
+        int segmentBitsPerOrd = 16;
+
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, segmentBitsPerOrd);
+
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        assertEquals(AdaptiveOrdinalEncoder.MODE_BITPACK_LOCAL, peek.readByte());
+
+        long[] decoded = new long[128];
+        encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, segmentBitsPerOrd);
+        assertArrayEquals(in, decoded);
+    }
 }

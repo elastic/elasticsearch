@@ -18,21 +18,18 @@ import java.util.Locale;
 
 /**
  * Per-block ordinal codec for SORTED_SET doc values (multiple values per document).
- * Mirrors {@link SortedOrdinalCodec} but runs {@link BlockStats#recomputeWithCycle}
- * to enable {@link CycleCodec} as a sixth candidate.
+ * Mirrors {@link SortedOrdinalCodec} for the scalar candidates and adds
+ * {@link TupleRunCodec} as the multi-valued candidate. The encoder takes the per-doc
+ * value counts and head/tail straddle offsets so {@code TupleRunCodec} can group
+ * consecutive docs that emit the same K-ord tuple into a single (K, runLen, tuple)
+ * entry. Targets the K-cycle pattern produced by multi-valued docs sharing the same
+ * ord set within a {@code _tsid} run (e.g. {@code host.ip}, {@code host.mac}).
  *
- * <p>The cycle case is the multi-valued pattern where every doc in a tsid run emits
- * the same K-ord set in the same order (e.g. {@code host.ip}, {@code host.mac}). The
- * flat ord stream then repeats with period K; without {@link CycleCodec} the block
- * falls through to {@link BitPackedCodec} and pays the full bitsPerOrd per value
- * because the K cycle values are typically scattered across the term-dictionary bit
- * range. SORTED blocks never see this pattern, which is why
- * {@link SortedOrdinalCodec} skips cycle detection entirely.
- *
- * <p>Wire format is byte-for-byte compatible with {@link SortedOrdinalCodec} for
- * encodings 0, 1, and 2, and shares the encoding-3 ADAPTIVE_EXTRA dispatch with
- * sub-modes 0 ({@link RleCodec}), 1 ({@link BitpackCodec}), and additionally 2
- * ({@link CycleCodec}).
+ * <p>Wire format is byte for byte compatible with {@link SortedOrdinalCodec} for
+ * encodings 0, 1, and 2; the ADAPTIVE_EXTRA encoding (3) carries sub-modes
+ * {@link RleCodec#SUB_MODE} (0), {@link BitpackCodec#SUB_MODE} (1), and
+ * {@link TupleRunCodec#SUB_MODE} (2). SORTED blocks never see the multi-valued K-tuple
+ * pattern, which is why {@link SortedOrdinalCodec} skips this candidate entirely.
  *
  * <p>The per-mode codec instances are supplied via constructor injection and held
  * as {@code final} fields. A convenience constructor delegates to the full one
@@ -45,7 +42,7 @@ public final class SortedSetOrdinalCodec {
     private final BitPackedCodec bitPackedCodec;
     private final RleCodec rleCodec;
     private final BitpackCodec bitpackCodec;
-    private final CycleCodec cycleCodec;
+    private final TupleRunCodec tupleRunCodec;
     private final CodecContext ctx;
     private final BlockStats stats;
 
@@ -57,7 +54,7 @@ public final class SortedSetOrdinalCodec {
             BitPackedCodec.INSTANCE,
             RleCodec.INSTANCE,
             BitpackCodec.INSTANCE,
-            CycleCodec.INSTANCE
+            TupleRunCodec.INSTANCE
         );
     }
 
@@ -68,59 +65,68 @@ public final class SortedSetOrdinalCodec {
         final BitPackedCodec bitPackedCodec,
         final RleCodec rleCodec,
         final BitpackCodec bitpackCodec,
-        final CycleCodec cycleCodec
+        final TupleRunCodec tupleRunCodec
     ) {
         this.constantCodec = constantCodec;
         this.twoRunCodec = twoRunCodec;
         this.bitPackedCodec = bitPackedCodec;
         this.rleCodec = rleCodec;
         this.bitpackCodec = bitpackCodec;
-        this.cycleCodec = cycleCodec;
+        this.tupleRunCodec = tupleRunCodec;
         this.ctx = new CodecContext(blockSize);
         this.stats = new BlockStats();
     }
 
-    public void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
-        stats.recomputeWithCycle(in);
+    public void encodeOrdinals(
+        final long[] in,
+        final int[] perDocK,
+        int numDocs,
+        int headOffset,
+        int tailMissing,
+        final DataOutput out,
+        int bitsPerOrd
+    ) throws IOException {
+        stats.recompute(in);
 
         BlockModeCodec winner = bitPackedCodec;
         long winnerSize = bitPackedCodec.estimateSize(in, stats, bitsPerOrd);
 
-        long constSize = constantCodec.estimateSize(in, stats, bitsPerOrd);
+        final long constSize = constantCodec.estimateSize(in, stats, bitsPerOrd);
         if (constSize < winnerSize) {
             winner = constantCodec;
             winnerSize = constSize;
         }
 
-        long twoRunSize = twoRunCodec.estimateSize(in, stats, bitsPerOrd);
+        final long twoRunSize = twoRunCodec.estimateSize(in, stats, bitsPerOrd);
         if (twoRunSize < winnerSize) {
             winner = twoRunCodec;
             winnerSize = twoRunSize;
         }
 
-        long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
+        final long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
         if (rleSize < winnerSize) {
             winner = rleCodec;
             winnerSize = rleSize;
         }
 
-        long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
+        final long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
         if (bitpackSize < winnerSize) {
             winner = bitpackCodec;
             winnerSize = bitpackSize;
         }
 
-        long cycleSize = cycleCodec.estimateSize(in, stats, bitsPerOrd);
-        if (cycleSize < winnerSize) {
-            winner = cycleCodec;
+        final long tupleRunSize = tupleRunCodec.estimateSize(in, perDocK, numDocs, headOffset, tailMissing);
+        if (tupleRunSize < winnerSize) {
+            tupleRunCodec.encodePayload(in, perDocK, numDocs, headOffset, tailMissing, out);
+            return;
         }
 
         winner.encodePayload(in, stats, ctx, out, bitsPerOrd);
     }
 
     public void decodeOrdinals(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
-        long v1 = in.readVLong();
-        int encoding = Long.numberOfTrailingZeros(~v1);
+        final long v1 = in.readVLong();
+        final int encoding = Long.numberOfTrailingZeros(~v1);
         if (encoding == ConstantCodec.ENCODING) {
             constantCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
         } else if (encoding == TwoRunCodec.ENCODING) {
@@ -128,13 +134,13 @@ public final class SortedSetOrdinalCodec {
         } else if (encoding == BitPackedCodec.ENCODING) {
             bitPackedCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
         } else if (encoding == ADAPTIVE_EXTRA_ENCODING) {
-            byte subMode = in.readByte();
+            final byte subMode = in.readByte();
             if (subMode == RleCodec.SUB_MODE) {
                 rleCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
             } else if (subMode == BitpackCodec.SUB_MODE) {
                 bitpackCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
-            } else if (subMode == CycleCodec.SUB_MODE) {
-                cycleCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
+            } else if (subMode == TupleRunCodec.SUB_MODE) {
+                tupleRunCodec.decodePayload(in, out);
             } else {
                 throw new CorruptIndexException(String.format(Locale.ROOT, "unknown ADAPTIVE_EXTRA sub-mode 0x%02x", subMode & 0xff), in);
             }
@@ -143,6 +149,6 @@ public final class SortedSetOrdinalCodec {
         }
     }
 
-    /** Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by {@link RleCodec}, {@link BitpackCodec}, {@link CycleCodec}). */
+    /** Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}). */
     static final int ADAPTIVE_EXTRA_ENCODING = 3;
 }

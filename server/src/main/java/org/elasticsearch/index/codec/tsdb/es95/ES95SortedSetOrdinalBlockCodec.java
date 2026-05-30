@@ -14,14 +14,15 @@ import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldWriter;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldReader;
-import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldWriter;
 import org.elasticsearch.index.codec.tsdb.TSDBSortedSetOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.TupleAwareOrdinalFieldWriter;
 
 /**
- * ES95 specialization of {@link TSDBSortedSetOrdinalBlockCodec} that swaps in the
- * SORTED_SET adaptive ordinal encoder. Drives {@link SortedSetOrdinalCodec}, which
- * extends the SORTED dispatch with {@link CycleCodec} to absorb the K-cycle pattern
- * produced by multi-valued docs sharing the same ord set within a tsid run.
+ * ES95 specialization of {@link TSDBSortedSetOrdinalBlockCodec} that drives
+ * {@link SortedSetOrdinalCodec}. The writer uses {@link TupleAwareOrdinalFieldWriter}
+ * so the per-doc value counts and head/tail straddle offsets reach the block encoder,
+ * letting {@link TupleRunCodec} group consecutive docs that emit the same K-ord tuple
+ * within a {@code _tsid} run.
  */
 final class ES95SortedSetOrdinalBlockCodec extends TSDBSortedSetOrdinalBlockCodec {
 
@@ -36,6 +37,6 @@ final class ES95SortedSetOrdinalBlockCodec extends TSDBSortedSetOrdinalBlockCode
     @Override
     public OrdinalFieldWriter createWriter(final NumericWriteContext ctx) {
         final SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(ctx.blockSize());
-        return new TSDBOrdinalFieldWriter(ctx, codec::encodeOrdinals);
+        return new TupleAwareOrdinalFieldWriter(ctx, codec::encodeOrdinals);
     }
 }

@@ -17,69 +17,85 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 
 /**
- * Round-trip and encoding-selection tests for {@link SortedSetOrdinalCodec},
- * the SORTED_SET wrapper that extends the per-mode dispatch with
- * {@link CycleCodec} on top of the SORTED candidates.
- *
- * <p>Mirrors {@link SortedOrdinalCodecTests} for the shared candidates; the
- * extra coverage focuses on the cycle path: a block constructed as a K-period
- * cycle of values scattered across the bit range must select
- * {@link CycleCodec}, beat {@link BitPackedCodec} by an order of magnitude,
- * and decode back byte-for-byte.
+ * Round-trip and encoding-selection tests for {@link SortedSetOrdinalCodec}, the SORTED_SET
+ * wrapper that adds {@link TupleRunCodec} as a sixth candidate on top of the shared
+ * scalar dispatch. Tests build the perDocK array alongside the ord block so the encoder
+ * sees realistic per-doc tuple boundaries.
  */
 public class SortedSetOrdinalCodecTests extends ESTestCase {
 
-    public void testCycleEncodingChosenForMultiValuedPattern() throws Exception {
+    public void testTupleRunChosenForMultiValuedCycle() throws Exception {
         int bitsPerOrd = 16;
-        long[] cycleValues = { 17L, 4242L, 65000L };
+        long[] tuple = { 17L, 4242L, 65000L };
+        int K = tuple.length;
         long[] in = new long[128];
-        for (int i = 0; i < in.length; i++) {
-            in[i] = cycleValues[i % cycleValues.length];
+        int[] perDocK = new int[129];
+        int numDocs = 0;
+        int pos = 0;
+        for (int d = 0; d < 42; d++) {
+            perDocK[numDocs++] = K;
+            for (long o : tuple)
+                in[pos++] = o;
         }
+        perDocK[numDocs++] = K;
+        in[pos++] = tuple[0];
+        in[pos++] = tuple[1];
+        int tailMissing = 1;
+        assertEquals(128, pos);
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, bitsPerOrd);
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, numDocs, 0, tailMissing, out, bitsPerOrd);
 
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
         assertEquals(SortedSetOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
-        assertEquals(CycleCodec.SUB_MODE, peek.readByte());
+        assertEquals(TupleRunCodec.SUB_MODE, peek.readByte());
 
         long[] decoded = new long[128];
         codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);
         assertArrayEquals(in, decoded);
     }
 
-    public void testCycleBeatsBitPackedOnScatteredValues() throws Exception {
-        // NOTE: cycle values are spread across the full 16-bit range to model multi-valued
-        // SortedSet fields whose K distinct ords sort far apart in the term dictionary;
-        // BitpackCodec local range -> full 16 bits -> ~257 bytes; CycleCodec -> ~12 bytes.
+    public void testTupleRunBeatsBitPackedOnScatteredValues() throws Exception {
+        // NOTE: cycle ords spread across the full 16-bit range so BITPACK_LOCAL cannot help.
         int bitsPerOrd = 16;
-        int period = 3;
+        int K = 3;
         long mask = (1L << bitsPerOrd) - 1L;
-        long[] cycleValues = new long[period];
-        for (int i = 0; i < period; i++) {
-            cycleValues[i] = (mask / period) * i;
+        long[] tuple = new long[K];
+        for (int i = 0; i < K; i++) {
+            tuple[i] = (mask / K) * i;
         }
         long[] in = new long[128];
-        for (int i = 0; i < in.length; i++) {
-            in[i] = cycleValues[i % period];
+        int[] perDocK = new int[129];
+        int numDocs = 0;
+        int pos = 0;
+        for (int d = 0; d < 42; d++) {
+            perDocK[numDocs++] = K;
+            for (long o : tuple)
+                in[pos++] = o;
         }
+        perDocK[numDocs++] = K;
+        in[pos++] = tuple[0];
+        in[pos++] = tuple[1];
+        int tailMissing = 1;
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, bitsPerOrd);
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, numDocs, 0, tailMissing, out, bitsPerOrd);
 
-        assertTrue("cycle payload must beat the bit-packed lower bound", out.size() < 64);
+        assertTrue("tuple-run payload must beat the bit-packed lower bound", out.size() < 64);
     }
 
-    public void testConstEncodingChosenForUniformBlock() throws Exception {
+    public void testConstChosenForUniformBlock() throws Exception {
         long[] in = new long[128];
         Arrays.fill(in, 42L);
+        int[] perDocK = new int[129];
+        for (int d = 0; d < 128; d++)
+            perDocK[d] = 1;
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, 128, 0, 0, out, 16);
 
         assertEquals(ConstantCodec.ENCODING, peekEncoding(out));
 
@@ -88,14 +104,17 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         assertArrayEquals(in, decoded);
     }
 
-    public void testTwoRunEncodingChosen() throws Exception {
+    public void testTwoRunChosen() throws Exception {
         long[] in = new long[128];
         Arrays.fill(in, 0, 80, 7L);
         Arrays.fill(in, 80, 128, 11L);
+        int[] perDocK = new int[129];
+        for (int d = 0; d < 128; d++)
+            perDocK[d] = 1;
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, 128, 0, 0, out, 16);
 
         assertEquals(TwoRunCodec.ENCODING, peekEncoding(out));
 
@@ -110,10 +129,13 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         Arrays.fill(in, 32, 64, 11L);
         Arrays.fill(in, 64, 96, 13L);
         Arrays.fill(in, 96, 128, 17L);
+        int[] perDocK = new int[129];
+        for (int d = 0; d < 128; d++)
+            perDocK[d] = 1;
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, 128, 0, 0, out, 16);
 
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
         assertEquals(SortedSetOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));

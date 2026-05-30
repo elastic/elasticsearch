@@ -70,7 +70,7 @@ public final class TupleRunCodec {
     public static final int ENCODING = 3;
 
     /** Sub-mode byte inside the ADAPTIVE_EXTRA dispatch. */
-    public static final byte SUB_MODE = 3;
+    public static final byte SUB_MODE = 2;
 
     public static final TupleRunCodec INSTANCE = new TupleRunCodec();
 

@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
@@ -43,6 +44,14 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
 
     public static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
+
+    /**
+     * Feature flag gating adaptive per-block ordinal encoding. Auto-enabled
+     * in snapshot builds; in release builds set
+     * {@code -Des.adaptive_ordinal_blocks_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ADAPTIVE_ORDINAL_BLOCKS_FEATURE_FLAG = new FeatureFlag("adaptive_ordinal_blocks");
+
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES95TSDB";
     static final String DATA_CODEC = "ES95TSDBDocValuesData";

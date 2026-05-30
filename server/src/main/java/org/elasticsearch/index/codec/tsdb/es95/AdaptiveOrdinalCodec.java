@@ -25,13 +25,35 @@ import java.util.Locale;
  *
  * <p>Wire format per block: {@code [mode:1][payload]}. Mode byte values are
  * defined as {@code static final byte MODE} on each codec class.
+ *
+ * <p>The four per-mode codec instances are supplied via constructor
+ * injection and held as {@code final} fields. A convenience constructor
+ * delegates to the full one using the package's singletons.
  */
 final class AdaptiveOrdinalCodec {
 
+    private final LegacyCodec legacyCodec;
+    private final ConstantCodec constantCodec;
+    private final RleCodec rleCodec;
+    private final BitpackCodec bitpackCodec;
     private final CodecContext ctx;
     private final BlockStats stats;
 
     AdaptiveOrdinalCodec(int blockSize) {
+        this(blockSize, LegacyCodec.INSTANCE, ConstantCodec.INSTANCE, RleCodec.INSTANCE, BitpackCodec.INSTANCE);
+    }
+
+    AdaptiveOrdinalCodec(
+        int blockSize,
+        final LegacyCodec legacyCodec,
+        final ConstantCodec constantCodec,
+        final RleCodec rleCodec,
+        final BitpackCodec bitpackCodec
+    ) {
+        this.legacyCodec = legacyCodec;
+        this.constantCodec = constantCodec;
+        this.rleCodec = rleCodec;
+        this.bitpackCodec = bitpackCodec;
         this.ctx = new CodecContext(blockSize);
         this.stats = new BlockStats();
     }
@@ -39,24 +61,24 @@ final class AdaptiveOrdinalCodec {
     void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
         stats.recompute(in);
 
-        BlockModeCodec winner = LegacyCodec.INSTANCE;
-        long winnerSize = sizeWithHeader(LegacyCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
+        BlockModeCodec winner = legacyCodec;
+        long winnerSize = sizeWithHeader(legacyCodec.estimateSize(in, stats, bitsPerOrd));
 
-        long constSize = sizeWithHeader(ConstantCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
+        long constSize = sizeWithHeader(constantCodec.estimateSize(in, stats, bitsPerOrd));
         if (constSize < winnerSize) {
-            winner = ConstantCodec.INSTANCE;
+            winner = constantCodec;
             winnerSize = constSize;
         }
 
-        long rleSize = sizeWithHeader(RleCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
+        long rleSize = sizeWithHeader(rleCodec.estimateSize(in, stats, bitsPerOrd));
         if (rleSize < winnerSize) {
-            winner = RleCodec.INSTANCE;
+            winner = rleCodec;
             winnerSize = rleSize;
         }
 
-        long bitpackSize = sizeWithHeader(BitpackCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
+        long bitpackSize = sizeWithHeader(bitpackCodec.estimateSize(in, stats, bitsPerOrd));
         if (bitpackSize < winnerSize) {
-            winner = BitpackCodec.INSTANCE;
+            winner = bitpackCodec;
         }
 
         out.writeByte(winner.mode());
@@ -67,16 +89,16 @@ final class AdaptiveOrdinalCodec {
         byte mode = in.readByte();
         switch (mode) {
             case LegacyCodec.MODE:
-                LegacyCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
+                legacyCodec.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             case ConstantCodec.MODE:
-                ConstantCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
+                constantCodec.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             case RleCodec.MODE:
-                RleCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
+                rleCodec.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             case BitpackCodec.MODE:
-                BitpackCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
+                bitpackCodec.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             default:
                 throw new CorruptIndexException(String.format(Locale.ROOT, "unknown adaptive ordinal block mode 0x%02x", mode & 0xff), in);

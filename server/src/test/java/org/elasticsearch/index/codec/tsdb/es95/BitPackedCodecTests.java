@@ -17,7 +17,7 @@ import java.util.Arrays;
 
 /**
  * Payload round-trip tests for {@link BitPackedCodec}. The wrapper-level
- * dispatch is tested in {@link AdaptiveOrdinalCodecTests}; this suite
+ * dispatch is tested in {@link SortedOrdinalCodecTests}; this suite
  * exercises the codec in isolation by populating a {@link BlockStats},
  * driving {@link BitPackedCodec#INSTANCE} directly, and asserting that
  * encode + decode is the identity for arbitrary uniform-random inputs.

@@ -86,6 +86,18 @@ public class LocalCheckpointTracker {
     }
 
     /**
+     * Issues the next {@code count} sequence numbers as a contiguous range.
+     *
+     * @param count the number of sequence numbers to reserve; must be positive
+     * @return the first (lowest) sequence number in the reserved range; the caller owns
+     *         {@code [result, result + count - 1]}
+     */
+    public long generateSeqNos(final int count) {
+        assert count > 0 : "count must be positive, got: " + count;
+        return nextSeqNo.getAndAdd(count);
+    }
+
+    /**
      * Marks the provided sequence number as seen and updates the max_seq_no if needed.
      */
     public void advanceMaxSeqNo(final long seqNo) {

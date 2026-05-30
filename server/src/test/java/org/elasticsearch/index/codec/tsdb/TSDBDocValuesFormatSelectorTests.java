@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
@@ -28,7 +29,13 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class TSDBDocValuesFormatSelectorTests extends ESTestCase {
 
-    private static final String ES95_CODEC_NAME = "ES95TSDB";
+    // NOTE: when the adaptive ordinal blocks feature flag is enabled (snapshot builds by
+    // default) the selector dispatches to `ES95AdaptiveTSDBDocValuesFormat`, whose
+    // CODEC_NAME differs from the base `ES95TSDBDocValuesFormat.CODEC_NAME`. Mirror the
+    // selector logic so the assertion stays accurate in both flavors.
+    private static final String ES95_CODEC_NAME = ES95TSDBDocValuesFormat.ADAPTIVE_ORDINAL_BLOCKS_FEATURE_FLAG.isEnabled()
+        ? "ES95TSDBAdaptive"
+        : "ES95TSDB";
 
     private static List<IndexMode> indexModesUnderTest() {
         List<IndexMode> modes = new ArrayList<>(List.of(IndexMode.TIME_SERIES, IndexMode.STANDARD, IndexMode.LOGSDB));

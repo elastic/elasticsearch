@@ -14,7 +14,8 @@ import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBNumericBlockCodec;
-import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.TSDBSortedOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.TSDBSortedSetOrdinalBlockCodec;
 
 import java.io.IOException;
 
@@ -45,7 +46,8 @@ final class ES819TSDBDocValuesProducer extends AbstractTSDBDocValuesProducer {
             formatConfig,
             docOffsetsDecoder,
             new TSDBNumericBlockCodec(),
-            new TSDBOrdinalBlockCodec()
+            new TSDBSortedOrdinalBlockCodec(),
+            new TSDBSortedSetOrdinalBlockCodec()
         );
     }
 

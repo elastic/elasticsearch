@@ -9,24 +9,26 @@
 
 package org.elasticsearch.index.codec.tsdb.es95;
 
-import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.SortedOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalBlockCodec;
 import org.elasticsearch.test.ESTestCase;
 
 /**
- * Lightweight tests for {@link AdaptiveOrdinalBlockCodec}, the
- * {@link OrdinalBlockCodec} implementation that connects this package's
- * adaptive per-block codec to ES95's TSDB doc values pipeline. End-to-end
- * correctness against real segment contexts is exercised in the doc-values
- * format compliance suite.
+ * Lightweight tests for {@link AdaptiveOrdinalBlockCodec}, the per-field-type ordinal
+ * block codec that connects this package's adaptive per-block codec to ES95's TSDB doc
+ * values pipeline. End-to-end correctness against real segment contexts is exercised in
+ * the doc-values format compliance suite.
  */
 public class AdaptiveOrdinalBlockCodecTests extends ESTestCase {
 
-    public void testImplementsOrdinalBlockCodec() {
-        // NOTE: type bound is checked by the assignment; the assertion just
-        // ensures the class continues to declare the interface implementation.
+    public void testImplementsBothOrdinalBlockCodecInterfaces() {
+        // NOTE: type bounds are checked by the assignments; the assertions just ensure
+        // the class continues to declare both interface implementations.
         final AdaptiveOrdinalBlockCodec codec = new AdaptiveOrdinalBlockCodec();
         assertNotNull(codec);
-        final OrdinalBlockCodec interfaceRef = codec;
-        assertSame(codec, interfaceRef);
+        final SortedOrdinalBlockCodec sortedRef = codec;
+        assertSame(codec, sortedRef);
+        final SortedSetOrdinalBlockCodec sortedSetRef = codec;
+        assertSame(codec, sortedSetRef);
     }
 }

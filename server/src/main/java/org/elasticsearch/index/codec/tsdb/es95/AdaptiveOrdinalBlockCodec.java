@@ -11,25 +11,29 @@ package org.elasticsearch.index.codec.tsdb.es95;
 
 import org.elasticsearch.index.codec.tsdb.NumericReadContext;
 import org.elasticsearch.index.codec.tsdb.NumericWriteContext;
-import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.OrdinalFieldWriter;
+import org.elasticsearch.index.codec.tsdb.SortedOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldReader;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalFieldWriter;
 
 /**
- * {@link OrdinalBlockCodec} that encodes ordinal value blocks via
- * {@link AdaptiveOrdinalCodec}, the per-block adaptive codec that picks the
- * cheapest of CONST, RLE, BITPACK_LOCAL, or LEGACY for each block.
+ * Transitional ordinal block codec that encodes ordinal value blocks via
+ * {@link AdaptiveOrdinalCodec}, the per-block adaptive codec that picks the cheapest
+ * of CONST, RLE, BITPACK_LOCAL, or BIT_PACKED for each block.
  *
- * <p>Each call to {@link #createReader} and {@link #createWriter} returns a
- * fresh {@link AdaptiveOrdinalCodec} instance so that each producer or
- * consumer owns its own scratch buffers without shared mutable state. The
- * per-mode codec singletons are stateless and shared across all instances;
- * per-segment scratch (a {@link CodecContext}) lives on each
- * {@link AdaptiveOrdinalCodec}.
+ * <p>Implements both {@link SortedOrdinalBlockCodec} and {@link SortedSetOrdinalBlockCodec}
+ * with the same per-block encoding. A later commit replaces this single class with two
+ * ES95-specific subclasses, one per field type, so each can diverge independently.
+ *
+ * <p>Each call to {@link #createReader} and {@link #createWriter} returns a fresh
+ * {@link AdaptiveOrdinalCodec} instance so that each producer or consumer owns its own
+ * scratch buffers without shared mutable state. The per-mode codec singletons are
+ * stateless and shared across all instances; per-segment scratch (a {@link CodecContext})
+ * lives on each {@link AdaptiveOrdinalCodec}.
  */
-final class AdaptiveOrdinalBlockCodec implements OrdinalBlockCodec {
+final class AdaptiveOrdinalBlockCodec implements SortedOrdinalBlockCodec, SortedSetOrdinalBlockCodec {
 
     AdaptiveOrdinalBlockCodec() {}
 

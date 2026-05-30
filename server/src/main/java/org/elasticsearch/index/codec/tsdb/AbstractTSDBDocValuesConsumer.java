@@ -56,9 +56,9 @@ import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibl
  * Base class for TSDB doc values consumers.
  *
  * <p>Owns the wire-format writing for numeric, binary, sorted, sorted-numeric, and sorted-set
- * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec} and an
- * {@link OrdinalBlockCodec}; those codecs supply the per-field writers and encoders the wire-format
- * code drives during segment write.
+ * doc values. Concrete subclasses construct this class with a {@link NumericBlockCodec}, a
+ * {@link SortedOrdinalBlockCodec}, and a {@link SortedSetOrdinalBlockCodec}; those codecs
+ * supply the per-field writers and encoders the wire-format code drives during segment write.
  */
 public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
 
@@ -118,7 +118,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
     private final DocOffsetsCodec.Encoder docOffsetsEncoder;
     private final SortedFieldObserverFactory sortedFieldObserverFactory;
     private final NumericBlockCodec numericCodec;
-    private final OrdinalBlockCodec ordinalCodec;
+    private final SortedOrdinalBlockCodec sortedOrdinalCodec;
+    private final SortedSetOrdinalBlockCodec sortedSetOrdinalCodec;
     private final NumericWriteContext writeContext;
 
     /**
@@ -134,7 +135,8 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
      * @param docOffsetsEncoder           encoder for doc offsets in compressed binary blocks
      * @param sortedFieldObserverFactory  factory for creating observers during sorted field writes
      * @param numericCodec                codec for numeric doc values (NUMERIC and SORTED_NUMERIC)
-     * @param ordinalCodec                codec for ordinal doc values (SORTED and SORTED_SET)
+     * @param sortedOrdinalCodec          codec for ordinal doc values of SORTED fields
+     * @param sortedSetOrdinalCodec       codec for ordinal doc values of SORTED_SET fields
      */
     @SuppressWarnings("this-escape")
     protected AbstractTSDBDocValuesConsumer(
@@ -150,13 +152,15 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final DocOffsetsCodec.Encoder docOffsetsEncoder,
         final SortedFieldObserverFactory sortedFieldObserverFactory,
         final NumericBlockCodec numericCodec,
-        final OrdinalBlockCodec ordinalCodec
+        final SortedOrdinalBlockCodec sortedOrdinalCodec,
+        final SortedSetOrdinalBlockCodec sortedSetOrdinalCodec
     ) throws IOException {
         this.state = state;
         this.docOffsetsEncoder = docOffsetsEncoder;
         this.sortedFieldObserverFactory = sortedFieldObserverFactory;
         this.numericCodec = numericCodec;
-        this.ordinalCodec = ordinalCodec;
+        this.sortedOrdinalCodec = sortedOrdinalCodec;
+        this.sortedSetOrdinalCodec = sortedSetOrdinalCodec;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.primarySortFieldNumber = AbstractTSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
@@ -275,14 +279,31 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             .writeFieldEntry(field, valuesSource, offsetsAccumulator != null ? offsetsAccumulator::addDoc : null, null);
     }
 
-    private DocValueFieldCountStats writeOrdinalField(
+    private DocValueFieldCountStats writeSortedOrdinalField(
         final FieldInfo field,
         final TsdbDocValuesProducer valuesSource,
         long maxOrd,
         final OffsetsAccumulator offsetsAccumulator,
         final SortedFieldObserver sortedFieldObserver
     ) throws IOException {
-        return ordinalCodec.createWriter(writeContext)
+        return sortedOrdinalCodec.createWriter(writeContext)
+            .writeFieldEntry(
+                field,
+                valuesSource,
+                maxOrd,
+                offsetsAccumulator != null ? offsetsAccumulator::addDoc : null,
+                sortedFieldObserver
+            );
+    }
+
+    private DocValueFieldCountStats writeSortedSetOrdinalField(
+        final FieldInfo field,
+        final TsdbDocValuesProducer valuesSource,
+        long maxOrd,
+        final OffsetsAccumulator offsetsAccumulator,
+        final SortedFieldObserver sortedFieldObserver
+    ) throws IOException {
+        return sortedSetOrdinalCodec.createWriter(writeContext)
             .writeFieldEntry(
                 field,
                 valuesSource,
@@ -675,7 +696,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
         final int maxOrd = sorted.getValueCount();
         addTermsDict(DocValues.singleton(sorted), observer);
         observer.prepareForDocs();
-        writeOrdinalField(field, producer, maxOrd, null, observer);
+        writeSortedOrdinalField(field, producer, maxOrd, null, observer);
         if (primarySortFieldNumber == field.number) {
             meta.writeByte(observer != SortedFieldObserver.NOOP ? (byte) 1 : (byte) 0);
         }
@@ -841,7 +862,7 @@ public abstract class AbstractTSDBDocValuesConsumer extends XDocValuesConsumer {
             writeSkipIndex(field, valuesSource);
         }
         meta.writeByte((byte) 1); // multiValued (1 = multiValued)
-        writeEntry(field, valuesSource, accumulator -> writeOrdinalField(field, valuesSource, maxOrd, accumulator, null));
+        writeEntry(field, valuesSource, accumulator -> writeSortedSetOrdinalField(field, valuesSource, maxOrd, accumulator, null));
     }
 
     /**

@@ -602,3 +602,6 @@ tests:
 - class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
   method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
   issue: https://github.com/elastic/elasticsearch/issues/150283
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testLatestCommitDependenciesUsesTheRightGenerations
+  issue: https://github.com/elastic/elasticsearch/issues/150287

@@ -63,10 +63,13 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
@@ -393,8 +396,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return JoinTypes.ANTI;
         } else if (toBuildClass == LeftSemiJoin.class) {
             return JoinTypes.LEFT_SEMI;
+        } else if (toBuildClass == Join.class || toBuildClass == LookupJoin.class || toBuildClass == InlineJoin.class) {
+            return JoinTypes.LEFT;
         }
-        return JoinTypes.LEFT;
+        throw new IllegalArgumentException("Unknown join plan node [" + toBuildClass.getName() + "]; no JoinType mapping defined");
     }
 
     /**

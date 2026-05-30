@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.es95;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -134,5 +135,25 @@ public class AdaptiveOrdinalEncoderTests extends ESTestCase {
         encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
         assertEquals(AdaptiveOrdinalEncoder.MODE_BITPACK_LOCAL, peek.readByte());
+    }
+
+    public void testCorruptModeByteThrows() {
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        // NOTE: 99 is not any of MODE_CONST=0, MODE_RLE=1, MODE_BITPACK_LOCAL=2, MODE_LEGACY=3
+        out.writeByte((byte) 99);
+        long[] dst = new long[128];
+        expectThrows(CorruptIndexException.class, () -> encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), dst, 16));
+    }
+
+    public void testRleRunOverflowThrows() throws Exception {
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        out.writeByte(AdaptiveOrdinalEncoder.MODE_RLE);
+        out.writeVInt(1);          // NOTE: one run claimed
+        out.writeVLong(42);
+        out.writeVInt(200);        // NOTE: run length 200 overflows the 128-slot destination
+        long[] dst = new long[128];
+        expectThrows(CorruptIndexException.class, () -> encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), dst, 16));
     }
 }

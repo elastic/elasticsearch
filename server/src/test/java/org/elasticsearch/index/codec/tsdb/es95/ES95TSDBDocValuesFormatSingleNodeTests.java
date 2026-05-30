@@ -43,6 +43,13 @@ public class ES95TSDBDocValuesFormatSingleNodeTests extends AbstractTSDBDocValue
 
     @Override
     protected String expectedCodecName() {
+        // NOTE: when the adaptive ordinal blocks feature flag is enabled (snapshot
+        // builds by default) the selector dispatches to ES95AdaptiveTSDBDocValuesFormat,
+        // whose distinct CODEC_NAME is written into segment metadata. Mirror the
+        // selector's logic here so the assertion stays accurate in both flavors.
+        if (ES95TSDBDocValuesFormat.ADAPTIVE_ORDINAL_BLOCKS_FEATURE_FLAG.isEnabled()) {
+            return ES95AdaptiveTSDBDocValuesFormat.CODEC_NAME;
+        }
         return ES95TSDBDocValuesFormat.CODEC_NAME;
     }
 }

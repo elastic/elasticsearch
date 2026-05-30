@@ -109,4 +109,30 @@ public class AdaptiveOrdinalEncoderTests extends ESTestCase {
         encoder.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, segmentBitsPerOrd);
         assertArrayEquals(in, decoded);
     }
+
+    public void testLegacyChosenForHighEntropyBlock() throws Exception {
+        long[] in = new long[128];
+        for (int i = 0; i < in.length; i++) {
+            in[i] = randomLongBetween(0, (1L << 16) - 1);
+        }
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        // NOTE: 128 random 16-bit ords spread across the full range -> LEGACY wins
+        assertEquals(AdaptiveOrdinalEncoder.MODE_LEGACY, peek.readByte());
+    }
+
+    public void testBitpackLocalBeatsLegacyOnNarrowRangeWithManyDistinct() throws Exception {
+        long[] in = new long[128];
+        for (int i = 0; i < in.length; i++) {
+            // NOTE: 64 distinct values in [5000, 5063] - local bits = 6 vs segment bits = 16
+            in[i] = 5000L + randomLongBetween(0, 63);
+        }
+        AdaptiveOrdinalEncoder encoder = new AdaptiveOrdinalEncoder(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        encoder.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        assertEquals(AdaptiveOrdinalEncoder.MODE_BITPACK_LOCAL, peek.readByte());
+    }
 }

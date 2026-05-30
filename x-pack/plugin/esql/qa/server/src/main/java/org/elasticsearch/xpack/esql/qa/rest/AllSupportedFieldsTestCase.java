@@ -1531,11 +1531,11 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case INTEGER, COUNTER_INTEGER, SHORT, BYTE -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ints")
                 : matchesList().item("column_at_a_time:IntsFromDocValues.Singleton");
-            case IP -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+            case IP -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
-            case KEYWORD -> useStoredLoader()
-                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+            case KEYWORD -> useStoredLoader() ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : indexMode.isStrictColumnar() ? matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes")
                 : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
             case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")

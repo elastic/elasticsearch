@@ -329,6 +329,19 @@ public class FixtureUtils {
         return pathRepoFallback.get(anchor).toAbsolutePath().toString();
     }
 
+    /**
+     * Like {@link #pathRepoRootForIcebergFixtures(Class)} but returns the <em>parent</em> of the
+     * {@code iceberg-fixtures} directory so that sibling fixture directories (e.g.
+     * {@code clickbench-fixtures/}) are also accessible under the same {@code path.repo} root.
+     */
+    public static String pathRepoRootForFixtures(Class<?> anchor) {
+        Path local = resolveLocalFixturesPath(logger, anchor);
+        if (local != null) {
+            return local.getParent().toAbsolutePath().toString();
+        }
+        return pathRepoFallback.get(anchor).toAbsolutePath().toString();
+    }
+
     private static final ClassValue<Path> pathRepoFallback = new ClassValue<>() {
         @Override
         protected Path computeValue(Class<?> type) {

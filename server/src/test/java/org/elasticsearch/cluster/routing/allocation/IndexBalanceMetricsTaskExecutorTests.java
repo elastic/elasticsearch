@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -58,6 +59,10 @@ public class IndexBalanceMetricsTaskExecutorTests extends ESTestCase {
     public void testFindTaskReturnsNullWhenNoPersistentTasks() {
         final var state = ClusterState.builder(ClusterName.DEFAULT).build();
         assertThat(IndexBalanceMetricsTaskExecutor.Task.findTask(state), nullValue());
+    }
+
+    public void testDefaultDisabled() {
+        assertThat(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.get(Settings.EMPTY), equalTo(false));
     }
 
     public void testFindTaskReturnsNullWhenTaskNotPresent() {

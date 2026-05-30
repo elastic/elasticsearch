@@ -348,6 +348,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es819.DISIAccumulatorTests
   method: testAllDocs
   issue: https://github.com/elastic/elasticsearch/issues/150292
+- class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
+  method: name can be found from staged definition
+  issue: https://github.com/elastic/elasticsearch/issues/150299
 
 # Examples:
 #

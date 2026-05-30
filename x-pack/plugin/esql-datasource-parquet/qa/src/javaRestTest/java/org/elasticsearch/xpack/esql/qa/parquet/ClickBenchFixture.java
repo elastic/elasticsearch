@@ -110,9 +110,12 @@ public class ClickBenchFixture extends ExternalResource {
             return;
         }
 
-        Path singleDir = icebergFixtures.resolve("clickbench");
-        Path multiDir = icebergFixtures.resolve("clickbench_multi");
-        Path rawDir = icebergFixtures.resolve("clickbench_raw");
+        // Write clickbench data to a sibling directory so the large files are not picked up by
+        // loadExternalSourceFixtures(), which walks iceberg-fixtures/ and reads every file into memory.
+        Path clickbenchRoot = icebergFixtures.getParent().resolve("clickbench-fixtures");
+        Path singleDir = clickbenchRoot.resolve("clickbench");
+        Path multiDir = clickbenchRoot.resolve("clickbench_multi");
+        Path rawDir = clickbenchRoot.resolve("clickbench_raw");
         Files.createDirectories(singleDir);
         Files.createDirectories(multiDir);
         Files.createDirectories(rawDir);
@@ -121,8 +124,8 @@ public class ClickBenchFixture extends ExternalResource {
         Path firstSplit = multiDir.resolve("hits_1.parquet");
 
         if (Files.exists(singleFile) && Files.exists(firstSplit)) {
-            logger.info("ClickBench fixtures already exist at [{}], skipping download", icebergFixtures);
-            fixturesRoot = icebergFixtures;
+            logger.info("ClickBench fixtures already exist at [{}], skipping download", clickbenchRoot);
+            fixturesRoot = clickbenchRoot;
             return;
         }
 
@@ -150,7 +153,7 @@ public class ClickBenchFixture extends ExternalResource {
 
         if (rg0Paths.isEmpty()) {
             logger.warn("No RG0 files downloaded, fixture will be empty");
-            fixturesRoot = icebergFixtures;
+            fixturesRoot = clickbenchRoot;
             return;
         }
 
@@ -172,7 +175,7 @@ public class ClickBenchFixture extends ExternalResource {
             mergeRowGroups(splitFile, schema, rg0Paths, from, to);
         }
 
-        fixturesRoot = icebergFixtures;
+        fixturesRoot = clickbenchRoot;
         logger.info("ClickBench fixture ready at [{}]", fixturesRoot);
     }
 

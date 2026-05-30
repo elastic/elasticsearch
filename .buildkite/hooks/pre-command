@@ -77,7 +77,15 @@ export DEVELOCITY_ACCESS_KEY
 BUILDKITE_API_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
 
+export ORIGINAL_VAULT_GITHUB_TOKEN="${VAULT_GITHUB_TOKEN:-}"
 export GH_TOKEN="${VAULT_GITHUB_TOKEN:-}"
+
+# This is temporary until we work out issues with the OIDC tokens
+# Doesn't do anything automatically, just makes the token available for scripts to use
+if [[ "${USE_ELASTICSEARCH_MACHINE_GITHUB:-}" == "true" ]]; then
+  ELASTICSEARCH_MACHINE_GITHUB_TOKEN=$(vault_with_retry read -field=token secret/ci/elastic-elasticsearch/github_api_credentials)
+  export ELASTICSEARCH_MACHINE_GITHUB_TOKEN
+fi
 
 if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)

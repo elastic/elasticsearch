@@ -29,6 +29,11 @@ if [[ "$NEW_COMMIT_MESSAGE" == "$PREVIOUS_COMMIT_MESSAGE" ]]; then
   exit 1
 fi
 
+# This is temporary until we work out issues with the OIDC tokens
+if [[ "${ELASTICSEARCH_MACHINE_GITHUB_TOKEN:-}" != "" ]]; then
+  export VAULT_GITHUB_TOKEN="$ELASTICSEARCH_MACHINE_GITHUB_TOKEN"
+fi
+
 git config --global user.name elasticsearchmachine
 git config --global user.email 'infra-root+elasticsearchmachine@elastic.co'
 

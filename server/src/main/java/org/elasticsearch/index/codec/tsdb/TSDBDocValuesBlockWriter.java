@@ -116,9 +116,7 @@ public final class TSDBDocValuesBlockWriter {
         final BlockEncoder blockEncoder,
         final FieldMetaWriter fieldMetaWriter
     ) throws IOException {
-        // NOTE: wrap the simple per-block encoder as a tuple-aware encoder that ignores
-        // the per-doc metadata. Adapters can then share the single tuple-aware write loop
-        // without paying for a second implementation that duplicates DISI/index/meta setup.
+        // NOTE: wrap the simple encoder so DISI/index/meta setup stays in one loop.
         final TupleAwareBlockEncoder wrapped = (buffer, perDocK, numDocs, headOffset, tailMissing, data) -> blockEncoder.encode(
             buffer,
             data
@@ -252,12 +250,8 @@ public final class TSDBDocValuesBlockWriter {
                         fieldMetaWriter.write();
                     }
                     final long[] buffer = new long[blockSize];
-                    // NOTE: perDocK records the full K of every doc whose ords appear in the
-                    // current block, including a doc that straddles into the next block. A
-                    // doc with K = 1 (single-valued) contributes one entry; a straddling doc
-                    // contributes one entry in this block and another in the next block.
-                    // Upper bound is blockSize + 1 entries when every contributing doc has K = 1
-                    // plus one straddler at the tail.
+                    // NOTE: blockSize + 1 because a straddling doc carries an entry in both
+                    // this block and the next, on top of up to blockSize single-valued docs.
                     final int[] perDocK = new int[blockSize + 1];
                     int bufferSize = 0;
                     int perDocKCount = 0;
@@ -287,8 +281,10 @@ public final class TSDBDocValuesBlockWriter {
                                 tupleEncoder.encode(buffer, perDocK, perDocKCount, pendingHeadOffset, tailMissing, data);
                                 bufferSize = 0;
                                 if (tailMissing > 0) {
-                                    // Doc straddles: its remaining ords go to the next block,
-                                    // and the doc's full K starts the next block's perDocK.
+                                    // NOTE: doc straddles; its full K reappears as the next
+                                    // block's leading perDocK entry so the tuple encoder
+                                    // there can pair the partial visible portion with the
+                                    // matching tuple revealed by later docs.
                                     pendingHeadOffset = i + 1;
                                     perDocK[0] = count;
                                     perDocKCount = 1;

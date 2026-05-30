@@ -155,38 +155,29 @@ public final class TupleRunCodec {
                 );
             }
             final int startK = (r == 0 && runLen == 1 && headOffset > 0) ? headOffset : 0;
-            // Read the visible portion of the tuple.
             final long[] tuple = new long[K];
             tuple[startK] = in.readVLong();
             for (int k = 1; k < ordsInWire; k++) {
                 tuple[startK + k] = tuple[startK + k - 1] + in.readVLong() + 1L;
             }
-            // Emit ords according to the run's role in the block.
             final int totalOrds;
             final int cursor;
             if (r == 0 && r == nRuns - 1 && runLen == 1) {
-                // Single-run block with a single doc that may be partial on both edges.
                 totalOrds = ordsInWire;
                 cursor = startK;
             } else if (r == 0 && runLen == 1 && headOffset > 0) {
-                // Isolated head-partial run, single doc only.
                 totalOrds = ordsInWire;
                 cursor = startK;
             } else if (r == nRuns - 1 && runLen == 1 && tailMissing > 0) {
-                // Isolated tail-partial run, single doc only.
                 totalOrds = ordsInWire;
                 cursor = 0;
             } else if (r == 0 && r == nRuns - 1) {
-                // Single tuple-run spanning the whole block, runLen > 1.
-                // May have head and/or tail partial on the same run.
                 totalOrds = runLen * K - headOffset - tailMissing;
                 cursor = headOffset;
             } else if (r == 0 && headOffset > 0) {
-                // Head-partial run extended past the first doc; full tuple known.
                 totalOrds = runLen * K - headOffset;
                 cursor = headOffset;
             } else if (r == nRuns - 1 && tailMissing > 0) {
-                // Tail-partial run, runLen > 1: full tuple known; trim the end.
                 totalOrds = runLen * K - tailMissing;
                 cursor = 0;
             } else {
@@ -210,9 +201,6 @@ public final class TupleRunCodec {
         }
     }
 
-    // NOTE: ordsInWire derives from the run's position and runLen. Full runs always carry K
-    // values. Edge runs with runLen == 1 carry only the visible portion of their tuple
-    // because the encoder cannot know the rest from this block alone.
     private static int ordsInWire(int r, int K, int runLen, int headOffset, int tailMissing, int nRuns) {
         if (r == 0 && r == nRuns - 1 && runLen == 1) {
             return Math.max(1, K - headOffset - tailMissing);
@@ -226,8 +214,6 @@ public final class TupleRunCodec {
         return K;
     }
 
-    // Walks perDocK, groups consecutive docs with identical visible tuples into runs.
-    // Returns the run table.
     private static RunBuilder buildRuns(final long[] ords, final int[] perDocK, int numDocs, int headOffset, int tailMissing) {
         final RunBuilder runs = new RunBuilder(numDocs);
         int ordPos = 0;
@@ -242,11 +228,9 @@ public final class TupleRunCodec {
                 continues = true;
                 final long[] prevTuple = runs.prevTuple;
                 if (d == 1 && runs.count == 1 && headOffset > 0) {
-                    // Special case: head-partial run might be extending. The visible portion
-                    // of doc 0 lives at prevTuple[headOffset..K). Compare doc 1's positions
-                    // [headOffset..K) (those of doc 1 that overlap doc 0's visible) against
-                    // prevTuple's [headOffset..K). If they match, doc 1's positions
-                    // [0..headOffset) reveal doc 0's missing positions, so extend the run.
+                    // NOTE: doc 0's visible positions are [headOffset..K). If doc 1 matches
+                    // them, doc 1's positions [0..headOffset) reveal doc 0's missing slots
+                    // and the head-partial run extends.
                     for (int k = headOffset; k < K; k++) {
                         if (ords[ordPos + k] != prevTuple[k]) {
                             continues = false;
@@ -254,7 +238,6 @@ public final class TupleRunCodec {
                         }
                     }
                     if (continues) {
-                        // Reconstruct prevTuple's [0..headOffset) from doc 1.
                         for (int k = 0; k < headOffset; k++) {
                             prevTuple[k] = ords[ordPos + k];
                         }
@@ -290,7 +273,6 @@ public final class TupleRunCodec {
         final int[] runLens;
 
         RunBuilder(int maxDocs) {
-            // Worst case: each doc forms its own run.
             this.runTuples = new long[Math.max(1, maxDocs)][];
             this.runKs = new int[Math.max(1, maxDocs)];
             this.runLens = new int[Math.max(1, maxDocs)];

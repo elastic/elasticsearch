@@ -72,7 +72,6 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
     static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = StaticPipelineConfigResolver.INSTANCE;
-    static final OrdinalBlockCodec ORDINAL_CODEC = new TSDBOrdinalBlockCodec();
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(
         TERMS_DICT_BLOCK_LZ4_MASK,
@@ -85,6 +84,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     final TSDBDocValuesFormatConfig formatConfig;
     final NumericCodecFactory numericCodecFactory;
     final FallbackDecoderFactory fallbackDecoderFactory;
+    private final OrdinalBlockCodec ordinalCodec;
 
     /**
      * Creates a new ES95 format with default configuration.
@@ -103,7 +103,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            false
         );
     }
 
@@ -118,7 +119,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         int blockBytesThreshold,
         int blockCountThreshold,
         final NumericCodecFactory numericCodecFactory,
-        final FallbackDecoderFactory fallbackDecoderFactory
+        final FallbackDecoderFactory fallbackDecoderFactory,
+        boolean adaptiveOrdinalBlocks
     ) {
         super(CODEC_NAME);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
@@ -128,6 +130,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
+        this.ordinalCodec = adaptiveOrdinalBlocks ? new AdaptiveOrdinalBlockCodec() : new TSDBOrdinalBlockCodec();
         this.formatConfig = new TSDBDocValuesFormatConfig(
             TSDBDocValuesFormatConfig.VERSION_CURRENT,
             TERMS_DICT_CONFIG,
@@ -172,7 +175,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
                     : SortedFieldObserver.NOOP
                 : SortedFieldObserverFactory.NOOP,
             numericBlockCodec,
-            ORDINAL_CODEC
+            ordinalCodec
         );
     }
 
@@ -194,7 +197,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             formatConfig,
             DocOffsetsCodec.BITPACKING.getDecoder(),
             numericBlockCodec,
-            ORDINAL_CODEC
+            ordinalCodec
         );
     }
 }

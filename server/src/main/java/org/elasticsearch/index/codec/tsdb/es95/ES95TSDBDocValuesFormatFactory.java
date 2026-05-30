@@ -59,7 +59,9 @@ public final class ES95TSDBDocValuesFormatFactory {
             blockBytesThreshold,
             blockCountThreshold,
             NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            // NOTE: adaptive ordinal blocks - wired through factory in next commit
+            false
         );
     }
 

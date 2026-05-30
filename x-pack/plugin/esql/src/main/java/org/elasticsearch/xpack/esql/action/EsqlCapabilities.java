@@ -1331,6 +1331,11 @@ public class EsqlCapabilities {
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
 
         /**
+         * Support TS as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -2115,6 +2120,13 @@ public class EsqlCapabilities {
          * and floating point junk from dividing by small {@code to_nearest} values.
          */
         FIX_PROMQL_ROUND_TO_NEAREST,
+
+        /**
+         * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
+         * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
+         * https://github.com/elastic/elasticsearch-serverless/issues/6817
+         */
+        FIX_PROMQL_TIME_BUCKET_V3(false),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356

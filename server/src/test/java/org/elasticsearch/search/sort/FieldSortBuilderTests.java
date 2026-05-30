@@ -427,6 +427,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                         false,
                         null,
                         null,
+                        false,
                         false
                     );
                 } else {

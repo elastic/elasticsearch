@@ -93,6 +93,24 @@ public class AdaptiveOrdinalCodecBenchmark {
         }
     }
 
+    /**
+     * Block content shape:
+     *
+     * <ul>
+     *   <li>{@code TSID_RUNS}: {@code runsPerBlock} contiguous equal-ordinal runs.
+     *       Models a single-valued field (sorted) across one or a few tsid boundaries.</li>
+     *   <li>{@code MULTIVALUE_CYCLE}: a cycle of period {@code runsPerBlock} repeating
+     *       across the 128-element block. Models a multi-valued sorted-set field
+     *       (host.ip, host.mac) where each doc emits {@code runsPerBlock} ordinals
+     *       drawn from a fixed set and consecutive docs in the same tsid share the
+     *       set, producing a perfect cycle in the flat ord stream.</li>
+     * </ul>
+     */
+    public enum BlockShape {
+        TSID_RUNS,
+        MULTIVALUE_CYCLE
+    }
+
     static final int BLOCK_SIZE = 128;
     static final int BLOCKS_PER_INVOCATION = 10;
     static final int OUTPUT_BUFFER_BYTES = BLOCK_SIZE * Long.BYTES + 64;
@@ -101,10 +119,15 @@ public class AdaptiveOrdinalCodecBenchmark {
     @Param({ "LOW", "HIGH" })
     private Cardinality cardinality;
 
-    // NOTE: number of distinct tsids represented in the block, modeled as the number of
-    // contiguous equal-ordinal runs. 1 is the typical mid-tsid block (all docs share one
-    // tsid -> one ordinal -> CONST mode candidate); 2 is a single boundary block; 4 and 6
-    // are heavier boundary blocks that exercise RLE / BITPACK_LOCAL more aggressively.
+    @Param({ "TSID_RUNS", "MULTIVALUE_CYCLE" })
+    private BlockShape blockShape;
+
+    // NOTE: For TSID_RUNS, this is the number of distinct tsids represented in the block,
+    // modeled as the number of contiguous equal-ordinal runs. 1 is the typical mid-tsid
+    // block (CONST candidate); 2 is a single boundary; 4 and 6 are heavier boundary blocks.
+    // For MULTIVALUE_CYCLE, this is the cycle period K (i.e., the number of ordinals each
+    // doc emits, repeating across consecutive docs of the same tsid). 1 reduces to CONST;
+    // 2, 3, 5 are typical for multi-valued fields like host.ip (~3 values per doc).
     @Param({ "1", "2", "4", "6" })
     private int runsPerBlock;
 
@@ -120,7 +143,10 @@ public class AdaptiveOrdinalCodecBenchmark {
     @Setup(Level.Trial)
     public void setupTrial() {
         bitsPerOrd = cardinality.bitsPerOrd;
-        inputBlock = generateTsidRunBlock(bitsPerOrd, runsPerBlock);
+        inputBlock = switch (blockShape) {
+            case TSID_RUNS -> generateTsidRunBlock(bitsPerOrd, runsPerBlock);
+            case MULTIVALUE_CYCLE -> generateMultivalueCycleBlock(bitsPerOrd, runsPerBlock);
+        };
         scratchBlock = new long[BLOCK_SIZE];
         outputBuffer = new byte[OUTPUT_BUFFER_BYTES];
         dataOutput = new ByteArrayDataOutput(outputBuffer);
@@ -193,9 +219,10 @@ public class AdaptiveOrdinalCodecBenchmark {
         final double ratio = tsdbBytes == 0 ? Double.NaN : ((double) adaptiveBytes) / tsdbBytes;
         System.out.printf(
             Locale.ROOT,
-            "[storage] cardinality=%s bitsPerOrd=%d runsPerBlock=%d tsdbBytes=%d adaptiveBytes=%d adaptive/tsdb=%.4f%n",
+            "[storage] cardinality=%s bitsPerOrd=%d blockShape=%s runsPerBlock=%d tsdbBytes=%d adaptiveBytes=%d adaptive/tsdb=%.4f%n",
             cardinality,
             bitsPerOrd,
+            blockShape,
             runsPerBlock,
             tsdbBytes,
             adaptiveBytes,
@@ -220,6 +247,28 @@ public class AdaptiveOrdinalCodecBenchmark {
             final int start = r * runLength;
             final int end = (r == runsPerBlock - 1) ? BLOCK_SIZE : start + runLength;
             Arrays.fill(out, start, end, ordForRun);
+        }
+        return out;
+    }
+
+    // NOTE: Multi-valued SortedSetDocValuesField shape. Each doc emits `cyclePeriod` distinct
+    // ordinals; consecutive docs in the same tsid share the same K-value set, so the flat ord
+    // stream is `[v0, v1, ..., v(K-1), v0, v1, ...]` with period K. Cycle ordinals are spread
+    // evenly across the full segment-global bit range to model the realistic case where the K
+    // values come from terms that sort far apart in the term dictionary: e.g. the three IPs
+    // emitted by hostmetricsreceiver for a single host (loopback `127.0.0.1`, a private
+    // `10.x.x.x`, a docker `172.17.x.x`) all sort into completely different positions in the
+    // dictionary, so `max - min` is essentially the full bit range and BITPACK_LOCAL cannot
+    // absorb the cost. This is the scenario where legacy's CYCLE detection wins big.
+    private static long[] generateMultivalueCycleBlock(int bitsPerOrd, int cyclePeriod) {
+        final long mask = bitsPerOrd >= 63 ? Long.MAX_VALUE : (1L << bitsPerOrd) - 1L;
+        final long[] cycleValues = new long[cyclePeriod];
+        for (int i = 0; i < cyclePeriod; i++) {
+            cycleValues[i] = (mask / Math.max(1, cyclePeriod)) * i;
+        }
+        final long[] out = new long[BLOCK_SIZE];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = cycleValues[i % cyclePeriod];
         }
         return out;
     }

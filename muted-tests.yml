@@ -638,3 +638,6 @@ tests:
 - class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
   method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
   issue: https://github.com/elastic/elasticsearch/issues/150309
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150310

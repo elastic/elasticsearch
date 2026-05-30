@@ -35,8 +35,8 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Test fixture that downloads the first row group (RG0) from a selection of ClickHouse ClickBench
@@ -77,7 +77,6 @@ public class ClickBenchFixture extends ExternalResource {
     private Path fixturesRoot;
 
     /** Whether the remote ClickBench data is reachable. Safe to call before/after the rule runs. */
-    @SuppressForbidden(reason = "HTTP HEAD to check remote data availability")
     public static boolean isDataReachable() {
         if (reachable == null) {
             synchronized (ClickBenchFixture.class) {
@@ -214,7 +213,7 @@ public class ClickBenchFixture extends ExternalResource {
                     }
                 }
             }
-            writer.end(new HashMap<>());
+            writer.end(Map.of());
         }
     }
 
@@ -319,9 +318,11 @@ public class ClickBenchFixture extends ExternalResource {
         conn.setRequestMethod("HEAD");
         conn.setConnectTimeout(DOWNLOAD_TIMEOUT_MS);
         conn.setReadTimeout(DOWNLOAD_TIMEOUT_MS);
-        long size = conn.getContentLengthLong();
-        conn.disconnect();
-        return size;
+        try {
+            return conn.getContentLengthLong();
+        } finally {
+            conn.disconnect();
+        }
     }
 
     @SuppressForbidden(reason = "HTTP range request for partial download")
@@ -330,19 +331,24 @@ public class ClickBenchFixture extends ExternalResource {
         conn.setRequestProperty("Range", "bytes=" + from + "-" + to);
         conn.setConnectTimeout(DOWNLOAD_TIMEOUT_MS);
         conn.setReadTimeout(DOWNLOAD_TIMEOUT_MS);
-        try (InputStream in = conn.getInputStream()) {
-            byte[] data = in.readAllBytes();
+        try {
+            int code = conn.getResponseCode();
+            if (code != 206 && code != 200) {
+                throw new IOException("HTTP range request to [" + url + "] failed with status " + code);
+            }
+            try (InputStream in = conn.getInputStream()) {
+                return in.readAllBytes();
+            }
+        } finally {
             conn.disconnect();
-            return data;
         }
     }
 
-    @SuppressForbidden(reason = "File-backed OutputFile for Parquet writing")
     private static OutputFile createFileOutputFile(Path path) {
         return new OutputFile() {
             @Override
             public PositionOutputStream create(long blockSizeHint) throws IOException {
-                java.io.FileOutputStream fos = new java.io.FileOutputStream(path.toFile());
+                java.io.OutputStream fos = Files.newOutputStream(path);
                 return new PositionOutputStream() {
                     private long position = 0;
 

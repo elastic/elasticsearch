@@ -407,7 +407,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
             // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
             // {{x_multifile_type_drift}}), hive-partitioned templates ({{x_hive}}), and ClickBench
-            // templates ({{clickbench_*}}) are resolved by specialised subclasses against their own
+            // templates ({{clickbench}}) are resolved by specialised subclasses against their own
             // fixtures. Plain EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster,
             // single/multi-node, flight) share the same csv-spec files via the testFixtures classpath
             // but have no resolver for these templates, so skip such tests here.
@@ -418,7 +418,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                     || query.contains("_multifile_ubn}}")
                     || query.contains("_multifile_type_drift}}")
                     || query.contains("_hive}}")
-                    || query.contains("clickbench_")
+                    || query.contains("{{clickbench}}")
             );
             // external-multivalue.csv-spec exercises native multi-value reads for non-CSV/TSV format
             // ITs (Parquet/ORC/NDJSON/multi-node) which decode arrays from their format's native

@@ -54,11 +54,14 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
             || params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES
             || params.syntheticSource();
         if (hasDocValues && useDocValues) {
-            // Sorted and no duplicates
-            var resultList = convertValues.andThen(Stream::distinct)
-                .andThen(Stream::sorted)
-                .andThen(Stream::toList)
-                .apply(((List<String>) value).stream());
+            // Columnar index modes preserve arrival order via offsets
+            boolean preserveOrder = params.indexMode().isColumnar();
+            var resultList = preserveOrder
+                ? convertValues.andThen(Stream::toList).apply(((List<String>) value).stream())
+                : convertValues.andThen(Stream::distinct)
+                    .andThen(Stream::sorted)
+                    .andThen(Stream::toList)
+                    .apply(((List<String>) value).stream());
             return maybeFoldList(resultList);
         }
 

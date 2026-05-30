@@ -29,9 +29,8 @@ import java.util.Locale;
  * ({@code ADAPTIVE_EXTRA}) carries a one-byte sub-mode selector and
  * dispatches between {@link RleCodec} (RLE_N, sub-mode 0) and
  * {@link BitpackCodec} (BITPACK_LOCAL, sub-mode 1). SORTED ord blocks never
- * exhibit the K-cycle pattern that drives multi-valued SORTED_SET fields, so
- * {@link CycleCodec} is intentionally not part of this dispatch and
- * {@link BlockStats#recomputeWithCycle} is not invoked.
+ * exhibit the K-tuple pattern that drives multi-valued SORTED_SET fields, so
+ * {@link TupleRunCodec} is intentionally not part of this dispatch.
  *
  * <p>The per-mode codec instances are supplied via constructor injection and
  * held as {@code final} fields. A convenience constructor delegates to the

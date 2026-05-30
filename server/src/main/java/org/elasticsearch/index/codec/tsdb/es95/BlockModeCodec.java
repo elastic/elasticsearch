@@ -41,7 +41,7 @@ import java.io.IOException;
  * {@link CodecContext} threaded through {@link #encodePayload} and
  * {@link #decodePayload}.
  */
-sealed interface BlockModeCodec permits ConstantCodec, TwoRunCodec, BitPackedCodec, RleCodec, BitpackCodec, CycleCodec {
+sealed interface BlockModeCodec permits ConstantCodec, TwoRunCodec, BitPackedCodec, RleCodec, BitpackCodec {
 
     /** The wire-format encoding identifier (0..3) derived from trailing one-bits. */
     int encoding();

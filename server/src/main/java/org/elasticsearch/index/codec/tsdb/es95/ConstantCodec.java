@@ -37,12 +37,13 @@ final class ConstantCodec implements BlockModeCodec {
     }
 
     @Override
-    public void encodePayload(final long[] in, final BlockStats stats, final DataOutput out, int bitsPerOrd) throws IOException {
+    public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
+        throws IOException {
         out.writeVLong(in[0]);
     }
 
     @Override
-    public void decodePayload(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
         Arrays.fill(out, in.readVLong());
     }
 

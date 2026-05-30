@@ -48,7 +48,8 @@ final class RleCodec implements BlockModeCodec {
     }
 
     @Override
-    public void encodePayload(final long[] in, final BlockStats stats, final DataOutput out, int bitsPerOrd) throws IOException {
+    public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
+        throws IOException {
         out.writeVInt(stats.nRuns);
         for (int r = 0; r < stats.nRuns; r++) {
             out.writeVLong(stats.runOrds[r]);
@@ -57,7 +58,7 @@ final class RleCodec implements BlockModeCodec {
     }
 
     @Override
-    public void decodePayload(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
         int n = in.readVInt();
         if (n < 1 || n > BlockStats.MAX_TRACKED_RUNS) {
             throw new CorruptIndexException(String.format(Locale.ROOT, "invalid RLE run count %d", n), in);

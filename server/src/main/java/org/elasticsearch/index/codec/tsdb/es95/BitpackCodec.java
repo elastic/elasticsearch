@@ -17,20 +17,19 @@ import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import java.io.IOException;
 import java.util.Locale;
 
-/** Locally bit-packed block: subtract {@code min}, pack at the bits needed for
- *  {@code max - min}. Payload is {@code [min:vlong][localBits:1][packed]}.
+/**
+ * Locally bit-packed block codec: subtract {@code min}, pack at the bits
+ * needed for {@code max - min}. Payload is {@code [min:vlong][localBits:1]
+ * [packed]}. Stateless; access via {@link #INSTANCE}. Uses
+ * {@link CodecContext#scratch} for the min-subtracted buffer and
+ * {@link CodecContext#forUtil} for bit-packing.
  */
 final class BitpackCodec implements BlockModeCodec {
 
     static final byte MODE = 3;
+    static final BitpackCodec INSTANCE = new BitpackCodec();
 
-    private final DocValuesForUtil forUtil;
-    private final long[] scratch;
-
-    BitpackCodec(int blockSize) {
-        this.forUtil = new DocValuesForUtil(blockSize);
-        this.scratch = new long[blockSize];
-    }
+    private BitpackCodec() {}
 
     @Override
     public byte mode() {
@@ -45,24 +44,26 @@ final class BitpackCodec implements BlockModeCodec {
     }
 
     @Override
-    public void encodePayload(final long[] in, final BlockStats stats, final DataOutput out, int bitsPerOrd) throws IOException {
+    public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
+        throws IOException {
         int localBits = bitsRequired(stats.max - stats.min);
         out.writeVLong(stats.min);
         out.writeByte((byte) localBits);
+        final long[] scratch = ctx.scratch;
         for (int i = 0; i < in.length; i++) {
             scratch[i] = in[i] - stats.min;
         }
-        forUtil.encode(scratch, localBits, out);
+        ctx.forUtil.encode(scratch, localBits, out);
     }
 
     @Override
-    public void decodePayload(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
         long minVal = in.readVLong();
         int bits = in.readByte() & 0xff;
         if (bits > 63) {
             throw new CorruptIndexException(String.format(Locale.ROOT, "invalid BITPACK_LOCAL bits %d", bits), in);
         }
-        forUtil.decode(bits, in, out);
+        ctx.forUtil.decode(bits, in, out);
         for (int i = 0; i < out.length; i++) {
             out[i] += minVal;
         }

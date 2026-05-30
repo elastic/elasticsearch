@@ -28,21 +28,19 @@ import java.util.Locale;
  */
 final class AdaptiveOrdinalCodec {
 
-    private final LegacyCodec legacyCodec;
-    private final BitpackCodec bitpackCodec;
+    private final CodecContext ctx;
     private final BlockStats stats;
 
     AdaptiveOrdinalCodec(int blockSize) {
-        this.legacyCodec = new LegacyCodec(blockSize);
-        this.bitpackCodec = new BitpackCodec(blockSize);
+        this.ctx = new CodecContext(blockSize);
         this.stats = new BlockStats();
     }
 
     void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
         stats.recompute(in);
 
-        BlockModeCodec winner = legacyCodec;
-        long winnerSize = sizeWithHeader(legacyCodec.estimateSize(in, stats, bitsPerOrd));
+        BlockModeCodec winner = LegacyCodec.INSTANCE;
+        long winnerSize = sizeWithHeader(LegacyCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
 
         long constSize = sizeWithHeader(ConstantCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
         if (constSize < winnerSize) {
@@ -56,29 +54,29 @@ final class AdaptiveOrdinalCodec {
             winnerSize = rleSize;
         }
 
-        long bitpackSize = sizeWithHeader(bitpackCodec.estimateSize(in, stats, bitsPerOrd));
+        long bitpackSize = sizeWithHeader(BitpackCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
         if (bitpackSize < winnerSize) {
-            winner = bitpackCodec;
+            winner = BitpackCodec.INSTANCE;
         }
 
         out.writeByte(winner.mode());
-        winner.encodePayload(in, stats, out, bitsPerOrd);
+        winner.encodePayload(in, stats, ctx, out, bitsPerOrd);
     }
 
     void decodeOrdinals(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
         byte mode = in.readByte();
         switch (mode) {
             case LegacyCodec.MODE:
-                legacyCodec.decodePayload(in, out, bitsPerOrd);
+                LegacyCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             case ConstantCodec.MODE:
-                ConstantCodec.INSTANCE.decodePayload(in, out, bitsPerOrd);
+                ConstantCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             case RleCodec.MODE:
-                RleCodec.INSTANCE.decodePayload(in, out, bitsPerOrd);
+                RleCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             case BitpackCodec.MODE:
-                bitpackCodec.decodePayload(in, out, bitsPerOrd);
+                BitpackCodec.INSTANCE.decodePayload(ctx, in, out, bitsPerOrd);
                 return;
             default:
                 throw new CorruptIndexException(String.format(Locale.ROOT, "unknown adaptive ordinal block mode 0x%02x", mode & 0xff), in);

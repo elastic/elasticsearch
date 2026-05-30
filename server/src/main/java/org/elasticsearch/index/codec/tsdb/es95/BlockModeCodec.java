@@ -18,6 +18,11 @@ import java.io.IOException;
  * Per-mode encoder/decoder for one block of ordinals. The enclosing
  * AdaptiveOrdinalCodec wrapper writes the mode byte and dispatches to the
  * cheapest codec; each implementation handles only its own payload bytes.
+ *
+ * <p>Implementations are stateless singletons; any mutable scratch buffers
+ * required during encode/decode are supplied via the shared
+ * {@link CodecContext} threaded through {@link #encodePayload} and
+ * {@link #decodePayload}.
  */
 sealed interface BlockModeCodec permits LegacyCodec, ConstantCodec, RleCodec, BitpackCodec {
 
@@ -32,8 +37,8 @@ sealed interface BlockModeCodec permits LegacyCodec, ConstantCodec, RleCodec, Bi
     long estimateSize(long[] in, BlockStats stats, int bitsPerOrd);
 
     /** Encodes the payload (no mode byte). Caller has already written the mode byte. */
-    void encodePayload(long[] in, BlockStats stats, DataOutput out, int bitsPerOrd) throws IOException;
+    void encodePayload(long[] in, BlockStats stats, CodecContext ctx, DataOutput out, int bitsPerOrd) throws IOException;
 
     /** Decodes the payload (no mode byte). Caller has already consumed the mode byte. */
-    void decodePayload(DataInput in, long[] out, int bitsPerOrd) throws IOException;
+    void decodePayload(CodecContext ctx, DataInput in, long[] out, int bitsPerOrd) throws IOException;
 }

@@ -15,16 +15,18 @@ import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 
 import java.io.IOException;
 
-/** Fallback codec: bit-pack the entire block at the segment-global {@code bitsPerOrd}. */
+/**
+ * Fallback codec: bit-pack the entire block at the segment-global
+ * {@code bitsPerOrd}. Stateless; access via {@link #INSTANCE}. The
+ * required {@link org.elasticsearch.index.codec.tsdb.DocValuesForUtil}
+ * scratch is supplied via {@link CodecContext}.
+ */
 final class LegacyCodec implements BlockModeCodec {
 
     static final byte MODE = 0;
+    static final LegacyCodec INSTANCE = new LegacyCodec();
 
-    private final DocValuesForUtil forUtil;
-
-    LegacyCodec(int blockSize) {
-        this.forUtil = new DocValuesForUtil(blockSize);
-    }
+    private LegacyCodec() {}
 
     @Override
     public byte mode() {
@@ -38,12 +40,13 @@ final class LegacyCodec implements BlockModeCodec {
     }
 
     @Override
-    public void encodePayload(final long[] in, final BlockStats stats, final DataOutput out, int bitsPerOrd) throws IOException {
-        forUtil.encode(in, bitsPerOrd, out);
+    public void encodePayload(final long[] in, final BlockStats stats, final CodecContext ctx, final DataOutput out, int bitsPerOrd)
+        throws IOException {
+        ctx.forUtil.encode(in, bitsPerOrd, out);
     }
 
     @Override
-    public void decodePayload(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
-        forUtil.decode(bitsPerOrd, in, out);
+    public void decodePayload(final CodecContext ctx, final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+        ctx.forUtil.decode(bitsPerOrd, in, out);
     }
 }

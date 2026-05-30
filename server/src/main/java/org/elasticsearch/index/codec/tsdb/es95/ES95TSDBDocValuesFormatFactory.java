@@ -30,18 +30,20 @@ public final class ES95TSDBDocValuesFormatFactory {
     static final int BINARY_BLOCK_BYTES_LARGE = 512 * 1024;
     static final int BINARY_BLOCK_COUNT_LARGE = 8096;
 
-    // NOTE: flat 8 element array (vs [2][2][2]) so createDocValuesFormat is one
-    // bounds checked load instead of three dependent loads on the per field hot path.
+    // NOTE: flat 16 element array (vs [2][2][2][2]) so the 4-arg get is one
+    // bounds checked load instead of four dependent loads on the per field hot path.
     private static final DocValuesFormat[] INSTANCES = buildInstances();
 
     private ES95TSDBDocValuesFormatFactory() {}
 
     private static DocValuesFormat[] buildInstances() {
-        final DocValuesFormat[] cache = new DocValuesFormat[8];
-        for (int n = 0; n < 2; n++) {
-            for (int b = 0; b < 2; b++) {
-                for (int p = 0; p < 2; p++) {
-                    cache[(n << 2) + (b << 1) + p] = build(n == 1, b == 1, p == 1, false);
+        final DocValuesFormat[] cache = new DocValuesFormat[16];
+        for (int a = 0; a < 2; a++) {
+            for (int n = 0; n < 2; n++) {
+                for (int b = 0; b < 2; b++) {
+                    for (int p = 0; p < 2; p++) {
+                        cache[(a << 3) + (n << 2) + (b << 1) + p] = build(n == 1, b == 1, p == 1, a == 1);
+                    }
                 }
             }
         }
@@ -91,16 +93,13 @@ public final class ES95TSDBDocValuesFormatFactory {
     }
 
     /**
-     * Returns an ES95 doc values format matching the given settings. When
-     * {@code adaptiveOrdinalBlocks} is {@code false} a cached instance is
-     * returned; otherwise a fresh instance is allocated since the cache only
-     * covers the legacy fixed block path.
+     * Returns a cached ES95 doc values format matching the given settings.
      *
      * @param useLargeNumericBlockSize whether to use numeric blocks of 512 values (vs 128)
      * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
      * @param writePartitions          whether to write prefix partitioned sorted fields
      * @param adaptiveOrdinalBlocks    whether to use adaptive per-block ordinal encoding
-     * @return the configured format
+     * @return the configured format (shared, do not mutate)
      */
     public static DocValuesFormat get(
         boolean useLargeNumericBlockSize,
@@ -108,11 +107,9 @@ public final class ES95TSDBDocValuesFormatFactory {
         boolean writePartitions,
         boolean adaptiveOrdinalBlocks
     ) {
-        if (adaptiveOrdinalBlocks == false) {
-            final int idx = (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0) + (writePartitions ? 1 : 0);
-            return INSTANCES[idx];
-        }
-        return build(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions, true);
+        final int idx = (adaptiveOrdinalBlocks ? 8 : 0) + (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0)
+            + (writePartitions ? 1 : 0);
+        return INSTANCES[idx];
     }
 
     /**

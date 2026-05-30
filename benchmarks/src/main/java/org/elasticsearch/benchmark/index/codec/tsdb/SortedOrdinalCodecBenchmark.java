@@ -12,7 +12,7 @@ package org.elasticsearch.benchmark.index.codec.tsdb;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
-import org.elasticsearch.index.codec.tsdb.es95.AdaptiveOrdinalCodec;
+import org.elasticsearch.index.codec.tsdb.es95.SortedOrdinalCodec;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Four-cell benchmark matrix comparing the legacy {@link TSDBDocValuesEncoder}
  * ordinal encoder (used by {@code TSDBOrdinalBlockCodec}) and the new
- * {@link AdaptiveOrdinalCodec} (used by {@code AdaptiveOrdinalBlockCodec})
+ * {@link SortedOrdinalCodec} (used by {@code AdaptiveOrdinalBlockCodec})
  * under two cardinality regimes:
  *
  * <ul>
@@ -66,7 +66,7 @@ import java.util.concurrent.TimeUnit;
  * <h2>Ready to run command</h2>
  *
  * <pre>{@code
- * ./gradlew :benchmarks:run --args="AdaptiveOrdinalCodecBenchmark \
+ * ./gradlew :benchmarks:run --args="SortedOrdinalCodecBenchmark \
  *   -wi 5 -i 5 -f 3"
  * }</pre>
  */
@@ -76,7 +76,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
-public class AdaptiveOrdinalCodecBenchmark {
+public class SortedOrdinalCodecBenchmark {
 
     static {
         Utils.configureBenchmarkLogging();
@@ -138,7 +138,7 @@ public class AdaptiveOrdinalCodecBenchmark {
     private ByteArrayDataOutput dataOutput;
 
     private TSDBDocValuesEncoder tsdbOrdinalCodec;
-    private AdaptiveOrdinalCodec adaptiveOrdinalCodec;
+    private SortedOrdinalCodec adaptiveOrdinalCodec;
 
     @Setup(Level.Trial)
     public void setupTrial() {
@@ -152,7 +152,7 @@ public class AdaptiveOrdinalCodecBenchmark {
         dataOutput = new ByteArrayDataOutput(outputBuffer);
 
         tsdbOrdinalCodec = new TSDBDocValuesEncoder(BLOCK_SIZE);
-        adaptiveOrdinalCodec = new AdaptiveOrdinalCodec(BLOCK_SIZE);
+        adaptiveOrdinalCodec = new SortedOrdinalCodec(BLOCK_SIZE);
     }
 
     /**

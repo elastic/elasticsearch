@@ -13,7 +13,7 @@ import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 
 /**
  * Per-segment mutable scratch buffers shared by the per-mode codecs. Held by
- * {@link AdaptiveOrdinalCodec} and threaded through the encode/decode
+ * {@link SortedOrdinalCodec} and threaded through the encode/decode
  * methods so the codec classes themselves stay stateless and may be exposed
  * as singletons.
  */

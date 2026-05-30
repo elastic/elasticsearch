@@ -31,13 +31,13 @@ final class ES95SortedSetOrdinalBlockCodec extends TSDBSortedSetOrdinalBlockCode
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {
-        final AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(ctx.blockSize());
+        final SortedOrdinalCodec codec = new SortedOrdinalCodec(ctx.blockSize());
         return new TSDBOrdinalFieldReader(codec::decodeOrdinals);
     }
 
     @Override
     public OrdinalFieldWriter createWriter(final NumericWriteContext ctx) {
-        final AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(ctx.blockSize());
+        final SortedOrdinalCodec codec = new SortedOrdinalCodec(ctx.blockSize());
         return new TSDBOrdinalFieldWriter(ctx, codec::encodeOrdinals);
     }
 }

@@ -22,7 +22,7 @@ import org.elasticsearch.index.codec.tsdb.TSDBSortedOrdinalBlockCodec;
  * adaptive ordinal encoder for SORTED fields.
  *
  * <p>Overrides {@link #createReader} and {@link #createWriter} to construct an
- * {@link AdaptiveOrdinalCodec} per producer or consumer, so each instance owns its own
+ * {@link SortedOrdinalCodec} per producer or consumer, so each instance owns its own
  * scratch buffers without shared mutable state.
  */
 final class ES95SortedOrdinalBlockCodec extends TSDBSortedOrdinalBlockCodec {
@@ -31,13 +31,13 @@ final class ES95SortedOrdinalBlockCodec extends TSDBSortedOrdinalBlockCodec {
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {
-        final AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(ctx.blockSize());
+        final SortedOrdinalCodec codec = new SortedOrdinalCodec(ctx.blockSize());
         return new TSDBOrdinalFieldReader(codec::decodeOrdinals);
     }
 
     @Override
     public OrdinalFieldWriter createWriter(final NumericWriteContext ctx) {
-        final AdaptiveOrdinalCodec codec = new AdaptiveOrdinalCodec(ctx.blockSize());
+        final SortedOrdinalCodec codec = new SortedOrdinalCodec(ctx.blockSize());
         return new TSDBOrdinalFieldWriter(ctx, codec::encodeOrdinals);
     }
 }

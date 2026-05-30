@@ -17,23 +17,27 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Adaptive per-block ordinal codec. For each 128-value block, runs a single
- * statistical pass and picks the cheapest of five per-mode codecs by exact
- * byte count. The encoder writes the codec's full payload, including the
- * vlong header whose trailing one-bits count selects the encoding.
+ * Per-block ordinal codec for SORTED doc values (single value per document).
+ * For each 128-value block, runs a single statistical pass and picks the
+ * cheapest of five per-mode codecs by exact byte count. The encoder writes
+ * the codec's full payload, including the vlong header whose trailing
+ * one-bits count selects the encoding.
  *
  * <p>Encodings 0, 1, and 2 ({@link ConstantCodec}, {@link TwoRunCodec},
  * {@link BitPackedCodec}) are byte-for-byte identical to the legacy
  * {@code TSDBDocValuesEncoder.encodeOrdinals} format. Encoding 3
  * ({@code ADAPTIVE_EXTRA}) carries a one-byte sub-mode selector and
  * dispatches between {@link RleCodec} (RLE_N, sub-mode 0) and
- * {@link BitpackCodec} (BITPACK_LOCAL, sub-mode 1).
+ * {@link BitpackCodec} (BITPACK_LOCAL, sub-mode 1). SORTED ord blocks never
+ * exhibit the K-cycle pattern that drives multi-valued SORTED_SET fields, so
+ * {@link CycleCodec} is intentionally not part of this dispatch and
+ * {@link BlockStats#recomputeWithCycle} is not invoked.
  *
  * <p>The per-mode codec instances are supplied via constructor injection and
  * held as {@code final} fields. A convenience constructor delegates to the
  * full one using the package's singletons.
  */
-public final class AdaptiveOrdinalCodec {
+public final class SortedOrdinalCodec {
 
     private final ConstantCodec constantCodec;
     private final TwoRunCodec twoRunCodec;
@@ -43,11 +47,11 @@ public final class AdaptiveOrdinalCodec {
     private final CodecContext ctx;
     private final BlockStats stats;
 
-    public AdaptiveOrdinalCodec(int blockSize) {
+    public SortedOrdinalCodec(int blockSize) {
         this(blockSize, ConstantCodec.INSTANCE, TwoRunCodec.INSTANCE, BitPackedCodec.INSTANCE, RleCodec.INSTANCE, BitpackCodec.INSTANCE);
     }
 
-    AdaptiveOrdinalCodec(
+    SortedOrdinalCodec(
         int blockSize,
         final ConstantCodec constantCodec,
         final TwoRunCodec twoRunCodec,

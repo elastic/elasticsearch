@@ -16,7 +16,7 @@ import java.io.IOException;
 
 /**
  * Per-mode encoder/decoder for one block of ordinals. The enclosing
- * AdaptiveOrdinalCodec wrapper picks the cheapest codec via exact byte cost,
+ * SortedOrdinalCodec wrapper picks the cheapest codec via exact byte cost,
  * delegates the full payload write (including the leading vlong header), then
  * on decode reads the leading vlong itself and dispatches by the trailing
  * one-bits count.

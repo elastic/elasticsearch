@@ -17,12 +17,15 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.FieldArrayContext.parseOffsetArray;
+import static org.elasticsearch.index.mapper.FieldArrayContext.shouldRecordOffsets;
 
 public class FieldArrayContextTests extends ESTestCase {
 
@@ -178,24 +181,34 @@ public class FieldArrayContextTests extends ESTestCase {
         return new TestDocumentParserContext(settings);
     }
 
-    public void testGetOffsetsFieldNameColumnarBranchFiresWhenAllConditionsHold() {
+    /**
+     * Happy path: all columnar-branch preconditions hold (synthetic source, columnar, multi_value, no copy_to, no multi_fields). The
+     * builder's leaf name should be returned with the {@code .offsets} suffix.
+     */
+    public void testColumnarBranchFiresWhenAllConditionsHold() {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext context = MapperBuilderContext.root(true, false);
-        String name = getOffsetsFieldName(
-            context,
-            Mapper.SourceKeepMode.NONE,
-            true,
-            false,
-            builder,
-            IndexVersion.current(),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            true,
-            true
+        assertEquals(
+            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
+            getOffsetsFieldName(
+                context,
+                Mapper.SourceKeepMode.NONE,
+                true,
+                false,
+                builder,
+                IndexVersion.current(),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                true,
+                true
+            )
         );
-        assertEquals("field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX, name);
     }
 
-    public void testGetOffsetsFieldNameColumnarBranchSkipsWhenAnyConditionMissing() {
+    /**
+     * Skip cases: each precondition of the columnar branch, when missing, must cause the method to return {@code null}. Covers all four
+     * skip conditions: non-synthetic source, non-columnar mode, {@code multi_value=false}, and {@code copy_to} present on the source.
+     */
+    public void testColumnarBranchSkipsWhenAnyConditionMissing() {
         FieldMapper.Builder builder = newTestBuilder("field");
         MapperBuilderContext syntheticRoot = MapperBuilderContext.root(true, false);
         MapperBuilderContext storedRoot = MapperBuilderContext.root(false, false);
@@ -242,17 +255,12 @@ public class FieldArrayContextTests extends ESTestCase {
                 false
             )
         );
-    }
-
-    public void testGetOffsetsFieldNameColumnarBranchExcludesCopyToAndMultiFields() {
-        MapperBuilderContext context = MapperBuilderContext.root(true, false);
-
-        // copy_to blocks the columnar branch — the target's reconstructed source would mix copy_to values with direct writes
+        // copy_to source is skipped
         FieldMapper.Builder withCopyTo = newTestBuilder("field");
         withCopyTo.copyTo = FieldMapper.CopyTo.empty().withAddedFields(List.of("target"));
         assertNull(
             getOffsetsFieldName(
-                context,
+                syntheticRoot,
                 Mapper.SourceKeepMode.NONE,
                 true,
                 false,
@@ -263,42 +271,67 @@ public class FieldArrayContextTests extends ESTestCase {
                 true
             )
         );
+    }
 
-        // multi-fields parents are blocked — the offsets sidecar on the parent would be wasted; sub-fields get their own offsets
-        FieldMapper.Builder withMultiFields = newTestBuilder("field");
-        withMultiFields.multiFieldsBuilder.add(newTestBuilder("sub"));
-        assertNull(
+    public void testLegacyBranchUnchanged() {
+        FieldMapper.Builder builder = newTestBuilder("field");
+        MapperBuilderContext context = MapperBuilderContext.root(true, false);
+        assertEquals(
+            "field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX,
             getOffsetsFieldName(
                 context,
-                Mapper.SourceKeepMode.NONE,
+                Mapper.SourceKeepMode.ARRAYS,
                 true,
                 false,
-                withMultiFields,
+                builder,
                 IndexVersion.current(),
-                IndexVersions.MINIMUM_COMPATIBLE,
-                true,
-                true
+                IndexVersions.MINIMUM_COMPATIBLE
             )
         );
     }
 
-    public void testGetOffsetsFieldNameLegacyBranchUnchanged() {
-        FieldMapper.Builder builder = newTestBuilder("field");
-        MapperBuilderContext context = MapperBuilderContext.root(true, false);
-        // legacy branch requires source_keep_mode=ARRAYS; the new isColumnar/multiValue flags default to false in the legacy overload
-        String name = getOffsetsFieldName(
-            context,
-            Mapper.SourceKeepMode.ARRAYS,
-            true,
-            false,
-            builder,
-            IndexVersion.current(),
-            IndexVersions.MINIMUM_COMPATIBLE
-        );
-        assertEquals("field" + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX, name);
-    }
-
     private static FieldMapper.Builder newTestBuilder(String name) {
         return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, defaultIndexSettings());
+    }
+
+    public void testShouldRecordOffsetsReturnsFalseWhenOffsetsFieldNameNull() {
+        var context = new TestDocumentParserContext();
+        assertFalse(shouldRecordOffsets(context, null, true));
+        assertFalse(shouldRecordOffsets(context, null, false));
+    }
+
+    public void testShouldRecordOffsetsStrictColumnarFiresWhenMultiValue() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+            var context = new TestDocumentParserContext(settings);
+            assertTrue(shouldRecordOffsets(context, "field.offsets", true));
+            // single-valued fields don't need offsets
+            assertFalse(shouldRecordOffsets(context, "field.offsets", false));
+        }
+    }
+
+    public void testShouldRecordOffsetsSyntheticSourceKeepRequiresImmediateArrayAndSyntheticSource() {
+        // Synthetic-source MappingLookup so canAddIgnoredField() returns true; index mode left as STANDARD so the strict-columnar branch
+        // does not short-circuit.
+        SourceFieldMapper syntheticSource = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root(true, false));
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { syntheticSource }, Map.of());
+        MappingLookup syntheticLookup = MappingLookup.fromMapping(mapping, IndexMode.STANDARD);
+
+        // Immediate parent is an array + synthetic source -> record.
+        var arrayCtx = new TestDocumentParserContext(syntheticLookup, null);
+        arrayCtx.setImmediateXContentParent(XContentParser.Token.START_ARRAY);
+        assertTrue(shouldRecordOffsets(arrayCtx, "field.offsets", true));
+
+        // Immediate parent is not an array -> skip even when synthetic source is on.
+        var nonArrayCtx = new TestDocumentParserContext(syntheticLookup, null);
+        nonArrayCtx.setImmediateXContentParent(XContentParser.Token.START_OBJECT);
+        assertFalse(shouldRecordOffsets(nonArrayCtx, "field.offsets", true));
+
+        // Non-synthetic source -> canAddIgnoredField is false, branch skips even with immediate-array parent.
+        var storedCtx = new TestDocumentParserContext();
+        storedCtx.setImmediateXContentParent(XContentParser.Token.START_ARRAY);
+        assertFalse(shouldRecordOffsets(storedCtx, "field.offsets", true));
     }
 }

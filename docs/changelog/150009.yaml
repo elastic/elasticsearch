@@ -1,0 +1,4 @@
+pr: 150009
+summary: "ES|QL: default CSV/TSV `multi_value_syntax` to `none` (RFC 4180-compliant; faster on bracket-free input; brackets remain opt-in)"
+area: ES|QL
+type: enhancement

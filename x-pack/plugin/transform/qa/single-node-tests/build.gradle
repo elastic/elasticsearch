@@ -5,19 +5,12 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
   javaRestTestImplementation project(path: xpackModule('transform:qa:common'))
-  // the feature under test
-  clusterModules project(xpackModule('transform'))
-  // aggregate_metric_double field type used in source index mappings (TransformPivotRestIT, TransformLatestRestIT)
-  clusterModules project(xpackModule('mapper-aggregate-metric'))
-  // transform executes DeleteByQuery via the reindex module when a retention policy is active
-  clusterModules project(':modules:reindex')
-  // TransformPivotRestIT.testSimplePivotWithDataStream and TransformPivotRestSpecialCasesIT write to data streams
-  clusterModules project(':modules:data-streams')
-  // ingest pipelines with the set processor are created in several TransformPivotRestIT tests
-  clusterModules project(':modules:ingest-common')
-  // Painless is used in scripted_metric and bucket_script aggregations and in ingest pipeline script processors
-  clusterModules project(':modules:lang-painless')
-  clusterModules project(':modules:aggregations')
-  clusterModules project(':modules:analysis-common')
-  clusterModules project(xpackModule('spatial'))
+}
+
+tasks.named('javaRestTest') {
+  // TransformUsageIT exercises _xpack/usage, which fans out to every xpack feature's
+  // usage transport action (cluster:monitor/xpack/usage/<feature>). Only the DEFAULT
+  // distribution registers them all; with the integ-test distribution the request fails
+  // with "failed to find action [cluster:monitor/xpack/usage/<feature>]".
+  usesDefaultDistribution("TransformUsageIT exercises _xpack/usage across all xpack features")
 }

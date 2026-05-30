@@ -15,10 +15,16 @@ import org.apache.lucene.store.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 
-/** Single-value block: writes one vlong, fills the decoded array uniformly. */
+/**
+ * Single-value block codec: writes one vlong, fills the decoded array
+ * uniformly. Stateless; access via {@link #INSTANCE}.
+ */
 final class ConstantCodec implements BlockModeCodec {
 
     static final byte MODE = 1;
+    static final ConstantCodec INSTANCE = new ConstantCodec();
+
+    private ConstantCodec() {}
 
     @Override
     public byte mode() {

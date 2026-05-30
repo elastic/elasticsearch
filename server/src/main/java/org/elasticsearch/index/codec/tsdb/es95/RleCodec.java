@@ -17,13 +17,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 
-/** Run-length encoded block. Applies when the block resolves to at most
- *  {@link BlockStats#MAX_TRACKED_RUNS} runs. Payload is
- *  {@code [n_runs:vint][(ord:vlong, run:vint) * n_runs]}.
+/**
+ * Run-length encoded block codec. Applies when the block resolves to at
+ * most {@link BlockStats#MAX_TRACKED_RUNS} runs. Payload is
+ * {@code [n_runs:vint][(ord:vlong, run:vint) * n_runs]}. Stateless;
+ * access via {@link #INSTANCE}.
  */
 final class RleCodec implements BlockModeCodec {
 
     static final byte MODE = 2;
+    static final RleCodec INSTANCE = new RleCodec();
+
+    private RleCodec() {}
 
     @Override
     public byte mode() {

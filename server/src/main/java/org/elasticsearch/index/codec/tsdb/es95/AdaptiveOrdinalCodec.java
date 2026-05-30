@@ -29,15 +29,11 @@ import java.util.Locale;
 final class AdaptiveOrdinalCodec {
 
     private final LegacyCodec legacyCodec;
-    private final ConstantCodec constantCodec;
-    private final RleCodec rleCodec;
     private final BitpackCodec bitpackCodec;
     private final BlockStats stats;
 
     AdaptiveOrdinalCodec(int blockSize) {
         this.legacyCodec = new LegacyCodec(blockSize);
-        this.constantCodec = new ConstantCodec();
-        this.rleCodec = new RleCodec();
         this.bitpackCodec = new BitpackCodec(blockSize);
         this.stats = new BlockStats();
     }
@@ -48,15 +44,15 @@ final class AdaptiveOrdinalCodec {
         BlockModeCodec winner = legacyCodec;
         long winnerSize = sizeWithHeader(legacyCodec.estimateSize(in, stats, bitsPerOrd));
 
-        long constSize = sizeWithHeader(constantCodec.estimateSize(in, stats, bitsPerOrd));
+        long constSize = sizeWithHeader(ConstantCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
         if (constSize < winnerSize) {
-            winner = constantCodec;
+            winner = ConstantCodec.INSTANCE;
             winnerSize = constSize;
         }
 
-        long rleSize = sizeWithHeader(rleCodec.estimateSize(in, stats, bitsPerOrd));
+        long rleSize = sizeWithHeader(RleCodec.INSTANCE.estimateSize(in, stats, bitsPerOrd));
         if (rleSize < winnerSize) {
-            winner = rleCodec;
+            winner = RleCodec.INSTANCE;
             winnerSize = rleSize;
         }
 
@@ -76,10 +72,10 @@ final class AdaptiveOrdinalCodec {
                 legacyCodec.decodePayload(in, out, bitsPerOrd);
                 return;
             case ConstantCodec.MODE:
-                constantCodec.decodePayload(in, out, bitsPerOrd);
+                ConstantCodec.INSTANCE.decodePayload(in, out, bitsPerOrd);
                 return;
             case RleCodec.MODE:
-                rleCodec.decodePayload(in, out, bitsPerOrd);
+                RleCodec.INSTANCE.decodePayload(in, out, bitsPerOrd);
                 return;
             case BitpackCodec.MODE:
                 bitpackCodec.decodePayload(in, out, bitsPerOrd);

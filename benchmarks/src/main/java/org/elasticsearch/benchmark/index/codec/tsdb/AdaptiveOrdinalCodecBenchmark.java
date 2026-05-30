@@ -114,8 +114,12 @@ public class AdaptiveOrdinalCodecBenchmark {
             // when every doc in a run repeats the same multi-value set.
             hostIps[i] = new BytesRef[] {
                 new BytesRef("127.0.0.1".getBytes(StandardCharsets.US_ASCII)),
-                new BytesRef(String.format(java.util.Locale.ROOT, "10.0.%d.%d", (i >>> 8) & 0xff, i & 0xff).getBytes(StandardCharsets.US_ASCII)),
-                new BytesRef(String.format(java.util.Locale.ROOT, "172.17.%d.%d", (i >>> 8) & 0xff, i & 0xff).getBytes(StandardCharsets.US_ASCII)) };
+                new BytesRef(
+                    String.format(java.util.Locale.ROOT, "10.0.%d.%d", (i >>> 8) & 0xff, i & 0xff).getBytes(StandardCharsets.US_ASCII)
+                ),
+                new BytesRef(
+                    String.format(java.util.Locale.ROOT, "172.17.%d.%d", (i >>> 8) & 0xff, i & 0xff).getBytes(StandardCharsets.US_ASCII)
+                ) };
         }
     }
 

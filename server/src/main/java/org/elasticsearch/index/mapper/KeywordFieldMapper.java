@@ -185,7 +185,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
-        if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
             return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
         }
 

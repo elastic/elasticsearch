@@ -30,7 +30,7 @@ import java.util.Locale;
  * injection and held as {@code final} fields. A convenience constructor
  * delegates to the full one using the package's singletons.
  */
-final class AdaptiveOrdinalCodec {
+public final class AdaptiveOrdinalCodec {
 
     private final LegacyCodec legacyCodec;
     private final ConstantCodec constantCodec;
@@ -39,7 +39,7 @@ final class AdaptiveOrdinalCodec {
     private final CodecContext ctx;
     private final BlockStats stats;
 
-    AdaptiveOrdinalCodec(int blockSize) {
+    public AdaptiveOrdinalCodec(int blockSize) {
         this(blockSize, LegacyCodec.INSTANCE, ConstantCodec.INSTANCE, RleCodec.INSTANCE, BitpackCodec.INSTANCE);
     }
 
@@ -58,7 +58,7 @@ final class AdaptiveOrdinalCodec {
         this.stats = new BlockStats();
     }
 
-    void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
+    public void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
         stats.recompute(in);
 
         BlockModeCodec winner = legacyCodec;
@@ -85,7 +85,7 @@ final class AdaptiveOrdinalCodec {
         winner.encodePayload(in, stats, ctx, out, bitsPerOrd);
     }
 
-    void decodeOrdinals(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
+    public void decodeOrdinals(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
         byte mode = in.readByte();
         switch (mode) {
             case LegacyCodec.MODE:

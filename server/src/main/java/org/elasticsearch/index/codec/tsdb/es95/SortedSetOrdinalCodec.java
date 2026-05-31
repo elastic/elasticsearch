@@ -46,6 +46,7 @@ public final class SortedSetOrdinalCodec {
     private final TupleRunCodec tupleRunCodec;
     private final CodecContext ctx;
     private final BlockStats stats;
+    private final TupleRunCodec.RunBuilder tupleRunStats;
 
     public SortedSetOrdinalCodec(int blockSize) {
         this(
@@ -79,6 +80,7 @@ public final class SortedSetOrdinalCodec {
         this.tupleRunCodec = tupleRunCodec;
         this.ctx = new CodecContext(blockSize);
         this.stats = new BlockStats();
+        this.tupleRunStats = new TupleRunCodec.RunBuilder(blockSize + 1);
     }
 
     public void encodeOrdinals(
@@ -125,9 +127,10 @@ public final class SortedSetOrdinalCodec {
             winnerSize = cycleSize;
         }
 
-        final long tupleRunSize = tupleRunCodec.estimateSize(in, perDocK, numDocs, headOffset, tailMissing);
+        tupleRunCodec.buildRuns(in, perDocK, numDocs, headOffset, tailMissing, tupleRunStats);
+        final long tupleRunSize = tupleRunCodec.estimateSize(tupleRunStats, headOffset, tailMissing);
         if (tupleRunSize < winnerSize) {
-            tupleRunCodec.encodePayload(in, perDocK, numDocs, headOffset, tailMissing, out);
+            tupleRunCodec.encodePayload(tupleRunStats, headOffset, tailMissing, out);
             return;
         }
 

@@ -24,29 +24,14 @@ import java.util.Locale;
  * pattern produced by multi-valued docs sharing the same ord set within a {@code _tsid}
  * run (e.g. {@code host.ip}, {@code host.mac}).
  *
- * <p>Within each tuple the K ords are encoded as one absolute vlong followed by K-1 deltas,
- * exploiting Lucene's invariant that the K ords of a SORTED_SET doc are strictly sorted
- * ascending (so every delta is positive).
+ * <p>Within each tuple the K ords are delta-encoded after the first absolute ord,
+ * exploiting Lucene's invariant that SORTED_SET tuples are strictly sorted ascending.
+ * Cross-block doc straddling is handled via {@code headOffset} and {@code tailMissing}:
+ * head-partial runs that fail to extend into the next doc carry only their visible
+ * portion; head-partial runs that DO extend keep the full tuple because the next doc
+ * reveals the missing positions.
  *
- * <p>Block-boundary handling: docs can straddle blocks, so the codec accepts a
- * {@code headOffset} (ords of the first doc that live in the previous block) and a
- * {@code tailMissing} (ords of the last doc that live in the next block). Runs at the block
- * edges fall into three cases:
- *
- * <ul>
- *   <li>If the head-partial doc shares a tuple with the next doc (typical TSDB mid-tsid
- *       crossing), the encoder extends the run after the second doc reveals the missing
- *       positions; the wire stores the full K-ord tuple as usual.</li>
- *   <li>If the head-partial doc is alone in its run (runLen = 1 with headOffset &gt; 0),
- *       the encoder writes only its visible portion (K - headOffset ords).</li>
- *   <li>If the tail-partial doc is alone in its run (runLen = 1 with tailMissing &gt; 0),
- *       same shape: only the visible portion (K - tailMissing ords) is written.</li>
- *   <li>If a single run spans the whole block with both head and tail partial (runLen = 1,
- *       block contains just one straddling doc), only K - headOffset - tailMissing ords
- *       are written.</li>
- * </ul>
- *
- * <p>Wire format after the encoding 3 header and sub-mode byte:
+ * <p>Wire format after the encoding-3 header and sub-mode byte:
  * <pre>
  *   vint headOffset
  *   vint tailMissing
@@ -55,12 +40,18 @@ import java.util.Locale;
  *     vint K
  *     vint runLen
  *     vlong first
- *     vlong delta_1, ..., delta_{ordsInWire - 1}     // delta_i = ord_i - ord_{i-1} - 1
+ *     vlong delta_1, ..., delta_{ordsInWire - 1}     # delta_i = ord_i - ord_{i-1} - 1
  * </pre>
  *
  * <p>{@code ordsInWire} is implicit per run; it is K for full runs and the visible portion
  * size for the edge cases above. The decoder derives it from r, runLen, headOffset,
  * tailMissing, and nRuns.
+ *
+ * <p>The public API is split: {@link #buildRuns} populates a caller-owned
+ * {@link RunBuilder} from the input, then {@link #estimateSize} and {@link #encodePayload}
+ * both consume that prebuilt structure. SortedSetOrdinalCodec reuses one RunBuilder
+ * across blocks to avoid re-walking the block when the cost estimate wins and we proceed
+ * to actually write the payload.
  *
  * <p>Stateless; access via {@link #INSTANCE}.
  */
@@ -77,14 +68,69 @@ public final class TupleRunCodec {
     private TupleRunCodec() {}
 
     /**
-     * Estimates the exact byte cost of encoding the block. The estimate is byte-accurate so
-     * a SortedSet codec can use it directly when picking between encodings.
+     * Populates {@code runs} by walking the block doc by doc, grouping consecutive docs
+     * with identical visible tuples into runs.
      */
-    public long estimateSize(final long[] ords, final int[] perDocK, int numDocs, int headOffset, int tailMissing) {
+    public void buildRuns(final long[] ords, final int[] perDocK, int numDocs, int headOffset, int tailMissing, final RunBuilder runs) {
+        runs.reset();
         if (numDocs == 0) {
+            return;
+        }
+        int ordPos = 0;
+        for (int d = 0; d < numDocs; d++) {
+            final int K = perDocK[d];
+            final int startInTuple = (d == 0) ? headOffset : 0;
+            final int endInTuple = (d == numDocs - 1) ? K - tailMissing : K;
+            final int inBlockOrds = endInTuple - startInTuple;
+
+            boolean continues = false;
+            if (runs.count > 0 && K == runs.prevK) {
+                continues = true;
+                final long[] prevTuple = runs.prevTuple;
+                if (d == 1 && runs.count == 1 && headOffset > 0) {
+                    // NOTE: doc 0's visible positions are [headOffset..K). If doc 1 matches
+                    // them, doc 1's positions [0..headOffset) reveal doc 0's missing slots
+                    // and the head-partial run extends.
+                    for (int k = headOffset; k < K; k++) {
+                        if (ords[ordPos + k] != prevTuple[k]) {
+                            continues = false;
+                            break;
+                        }
+                    }
+                    if (continues) {
+                        for (int k = 0; k < headOffset; k++) {
+                            prevTuple[k] = ords[ordPos + k];
+                        }
+                    }
+                } else {
+                    for (int k = 0; k < inBlockOrds; k++) {
+                        if (ords[ordPos + k] != prevTuple[startInTuple + k]) {
+                            continues = false;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (continues) {
+                runs.runLens[runs.count - 1]++;
+            } else {
+                final long[] full = new long[K];
+                System.arraycopy(ords, ordPos, full, startInTuple, inBlockOrds);
+                runs.append(K, full);
+            }
+            ordPos += inBlockOrds;
+        }
+    }
+
+    /**
+     * Estimates the exact byte cost of encoding the prebuilt runs. The estimate is
+     * byte-accurate so the SortedSet codec can use it when picking between candidates.
+     */
+    public long estimateSize(final RunBuilder runs, int headOffset, int tailMissing) {
+        if (runs.count == 0) {
             return Long.MAX_VALUE;
         }
-        final RunBuilder runs = buildRuns(ords, perDocK, numDocs, headOffset, tailMissing);
         long size = 1L + 1L + vIntSize(headOffset) + vIntSize(tailMissing) + vIntSize(runs.count);
         for (int r = 0; r < runs.count; r++) {
             final int K = runs.runKs[r];
@@ -101,11 +147,9 @@ public final class TupleRunCodec {
     }
 
     /**
-     * Encodes the block payload, including the leading vlong header and sub-mode byte.
+     * Encodes the prebuilt runs, including the leading vlong header and sub-mode byte.
      */
-    public void encodePayload(final long[] ords, final int[] perDocK, int numDocs, int headOffset, int tailMissing, final DataOutput out)
-        throws IOException {
-        final RunBuilder runs = buildRuns(ords, perDocK, numDocs, headOffset, tailMissing);
+    public void encodePayload(final RunBuilder runs, int headOffset, int tailMissing, final DataOutput out) throws IOException {
         out.writeVLong(0b111);
         out.writeByte(SUB_MODE);
         out.writeVInt(headOffset);
@@ -214,57 +258,13 @@ public final class TupleRunCodec {
         return K;
     }
 
-    private static RunBuilder buildRuns(final long[] ords, final int[] perDocK, int numDocs, int headOffset, int tailMissing) {
-        final RunBuilder runs = new RunBuilder(numDocs);
-        int ordPos = 0;
-        for (int d = 0; d < numDocs; d++) {
-            final int K = perDocK[d];
-            final int startInTuple = (d == 0) ? headOffset : 0;
-            final int endInTuple = (d == numDocs - 1) ? K - tailMissing : K;
-            final int inBlockOrds = endInTuple - startInTuple;
-
-            boolean continues = false;
-            if (runs.count > 0 && K == runs.prevK) {
-                continues = true;
-                final long[] prevTuple = runs.prevTuple;
-                if (d == 1 && runs.count == 1 && headOffset > 0) {
-                    // NOTE: doc 0's visible positions are [headOffset..K). If doc 1 matches
-                    // them, doc 1's positions [0..headOffset) reveal doc 0's missing slots
-                    // and the head-partial run extends.
-                    for (int k = headOffset; k < K; k++) {
-                        if (ords[ordPos + k] != prevTuple[k]) {
-                            continues = false;
-                            break;
-                        }
-                    }
-                    if (continues) {
-                        for (int k = 0; k < headOffset; k++) {
-                            prevTuple[k] = ords[ordPos + k];
-                        }
-                    }
-                } else {
-                    for (int k = 0; k < inBlockOrds; k++) {
-                        if (ords[ordPos + k] != prevTuple[startInTuple + k]) {
-                            continues = false;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (continues) {
-                runs.runLens[runs.count - 1]++;
-            } else {
-                final long[] full = new long[K];
-                System.arraycopy(ords, ordPos, full, startInTuple, inBlockOrds);
-                runs.append(K, full);
-            }
-            ordPos += inBlockOrds;
-        }
-        return runs;
-    }
-
-    private static final class RunBuilder {
+    /**
+     * Caller-owned scratch holding the runs of a single block. Reused across blocks by
+     * SortedSetOrdinalCodec to avoid per-block allocation of the runs structure itself.
+     * Per-run tuple arrays are still allocated on demand; pooling those is a separate
+     * optimization.
+     */
+    public static final class RunBuilder {
         int count;
         int prevK;
         long[] prevTuple;
@@ -272,12 +272,16 @@ public final class TupleRunCodec {
         final int[] runKs;
         final int[] runLens;
 
-        RunBuilder(int maxDocs) {
+        public RunBuilder(int maxDocs) {
             this.runTuples = new long[Math.max(1, maxDocs)][];
             this.runKs = new int[Math.max(1, maxDocs)];
             this.runLens = new int[Math.max(1, maxDocs)];
-            this.count = 0;
-            this.prevK = -1;
+        }
+
+        void reset() {
+            count = 0;
+            prevK = -1;
+            prevTuple = null;
         }
 
         void append(int K, long[] tuple) {

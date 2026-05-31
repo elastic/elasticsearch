@@ -53,14 +53,14 @@ public class TupleRunCodecTests extends ESTestCase {
         tailMissing = 1;
         assertEquals(128, pos);
 
+        TupleRunCodec.RunBuilder runs = new TupleRunCodec.RunBuilder(numDocs);
+        TupleRunCodec.INSTANCE.buildRuns(ords, perDocK, numDocs, 0, tailMissing, runs);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        TupleRunCodec.INSTANCE.encodePayload(ords, perDocK, numDocs, 0, tailMissing, out);
+        TupleRunCodec.INSTANCE.encodePayload(runs, 0, tailMissing, out);
 
-        // Estimate must equal actual byte count.
-        long estimate = TupleRunCodec.INSTANCE.estimateSize(ords, perDocK, numDocs, 0, tailMissing);
+        long estimate = TupleRunCodec.INSTANCE.estimateSize(runs, 0, tailMissing);
         assertEquals(estimate, out.size());
 
-        // Round-trip decode.
         ByteBuffersDataInput in = new ByteBuffersDataInput(out.toBufferList());
         long header = in.readVLong();
         byte subMode = in.readByte();
@@ -98,10 +98,12 @@ public class TupleRunCodecTests extends ESTestCase {
         int tailMissing = 1;
         assertEquals(128, pos);
 
+        TupleRunCodec.RunBuilder runs = new TupleRunCodec.RunBuilder(numDocs);
+        TupleRunCodec.INSTANCE.buildRuns(ords, perDocK, numDocs, 0, tailMissing, runs);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        TupleRunCodec.INSTANCE.encodePayload(ords, perDocK, numDocs, 0, tailMissing, out);
+        TupleRunCodec.INSTANCE.encodePayload(runs, 0, tailMissing, out);
 
-        long estimate = TupleRunCodec.INSTANCE.estimateSize(ords, perDocK, numDocs, 0, tailMissing);
+        long estimate = TupleRunCodec.INSTANCE.estimateSize(runs, 0, tailMissing);
         assertEquals(estimate, out.size());
 
         ByteBuffersDataInput in = new ByteBuffersDataInput(out.toBufferList());
@@ -135,10 +137,12 @@ public class TupleRunCodecTests extends ESTestCase {
         }
         assertEquals(128, pos);
 
+        TupleRunCodec.RunBuilder runs = new TupleRunCodec.RunBuilder(numDocs);
+        TupleRunCodec.INSTANCE.buildRuns(ords, perDocK, numDocs, 0, 0, runs);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        TupleRunCodec.INSTANCE.encodePayload(ords, perDocK, numDocs, 0, 0, out);
+        TupleRunCodec.INSTANCE.encodePayload(runs, 0, 0, out);
 
-        long estimate = TupleRunCodec.INSTANCE.estimateSize(ords, perDocK, numDocs, 0, 0);
+        long estimate = TupleRunCodec.INSTANCE.estimateSize(runs, 0, 0);
         assertEquals(estimate, out.size());
 
         ByteBuffersDataInput in = new ByteBuffersDataInput(out.toBufferList());
@@ -176,10 +180,12 @@ public class TupleRunCodecTests extends ESTestCase {
         int headOffset = 2;
         assertEquals(128, pos);
 
+        TupleRunCodec.RunBuilder runs = new TupleRunCodec.RunBuilder(numDocs);
+        TupleRunCodec.INSTANCE.buildRuns(ords, perDocK, numDocs, headOffset, tailMissing, runs);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        TupleRunCodec.INSTANCE.encodePayload(ords, perDocK, numDocs, headOffset, tailMissing, out);
+        TupleRunCodec.INSTANCE.encodePayload(runs, headOffset, tailMissing, out);
 
-        long estimate = TupleRunCodec.INSTANCE.estimateSize(ords, perDocK, numDocs, headOffset, tailMissing);
+        long estimate = TupleRunCodec.INSTANCE.estimateSize(runs, headOffset, tailMissing);
         assertEquals(estimate, out.size());
 
         ByteBuffersDataInput in = new ByteBuffersDataInput(out.toBufferList());
@@ -205,10 +211,12 @@ public class TupleRunCodecTests extends ESTestCase {
         }
         // remaining positions in ords[] are 0 (matches what TSDBDocValuesBlockWriter pads)
 
+        TupleRunCodec.RunBuilder runs = new TupleRunCodec.RunBuilder(numDocs);
+        TupleRunCodec.INSTANCE.buildRuns(ords, perDocK, numDocs, 0, 0, runs);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        TupleRunCodec.INSTANCE.encodePayload(ords, perDocK, numDocs, 0, 0, out);
+        TupleRunCodec.INSTANCE.encodePayload(runs, 0, 0, out);
 
-        long estimate = TupleRunCodec.INSTANCE.estimateSize(ords, perDocK, numDocs, 0, 0);
+        long estimate = TupleRunCodec.INSTANCE.estimateSize(runs, 0, 0);
         assertEquals(estimate, out.size());
 
         ByteBuffersDataInput in = new ByteBuffersDataInput(out.toBufferList());
@@ -225,7 +233,9 @@ public class TupleRunCodecTests extends ESTestCase {
     public void testEstimateIsSentinelForEmptyBlock() {
         long[] ords = new long[128];
         int[] perDocK = new int[0];
-        assertEquals(Long.MAX_VALUE, TupleRunCodec.INSTANCE.estimateSize(ords, perDocK, 0, 0, 0));
+        TupleRunCodec.RunBuilder runs = new TupleRunCodec.RunBuilder(1);
+        TupleRunCodec.INSTANCE.buildRuns(ords, perDocK, 0, 0, 0, runs);
+        assertEquals(Long.MAX_VALUE, TupleRunCodec.INSTANCE.estimateSize(runs, 0, 0));
     }
 
     public void testCorruptRunLenThrows() throws Exception {

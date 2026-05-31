@@ -9,15 +9,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.ByteBuffersDirectory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -27,17 +18,12 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -45,7 +31,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -424,53 +409,6 @@ public class RestoreServiceTests extends ESTestCase {
         );
 
         assertSame("fully compatible index should not be modified", indexMetadata, result);
-    }
-
-    /**
-     * Builds a minimal {@link BlobStoreIndexShardSnapshot} whose only file is a {@code segments_N} written to an
-     * in-memory Lucene directory with the given sequence-number commit data. The file bytes are inlined in the
-     * {@link StoreFileMetadata} hash so that {@link RestoreService#readShardSnapshotCommitInfo} can read them without
-     * accessing a real repository.
-     */
-    private static BlobStoreIndexShardSnapshot buildShardSnapshot(String snapshotUUID, long localCheckpoint, long maxSeqNo)
-        throws IOException {
-        var dir = new ByteBuffersDirectory();
-        try (var writer = new IndexWriter(dir, new IndexWriterConfig())) {
-            writer.setLiveCommitData(
-                Map.of(
-                    SequenceNumbers.LOCAL_CHECKPOINT_KEY,
-                    Long.toString(localCheckpoint),
-                    SequenceNumbers.MAX_SEQ_NO,
-                    Long.toString(maxSeqNo)
-                ).entrySet()
-            );
-            writer.commit();
-        }
-        var si = SegmentInfos.readLatestCommit(dir);
-        var segmentsFileName = si.getSegmentsFileName();
-        int fileLength = (int) dir.fileLength(segmentsFileName);
-        var bytes = new byte[fileLength];
-        try (IndexInput input = dir.openInput(segmentsFileName, IOContext.READONCE)) {
-            input.readBytes(bytes, 0, fileLength);
-        }
-        var hash = new BytesRef(bytes);
-        var checksum = Store.digestToString(CodecUtil.retrieveChecksum(new ByteArrayIndexInput(segmentsFileName, bytes, 0, fileLength)));
-        var metadata = new StoreFileMetadata(
-            segmentsFileName,
-            fileLength,
-            checksum,
-            Version.LATEST.toString(),
-            hash,
-            StoreFileMetadata.UNAVAILABLE_WRITER_UUID
-        );
-        return new BlobStoreIndexShardSnapshot(
-            snapshotUUID,
-            List.of(new BlobStoreIndexShardSnapshot.FileInfo(segmentsFileName, metadata, null)),
-            0L,
-            0L,
-            0,
-            0L
-        );
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

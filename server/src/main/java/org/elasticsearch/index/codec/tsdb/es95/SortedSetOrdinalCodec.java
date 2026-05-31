@@ -18,22 +18,17 @@ import java.util.Locale;
 
 /**
  * Per-block ordinal codec for SORTED_SET doc values (multiple values per document).
- * Mirrors {@link SortedOrdinalCodec} for the scalar candidates and adds
- * {@link TupleRunCodec} as the multi-valued candidate. The encoder takes the per-doc
- * value counts and head/tail straddle offsets so {@code TupleRunCodec} can group
- * consecutive docs that emit the same K-ord tuple into a single (K, runLen, tuple)
- * entry. Targets the K-cycle pattern produced by multi-valued docs sharing the same
- * ord set within a {@code _tsid} run (e.g. {@code host.ip}, {@code host.mac}).
+ * Picks the cheapest of seven candidates per block: {@link ConstantCodec} (encoding 0),
+ * {@link TwoRunCodec} (encoding 1), {@link BitPackedCodec} (encoding 2), the
+ * ADAPTIVE_EXTRA family (encoding 3) of {@link RleCodec}, {@link BitpackCodec},
+ * {@link TupleRunCodec}, and {@link CycleCodec} (encoding 4). The encoder takes the
+ * per-doc value counts and head/tail straddle offsets so {@code TupleRunCodec} can
+ * group consecutive docs that emit the same K-ord tuple into a single
+ * {@code (K, runLen, tuple)} entry.
  *
- * <p>Wire format is byte for byte compatible with {@link SortedOrdinalCodec} for
- * encodings 0, 1, and 2; the ADAPTIVE_EXTRA encoding (3) carries sub-modes
- * {@link RleCodec#SUB_MODE} (0), {@link BitpackCodec#SUB_MODE} (1), and
- * {@link TupleRunCodec#SUB_MODE} (2). SORTED blocks never see the multi-valued K-tuple
- * pattern, which is why {@link SortedOrdinalCodec} skips this candidate entirely.
- *
- * <p>The per-mode codec instances are supplied via constructor injection and held
- * as {@code final} fields. A convenience constructor delegates to the full one
- * using the package's singletons.
+ * <p>The per-mode codec instances are supplied via constructor injection and held as
+ * {@code final} fields. A convenience constructor delegates to the full one using the
+ * package's singletons.
  */
 public final class SortedSetOrdinalCodec {
 
@@ -110,10 +105,9 @@ public final class SortedSetOrdinalCodec {
         tupleRunCodec.buildRuns(in, perDocK, numDocs, headOffset, tailMissing, tupleRunStats);
         final long tupleRunSize = tupleRunCodec.estimateSize(tupleRunStats, headOffset, tailMissing);
 
-        // NOTE: track the chosen codec by an integer index instead of a BlockModeCodec
-        // reference. The final `winner.encodePayload(...)` call would otherwise see
-        // 4+ concrete types at one call site and go megamorphic, blocking JIT inlining.
-        // The switch below makes each dispatch a monomorphic call on a typed field.
+        // NOTE: tracking the winner by integer index plus a switch on typed fields keeps
+        // each dispatch site monomorphic. A BlockModeCodec interface variable here would
+        // see 4+ receiver types and go megamorphic, blocking JIT inlining.
         int winner = WINNER_BIT_PACKED;
         long winnerSize = bitPackedSize;
         if (rleSize < winnerSize) {

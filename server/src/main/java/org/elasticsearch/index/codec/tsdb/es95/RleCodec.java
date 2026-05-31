@@ -18,10 +18,10 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Run-length encoded block codec (encoding 3, sub-mode {@link #SUB_MODE}).
- * Applies when the block resolves to between 3 and {@link BlockStats#MAX_TRACKED_RUNS}
- * runs; the 1-run and 2-run cases are handled by {@link ConstantCodec} and
- * {@link TwoRunCodec} at zero header overhead.
+ * Run-length encoded block codec (encoding 3, sub-mode {@link #SUB_MODE}). Applies when
+ * the block resolves to between 3 and {@link BlockStats#MAX_TRACKED_RUNS} runs; the
+ * 1-run and 2-run cases are handled by {@link ConstantCodec} and {@link TwoRunCodec} at
+ * zero header overhead.
  *
  * <p>Wire format after the encoding-3 header and sub-mode byte:
  * <pre>
@@ -34,11 +34,9 @@ import java.util.Locale;
  * </pre>
  *
  * <p>The first run carries the absolute ord; each subsequent run encodes the
- * zigzag-encoded signed delta from the previous run's ord. For HIGH-cardinality
- * TSDB segments where consecutive runs sit within hundreds of ords of each other
- * (e.g. neighboring tsids in the same routing-path partition), this saves 1-2
- * bytes per run versus absolute encoding without losing anything when deltas are
- * sign-flipping.
+ * zigzag-encoded signed delta from the previous run's ord, exploiting the fact that
+ * neighboring runs from the same routing-path partition tend to sit within a small ord
+ * distance of each other.
  */
 final class RleCodec implements BlockModeCodec {
 

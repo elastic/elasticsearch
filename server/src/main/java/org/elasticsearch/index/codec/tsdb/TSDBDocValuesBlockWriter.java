@@ -116,7 +116,6 @@ public final class TSDBDocValuesBlockWriter {
         final BlockEncoder blockEncoder,
         final FieldMetaWriter fieldMetaWriter
     ) throws IOException {
-        // NOTE: wrap the simple encoder so DISI/index/meta setup stays in one loop.
         final TupleAwareBlockEncoder wrapped = (buffer, perDocK, numDocs, headOffset, tailMissing, data) -> blockEncoder.encode(
             buffer,
             data

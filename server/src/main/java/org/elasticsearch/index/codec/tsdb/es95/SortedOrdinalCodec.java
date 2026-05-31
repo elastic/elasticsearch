@@ -17,24 +17,17 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Per-block ordinal codec for SORTED doc values (single value per document).
- * For each 128-value block, runs a single statistical pass and picks the
- * cheapest of five per-mode codecs by exact byte count. The encoder writes
- * the codec's full payload, including the vlong header whose trailing
- * one-bits count selects the encoding.
+ * Per-block ordinal codec for SORTED doc values (single value per document). For each
+ * 128-value block, runs a single statistical pass and picks the cheapest of five
+ * candidates by exact byte count: {@link ConstantCodec} (encoding 0),
+ * {@link TwoRunCodec} (encoding 1), {@link BitPackedCodec} (encoding 2), and the
+ * ADAPTIVE_EXTRA family (encoding 3) of {@link RleCodec} (sub-mode 0) and
+ * {@link BitpackCodec} (sub-mode 1). The encoder writes the codec's full payload,
+ * including the vlong header whose trailing one-bits count selects the encoding.
  *
- * <p>Encodings 0, 1, and 2 ({@link ConstantCodec}, {@link TwoRunCodec},
- * {@link BitPackedCodec}) are byte-for-byte identical to the legacy
- * {@code TSDBDocValuesEncoder.encodeOrdinals} format. Encoding 3
- * ({@code ADAPTIVE_EXTRA}) carries a one-byte sub-mode selector and
- * dispatches between {@link RleCodec} (RLE_N, sub-mode 0) and
- * {@link BitpackCodec} (BITPACK_LOCAL, sub-mode 1). SORTED ord blocks never
- * exhibit the K-tuple pattern that drives multi-valued SORTED_SET fields, so
- * {@link TupleRunCodec} is intentionally not part of this dispatch.
- *
- * <p>The per-mode codec instances are supplied via constructor injection and
- * held as {@code final} fields. A convenience constructor delegates to the
- * full one using the package's singletons.
+ * <p>The per-mode codec instances are supplied via constructor injection and held as
+ * {@code final} fields. A convenience constructor delegates to the full one using the
+ * package's singletons.
  */
 public final class SortedOrdinalCodec {
 
@@ -69,8 +62,8 @@ public final class SortedOrdinalCodec {
 
     public void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
         stats.recompute(in);
-        // NOTE: CONST always wins on allSame blocks; TWO_RUN always wins on 2-run blocks.
-        // Short-circuit these dominant cases to skip per-candidate estimation.
+        // NOTE: CONST and TWO_RUN are exact winners on their respective shapes; the
+        // short-circuits skip the per-candidate estimate calls on the dominant blocks.
         if (stats.allSame) {
             constantCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
             return;
@@ -84,10 +77,9 @@ public final class SortedOrdinalCodec {
         final long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
         final long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
 
-        // NOTE: track the chosen codec by an integer index instead of a BlockModeCodec
-        // reference. The final `winner.encodePayload(...)` call would otherwise see
-        // 3+ concrete types at one call site and go megamorphic, blocking JIT inlining.
-        // The switch below makes each dispatch a monomorphic call on a typed field.
+        // NOTE: tracking the winner by integer index plus a switch on typed fields keeps
+        // each dispatch site monomorphic. A BlockModeCodec interface variable here would
+        // see 3+ receiver types and go megamorphic, blocking JIT inlining.
         int winner = WINNER_BIT_PACKED;
         long winnerSize = bitPackedSize;
         if (rleSize < winnerSize) {

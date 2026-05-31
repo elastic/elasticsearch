@@ -68,7 +68,7 @@ public class SortedOrdinalCodecTests extends ESTestCase {
         assertArrayEquals(in, decoded);
     }
 
-    public void testConstBlockMatchesLegacyByteCount() throws Exception {
+    public void testConstBlockBytes() throws Exception {
         long[] in = new long[128];
         Arrays.fill(in, 12345L);
 
@@ -76,7 +76,7 @@ public class SortedOrdinalCodecTests extends ESTestCase {
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
 
-        // NOTE: 12345 << 1 = 24690 -> 3-byte vlong; byte-for-byte tie with legacy CONST
+        // NOTE: (12345 << 1) = 24690 fits in a 3-byte vlong.
         assertThat(out.size(), equalTo(3L));
     }
 
@@ -88,7 +88,7 @@ public class SortedOrdinalCodecTests extends ESTestCase {
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), out, 16);
 
-        // NOTE: 7 << 1 = 14 -> 1-byte vlong; legacy CONST costs 2 bytes for the same value
+        // NOTE: (7 << 1) = 14 fits in a 1-byte vlong; ord and CONST marker share the byte.
         assertThat(out.size(), equalTo(1L));
     }
 

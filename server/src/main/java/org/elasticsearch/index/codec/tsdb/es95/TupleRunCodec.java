@@ -49,9 +49,8 @@ import java.util.Locale;
  *
  * <p>The public API is split: {@link #buildRuns} populates a caller-owned
  * {@link RunBuilder} from the input, then {@link #estimateSize} and {@link #encodePayload}
- * both consume that prebuilt structure. SortedSetOrdinalCodec reuses one RunBuilder
- * across blocks to avoid re-walking the block when the cost estimate wins and we proceed
- * to actually write the payload.
+ * both consume that prebuilt structure. Callers reuse one RunBuilder across blocks so
+ * the block is walked only once per encode.
  *
  * <p>Stateless; access via {@link #INSTANCE}.
  */
@@ -238,11 +237,11 @@ public final class TupleRunCodec {
         }
     }
 
-    // NOTE: cursor walks 0..K-1 modulo K. Emit head fragment up to the first
-    // K-aligned offset, then doubling-arraycopy whole tuples, then any tail.
+    // NOTE: emits a partial head fragment up to the first K-aligned offset, lays one full
+    // tuple at that offset, then doubling-arraycopies whole tuples. System.arraycopy on
+    // long[] is intrinsified to SIMD by the JVM.
     private static int emitCyclic(final long[] out, int pos, final long[] tuple, int K, int cursor, int totalOrds) {
         int remaining = totalOrds;
-        // Emit the partial "first" portion of a tuple starting at cursor.
         if (cursor != 0) {
             final int firstSpan = Math.min(K - cursor, remaining);
             for (int k = 0; k < firstSpan; k++) {
@@ -253,7 +252,6 @@ public final class TupleRunCodec {
                 return pos;
             }
         }
-        // Lay down one full tuple at the new K-aligned position, then double-copy.
         final int blockStart = pos;
         for (int k = 0; k < K && remaining > 0; k++) {
             out[pos++] = tuple[k];

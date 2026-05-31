@@ -16,10 +16,9 @@ import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import java.io.IOException;
 
 /**
- * Full-block bit-packed codec (encoding 2). Writes the constant header
- * {@code 0b11} as a single byte, then bit-packs the entire block at the
- * segment-global {@code bitsPerOrd}. Byte-for-byte identical to the legacy
- * bit-packed encoding. Stateless; access via {@link #INSTANCE}.
+ * Full-block bit-packed codec (encoding 2). Writes the constant header byte {@code 0b11},
+ * then bit-packs the entire block at the segment-global {@code bitsPerOrd}. Stateless;
+ * access via {@link #INSTANCE}.
  */
 final class BitPackedCodec implements BlockModeCodec {
 
@@ -36,7 +35,6 @@ final class BitPackedCodec implements BlockModeCodec {
     @Override
     public long estimateSize(final long[] in, final BlockStats stats, int bitsPerOrd) {
         int roundedBits = DocValuesForUtil.roundBits(bitsPerOrd);
-        // NOTE: 1-byte header (vlong 0b11) + bit-packed payload
         return 1L + ((long) in.length * roundedBits + 7) / 8;
     }
 

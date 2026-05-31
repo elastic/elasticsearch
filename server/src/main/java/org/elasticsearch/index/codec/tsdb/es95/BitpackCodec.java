@@ -42,7 +42,6 @@ final class BitpackCodec implements BlockModeCodec {
     public long estimateSize(final long[] in, final BlockStats stats, int bitsPerOrd) {
         int localBits = bitsRequired(stats.max - stats.min);
         int roundedLocalBits = DocValuesForUtil.roundBits(localBits);
-        // NOTE: 1-byte header (vlong 0b111) + 1-byte sub-mode + vlong(min) + 1-byte localBits + bit-packed payload
         return 1L + 1L + vLongSize(stats.min) + 1L + ((long) in.length * roundedLocalBits + 7) / 8;
     }
 

@@ -17,26 +17,20 @@ import java.io.IOException;
 import java.util.Locale;
 
 /**
- * Compact cycle block codec (encoding {@link #ENCODING}). Encodes a block whose flat ord
- * stream repeats with period {@code p} in {@code [2, blockSize / MAX_CYCLE_DIVISOR]} as
- * {@code (period, value_0, value_1, ..., value_{p-1})}. Targets the dominant SORTED_SET
- * mid-tsid block shape where every doc in a {@code _tsid} run emits the same K-ord tuple
+ * Block codec for ord streams that repeat with a period in
+ * {@code [2, blockSize / MAX_CYCLE_DIVISOR]}. Targets the multi-valued SORTED_SET mid-tsid
+ * shape where every doc in a {@code _tsid} run emits the same K-ord tuple
  * (e.g. {@code host.ip}, {@code host.mac}).
  *
- * <p>Wire format: the leading vlong is {@code (period shifted left 5) OR 0b01111}, i.e.
- * 4 trailing one-bits identify the encoding and the period rides in bits 5 and above of
- * the same vlong. Followed by K vlongs: first absolute, K-1 delta-encoded.
+ * <p>Wire format: the leading vlong packs the period in bits 5 and above with low 5 bits
+ * fixed at {@code 01111}. The 4 trailing one-bits identify the encoding; the bit above
+ * them terminates the trailing-ones run. The header is followed by K vlongs: the first
+ * absolute, the remaining K-1 delta-encoded.
  * <pre>
  *   vlong header   (period shifted left 5 bits, low 5 bits are 01111)
  *   vlong first_ord
  *   vlong delta_1, ..., delta_(period - 1)     # delta_i = ord_i - ord_(i-1) - 1
  * </pre>
- *
- * <p>Periods 2-3 fit in a 1-byte header; periods 4-16 need a 2-byte header. This matches
- * or beats the legacy CYCLE byte count on every period at HIGH cardinality and on
- * periods 2-3 at LOW cardinality; a small 1-byte regression remains at LOW for periods
- * 4 and above because legacy's encoding-3 format uses only 4 trailing one-bits and packs
- * the period at bit 4 upward (1-byte header up to period 7).
  *
  * <p>Stateless; access via {@link #INSTANCE}.
  */
@@ -97,9 +91,9 @@ public final class CycleCodec implements BlockModeCodec {
         cyclicFill(out, tuple, period);
     }
 
-    // NOTE: explicit small-K specializations let the JIT unroll the inner loop and
-    // auto-vectorize the long writes. Without specialization the period stays a runtime
-    // value and the `out[i] = tuple[i % period]` form blocks vectorization.
+    // NOTE: small-K specializations make period a compile-time constant for the JIT, which
+    // unrolls and vectorizes the inner loop. The generic `out[i] = tuple[i % period]` form
+    // blocks vectorization because the modulo depends on a runtime value.
     private static void cyclicFill(final long[] out, final long[] tuple, int period) {
         final int n = out.length;
         if (period == 2) {
@@ -143,8 +137,8 @@ public final class CycleCodec implements BlockModeCodec {
             }
             return;
         }
-        // NOTE: K >= 5 - lay down one tuple at position 0, then arraycopy it forward
-        // in doubling chunks. arraycopy on a long[] is intrinsified to SIMD on the JVM.
+        // NOTE: System.arraycopy on long[] is intrinsified to SIMD by the JVM. Doubling the
+        // already-filled prefix amortizes the copy over log2(blockSize / period) iterations.
         for (int k = 0; k < period; k++) {
             out[k] = tuple[k];
         }

@@ -99,29 +99,25 @@ public class CycleCodecTests extends ESTestCase {
     }
 
     public void testWireFormatBytesLowK2() throws Exception {
-        // NOTE: LOW K=2 ords 0 and 7 round to 3 bytes total - matches legacy CYCLE exactly.
         assertEncodedSize(new long[] { 0L, 7L }, 4, 3);
     }
 
     public void testWireFormatBytesLowK3() throws Exception {
-        // NOTE: LOW K=3 ords 0, 5, 10 round to 4 bytes total - matches legacy CYCLE.
         assertEncodedSize(new long[] { 0L, 5L, 10L }, 4, 4);
     }
 
     public void testWireFormatBytesLowK4() throws Exception {
-        // NOTE: LOW K=4 spills the period into a 2-byte header due to encoding-4's
-        // 5-bit-trailing requirement. Lands 1 byte over legacy's 5; acceptable POC trade.
+        // NOTE: LOW K=4 spills the period into a 2-byte header because encoding 4
+        // reserves 5 trailing bits, so period 4 no longer fits in a 1-byte vlong.
         assertEncodedSize(new long[] { 0L, 4L, 8L, 12L }, 4, 6);
     }
 
     public void testWireFormatBytesHighK2() throws Exception {
-        // NOTE: HIGH K=2 (16-bit ords scattered) beats legacy by 1 byte.
         final long mask = (1L << 16) - 1L;
         assertEncodedSize(new long[] { 0L, mask / 2 }, 16, 5);
     }
 
     public void testWireFormatBytesHighK4() throws Exception {
-        // NOTE: HIGH K=4 ords evenly spread - 2-byte header + 4 delta vlongs.
         final long mask = (1L << 16) - 1L;
         final long[] tuple = { 0L, mask / 4, mask / 2, (3 * mask) / 4 };
         assertEncodedSize(tuple, 16, 9);
@@ -148,8 +144,7 @@ public class CycleCodecTests extends ESTestCase {
     public void testInvalidPeriodInHeaderThrows() {
         final CodecContext ctx = new CodecContext(128);
         final long[] decoded = new long[128];
-        // NOTE: leadingVLong encodes period 200 in bits 5+. Decoder must reject it
-        // because 200 exceeds blockSize / MAX_CYCLE_DIVISOR (= 16 at blockSize 128).
+        // NOTE: period 200 exceeds blockSize / MAX_CYCLE_DIVISOR (16 at blockSize 128).
         final long badLeading = (200L << 5) | CycleCodec.ENCODING_MARKER;
         expectThrows(
             CorruptIndexException.class,

@@ -48,15 +48,15 @@ import java.io.IOException;
  * Example 1:
  * Suppose we are resharding an index from 2 -> 4 shards. While splitting a bulk request, the coordinator observes
  * that target shards are not ready for indexing. So requests that are meant for shard 0 and 2 are bundled together,
- * sent to shard 0 with “reshardSplitShardCountSummary” 2 in the request.
+ * sent to shard 0 with “splitShardCountSummary” 2 in the request.
  * Requests that are meant for shard 1 and 3 are bundled together,
- * sent to shard 1 with “reshardSplitShardCountSummary” 2 in the request.
+ * sent to shard 1 with “splitShardCountSummary” 2 in the request.
  * <p>
  * Example 2:
  * Suppose we are resharding an index from 4 -> 8 shards. While splitting a bulk request, the coordinator observes
  * that source shard 0 has completed handoff but source shards 1, 2, 3 have not completed handoff.
- * So, the shard-bulk-request it sends to shard 0 and 4 has the "reshardSplitShardCountSummary" 8,
- * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCountSummary" 4.
+ * So, the shard-bulk-request it sends to shard 0 and 4 has the "splitShardCountSummary" 8,
+ * while the shard-bulk-request it sends to shard 1,2,3 has the "splitShardCountSummary" 4.
  * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
  * are bundled together with and sent to their source shards.
  * <p>
@@ -75,33 +75,42 @@ import java.io.IOException;
  * that target shard 5 is in SPLIT state but target shards 4, 6, 7 are in CLONE/HANDOFF state.
  * The coordinator will send shard search requests to all source shards (0, 1, 2, 3) and to all target shards
  * that are at least in SPLIT state (5).
- * Shard search request sent to source shards 0, 2, 3 has the "reshardSplitShardCountSummary" of 4
+ * Shard search request sent to source shards 0, 2, 3 has the "splitShardCountSummary" of 4
  * since corresponding target shards (4, 6, 7) have not advanced to SPLIT state.
- * Shard search request sent to source shard 1 has the "reshardSplitShardCountSummary" of 8
+ * Shard search request sent to source shard 1 has the "splitShardCountSummary" of 8
  * since the corresponding target shard 5 is in SPLIT state.
- * When a shard search request is executed on the source shard 1, "reshardSplitShardCountSummary" value
+ * When a shard search request is executed on the source shard 1, "splitShardCountSummary" value
  * is checked and documents that will be returned by target shard 5 are excluded
  * (they are still present in the source shard because the resharding process is not complete).
  * All other source shard search requests (0, 2, 3) return all available documents since corresponding target shards
  * are not yet available to do that.
  * <p>
- * A value of 0 indicates an INVALID reshardSplitShardCountSummary. Hence, a request with INVALID reshardSplitShardCountSummary
+ * A value of 0 indicates an INVALID splitShardCountSummary. Hence, a request with INVALID splitShardCountSummary
  * will be treated as a Summary mismatch on the source shard node.
  */
 
-public class SplitShardCountSummary implements Writeable {
+public class SplitShardCountSummary implements Writeable, Comparable<SplitShardCountSummary> {
     public static final SplitShardCountSummary UNSET = new SplitShardCountSummary(0);
+    /// Specifies that the operation being performed can not be affected by an ongoing split
+    /// and therefore doesn't need any special logic like search filters applied.
+    ///
+    /// This placeholder value allows us to skip sending the summary from the coordinator
+    /// to the shard. As such it should only be used locally and is not expected to be serialized.
+    ///
+    /// Some examples are:
+    /// * Operations that don't actually perform any searches but have to use search related APIs.
+    public static final SplitShardCountSummary IRRELEVANT = new SplitShardCountSummary(Integer.MIN_VALUE);
 
     /**
      * Given {@code IndexMetadata} and a {@code shardId}, this method returns the "effective" shard count
      * as seen by this IndexMetadata, for indexing operations.
      *
-     * See {@code getReshardSplitShardCountSummary} for more details.
+     * See {@code getSplitShardCountSummary} for more details.
      * @param indexMetadata IndexMetadata of the shard for which we want to calculate the effective shard count
      * @param shardId       Input shardId for which we want to calculate the effective shard count
      */
     public static SplitShardCountSummary forIndexing(IndexMetadata indexMetadata, int shardId) {
-        return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
+        return getSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
     }
 
     /**
@@ -109,12 +118,12 @@ public class SplitShardCountSummary implements Writeable {
      * Given a {@code shardId}, this method returns the "effective" shard count
      * as seen by this IndexMetadata, for search operations.
      *
-     * See {@code getReshardSplitShardCount} for more details.
+     * See {@code getSplitShardCount} for more details.
      * @param indexMetadata IndexMetadata of the shard for which we want to calculate the effective shard count
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      */
     public static SplitShardCountSummary forSearch(IndexMetadata indexMetadata, int shardId) {
-        return getReshardSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
+        return getSplitShardCountSummary(indexMetadata, shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
     }
 
     /**
@@ -123,7 +132,7 @@ public class SplitShardCountSummary implements Writeable {
      * an operation to be routed to target shards,
      * this method returns the "effective" shard count as seen by this IndexMetadata.
      *
-     * The reshardSplitShardCountSummary tells us whether the coordinator routed requests to the source shard or
+     * The splitShardCountSummary tells us whether the coordinator routed requests to the source shard or
      * to both source and target shards. Requests are routed to both source and target shards
      * once the target shards are ready for an operation.
      *
@@ -131,14 +140,14 @@ public class SplitShardCountSummary implements Writeable {
      * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
      * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
      * to verify if the coordinator and source node's view of the resharding state have a mismatch.
-     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCountSummary}
+     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#splitShardCountSummary}
      * for a detailed description of how this value is used.
      *
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      * @param minShardState Minimum target shard state required for the target to be considered ready
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
-    private static SplitShardCountSummary getReshardSplitShardCountSummary(
+    private static SplitShardCountSummary getSplitShardCountSummary(
         IndexMetadata indexMetadata,
         int shardId,
         IndexReshardingState.Split.TargetShardState minShardState
@@ -149,9 +158,7 @@ public class SplitShardCountSummary implements Writeable {
         int shardCount = numberOfShards;
         if (reshardingMetadata != null) {
             if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
-                int sourceShardId = reshardingMetadata.getSplit().sourceShard(shardId);
-                // Requests cannot be routed to target shards until they are ready
-                assert reshardingMetadata.getSplit().allTargetStatesAtLeast(sourceShardId, minShardState) : "unexpected target state";
+                // if the request is being sent to the target shard, the summary must include it
                 shardCount = reshardingMetadata.getSplit().shardCountAfter();
             } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {
                 if (reshardingMetadata.getSplit().allTargetStatesAtLeast(shardId, minShardState)) {
@@ -206,6 +213,7 @@ public class SplitShardCountSummary implements Writeable {
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert shardCountSummary != IRRELEVANT.shardCountSummary;
         out.writeVInt(shardCountSummary);
     }
 
@@ -229,5 +237,50 @@ public class SplitShardCountSummary implements Writeable {
     @Override
     public String toString() {
         return "SplitShardCountSummary [shardCountSummary=" + shardCountSummary + "]";
+    }
+
+    /// @deprecated use check
+    @Deprecated
+    @Override
+    public int compareTo(SplitShardCountSummary o) {
+        return Integer.compare(this.shardCountSummary, o.shardCountSummary);
+    }
+
+    /// Checks if the provided summary was produced by a coordinator that
+    /// has an up-to-date view of the routing table in context of resharding.
+    /// @param indexMetadata current index metadata obtained by a receiver of the summary
+    public Decision check(IndexMetadata indexMetadata) {
+        if (shardCountSummary > indexMetadata.getNumberOfShards()) {
+            // If the summary is bigger than the current number of shards, it means:
+            // 1. there is an ongoing split
+            // 2. the corresponding target shard (in this "new" split) is in SPLIT state
+            // Given that the number of shards is updated in the very first step of the split but we don't see it,
+            // we must have missed a bunch of cluster state updates and can't really reason properly about this request.
+            return Decision.INVALID;
+        }
+
+        if (shardCountSummary < indexMetadata.getNumberOfShards()) {
+            // Smaller summary implies an ongoing split and that our indexMetadata is already updated with the new number of shards.
+            // But that is a contradiction since in that case we would see the resharding metadata
+            // that is created in the same cluster state update.
+            // So this can only mean that the split in question is already done and resharding metadata was removed.
+            // In that case we would rather reject such request as stale for simplicity.
+            if (indexMetadata.getReshardingMetadata() == null) {
+                return Decision.INVALID;
+            } else if (shardCountSummary < indexMetadata.getReshardingMetadata().shardCountBefore()) {
+                // Similarly if the summary is so old that it predates the current split, we'll reject the request.
+                return Decision.INVALID;
+            }
+        }
+
+        // The summary is either equal to the number of shards or is at the "before split" value.
+        // We can actually reason about it.
+        return shardCountSummary == indexMetadata.getNumberOfShards() ? Decision.CURRENT : Decision.OLDER;
+    }
+
+    public enum Decision {
+        OLDER,
+        CURRENT,
+        INVALID
     }
 }

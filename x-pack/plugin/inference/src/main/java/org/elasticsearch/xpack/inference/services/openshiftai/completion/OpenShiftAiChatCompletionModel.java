@@ -49,7 +49,7 @@ public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
             taskType,
             service,
             OpenShiftAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -68,10 +68,19 @@ public class OpenShiftAiChatCompletionModel extends OpenShiftAiModel {
         OpenShiftAiChatCompletionServiceSettings serviceSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
             new ModelSecrets(secrets)
         );
+    }
+
+    /**
+     * Constructor for creating an OpenShiftAiChatCompletionModel from model configurations and secrets.
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secrets for the model
+     */
+    public OpenShiftAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     /**

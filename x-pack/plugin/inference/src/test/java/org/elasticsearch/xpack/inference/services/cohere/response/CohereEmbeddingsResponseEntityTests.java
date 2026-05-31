@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         InferenceServiceResults parsedResults = CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -91,7 +91,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -135,7 +135,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -179,7 +179,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingByteResults parsedResults = (DenseEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -217,7 +217,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingByteResults parsedResults = (DenseEmbeddingByteResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -258,7 +258,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingBitResults parsedResults = (DenseEmbeddingBitResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -298,7 +298,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -345,7 +345,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingFloatResults parsedResults = (DenseEmbeddingFloatResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -398,7 +398,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         DenseEmbeddingBitResults parsedResults = (DenseEmbeddingBitResults) CohereEmbeddingsResponseEntity.fromResponse(
-            mock(Request.class),
+            mock(OutboundRequest.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -441,7 +441,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> CohereEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -482,7 +482,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> CohereEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -520,7 +520,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> CohereEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -558,7 +558,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> CohereEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -596,7 +596,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> CohereEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
@@ -634,7 +634,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         var thrownException = expectThrows(
             IllegalStateException.class,
             () -> CohereEmbeddingsResponseEntity.fromResponse(
-                mock(Request.class),
+                mock(OutboundRequest.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );

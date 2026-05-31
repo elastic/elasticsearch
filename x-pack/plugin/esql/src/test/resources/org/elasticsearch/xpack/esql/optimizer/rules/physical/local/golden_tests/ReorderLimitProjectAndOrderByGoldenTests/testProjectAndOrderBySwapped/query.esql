@@ -1,0 +1,6 @@
+FROM employees
+| RENAME languages AS language_code
+| EVAL language_name = 2*salary
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT salary
+| LIMIT 5 BY language_code

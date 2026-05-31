@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149023
+summary: Pool S3 async receive buffers via Netty allocator
+type: enhancement

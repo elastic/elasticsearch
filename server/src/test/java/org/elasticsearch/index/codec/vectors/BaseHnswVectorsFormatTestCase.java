@@ -46,8 +46,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
+
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return false;
     }
 
     protected abstract KnnVectorsFormat createFormat();

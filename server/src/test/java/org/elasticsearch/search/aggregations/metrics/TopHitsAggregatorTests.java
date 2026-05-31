@@ -20,13 +20,12 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -49,7 +48,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testTopLevel() throws Exception {
         Aggregation result;
         if (randomBoolean()) {
-            result = testCase(new MatchAllDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
+            result = testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("string", SortOrder.DESC));
         } else {
             Query query = new QueryParser("string", new KeywordAnalyzer()).parse("d^1000 c^100 b^10 a^1");
             result = testCase(query, topHits("_name"));
@@ -63,7 +62,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoResults() throws Exception {
-        TopHits result = (TopHits) testCase(new MatchNoDocsQuery(), topHits("_name").sort("string", SortOrder.DESC));
+        TopHits result = (TopHits) testCase(Queries.NO_DOCS_INSTANCE, topHits("_name").sort("string", SortOrder.DESC));
         SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits().value());
         assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
@@ -77,7 +76,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         Aggregation result;
         if (randomBoolean()) {
             result = testCase(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 terms("term").field("string").subAggregation(topHits("top").sort("string", SortOrder.DESC))
             );
         } else {
@@ -186,7 +185,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
 
     public void testSortByScore() throws Exception {
         // just check that it does not fail with exceptions
-        testCase(new MatchAllDocsQuery(), topHits("_name").sort("_score", SortOrder.DESC));
-        testCase(new MatchAllDocsQuery(), topHits("_name").sort("_score"));
+        testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("_score", SortOrder.DESC));
+        testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("_score"));
     }
 }

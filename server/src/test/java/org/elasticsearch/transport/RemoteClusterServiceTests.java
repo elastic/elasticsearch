@@ -212,13 +212,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     )
                 );
 
-                // test cluster exclusions
+                // test cluster exclusions (order matters: inclusions must precede exclusions)
                 {
-                    String[] indices = shuffledList(List.of("cluster*:foo*", "foo", "-cluster_1:*", "*:boo")).toArray(new String[0]);
-
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        indices
+                        new String[] { "cluster*:foo*", "foo", "*:boo", "-cluster_1:*" }
                     );
                     assertEquals(2, perClusterIndices.size());
                     List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -232,11 +230,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(List.of("boo", "foo*"), cluster2.stream().sorted().toList());
                 }
                 {
-                    String[] indices = shuffledList(List.of("*:*", "-clu*_1:*", "*:boo")).toArray(new String[0]);
-
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        indices
+                        new String[] { "*:*", "*:boo", "-clu*_1:*" }
                     );
                     assertEquals(1, perClusterIndices.size());
 
@@ -246,13 +242,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals(List.of("*", "boo"), cluster2.stream().sorted().toList());
                 }
                 {
-                    String[] indices = shuffledList(List.of("cluster*:foo*", "cluster_2:*", "foo", "-cluster_1:*", "-c*:*")).toArray(
-                        new String[0]
-                    );
-
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        indices
+                        new String[] { "cluster*:foo*", "cluster_2:*", "foo", "-cluster_1:*", "-c*:*" }
                     );
                     assertEquals(1, perClusterIndices.size());
                     List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -261,11 +253,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertEquals("foo", localIndexes.get(0));
                 }
                 {
-                    String[] indices = shuffledList(List.of("cluster*:*", "foo", "-*:*")).toArray(new String[0]);
-
                     Map<String, List<String>> perClusterIndices = service.groupClusterIndices(
                         service.getRegisteredRemoteClusterNames(),
-                        indices
+                        new String[] { "cluster*:*", "foo", "-*:*" }
                     );
                     assertEquals(1, perClusterIndices.size());
                     List<String> localIndexes = perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -292,7 +282,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         IllegalArgumentException.class,
                         () -> service.groupClusterIndices(
                             service.getRegisteredRemoteClusterNames(),
-                            // -cluster_1:* will fail since cluster_1 was never included in order to qualify to be excluded
                             new String[] { "-cluster_1:*", "cluster_2:foo*", "foo" }
                         )
                     );
@@ -300,7 +289,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         e.getMessage(),
                         equalTo(
                             "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
-                                + "be included: [(local), cluster_2]. Input: [-cluster_1:*,cluster_2:foo*,foo]"
+                                + "be included"
+                                + " (note: the \"include\" expression must precede the \"exclude\" expression)"
                         )
                     );
                 }
@@ -313,7 +303,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         e.getMessage(),
                         equalTo(
                             "Attempt to exclude cluster [cluster_1] failed as it is not included in the list of clusters to "
-                                + "be included: []. Input: [-cluster_1:*]"
+                                + "be included"
+                                + " (note: the \"include\" expression must precede the \"exclude\" expression)"
                         )
                     );
                 }
@@ -322,20 +313,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         IllegalArgumentException.class,
                         () -> service.groupClusterIndices(service.getRegisteredRemoteClusterNames(), new String[] { "-*:*" })
                     );
-                    assertThat(
-                        e.getMessage(),
-                        equalTo(
-                            "Attempt to exclude clusters [cluster_1, cluster_2] failed as they are not included in the list of "
-                                + "clusters to be included: []. Input: [-*:*]"
-                        )
-                    );
+                    assertThat(e.getMessage(), containsString("not included in the list of clusters to be included"));
                 }
                 {
-                    String[] indices = shuffledList(List.of("cluster*:*", "*:foo", "-*:*")).toArray(new String[0]);
-
                     IllegalArgumentException e = expectThrows(
                         IllegalArgumentException.class,
-                        () -> service.groupClusterIndices(service.getRegisteredRemoteClusterNames(), indices)
+                        () -> service.groupClusterIndices(
+                            service.getRegisteredRemoteClusterNames(),
+                            new String[] { "cluster*:*", "*:foo", "-*:*" }
+                        )
                     );
                     assertThat(
                         e.getMessage(),
@@ -466,8 +452,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 assertTrue(hasRegisteredClusters(service));
                 assertTrue(isRemoteClusterRegistered(service, "cluster_1"));
                 assertTrue(isRemoteClusterRegistered(service, "cluster_2"));
-                Settings cluster2SettingsDisabled = createSettings("cluster_2", Collections.emptyList());
-                service.updateLinkedProject(toConfig("cluster_2", cluster2SettingsDisabled));
+                removeRemoteCluster(service, "cluster_2");
                 assertFalse(isRemoteClusterRegistered(service, "cluster_2"));
                 IllegalArgumentException iae = expectThrows(
                     IllegalArgumentException.class,
@@ -834,10 +819,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         taskLatch.countDown();
                         boolean isLinked = true;
                         while (taskLatch.getCount() != 0) {
-                            final var future = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
-                            final var settings = createSettings("cluster_1", isLinked ? Collections.emptyList() : seedList);
-                            updateRemoteCluster(service, "cluster_1", initialSettings, settings, future);
-                            safeGet(future);
+                            if (isLinked) {
+                                removeRemoteCluster(service, "cluster_1");
+                            } else {
+                                final var future = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
+                                final var settings = createSettings("cluster_1", seedList);
+                                updateRemoteCluster(service, "cluster_1", initialSettings, settings, future);
+                                safeGet(future);
+                            }
                             isLinked = isLinked == false;
                         }
                         return;
@@ -1342,7 +1331,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 assertConnectionHasProfile(service.getRemoteClusterConnection(goodCluster), "default");
                 assertConnectionHasProfile(service.getRemoteClusterConnection(badCluster), "default");
                 expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
-                final Set<String> aliases = Set.of(badCluster, goodCluster, missingCluster);
+                Set<String> aliases = Set.of(badCluster, goodCluster, missingCluster);
                 final ActionListener<RemoteClusterService.RemoteClusterConnectionStatus> noop = ActionListener.noop();
 
                 {
@@ -1360,8 +1349,17 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertThat(result.addedClusterAliases(), equalTo(aliases));
                     try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                         for (String alias : aliases) {
-                            final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
-                            service.updateRemoteCluster(config, true, ActionListener.releaseAfter(noop, connectionRefs.acquire()));
+                            if (alias.equals(missingCluster)) {
+                                try {
+                                    buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
+                                    fail("Should have rejected attempt to build a config with no seed nodes.");
+                                } catch (IllegalArgumentException ie) {
+                                    assertThat(ie.getMessage(), equalTo("[seedNodes] cannot be empty"));
+                                }
+                            } else {
+                                final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
+                                service.updateRemoteCluster(config, true, ActionListener.releaseAfter(noop, connectionRefs.acquire()));
+                            }
                         }
                     }
                     listener.actionGet(10, TimeUnit.SECONDS);
@@ -1376,6 +1374,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
                 );
                 expectThrows(NoSuchRemoteClusterException.class, () -> service.getRemoteClusterConnection(missingCluster));
+                aliases = Set.of(goodCluster, badCluster);
 
                 {
                     final PlainActionFuture<Void> listener = new PlainActionFuture<>();
@@ -1383,7 +1382,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     // Settings without credentials constitute credentials removal
                     final var result = service.getRemoteClusterCredentialsManager().updateClusterCredentials(settings);
                     assertThat(result.addedClusterAliases().size(), equalTo(0));
-                    assertThat(result.removedClusterAliases(), equalTo(aliases));
+                    assertThat(result.removedClusterAliases(), equalTo(Set.of(goodCluster, badCluster, missingCluster)));
                     try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
                         for (String alias : aliases) {
                             final var config = buildLinkedProjectConfig(alias, Settings.EMPTY, settings);
@@ -1473,7 +1472,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     "Should log when disconnecting from remote",
                     RemoteClusterService.class.getCanonicalName(),
                     Level.INFO,
-                    "remote cluster connection [remote_1] updated: DISCONNECTED"
+                    "remote cluster connection [remote_1] removed: DISCONNECTED"
                 )
             );
 
@@ -1553,6 +1552,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
     private LinkedProjectConfig buildLinkedProjectConfig(String alias, Settings staticSettings, Settings newSettings) {
         final var mergedSettings = Settings.builder().put(staticSettings, false).put(newSettings, false).build();
         return RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, mergedSettings);
+    }
+
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+    private void removeRemoteCluster(RemoteClusterService service, String alias) {
+        service.remove(projectResolver.getProjectId(), ProjectId.DEFAULT, alias);
     }
 
     private void updateRemoteCluster(

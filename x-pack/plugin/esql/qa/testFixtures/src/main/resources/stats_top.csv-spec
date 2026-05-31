@@ -275,7 +275,7 @@ FROM books
     evil = TOP(CASE(year < 1980, title, author), 3, "desc");
 
 title:keyword | calc:keyword | evil:keyword
-[Worlds of Exile and Illusion: Three Complete Novels of the Hainish Series in One Volume--Rocannon's World, Planet of Exile, City of Illusions, Woman-The Full Story: A Dynamic Celebration of Freedoms, Winter notes on summer impressions] | ["'Bria", "Gent", "HE UN"] | [William Faulkner, William Faulkner, William Faulkner]
+[Worlds of Exile and Illusion: Three Complete Novels of the Hainish Series in One Volume--Rocannon's World\, Planet of Exile\, City of Illusions, Woman-The Full Story: A Dynamic Celebration of Freedoms, Winter notes on summer impressions] | ["'Bria", "Gent", "HE UN"] | [William Faulkner, William Faulkner, William Faulkner]
 ;
 
 topTextGrouping
@@ -404,4 +404,30 @@ birth_year:long | v:integer
 1964            | [10002, 10077, 10092, 10093]
 1965            | 10095
 null            | null
+;
+
+outputFieldAndShouldSurrogate
+required_capability: agg_top_with_output_field
+
+FROM employees
+| STATS
+    min_height = TOP(height, 1, "asc"),
+    max_height = TOP(height, 1, "desc")
+;
+
+min_height:double | max_height:double
+1.41              | 2.1
+;
+
+outputFieldAndShouldNotSurrogate
+required_capability: fix_agg_top_with_output_field_surrogate
+
+FROM employees
+| STATS
+    shortest_employee = TOP(height, 1, "asc", emp_no),
+    tallest_employee = TOP(height, 1, "desc", emp_no)
+;
+
+shortest_employee:integer | tallest_employee:integer
+10020                     | 10094
 ;

@@ -9,10 +9,16 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -23,10 +29,16 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.BytesRefSortScript;
+import org.elasticsearch.script.DocReader;
+import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.StringSortScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,11 +47,18 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuilder> {
 
@@ -326,7 +345,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedSort(
             new NestedSortBuilder("path")
@@ -346,7 +365,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
     }
 
     /**
@@ -379,6 +398,147 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
         ScriptSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
+    }
+
+    public void testCancellationCheckWiredForNumberSortScript() throws IOException {
+        AtomicReference<NumberSortScript> capturedScript = new AtomicReference<>();
+        NumberSortScript.LeafFactory leafFactory = new NumberSortScript.LeafFactory() {
+            @Override
+            public NumberSortScript newInstance(DocReader reader) throws IOException {
+                NumberSortScript script = new NumberSortScript(Map.of(), null, reader) {
+                    @Override
+                    public double execute() {
+                        return 0;
+                    }
+                };
+                capturedScript.set(script);
+                return script;
+            }
+
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+        };
+        NumberSortScript.Factory factory = (params, searchLookup) -> leafFactory;
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                SearchExecutionContext context = mock(SearchExecutionContext.class);
+                doReturn(factory).when(context).compile(any(Script.class), same(NumberSortScript.CONTEXT));
+                when(context.lookup()).thenReturn(new SearchLookup(null, null, (ctx, doc) -> null));
+                when(context.searcher()).thenReturn(contextSearcher);
+                SortField sortField = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).build(context).field();
+                XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
+                comparatorSource.newComparator("_script", 1, Pruning.NONE, false).getLeafComparator(reader.leaves().get(0));
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+            }
+        }
+    }
+
+    public void testCancellationCheckWiredForStringSortScript() throws IOException {
+        AtomicReference<StringSortScript> capturedScript = new AtomicReference<>();
+        StringSortScript.LeafFactory leafFactory = new StringSortScript.LeafFactory() {
+            @Override
+            public StringSortScript newInstance(DocReader reader) throws IOException {
+                StringSortScript script = new StringSortScript(Map.of(), reader) {
+                    @Override
+                    public String execute() {
+                        return "";
+                    }
+                };
+                capturedScript.set(script);
+                return script;
+            }
+
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+        };
+        StringSortScript.Factory factory = params -> leafFactory;
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                SearchExecutionContext context = mock(SearchExecutionContext.class);
+                doReturn(factory).when(context).compile(any(Script.class), same(StringSortScript.CONTEXT));
+                when(context.lookup()).thenReturn(new SearchLookup(null, null, (ctx, doc) -> null));
+                when(context.searcher()).thenReturn(contextSearcher);
+                SortField sortField = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.STRING).build(context).field();
+                XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
+                comparatorSource.newComparator("_script", 1, Pruning.NONE, false).getLeafComparator(reader.leaves().get(0));
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+            }
+        }
+    }
+
+    public void testCancellationCheckWiredForBytesRefSortScript() throws IOException {
+        AtomicReference<BytesRefSortScript> capturedScript = new AtomicReference<>();
+        BytesRefSortScript.LeafFactory leafFactory = new BytesRefSortScript.LeafFactory() {
+            @Override
+            public BytesRefSortScript newInstance(DocReader reader) throws IOException {
+                BytesRefSortScript script = new BytesRefSortScript(Map.of(), reader) {
+                    @Override
+                    public Object execute() {
+                        return null;
+                    }
+                };
+                capturedScript.set(script);
+                return script;
+            }
+
+            @Override
+            public boolean needs_score() {
+                return false;
+            }
+        };
+        BytesRefSortScript.Factory factory = params -> leafFactory;
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                SearchExecutionContext context = mock(SearchExecutionContext.class);
+                doReturn(factory).when(context).compile(any(Script.class), same(BytesRefSortScript.CONTEXT));
+                when(context.lookup()).thenReturn(new SearchLookup(null, null, (ctx, doc) -> null));
+                when(context.searcher()).thenReturn(contextSearcher);
+                SortField sortField = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.VERSION).build(context).field();
+                XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
+                comparatorSource.newComparator("_script", 1, Pruning.NONE, false).getLeafComparator(reader.leaves().get(0));
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+            }
+        }
     }
 
     @Override

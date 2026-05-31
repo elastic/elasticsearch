@@ -252,7 +252,7 @@ public class InferenceUtilsTests extends ESTestCase {
             "key",
             5,
             4,
-            "[scope] Invalid value [4.0]. [key] must be a greater than or equal to [5.0]"
+            "[scope] Invalid value [4.0]. [key] must be greater than or equal to [5.0]"
         );
     }
 

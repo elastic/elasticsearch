@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148412
+summary: ES|QL query approximation support for FORK
+type: feature

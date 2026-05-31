@@ -1508,10 +1508,17 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
 
     static final String TARGET_FIELD = "CentralAir";
 
+    /**
+     * Fixed seed for boosted-tree training in {@link #testFeatureImportanceValues}. A random seed can rarely
+     * produce empty per-document feature importance; in that case {@code feature_importance} is omitted from
+     * inference results (see {@code ClassificationInferenceResults#addSupportingFieldsToMap}), failing the test.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/124341">#124341</a>.
+     */
+    private static final long FEATURE_IMPORTANCE_RANDOMIZE_SEED = 42L;
+
     private String jobId;
     private String sourceIndex;
     private String destIndex;
-    private long randomizeSeed;
 
     @Before
     public void setupLogging() {
@@ -1520,11 +1527,6 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                 .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
                 .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
         );
-    }
-
-    @Before
-    public void setUpTests() {
-        randomizeSeed = randomLong();
     }
 
     @After
@@ -1551,7 +1553,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
                 null,
                 null,
                 35.0,
-                randomizeSeed,
+                FEATURE_IMPORTANCE_RANDOMIZE_SEED,
                 null,
                 null
             )

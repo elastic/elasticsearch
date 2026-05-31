@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 // begin generated imports
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -22,14 +21,23 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
 public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.BooleanArrowBufVector {
     boolean getBoolean(int position);
+
+    /**
+     * Copies values from this vector into the destination array.
+     */
+    default void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        for (int i = 0; i < length; i++) {
+            dst[dstPosition + i] = getBoolean(srcPosition + i);
+        }
+    }
 
     @Override
     BooleanBlock asBlock();
 
     @Override
-    BooleanVector filter(int... positions);
+    BooleanVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     BooleanBlock keepMask(BooleanVector mask);
@@ -51,6 +59,15 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
     ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
+     * Return a subset of this vector from {@code beginInclusive} to
+     * {@code endExclusive}. This <strong>may</strong> return the same
+     * instance if the range covers all positions, but if it does it
+     * will {@link #incRef()} it.
+     */
+    @Override
+    BooleanVector slice(int beginInclusive, int endExclusive);
+
+    /**
      * Are all values {@code true}? This will scan all values to check and always answer accurately.
      */
     boolean allTrue();
@@ -59,6 +76,12 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
      * Are all values {@code false}? This will scan all values to check and always answer accurately.
      */
     boolean allFalse();
+
+    /**
+     * The maximum size in bytes of any single value stored in this vector, or {@code 0} if there are no values.
+     * Always {@code Byte.BYTES} since all boolean values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the

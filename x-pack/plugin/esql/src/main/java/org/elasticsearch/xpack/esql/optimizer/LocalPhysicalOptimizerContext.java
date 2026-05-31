@@ -18,5 +18,22 @@ public record LocalPhysicalOptimizerContext(
     EsqlFlags flags,
     Configuration configuration,
     FoldContext foldCtx,
-    SearchStats searchStats
-) {}
+    SearchStats searchStats,
+    ExternalOptimizerContext external
+) {
+    /**
+     * Convenience constructor without external-source state (for backward compatibility and tests
+     * that don't exercise external-source rules). External-source-aware rules must treat the
+     * resulting context as "no external information" and bail out cleanly.
+     */
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats
+    ) {
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, ExternalOptimizerContext.NONE);
+    }
+
+}

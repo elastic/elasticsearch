@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.io.IOException;
@@ -87,8 +89,10 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1019093b - remove unused fields from FieldAttribute #127854
          *  1026343b - added time series field type to EsField  #129649
          *  1033593b - added qualifier back to FieldAttribute #132925
+         *  1033595b - added split indices to EsRelation #138396
+         *  1152296b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033593));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1152296));
     }
 
     /**
@@ -109,8 +113,10 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1964273b - remove unused fields from FieldAttribute #127854
          *  1971523b - added time series field type to EsField  #129649
          *  1986023b - added qualifier back to FieldAttribute #132925
+         *  1986025b - added split indices to EsRelation #138396
+         *  2303919b - turn InvalidMappedFields into UnsupportedAttributes like in production #146117
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986023));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(2303919));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -133,13 +139,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43402881b - remove unused fields from FieldAttribute #127854
          *  43665025b - added time series field type to EsField  #129649
          *  43927169b - added qualifier back to FieldAttribute #132925
+         *  43927171b - added split indices to EsRelation #138396
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927169L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927171L));
     }
 
     /**
@@ -157,13 +164,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  350b - remove unused fields from FieldAttribute #127854
          *  351b - added time series field type to EsField  #129649
          *  352b - added qualifier back to FieldAttribute #132925
+         *  354b - added split indices to EsRelation #138396
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(352), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(354), false);
     }
 
     /**
@@ -173,7 +181,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
      */
     public void testIndexPatternTargetingMultipleIndices() throws IOException {
         /*
-         * History: 4996b - initial
+         * History:
+         * 4996b - initial
+         * 4998b - added split indices to EsRelation #138396
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -183,7 +193,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4996));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4998));
     }
 
     /**
@@ -211,10 +221,26 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
     private void testSerializePlanWithIndex(EsIndex index, ByteSizeValue expected, boolean keepAllFields) throws IOException {
         List<Attribute> allAttributes = Analyzer.mappingAsAttributes(randomSource(), index.mapping());
         List<Attribute> keepAttributes = keepAllFields || allAttributes.isEmpty() ? allAttributes : List.of(allAttributes.getFirst());
-        EsRelation relation = new EsRelation(randomSource(), index.name(), IndexMode.STANDARD, index.indexNameWithModes(), keepAttributes);
+        EsRelation relation = new EsRelation(
+            randomSource(),
+            index.name(),
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            index.indexNameWithModes(),
+            keepAttributes
+        );
         Limit limit = new Limit(randomSource(), new Literal(randomSource(), 10, DataType.INTEGER), relation);
         Project project = new Project(randomSource(), limit, limit.output());
-        FragmentExec fragmentExec = new FragmentExec(project);
+        // Mirror the analyzer's UnionTypesCleanup: convert any InvalidMappedField-backed FieldAttribute into an UnsupportedAttribute so
+        // that the serialized plan matches what production sends over the wire (and round-trip equality holds). The fixtures here only
+        // produce genuine type conflicts (no single-type potentially-unmapped fields), so flagTypeConflicts() is sufficient and we don't
+        // need the full cleanTypeConflicts(...) logic from UnionTypesCleanup.
+        LogicalPlan cleanedProject = project.transformUp(
+            LogicalPlan.class,
+            p -> p.transformExpressionsOnly(FieldAttribute.class, FieldAttribute::flagTypeConflicts)
+        );
+        FragmentExec fragmentExec = new FragmentExec(cleanedProject);
         ExchangeSinkExec exchangeSinkExec = new ExchangeSinkExec(randomSource(), fragmentExec.output(), false, fragmentExec);
         try (BytesStreamOutput out = new BytesStreamOutput(); PlanStreamOutput pso = new PlanStreamOutput(out, configuration())) {
             pso.writeNamedWriteable(exchangeSinkExec);
@@ -271,8 +297,8 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
         }
 
         Map<String, IndexMode> concrete = new TreeMap<>();
-        keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
-        textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.values())));
+        keywordIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.availableModes())));
+        textIndices.forEach(index -> concrete.put(index, randomFrom(IndexMode.availableModes())));
         return EsIndexGenerator.esIndex("name", fields, concrete);
     }
 

@@ -10,45 +10,40 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-import java.util.Arrays;
 import java.util.Iterator;
 
 import static org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder.getMultiMagnitudes;
 
-public class FloatRankVectors implements RankVectors {
+public class FloatRankVectors implements RankVectors, MultiFloatVectorsSource {
 
     private final BytesRef magnitudes;
     private float[] magnitudesArray = null;
     private final int dims;
     private final int numVectors;
     private final VectorIterator<float[]> vectorValues;
+    private final BytesRef vectorBytes;
+    private float[] scoresScratch = new float[0];
 
     public FloatRankVectors(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
+        this(decodedDocVector, magnitudes, numVectors, dims, null);
+    }
+
+    public FloatRankVectors(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims, BytesRef vectorBytes) {
         assert magnitudes.length == numVectors * Float.BYTES;
         this.vectorValues = decodedDocVector;
         this.magnitudes = magnitudes;
         this.numVectors = numVectors;
         this.dims = dims;
+        this.vectorBytes = vectorBytes;
     }
 
     @Override
     public float maxSimDotProduct(float[][] query) {
-        vectorValues.reset();
-        float[] maxes = new float[query.length];
-        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
-        while (vectorValues.hasNext()) {
-            float[] vv = vectorValues.next();
-            for (int i = 0; i < query.length; i++) {
-                maxes[i] = Math.max(maxes[i], VectorUtil.dotProduct(query[i], vv));
-            }
-        }
-        float sum = 0;
-        for (float m : maxes) {
-            sum += m;
-        }
-        return sum;
+        float[] scores = ensureScoresScratch();
+        return ESVectorUtil.maxSimDotProduct(this, query, scores);
     }
 
     @Override
@@ -88,4 +83,37 @@ public class FloatRankVectors implements RankVectors {
     public int size() {
         return numVectors;
     }
+
+    @Override
+    public BytesRef vectorBytes() {
+        return vectorBytes;
+    }
+
+    @Override
+    public int vectorCount() {
+        return numVectors;
+    }
+
+    @Override
+    public int vectorDims() {
+        return dims;
+    }
+
+    @Override
+    public int vectorByteSize() {
+        return dims * Float.BYTES;
+    }
+
+    @Override
+    public Iterator<float[]> vectorValues() {
+        return vectorValues.copy();
+    }
+
+    private float[] ensureScoresScratch() {
+        if (scoresScratch.length < numVectors) {
+            scoresScratch = new float[numVectors];
+        }
+        return scoresScratch;
+    }
+
 }

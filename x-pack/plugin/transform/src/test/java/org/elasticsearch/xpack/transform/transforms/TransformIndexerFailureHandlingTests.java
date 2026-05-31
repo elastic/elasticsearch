@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -30,12 +31,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
@@ -112,7 +114,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
-        private final Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction;
+        private final Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction;
 
         // used for synchronizing with the test
         private CountDownLatch latch;
@@ -133,7 +135,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             TransformContext context,
             Function<SearchRequest, SearchResponse> searchFunction,
             Function<BulkRequest, BulkResponse> bulkFunction,
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+            Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction,
             int doProcessCount
         ) {
             super(
@@ -146,7 +148,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                     mock(TransformCheckpointService.class),
                     auditor,
                     new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
-                    mock(TransformNode.class)
+                    mock(TransformNode.class),
+                    mock(CrossProjectModeDecider.class),
+                    projectId -> false,
+                    mock(ProjectResolver.class)
                 ),
                 checkpointProvider,
                 initialState,
@@ -239,9 +244,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+        protected void doDeleteByQuery(
+            DeleteByQueryRequest deleteByQueryRequest,
+            ActionListener<BulkByPaginatedSearchResponse> responseListener
+        ) {
             try {
-                BulkByScrollResponse response = deleteByQueryFunction.apply(deleteByQueryRequest);
+                BulkByPaginatedSearchResponse response = deleteByQueryFunction.apply(deleteByQueryRequest);
                 responseListener.onResponse(response);
             } catch (Exception e) {
                 responseListener.onFailure(e);
@@ -480,9 +488,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+        searchHits.decRef(); // transfer ownership to searchResponse
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -492,7 +500,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction = deleteByQueryRequest -> {
+            Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction = deleteByQueryRequest -> {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
@@ -561,9 +569,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+        searchHits.decRef(); // transfer ownership to searchResponse
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -573,7 +581,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-            Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction = deleteByQueryRequest -> {
+            Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction = deleteByQueryRequest -> {
                 throw new SearchPhaseExecutionException(
                     "query",
                     "Partial shards failure",
@@ -645,9 +653,9 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        SearchHits searchHits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(searchHits);
+        searchHits.decRef(); // transfer ownership to searchResponse
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = new Function<>() {
@@ -876,9 +884,12 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
     }
 
     private static Function<SearchRequest, SearchResponse> returnHit() {
-        return request -> SearchResponseUtils.successfulResponse(
-            SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
-        );
+        return request -> {
+            SearchHits hits = new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f);
+            SearchResponse response = SearchResponseUtils.successfulResponse(hits);
+            hits.decRef(); // transfer ownership to response
+            return response;
+        };
     }
 
     /**
@@ -1067,7 +1078,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
-        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+        Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction,
         ThreadPool threadPool,
         TransformAuditor auditor,
         TransformContext context
@@ -1080,7 +1091,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Function<SearchRequest, SearchResponse> searchFunction,
         Function<BulkRequest, BulkResponse> bulkFunction,
-        Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
+        Function<DeleteByQueryRequest, BulkByPaginatedSearchResponse> deleteByQueryFunction,
         ThreadPool threadPool,
         TransformAuditor auditor,
         TransformContext context,

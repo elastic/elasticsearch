@@ -19,6 +19,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -53,18 +54,25 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     // Intermediate graph degree, the number of connections for each node before pruning
     private final int beamWidth;
     private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
+    private final long totalDeviceMemory;
 
     public ES92GpuHnswVectorsFormat() {
-        this(CuVSResourceManager::pooling, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+        this(CuVSResourceManager::pooling, CuVSGPUSupport.instance().getTotalGpuMemory(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
-    public ES92GpuHnswVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager::pooling, maxConn, beamWidth);
-    };
+    public ES92GpuHnswVectorsFormat(long totalDeviceMemory, int maxConn, int beamWidth) {
+        this(CuVSResourceManager::pooling, totalDeviceMemory, maxConn, beamWidth);
+    }
 
-    public ES92GpuHnswVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, int maxConn, int beamWidth) {
+    ES92GpuHnswVectorsFormat(
+        Supplier<CuVSResourceManager> cuVSResourceManagerSupplier,
+        long totalDeviceMemory,
+        int maxConn,
+        int beamWidth
+    ) {
         super(NAME);
         this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
+        this.totalDeviceMemory = totalDeviceMemory;
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
     }
@@ -73,6 +81,7 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         return new ES92GpuHnswVectorsWriter(
             cuVSResourceManagerSupplier.get(),
+            totalDeviceMemory,
             state,
             maxConn,
             beamWidth,
@@ -88,6 +97,30 @@ public class ES92GpuHnswVectorsFormat extends KnnVectorsFormat {
     @Override
     public int getMaxDimensions(String fieldName) {
         return MAX_DIMS_COUNT;
+    }
+
+    /**
+     * Translates an HNSW {@code m} parameter to the CAGRA graph degree.
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraGraphDegree(int m) {
+        return 2 + m * 2 / 3;
+    }
+
+    /**
+     * Translates HNSW {@code m} and {@code efConstruction} parameters to the CAGRA intermediate graph degree.
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraIntermediateGraphDegree(int m, int efConstruction) {
+        return m + m * efConstruction / 256;
+    }
+
+    /**
+     * Translates HNSW {@code efConstruction} to the CAGRA NN-Descent max iterations,
+     * TODO: use the cuvs API for converting HNSW CPU Params to Cagra params when available.
+     */
+    public static int cagraNNDescentNumIterations(int efConstruction) {
+        return 5 + efConstruction / 16;
     }
 
     @Override

@@ -124,6 +124,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.elasticsearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.elasticsearch.index.translog.TranslogOperationsUtils.indexOp;
@@ -875,7 +876,7 @@ public class TranslogTests extends ESTestCase {
                         Translog.Index expIndexOp = (Translog.Index) expectedOp;
                         assertEquals(expIndexOp.uid(), indexOp.uid());
                         assertEquals(expIndexOp.routing(), indexOp.routing());
-                        assertEquals(expIndexOp.source(), indexOp.source());
+                        assertThat(indexOp.source(), equalBytes(expIndexOp.source()));
                         assertEquals(expIndexOp.version(), indexOp.version());
                     }
                     case DELETE -> {
@@ -1020,8 +1021,13 @@ public class TranslogTests extends ESTestCase {
                     while (run.get() && idGenerator.get() < maxOps) {
                         long id = idGenerator.getAndIncrement();
                         final Translog.Operation op;
-                        final Translog.Operation.Type type = Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type
-                            .values().length))];
+                        // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                        final Translog.Operation.Type[] singleOpTypes = {
+                            Translog.Operation.Type.CREATE,
+                            Translog.Operation.Type.INDEX,
+                            Translog.Operation.Type.DELETE,
+                            Translog.Operation.Type.NO_OP };
+                        final Translog.Operation.Type type = singleOpTypes[((int) (id % singleOpTypes.length))];
                         op = switch (type) {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
@@ -2424,7 +2430,13 @@ public class TranslogTests extends ESTestCase {
                 downLatch.await();
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
-                    final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
+                    // BATCH records are produced via Translog.add(IndexBatch); these tests cover the single-op path only.
+                    final Translog.Operation.Type type = randomFrom(
+                        Translog.Operation.Type.CREATE,
+                        Translog.Operation.Type.INDEX,
+                        Translog.Operation.Type.DELETE,
+                        Translog.Operation.Type.NO_OP
+                    );
                     op = switch (type) {
                         case CREATE, INDEX -> indexOp(
                             threadId + "_" + opCount,
@@ -3470,11 +3482,7 @@ public class TranslogTests extends ESTestCase {
         Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomPrimaryTerm, randomSeqNum, true, eIndex.id());
         Translog.Index index = new Translog.Index(eIndex, eIndexResult);
 
-        TransportVersion wireVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersion.minimumCompatible(),
-            TransportVersion.current()
-        );
+        TransportVersion wireVersion = TransportVersionUtils.randomCompatibleVersion();
         BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(wireVersion);
         index.writeTo(out);

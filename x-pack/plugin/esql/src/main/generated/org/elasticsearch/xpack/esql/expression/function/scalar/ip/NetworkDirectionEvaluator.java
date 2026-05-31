@@ -13,17 +13,17 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link NetworkDirection}.
+ * {@link ExpressionEvaluator} implementation for {@link NetworkDirection}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class NetworkDirectionEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(NetworkDirectionEvaluator.class);
 
   private final Source source;
@@ -32,19 +32,19 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
 
   private final BytesRef netScratch;
 
-  private final EvalOperator.ExpressionEvaluator sourceIp;
+  private final ExpressionEvaluator sourceIp;
 
-  private final EvalOperator.ExpressionEvaluator destinationIp;
+  private final ExpressionEvaluator destinationIp;
 
-  private final EvalOperator.ExpressionEvaluator networks;
+  private final ExpressionEvaluator networks;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public NetworkDirectionEvaluator(Source source, BytesRef scratch, BytesRef netScratch,
-      EvalOperator.ExpressionEvaluator sourceIp, EvalOperator.ExpressionEvaluator destinationIp,
-      EvalOperator.ExpressionEvaluator networks, DriverContext driverContext) {
+      ExpressionEvaluator sourceIp, ExpressionEvaluator destinationIp, ExpressionEvaluator networks,
+      DriverContext driverContext) {
     this.source = source;
     this.scratch = scratch;
     this.netScratch = netScratch;
@@ -135,34 +135,27 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
     private final Function<DriverContext, BytesRef> scratch;
 
     private final Function<DriverContext, BytesRef> netScratch;
 
-    private final EvalOperator.ExpressionEvaluator.Factory sourceIp;
+    private final ExpressionEvaluator.Factory sourceIp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory destinationIp;
+    private final ExpressionEvaluator.Factory destinationIp;
 
-    private final EvalOperator.ExpressionEvaluator.Factory networks;
+    private final ExpressionEvaluator.Factory networks;
 
     public Factory(Source source, Function<DriverContext, BytesRef> scratch,
-        Function<DriverContext, BytesRef> netScratch,
-        EvalOperator.ExpressionEvaluator.Factory sourceIp,
-        EvalOperator.ExpressionEvaluator.Factory destinationIp,
-        EvalOperator.ExpressionEvaluator.Factory networks) {
+        Function<DriverContext, BytesRef> netScratch, ExpressionEvaluator.Factory sourceIp,
+        ExpressionEvaluator.Factory destinationIp, ExpressionEvaluator.Factory networks) {
       this.source = source;
       this.scratch = scratch;
       this.netScratch = netScratch;

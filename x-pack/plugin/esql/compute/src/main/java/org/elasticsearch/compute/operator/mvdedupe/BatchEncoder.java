@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
 
 import java.lang.invoke.MethodHandles;
@@ -73,7 +74,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
      *
      * @return the number of bytes has read
      */
-    public abstract int read(int index, BytesRefBuilder dst);
+    public abstract int read(int index, BreakingBytesRefBuilder dst);
 
     /**
      * Encodes the next batch of entries. This will encode values until the next
@@ -165,7 +166,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
          * no random-access way to get the first index for a position.
          */
         @Override
-        public final int read(int index, BytesRefBuilder dst) {
+        public final int read(int index, BreakingBytesRefBuilder dst) {
             int start = valueOffsets[index];
             int length = valueOffsets[index + 1] - start;
             if (length > 0) {
@@ -286,7 +287,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        public int read(int index, BytesRefBuilder dst) {
+        public int read(int index, BreakingBytesRefBuilder dst) {
             if (valueCount == 0) {
                 assert index == 0 : index;
                 return 0;
@@ -296,7 +297,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             }
         }
 
-        protected abstract int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst);
+        protected abstract int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst);
 
         @Override
         public final long ramBytesUsed() {
@@ -366,7 +367,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
             int before = dst.length();
             int after = before + Integer.BYTES;
             dst.grow(after);
@@ -416,7 +417,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
             int before = dst.length();
             int after = before + Long.BYTES;
             dst.grow(after);
@@ -484,7 +485,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
             int before = dst.length();
             int after = before + Double.BYTES;
             dst.grow(after);
@@ -546,7 +547,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
             var v = ((BooleanBlock) block).getBoolean(valueIndex);
             dst.append((byte) (v ? 1 : 0));
             return 1;
@@ -613,7 +614,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
             var v = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
             int start = dst.length();
             dst.grow(start + Integer.BYTES + v.length);
@@ -654,7 +655,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
         }
 
         @Override
-        protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
+        protected int readValueAtBlockIndex(int valueIndex, BreakingBytesRefBuilder dst) {
             assert false : "all positions all nulls";
             throw new IllegalStateException("all positions all nulls");
         }

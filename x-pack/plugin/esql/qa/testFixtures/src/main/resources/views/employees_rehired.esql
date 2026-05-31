@@ -1,0 +1,2 @@
+FROM employees
+| WHERE is_rehired == true

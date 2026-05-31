@@ -12,31 +12,31 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ClampMax}.
+ * {@link ExpressionEvaluator} implementation for {@link ClampMax}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ClampMaxLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class ClampMaxLongEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ClampMaxLongEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
-  private final EvalOperator.ExpressionEvaluator max;
+  private final ExpressionEvaluator max;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public ClampMaxLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      EvalOperator.ExpressionEvaluator max, DriverContext driverContext) {
+  public ClampMaxLongEvaluator(Source source, ExpressionEvaluator field, ExpressionEvaluator max,
+      DriverContext driverContext) {
     this.source = source;
     this.field = field;
     this.max = max;
@@ -124,25 +124,20 @@ public final class ClampMaxLongEvaluator implements EvalOperator.ExpressionEvalu
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    private final EvalOperator.ExpressionEvaluator.Factory max;
+    private final ExpressionEvaluator.Factory max;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
-        EvalOperator.ExpressionEvaluator.Factory max) {
+    public Factory(Source source, ExpressionEvaluator.Factory field,
+        ExpressionEvaluator.Factory max) {
       this.source = source;
       this.field = field;
       this.max = max;

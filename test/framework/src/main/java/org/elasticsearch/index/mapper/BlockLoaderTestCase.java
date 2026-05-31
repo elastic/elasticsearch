@@ -11,13 +11,21 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -29,33 +37,62 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.equalTo;
+
+/**
+ * Test case for {@link MappedFieldType#blockLoader} specializing in configuring the mapping and
+ * invoking {@link BlockLoader}. See {@link AbstractBlockLoaderTestCase} for tests that don't
+ * require setting up a field mapper.
+ *
+ * TODO rename this.
+ */
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
-    private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
+    protected static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,
         MappedFieldType.FieldExtractPreference.DOC_VALUES,
         MappedFieldType.FieldExtractPreference.STORED };
 
+    /**
+     * A large enough size that loading the field won't circuit break.
+     */
+    public static final ByteSizeValue TEST_BREAKER_SIZE = ByteSizeValue.ofMb(1);
+
     @ParametersFactory(argumentFormatting = "preference=%s")
     public static List<Object[]> args() {
         List<Object[]> args = new ArrayList<>();
-        for (boolean syntheticSource : new boolean[] { false, true }) {
-            for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
-                args.add(new Object[] { new Params(syntheticSource, preference) });
+
+        List<IndexMode> modes = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()
+            ? List.of(IndexMode.STANDARD, IndexMode.COLUMNAR)
+            : List.of(IndexMode.STANDARD);
+
+        for (IndexMode indexMode : modes) {
+            for (boolean syntheticSource : new boolean[] { false, true }) {
+                // COLUMNAR already implies synthetic source mode; skip the non-synthetic combo to avoid invalid configurations.
+                if (indexMode == IndexMode.COLUMNAR && syntheticSource == false) {
+                    continue;
+                }
+                for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
+                    args.add(new Object[] { new Params(syntheticSource, preference, indexMode) });
+                }
             }
         }
         return args;
     }
 
-    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
+    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference, IndexMode indexMode) {
+        public Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {
+            this(syntheticSource, preference, IndexMode.STANDARD);
+        }
+    }
 
     public record TestContext(boolean forceFallbackSyntheticSource, boolean isMultifield) {}
 
-    private final String fieldType;
+    protected final String fieldType;
     protected final Params params;
     private final Collection<DataSourceHandler> customDataSourceHandlers;
-    private final BlockLoaderTestRunner runner;
+    protected final BlockLoaderTestRunner runner;
 
-    private final String fieldName;
+    protected final String fieldName;
 
     protected BlockLoaderTestCase(String fieldType, Params params) {
         this(fieldType, List.of(), params);
@@ -66,6 +103,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         this.params = params;
         this.customDataSourceHandlers = customDataSourceHandlers;
         this.runner = new BlockLoaderTestRunner(params);
+        if (randomBoolean()) {
+            runner.allowDummyDocs();
+        }
 
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
     }
@@ -80,25 +120,69 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         assumeTrue("random test inherited from MapperServiceTestCase", false);
     }
 
+    protected String getFieldNameToLoad(String fieldName, Object value) {
+        return fieldName;
+    }
+
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(TEST_BREAKER_SIZE));
+    }
+
+    public void testBlockLoaderWithCranky() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(CircuitBreaker breaker) throws IOException {
+        runner.breaker(breaker);
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var specification = buildSpecification(customDataSourceHandlers);
+        var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
 
         var mapping = new MappingGenerator(specification).generate(template);
-        var document = new DocumentGenerator(specification).generate(template, mapping);
+        runner.document(new DocumentGenerator(specification).generate(template, mapping));
 
-        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), new TestContext(false, false));
+        runner.fieldName(getFieldNameToLoad(fieldName, getFieldValue(runner.mapDoc(), fieldName)));
 
+        Object expected = expected(
+            mapping.lookup().get(fieldName),
+            getFieldValue(runner.mapDoc(), runner.fieldName()),
+            new TestContext(false, false)
+        );
+
+        var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        runner.mapperService(createMapperService(settings.build(), mappingXContent));
+        configureRunner(runner, settings, mapping).run(expected);
+    }
 
-        runner.runTest(mapperService, document, expected, fieldName);
+    protected BlockLoaderTestRunner configureRunner(BlockLoaderTestRunner runner, Settings.Builder settings, Mapping mapping) {
+        return runner;
+    }
+
+    public void testBlockLoaderForFieldInObject() throws IOException {
+        testBlockLoaderForFieldInObject(newLimitedBreaker(TEST_BREAKER_SIZE));
+    }
+
+    public void testBlockLoaderForFieldInObjectWithCranky() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoaderForFieldInObject(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
     }
 
     @SuppressWarnings("unchecked")
-    public void testBlockLoaderForFieldInObject() throws IOException {
+    private void testBlockLoaderForFieldInObject(CircuitBreaker breaker) throws IOException {
+        runner.breaker(breaker);
         int depth = randomIntBetween(0, 3);
 
         Map<String, Template.Entry> currentLevel = new HashMap<>();
@@ -118,13 +202,15 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
 
-        var specification = buildSpecification(customDataSourceHandlers);
+        var specification = buildSpecification(customDataSourceHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
-        var document = new DocumentGenerator(specification).generate(template, mapping);
+        runner.document(new DocumentGenerator(specification).generate(template, mapping));
 
         TestContext testContext = new TestContext(false, false);
 
-        if (params.syntheticSource && randomBoolean()) {
+        // synthetic_source_keep is rejected on strict-columnar indices, so the fallback-through-ignored-source path can only be exercised
+        // on non-strict-columnar synthetic-source indices.
+        if (params.syntheticSource && params.indexMode.isStrictColumnar() == false && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
@@ -133,22 +219,48 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             testContext = new TestContext(true, false);
         }
 
+        var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        runner.mapperService(createMapperService(settings.build(), mappingXContent));
+
+        runner.fieldName(getFieldNameToLoad(fullFieldName.toString(), getFieldValue(runner.mapDoc(), fullFieldName.toString())));
 
         Object expected = expected(
             mapping.lookup().get(fullFieldName.toString()),
-            getFieldValue(document, fullFieldName.toString()),
+            getFieldValue(runner.mapDoc(), runner.fieldName()),
             testContext
         );
 
-        runner.runTest(mapperService, document, expected, fullFieldName.toString());
+        configureRunner(runner, settings, mapping).run(expected);
     }
 
-    @SuppressWarnings("unchecked")
+    protected boolean supportsMultiField() {
+        return true;
+    }
+
     public void testBlockLoaderOfMultiField() throws IOException {
+        if (false == supportsMultiField()) {
+            return;
+        }
+        testBlockLoaderOfMultiField(newLimitedBreaker(TEST_BREAKER_SIZE));
+    }
+
+    public void testBlockLoaderOfMultiFieldWithCranky() throws IOException {
+        if (false == supportsMultiField()) {
+            return;
+        }
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoaderOfMultiField(cranky);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoaderOfMultiField(CircuitBreaker breaker) throws IOException {
+        runner.breaker(breaker);
         // We are going to have a parent field and a multi field of the same type in order to be sure we can index data.
         // Then we'll test block loader of the multi field.
         var template = new Template(Map.of("parent", new Template.Leaf("parent", fieldType)));
@@ -158,9 +270,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             @Override
             public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
                 // This is a bit tricky meta-logic.
-                // We want to customize mapping but to do this we need the mapping for the same field type
-                // so we use name to untangle this.
-                if (request.fieldName().equals("parent") == false) {
+                // We want to customize mapping but to do this we need the mapping for the same field type so we use name to untangle this.
+                // In strict-columnar mode, the buildSpecification wrapper renames "parent" to "_columnar_inner_parent" when it recurses
+                // through the handler chain; match that too so the {fields: {mf: …}} subtree still lands on the parent mapping.
+                if (request.fieldName().equals("parent") == false && request.fieldName().equals("_columnar_inner_parent") == false) {
                     return null;
                 }
 
@@ -193,42 +306,100 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         });
         customHandlers.addAll(customDataSourceHandlers);
-        var specification = buildSpecification(customHandlers);
+        var specification = buildSpecification(customHandlers, params.indexMode);
         var mapping = new MappingGenerator(specification).generate(template);
+        @SuppressWarnings("unchecked")
         var fieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.lookup().get("parent").get("fields")).get("mf");
 
-        var document = new DocumentGenerator(specification).generate(template, mapping);
+        runner.document(new DocumentGenerator(specification).generate(template, mapping));
 
-        Object expected = expected(fieldMapping, getFieldValue(document, "parent"), new TestContext(false, true));
+        Object expected = expected(fieldMapping, getFieldValue(runner.mapDoc(), "parent"), new TestContext(false, true));
+        var settings = getSettingsForParams();
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        var mapperService = params.syntheticSource
-            ? createSytheticSourceMapperService(mappingXContent)
-            : createMapperService(mappingXContent);
+        runner.fieldName("parent.mf");
+        runner.mapperService(createMapperService(settings.build(), mappingXContent));
+        configureRunner(runner, settings, mapping).run(expected);
+    }
 
-        runner.runTest(mapperService, document, expected, "parent.mf");
+    protected Settings.Builder getSettingsForParams() {
+        return getSettingsForParams(params);
+    }
+
+    public static Settings.Builder getSettingsForParams(Params params) {
+        var builder = Settings.builder();
+        if (params.syntheticSource()) {
+            builder.put("index.mapping.source.mode", "synthetic");
+        }
+        if (params.indexMode() != IndexMode.STANDARD) {
+            builder.put(IndexSettings.MODE.getKey(), params.indexMode().name());
+        }
+        return builder;
     }
 
     public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers) {
+        return buildSpecification(customHandlers, IndexMode.STANDARD);
+    }
+
+    public static DataGeneratorSpecification buildSpecification(Collection<DataSourceHandler> customHandlers, IndexMode indexMode) {
+        var coreHandlers = new ArrayList<DataSourceHandler>();
+        coreHandlers.add(new DataSourceHandler() {
+            @Override
+            public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
+                return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
+            }
+
+            @Override
+            public DataSourceResponse.ObjectMappingParametersGenerator handle(DataSourceRequest.ObjectMappingParametersGenerator request) {
+                return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
+            }
+        });
+        if (indexMode.isStrictColumnar()) {
+            String columnarUnwrapMarker = "_columnar_inner_";
+            coreHandlers.add(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+                    if (request.fieldName().startsWith(columnarUnwrapMarker)) {
+                        return null;
+                    }
+                    var dataSource = request.dataSource();
+                    return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
+                        var mapping = new HashMap<>(
+                            dataSource.get(
+                                new DataSourceRequest.LeafMappingParametersGenerator(
+                                    dataSource,
+                                    // Delegate to the downstream handler under a new name to avoid self-recursion.
+                                    columnarUnwrapMarker + request.fieldName(),
+                                    request.fieldType(),
+                                    request.eligibleCopyToFields(),
+                                    request.dynamicMapping()
+                                )
+                            ).mappingGenerator().get()
+                        );
+                        // synthetic_source_keep and store are forbidden on strict-columnar indices
+                        mapping.remove(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM);
+                        mapping.remove("store");
+                        return mapping;
+                    });
+                }
+            });
+        }
         return DataGeneratorSpecification.builder()
             .withFullyDynamicMapping(false)
             // Disable dynamic mapping and disabled objects
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.DynamicMappingGenerator handle(DataSourceRequest.DynamicMappingGenerator request) {
-                    return new DataSourceResponse.DynamicMappingGenerator(isObject -> false);
-                }
-
-                @Override
-                public DataSourceResponse.ObjectMappingParametersGenerator handle(
-                    DataSourceRequest.ObjectMappingParametersGenerator request
-                ) {
-                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
-                }
-            }))
+            .withDataSourceHandlers(coreHandlers)
             .withDataSourceHandlers(customHandlers)
             .build();
     }
 
+    /**
+     * For a given mapping and input value, compute the value that will be in the block.  Values are generated from the
+     * {@link DocumentGenerator}, and the behavior can be controled by writing a custom {@link DataSourceHandler}.
+     *
+     * @param fieldMapping Generated parameters for this field mapping
+     * @param value Generated input value to convert
+     * @param testContext Context information for the current test run
+     * @return The value that will be added to the block
+     */
     protected abstract Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext);
 
     protected static Object maybeFoldList(List<?> list) {
@@ -257,8 +428,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     private void processLevel(Map<String, Object> level, String field, ArrayList<Object> values) {
         if (field.contains(".") == false) {
-            var value = level.get(field);
-            values.add(value);
+            if (level.containsKey(field)) {
+                var value = level.get(field);
+                values.add(value);
+            }
             return;
         }
 
@@ -275,6 +448,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     }
 
     public static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
-        return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
+        Object value = fieldMapping.getOrDefault("doc_values", defaultValue);
+        if (value instanceof Boolean b) {
+            return b;
+        } else if (value instanceof Map) {
+            return true;
+        } else {
+            throw new IllegalArgumentException("Unexpected value [" + value + "] for mapping parameter [doc_values]");
+        }
     }
 }

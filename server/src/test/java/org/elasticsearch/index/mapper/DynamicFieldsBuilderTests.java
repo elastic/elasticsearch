@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DynamicFieldsBuilderTests extends ESTestCase {
 
@@ -57,10 +60,11 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, fieldname);
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals(fieldname, dynamicMappers.get(0).fullPath());
-        assertEquals(expectedType, dynamicMappers.get(0).typeName());
+        Mapper built = dynamicMappers.get(0).build(MapperBuilderContext.root(false, false));
+        assertEquals(fieldname, built.fullPath());
+        assertEquals(expectedType, built.typeName());
     }
 
     public void testCreateDynamicStringFieldAsKeywordForDimension() throws IOException {
@@ -74,7 +78,10 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 
-        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.fromMapping(mapping), sourceToParse) {
+        DocumentParserContext ctx = new TestDocumentParserContext(
+            MappingLookup.fromMapping(mapping, randomFrom(IndexMode.availableModes())),
+            sourceToParse
+        ) {
             @Override
             public XContentParser parser() {
                 return parser;
@@ -88,9 +95,39 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
         parser.nextToken();
         assertTrue(parser.currentToken().isValue());
         DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
-        List<Mapper> dynamicMappers = ctx.getDynamicMappers();
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
         assertEquals(1, dynamicMappers.size());
-        assertEquals("labels.f1", dynamicMappers.get(0).fullPath());
-        assertEquals("keyword", dynamicMappers.get(0).typeName());
+        Mapper built = dynamicMappers.get(0).build(ctx.createDynamicMapperBuilderContext());
+        assertEquals("labels.f1", built.fullPath());
+        assertEquals("keyword", built.typeName());
+    }
+
+    public void testCreateDynamicStringFieldWithoutAutoTextSubfield() throws IOException {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT.getKey(), false).build();
+        String source = "{\"f1\": \"foobar\"}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, source);
+        SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
+        DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, sourceToParse, settings) {
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+        };
+
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+        parser.nextToken();
+        assertTrue(parser.currentToken().isValue());
+        DynamicFieldsBuilder.DYNAMIC_TRUE.createDynamicFieldFromValue(ctx, "f1");
+        List<Mapper.Builder> dynamicMappers = ctx.getDynamicMappers();
+        assertEquals(1, dynamicMappers.size());
+        Mapper built = dynamicMappers.get(0).build(MapperBuilderContext.root(false, false));
+        assertEquals("f1", built.fullPath());
+        assertEquals("keyword", built.typeName());
+        assertThat(built, instanceOf(KeywordFieldMapper.class));
+        KeywordFieldMapper kwdBuilt = (KeywordFieldMapper) built;
+        assertFalse(kwdBuilt.multiFields().iterator().hasNext());
+        assertTrue(kwdBuilt.fieldType().usesBinaryDocValues());
     }
 }

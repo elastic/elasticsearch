@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import io.netty.handler.codec.http.HttpMethod;
 
@@ -49,8 +50,10 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
+        S3ConsistencyModel::randomConsistencyModel,
         mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
     );
 

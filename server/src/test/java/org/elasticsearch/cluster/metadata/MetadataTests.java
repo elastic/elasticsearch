@@ -42,7 +42,6 @@ import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasks;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
-import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -466,12 +465,9 @@ public class MetadataTests extends ESTestCase {
 
         final var clusterService = mock(ClusterService.class);
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
-        final var healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
-            clusterService,
-            mock(PersistentTasksService.class),
-            Settings.EMPTY,
-            ClusterSettings.createBuiltInClusterSettings()
-        );
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        final var healthNodeTaskExecutor = new HealthNodeTaskExecutor(clusterService);
         new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor));
 
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
@@ -1165,11 +1161,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexVersionAllProjects() {
         final int numProjects = between(1, 5);
-        final List<IndexVersion> indexVersions = randomList(
-            numProjects,
-            numProjects,
-            () -> IndexVersionUtils.randomCompatibleVersion(random())
-        );
+        final List<IndexVersion> indexVersions = randomList(numProjects, numProjects, () -> IndexVersionUtils.randomCompatibleVersion());
 
         final Map<ProjectId, ProjectMetadata> projectMetadataMap = new HashMap<>();
         for (int i = 0; i < numProjects; i++) {

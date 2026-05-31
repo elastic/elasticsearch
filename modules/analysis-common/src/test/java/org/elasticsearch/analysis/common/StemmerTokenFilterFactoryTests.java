@@ -106,7 +106,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testGermanAndGerman2Stemmer() throws IOException {
-        IndexVersion v = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
+        IndexVersion v = IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current());
         Analyzer analyzer = createGermanStemmer("german", v);
         assertAnalyzesTo(analyzer, "Buecher Bücher", new String[] { "Buch", "Buch" });
 
@@ -151,7 +151,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        assertCriticalWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
+        assertWarnings("The [dutch_kp] stemmer is deprecated and will be removed in a future version.");
     }
 
     public void testLovinsDeprecation() throws IOException {
@@ -164,6 +164,6 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
 
         AnalysisTestsHelper.createTestAnalysisFromSettings(settings, PLUGIN);
-        assertCriticalWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
+        assertWarnings("The [lovins] stemmer is deprecated and will be removed in a future version.");
     }
 }

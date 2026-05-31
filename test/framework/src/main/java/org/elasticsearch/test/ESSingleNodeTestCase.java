@@ -362,13 +362,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null);
-    }
-
-    /**
-     * Create a new index on the singleton node with the provided index settings.
-     */
     protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
         if (mappings != null) {
@@ -380,11 +373,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /**
      * Create a new index on the singleton node with the provided index settings.
      */
-    protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
+    protected IndexService createIndex(String index, Settings settings, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = indicesAdmin().prepareCreate(index).setSettings(settings);
-        if (type != null) {
-            createIndexRequestBuilder.setMapping(mappings);
-        }
+        createIndexRequestBuilder.setMapping(mappings);
         return createIndex(index, createIndexRequestBuilder);
     }
 

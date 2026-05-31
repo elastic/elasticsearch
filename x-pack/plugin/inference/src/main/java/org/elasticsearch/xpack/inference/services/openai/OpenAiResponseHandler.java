@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeExce
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.util.concurrent.Flow;
 import java.util.function.Function;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
 public class OpenAiResponseHandler extends BaseResponseHandler {
@@ -40,10 +39,10 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
-    static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
-    static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
+    protected static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
+    private static final String VALIDATION_ERROR_MESSAGE = "Received an input validation error response";
 
-    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    private static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
         this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
@@ -62,12 +61,12 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
      * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
-     * @param request The originating request
+     * @param outboundRequest The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    public void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -75,41 +74,47 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 503) {
-            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw buildExceptionHandling429(request, result);
+            throw buildExceptionHandling429(outboundRequest, result);
         } else if (isContentTooLarge(result)) {
-            throw new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, request, result));
+            throw buildExceptionHandlingContentTooLarge(outboundRequest, result);
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, request, result));
+            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, request, result));
+            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else if (statusCode == 422) {
             // OpenAI does not return 422 at the time of writing, but Mistral does and follows most of OpenAI's format.
             // TODO: Revisit this in the future to decouple OpenAI and Mistral error handling.
-            throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, request, result));
+            throw new RetryException(false, buildError(VALIDATION_ERROR_MESSAGE, outboundRequest, result));
         } else if (statusCode == 400) {
-            throw new RetryException(false, buildError(BAD_REQUEST, request, result));
+            throw new RetryException(false, buildError(BAD_REQUEST, outboundRequest, result));
         } else if (statusCode == 404) {
-            throw new RetryException(false, buildError(resourceNotFoundError(request), request, result));
+            throw new RetryException(false, buildError(resourceNotFoundError(outboundRequest), outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 
-    private static String resourceNotFoundError(Request request) {
-        return format("Resource not found at [%s]", request.getURI());
+    protected RetryException buildExceptionHandlingContentTooLarge(OutboundRequest outboundRequest, HttpResult result) {
+        return new ContentTooLargeException(buildError(CONTENT_TOO_LARGE, outboundRequest, result));
     }
 
-    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
-        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+    protected RetryException buildExceptionHandling429(OutboundRequest outboundRequest, HttpResult result) {
+        return new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
     }
 
-    private static boolean isContentTooLarge(HttpResult result) {
+    /**
+     * Determines if the given HTTP result indicates that the content is too large.
+     *
+     * @param result the HTTP result to check
+     * @return true if the content is too large, false otherwise
+     */
+    public boolean isContentTooLarge(HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
 
         if (statusCode == 413) {
@@ -144,7 +149,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var openAiProcessor = new OpenAiStreamingProcessor();
 

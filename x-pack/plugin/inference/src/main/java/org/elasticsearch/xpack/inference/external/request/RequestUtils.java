@@ -29,6 +29,14 @@ public class RequestUtils {
         return "Bearer " + apiKey;
     }
 
+    public static Header createAuthApiKeyHeader(SecureString apiKey) {
+        return new BasicHeader(HttpHeaders.AUTHORIZATION, apiKey(apiKey.toString()));
+    }
+
+    public static String apiKey(String apiKey) {
+        return "ApiKey " + apiKey;
+    }
+
     public static URI buildUri(URI accountUri, String service, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
         try {
             return accountUri == null ? uriBuilder.get() : accountUri;

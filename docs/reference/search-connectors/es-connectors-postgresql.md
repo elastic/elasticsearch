@@ -11,10 +11,6 @@ The *Elastic PostgreSQL connector* is a connector for [PostgreSQL](https://www.p
 
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*). View the specific [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/postgresql) (branch *main*, compatible with Elastic *9.0*).
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector** [es-connectors-postgresql-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-postgresql-client-availability-prerequisites]
@@ -29,7 +25,7 @@ This connector is available as a self-managed connector. To use this connector, 
 
 To create a new PostgreSQL connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **PostgreSQL** self-managed connector.
 
 
@@ -100,10 +96,6 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md).
 
-::::{tip}
-Users must set `track_commit_timestamp` to `on`. To do this, run `ALTER SYSTEM SET track_commit_timestamp = on;` in PostgreSQL server.
-
-::::
 
 
 For additional operations, see.
@@ -212,7 +204,7 @@ You can deploy the PostgreSQL connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
 % NOTCONSOLE
 
@@ -281,7 +273,12 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 * Tables must be owned by a PostgreSQL user.
 * Tables with no primary key defined are skipped.
-* To fetch the last updated time in PostgreSQL, `track_commit_timestamp` must be set to `on`. Otherwise, all data will be indexed in every sync.
+
+#### Sync types [es-connectors-postgresql-client-sync-types]
+
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+
+This connector does not currently support [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 ::::{note}
 * Files bigger than 10 MB won’t be extracted.

@@ -69,12 +69,7 @@ public interface NamedGroupExtractor {
                 if (threadPool == null) {
                     throw new IllegalStateException("missing call to finishInitializing");
                 }
-                return MatcherWatchdog.newInstance(
-                    interval.millis(),
-                    maxExecutionTime.millis(),
-                    threadPool.relativeTimeInMillisSupplier(),
-                    (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic())
-                );
+                return MatcherWatchdog.newInstance(maxExecutionTime.millis());
             })::getOrCompute;
         }
 
@@ -90,8 +85,7 @@ public interface NamedGroupExtractor {
         public NamedGroupExtractor grok(String pattern) {
             MatcherWatchdog watchdog = watchdogSupplier.get();
             /*
-             * Build the grok pattern in a PrivilegedAction so it can load
-             * things from the classpath.
+             * Build the grok pattern, loading built-in patterns from the classpath.
              */
             Grok grok;
             try {

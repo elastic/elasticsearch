@@ -10,10 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.ml.datafeed.LinkedClusterState;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -47,8 +50,9 @@ public class ChunkedDataExtractor implements DataExtractor {
     private long chunkSpan;
     private boolean isCancelled;
     private DataExtractor currentExtractor;
+    private List<LinkedClusterState> lastLinkedClusterStates = List.of();
 
-    public ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
+    ChunkedDataExtractor(DataExtractorFactory dataExtractorFactory, ChunkedDataExtractorContext context) {
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
         this.currentStart = context.start();
@@ -132,6 +136,12 @@ public class ChunkedDataExtractor implements DataExtractor {
 
             Result result = currentExtractor.next();
             lastSearchInterval = result.searchInterval();
+            if (result.linkedClusterStates().isEmpty() == false) {
+                lastLinkedClusterStates = DataExtractorUtils.preferRicherLinkedClusterStates(
+                    lastLinkedClusterStates,
+                    result.linkedClusterStates()
+                );
+            }
             if (result.data().isPresent()) {
                 return result;
             }
@@ -158,10 +168,14 @@ public class ChunkedDataExtractor implements DataExtractor {
                 setUpChunkedSearch();
             }
         }
-        return new Result(lastSearchInterval, Optional.empty());
+        return new Result(lastSearchInterval, Optional.empty(), lastLinkedClusterStates);
     }
 
     private void advanceTime() {
+        // Destroy the previous extractor to clean up any scroll contexts before creating a new one
+        if (currentExtractor != null) {
+            currentExtractor.destroy();
+        }
         currentStart = currentEnd;
         currentEnd = Math.min(currentStart + chunkSpan, context.end());
         currentExtractor = dataExtractorFactory.newExtractor(currentStart, currentEnd);

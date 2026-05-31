@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -194,6 +196,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private InetSocketAddress remoteAddress;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private String concreteSecurityIndexName;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
@@ -228,6 +231,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .put("node.name", "authc_test")
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
             .build();
         MockLicenseState licenseState = mock(MockLicenseState.class);
         for (String realmType : InternalRealms.getConfigurableRealmsTypes()) {
@@ -263,7 +267,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertThat(realms.getActiveRealms(), contains(firstRealm, secondRealm));
 
         auditTrail = mock(AuditTrail.class);
-        auditTrailService = new AuditTrailService(auditTrail, licenseState);
         client = mock(Client.class);
         threadPool = new ThreadPool(
             settings,
@@ -328,11 +331,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             settings,
             Sets.union(
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL, XPackSettings.AUDIT_ENABLED)
             )
         );
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, clusterSettings);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+        auditTrailService = new AuditTrailService(auditTrail, licenseState, clusterService);
         apiKeyService = new ApiKeyService(
             settings,
             Clock.systemUTC(),
@@ -344,6 +348,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             MeterRegistry.NOOP,
             mock(FeatureService.class)
         );
+        bytesRefRecycler = new MockBytesRefRecycler();
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -352,7 +357,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
         serviceAccountService = mock(ServiceAccountService.class);
         doAnswer(invocationOnMock -> {
@@ -393,10 +399,15 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     @After
-    public void shutdownThreadpool() throws InterruptedException {
+    public void shutdownThreadpool() {
         if (threadPool != null) {
             terminate(threadPool);
         }
+    }
+
+    @After
+    public void cleanupMocks() {
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testTokenFirstMissingSecondFound() throws Exception {
@@ -2574,7 +2585,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         return this.securityIndex.new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true,
-            null, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            null, false, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 

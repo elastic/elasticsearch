@@ -20,13 +20,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
@@ -232,7 +231,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 InternalRandomSampler randomSampler = searchAndReduce(
                     reader,
                     new AggTestConfig(randomSamplerAggregationBuilder, textFieldType).withQuery(
-                        randomBoolean() ? new MatchAllDocsQuery() : new TermQuery(new Term("text", "common"))
+                        randomBoolean() ? Queries.ALL_DOCS_INSTANCE : new TermQuery(new Term("text", "common"))
                     )
                 );
                 SignificantStringTerms terms = randomSampler.getAggregations().get("sig_text");
@@ -686,10 +685,10 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         testCase(
             createIndex,
             (SignificantStringTerms result) -> { assertEquals(0, result.getBuckets().size()); },
-            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(Queries.NO_DOCS_INSTANCE)
         );
 
-        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
+        debugTestCase(aggregationBuilder, Queries.NO_DOCS_INSTANCE, createIndex, (result, impl, debug) -> {
             assertEquals(impl, MapStringTermsAggregator.class);
         }, fieldType);
     }

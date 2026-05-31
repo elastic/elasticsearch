@@ -18,7 +18,6 @@ import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -41,11 +41,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
+public final class TermsSetQueryBuilder extends LeafQueryBuilder<TermsSetQueryBuilder> {
 
     public static final String NAME = "terms_set";
-
-    public static final TransportVersion MINIMUM_SHOULD_MATCH_ADDED_VERSION = TransportVersions.V_8_10_X;
 
     static final ParseField TERMS_FIELD = new ParseField("terms");
     static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match_field");
@@ -79,9 +77,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         this.values = (List<?>) in.readGenericValue();
         this.minimumShouldMatchField = in.readOptionalString();
         this.minimumShouldMatchScript = in.readOptionalWriteable(Script::new);
-        if (in.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
-            this.minimumShouldMatch = in.readOptionalString();
-        }
+        this.minimumShouldMatch = in.readOptionalString();
     }
 
     @Override
@@ -90,9 +86,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         out.writeGenericValue(values);
         out.writeOptionalString(minimumShouldMatchField);
         out.writeOptionalWriteable(minimumShouldMatchScript);
-        if (out.getTransportVersion().onOrAfter(MINIMUM_SHOULD_MATCH_ADDED_VERSION)) {
-            out.writeOptionalString(minimumShouldMatch);
-        }
+        out.writeOptionalString(minimumShouldMatch);
     }
 
     // package protected for testing purpose
@@ -314,7 +308,12 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
             params.put("num_terms", values.size());
-            longValuesSource = new ScriptLongValueSource(minimumShouldMatchScript, factory.newFactory(params, context.lookup()));
+            final Runnable cancellationCheck = (context.searcher() instanceof ContextIndexSearcher cis) ? cis::checkCancelled : null;
+            longValuesSource = new ScriptLongValueSource(
+                minimumShouldMatchScript,
+                factory.newFactory(params, context.lookup()),
+                cancellationCheck
+            );
         } else {
             throw new IllegalStateException("No minimum should match has been specified");
         }
@@ -325,15 +324,18 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
         private final Script script;
         private final TermsSetQueryScript.LeafFactory leafFactory;
+        private final Runnable cancellationCheck;
 
-        ScriptLongValueSource(Script script, TermsSetQueryScript.LeafFactory leafFactory) {
+        ScriptLongValueSource(Script script, TermsSetQueryScript.LeafFactory leafFactory, Runnable cancellationCheck) {
             this.script = script;
             this.leafFactory = leafFactory;
+            this.cancellationCheck = cancellationCheck;
         }
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
             TermsSetQueryScript script = leafFactory.newInstance(ctx);
+            script._setCancellationCheck(cancellationCheck);
             return new LongValues() {
                 @Override
                 public long longValue() throws IOException {

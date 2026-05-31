@@ -47,6 +47,10 @@ public class RoutingHashBuilder {
         }
     }
 
+    public void clear() {
+        hashes.clear();
+    }
+
     /**
      * Only expected to be called for old indices created before
      * {@link IndexVersions#TIME_SERIES_ROUTING_HASH_IN_ID} while creating (during ingestion)
@@ -107,7 +111,7 @@ public class RoutingHashBuilder {
         }
     }
 
-    private void addHash(String path, BytesRef value) {
+    void addHash(String path, BytesRef value) {
         hashes.add(new NameAndHash(new BytesRef(path), IndexRouting.ExtractFromSource.hash(value), hashes.size()));
     }
 

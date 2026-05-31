@@ -8,7 +8,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -20,6 +21,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.1.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.1.3#bwcTest
@@ -27,7 +30,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -39,6 +43,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.2.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.2.3#bwcTest
@@ -46,7 +52,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -58,6 +65,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.3.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.3.3#bwcTest
@@ -65,7 +74,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -77,6 +87,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.4.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.4.3#bwcTest
@@ -84,7 +96,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -96,6 +109,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.5.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.5.3#bwcTest
@@ -103,7 +118,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -115,6 +131,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.6.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.6.2#bwcTest
@@ -122,7 +140,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -134,6 +153,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.7.1 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.7.1#bwcTest
@@ -141,7 +162,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -153,6 +175,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.8.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.8.2#bwcTest
@@ -160,7 +184,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -172,6 +197,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.9.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.9.2#bwcTest
@@ -179,7 +206,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -191,6 +219,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.10.4 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.10.4#bwcTest
@@ -198,7 +228,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -210,6 +241,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.11.4 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.11.4#bwcTest
@@ -217,7 +250,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -229,6 +263,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.12.2 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.12.2#bwcTest
@@ -236,7 +272,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -248,6 +285,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.13.4 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.13.4#bwcTest
@@ -255,7 +294,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -267,6 +307,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.14.3 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.14.3#bwcTest
@@ -274,7 +316,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -286,6 +329,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.15.5 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.15.5#bwcTest
@@ -293,7 +338,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -305,6 +351,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.16.6 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.16.6#bwcTest
@@ -312,7 +360,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -324,6 +373,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.17.10 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.17.10#bwcTest
@@ -331,7 +382,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -343,6 +395,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 8.18.8 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.18.8#bwcTest
@@ -350,7 +404,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -362,18 +417,21 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
-      - label: 8.19.8 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.8#bwcTest
+      - label: 8.19.17 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.17#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.8
+          BWC_VERSION: 8.19.17
         retry:
           automatic:
             - exit_status: "-1"
@@ -381,6 +439,8 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
       - label: 9.0.8 / bwc
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.0.8#bwcTest
@@ -388,7 +448,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
@@ -400,18 +461,21 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
-      - label: 9.1.8 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.8#bwcTest
+      - label: 9.1.9 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.1.9#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.1.8
+          BWC_VERSION: 9.1.9
         retry:
           automatic:
             - exit_status: "-1"
@@ -419,18 +483,21 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
-      - label: 9.2.2 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.2.2#bwcTest
+      - label: 9.2.8 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.2.8#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.2.2
+          BWC_VERSION: 9.2.8
         retry:
           automatic:
             - exit_status: "-1"
@@ -438,18 +505,21 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
 
-      - label: 9.3.0 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.0#bwcTest
+      - label: 9.3.6 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n1-standard-32
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.3.0
+          BWC_VERSION: 9.3.6
         retry:
           automatic:
             - exit_status: "-1"
@@ -457,6 +527,52 @@ steps:
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1
+
+      - label: 9.4.3 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.3#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.4.3
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+
+      - label: 9.5.0 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.5.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.5.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
 
   - label: concurrent-search-tests
     command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.jvm.argline=-Des.concurrent_search=true -Des.concurrent_search=true functionalTests
@@ -522,7 +638,19 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-matrix-bwc"
         command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -530,7 +658,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2", "9.3.0"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -539,7 +667,86 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
-
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
+  - group: java-fips-140-3-matrix
+    steps:
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-fips-140-3-matrix"
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true -Dtests.fips.mode=140-3 $$GRADLE_TASK
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk21
+            GRADLE_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkPart4
+              - checkPart5
+              - checkPart6
+              - checkRestCompat
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-fips-140-3-matrix-bwc"
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true -Dtests.fips.enabled=true -Dtests.fips.mode=140-3 v$$BWC_VERSION#bwcTest
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            ES_RUNTIME_JAVA:
+              - openjdk21
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3", "9.5.0"]
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+        env:
+          ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
+          BWC_VERSION: "{{matrix.BWC_VERSION}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+            - exit_status: "1"
+              limit: 1
+          manual:
+            allowed: true
+            permit_on_passed: false
+            reason: "Retry with smart test selection if desired"
   - group: java-matrix
     steps:
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
@@ -549,8 +756,8 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
-              - openjdk24
+              - openjdk25
+              - openjdk26
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -575,8 +782,9 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-              - openjdk23
-            BWC_VERSION: ["8.19.8", "9.1.8", "9.2.2", "9.3.0"]
+              - openjdk25
+              - openjdk26
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -589,6 +797,15 @@ steps:
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
     timeout_in_minutes: 360
+    retry:
+      automatic:
+        - exit_status: "-1"
+          limit: 3
+          signal_reason: none
+        - signal_reason: agent_stop
+          limit: 3
+        - exit_status: "1"
+          limit: 1
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
@@ -618,7 +835,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / azure
@@ -633,7 +851,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / gcs
@@ -648,17 +867,19 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / geoip
         command: |
-          .ci/scripts/run-gradle.sh --continue :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
+          .ci/scripts/run-gradle.sh --continue :modules:ip-location:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
         timeout_in_minutes: 30
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / s3
@@ -673,7 +894,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
       - label: third-party / ms-graph
@@ -685,7 +907,8 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
-          machineType: n2-standard-8
+          machineType: n4-standard-8
+          diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
 
   - group: lucene-compat
@@ -718,7 +941,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n2-standard-8
+      machineType: n4-standard-8
+      diskType: hyperdisk-balanced
       buildDirectory: /dev/shm/bk
     if: build.branch =~ /^(main|\d+\.\d+|\d+\.x)$$/
 
@@ -728,7 +952,8 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n2-standard-2
+      machineType: n4-standard-2
+      diskType: hyperdisk-balanced
 
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh

@@ -65,13 +65,13 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
         var initialSettings = new JinaAIRerankTaskSettings(5, true);
-        JinaAIRerankTaskSettings updatedSettings = (JinaAIRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
+        var updatedSettings = (JinaAIRerankTaskSettings) initialSettings.updatedTaskSettings(new HashMap<>());
         assertEquals(initialSettings, updatedSettings);
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
         var initialSettings = new JinaAIRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, false);
+        var newSettings = new HashMap<String, Object>(Map.of(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, false));
         JinaAIRerankTaskSettings updatedSettings = (JinaAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
         assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
@@ -79,7 +79,7 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
         var initialSettings = new JinaAIRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, 7);
+        var newSettings = new HashMap<String, Object>(Map.of(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, 7));
         JinaAIRerankTaskSettings updatedSettings = (JinaAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
@@ -87,11 +87,8 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
         var initialSettings = new JinaAIRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(
-            JinaAIRerankTaskSettings.RETURN_DOCUMENTS,
-            false,
-            JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY,
-            7
+        var newSettings = new HashMap<String, Object>(
+            Map.of(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, false, JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, 7)
         );
         JinaAIRerankTaskSettings updatedSettings = (JinaAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
@@ -119,19 +116,15 @@ public class JinaAIRerankTaskSettingsTests extends AbstractWireSerializingTestCa
         }
     }
 
-    public static Map<String, Object> getTaskSettingsMapEmpty() {
-        return new HashMap<>();
-    }
-
-    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, Boolean returnDocuments) {
+    public static Map<String, Object> getTaskSettingsMap(@Nullable Integer topNDocumentsOnly, @Nullable Boolean returnDocuments) {
         var map = new HashMap<String, Object>();
 
         if (topNDocumentsOnly != null) {
-            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly.toString());
+            map.put(JinaAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly);
         }
 
         if (returnDocuments != null) {
-            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments.toString());
+            map.put(JinaAIRerankTaskSettings.RETURN_DOCUMENTS, returnDocuments);
         }
 
         return map;

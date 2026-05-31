@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -92,20 +91,14 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                numberOfAllocations = in.readVInt();
-                adaptiveAllocationsSettings = null;
-                source = Source.API;
+            numberOfAllocations = in.readOptionalVInt();
+            adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
+            if (in.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
+                source = in.readEnum(Source.class);
             } else {
-                numberOfAllocations = in.readOptionalVInt();
-                adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-                if (in.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
-                    source = in.readEnum(Source.class);
-                } else {
-                    // we changed over from a boolean to an enum
-                    // when it was a boolean, true came from adaptive allocations and false came from the rest api
-                    source = in.readBoolean() ? Source.ADAPTIVE_ALLOCATIONS : Source.API;
-                }
+                // we changed over from a boolean to an enum
+                // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                source = in.readBoolean() ? Source.ADAPTIVE_ALLOCATIONS : Source.API;
             }
         }
 
@@ -149,19 +142,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                out.writeVInt(numberOfAllocations);
+            out.writeOptionalVInt(numberOfAllocations);
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
+            if (out.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
+                out.writeEnum(source);
             } else {
-                out.writeOptionalVInt(numberOfAllocations);
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-                if (out.getTransportVersion().supports(UPDATE_TRAINED_MODEL_DEPLOYMENT_REQUEST_SOURCE)) {
-                    out.writeEnum(source);
-                } else {
-                    // we changed over from a boolean to an enum
-                    // when it was a boolean, true came from adaptive allocations and false came from the rest api
-                    // treat "inference" as if it came from the api
-                    out.writeBoolean(isInternal());
-                }
+                // we changed over from a boolean to an enum
+                // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                // treat "inference" as if it came from the api
+                out.writeBoolean(isInternal());
             }
         }
 

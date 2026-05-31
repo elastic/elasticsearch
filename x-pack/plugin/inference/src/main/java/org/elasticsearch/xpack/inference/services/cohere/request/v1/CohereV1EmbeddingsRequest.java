@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.inference.services.cohere.request.v1;
 
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -22,25 +24,27 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class CohereV1EmbeddingsRequest extends CohereRequest {
+public class CohereV1EmbeddingsRequest extends CohereRequest implements OutboundDenseEmbeddingRequest {
 
     private final List<String> input;
     private final InputType inputType;
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final CohereEmbeddingType embeddingType;
+    private final TaskType taskType;
 
     public CohereV1EmbeddingsRequest(List<String> input, InputType inputType, CohereEmbeddingsModel embeddingsModel) {
         super(
             CohereAccount.of(embeddingsModel),
             embeddingsModel.getInferenceEntityId(),
-            embeddingsModel.getServiceSettings().getCommonSettings().modelId(),
+            embeddingsModel.getServiceSettings().commonSettings().modelId(),
             false
         );
 
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
-        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        embeddingType = embeddingsModel.getServiceSettings().embeddingType();
+        taskType = embeddingsModel.getTaskType();
     }
 
     @Override
@@ -53,7 +57,7 @@ public class CohereV1EmbeddingsRequest extends CohereRequest {
         builder.startObject();
         builder.field(CohereUtils.TEXTS_FIELD, input);
         if (getModelId() != null) {
-            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, getModelId());
+            builder.field(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, getModelId());
         }
 
         // prefer the root level inputType over task settings input type
@@ -73,5 +77,10 @@ public class CohereV1EmbeddingsRequest extends CohereRequest {
 
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public TaskType getTaskType() {
+        return taskType;
     }
 }

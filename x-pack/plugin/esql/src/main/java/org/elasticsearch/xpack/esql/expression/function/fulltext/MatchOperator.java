@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.List;
 
@@ -25,7 +27,7 @@ import java.util.List;
  * the match operator in the function syntax.
  * Serialization is provided as a way to pass the corresponding tests - serialization must be done to a Match class.
  */
-public class MatchOperator extends Match {
+public class MatchOperator extends Match implements ConfigurationAware {
 
     @FunctionInfo(
         returnType = "boolean",
@@ -43,7 +45,26 @@ public class MatchOperator extends Match {
             <<esql-match,match function>>.
 
             `:` returns true if the provided query matches the row.""",
-        examples = { @Example(file = "match-operator", tag = "match-with-field") }
+        examples = {
+            @Example(
+                file = "match-operator",
+                tag = "match-with-text-field",
+                description = "The match operator can be used to perform full-text search on a `text` field. "
+                    + "Notice how the match operator handles multi-valued columns, if a single value matches the query string, "
+                    + "the expression evaluates to `TRUE`."
+            ),
+            @Example(
+                file = "match-operator",
+                tag = "match-with-keyword-field",
+                description = " The match operator can also be used with `keyword` columns to filter multi-values."
+            ),
+            @Example(
+                file = "match-operator",
+                tag = "match-with-semantic-text-field",
+                description = "This example illustrates how to do semantic search using the match operator on `semantic_text` fields. "
+                    + "By including the metadata field `_score` and sorting on `_score`, "
+                    + "we can retrieve the most relevant results in order."
+            ), }
     )
     public MatchOperator(
         Source source,
@@ -56,13 +77,14 @@ public class MatchOperator extends Match {
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
             description = "Value to find in the provided field."
-        ) Expression matchQuery
+        ) Expression matchQuery,
+        Configuration configuration
     ) {
-        super(source, field, matchQuery, null, null);
+        super(source, field, matchQuery, null, null, configuration);
     }
 
-    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
-        super(source, field, matchQuery, null, queryBuilder);
+    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder, Configuration configuration) {
+        super(source, field, matchQuery, null, queryBuilder, configuration);
     }
 
     @Override
@@ -77,16 +99,26 @@ public class MatchOperator extends Match {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MatchOperator::new, field(), query());
+        return NodeInfo.create(this, MatchOperator::new, field(), query(), configuration());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
+        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder(), configuration());
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new MatchOperator(source(), field, query(), queryBuilder);
+        return new MatchOperator(source(), field, query(), queryBuilder, configuration());
+    }
+
+    @Override
+    public Configuration configuration() {
+        return super.configuration();
+    }
+
+    @Override
+    public Expression withConfiguration(Configuration configuration) {
+        return new MatchOperator(source(), field, query(), queryBuilder(), configuration);
     }
 }

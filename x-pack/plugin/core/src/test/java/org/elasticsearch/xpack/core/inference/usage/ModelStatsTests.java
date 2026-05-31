@@ -14,6 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,7 +40,7 @@ public class ModelStatsTests extends AbstractBWCWireSerializationTestCase<ModelS
             case 0 -> new ModelStats(randomValueOtherThan(service, ESTestCase::randomIdentifier), taskType, count, semanticTextStats);
             case 1 -> new ModelStats(
                 service,
-                randomValueOtherThan(taskType, () -> randomFrom(TaskType.values())),
+                randomValueOtherThan(taskType, () -> randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY)))),
                 count,
                 semanticTextStats
             );
@@ -55,7 +56,12 @@ public class ModelStatsTests extends AbstractBWCWireSerializationTestCase<ModelS
     }
 
     public void testAdd() {
-        ModelStats stats = new ModelStats("test_service", randomFrom(TaskType.values()), 0, null);
+        ModelStats stats = new ModelStats(
+            "test_service",
+            randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY))),
+            0,
+            new SemanticTextStats()
+        );
         assertThat(stats.count(), equalTo(0L));
 
         stats.add();
@@ -69,19 +75,15 @@ public class ModelStatsTests extends AbstractBWCWireSerializationTestCase<ModelS
     }
 
     public static ModelStats createRandomInstance() {
-        TaskType taskType = randomValueOtherThan(TaskType.ANY, () -> randomFrom(TaskType.values()));
-        return new ModelStats(
-            randomIdentifier(),
-            taskType,
-            randomLong(),
-            randomBoolean() ? SemanticTextStatsTests.createRandomInstance() : null
-        );
+        var taskType = randomFrom(EnumSet.complementOf(EnumSet.of(TaskType.ANY)));
+        return new ModelStats(randomIdentifier(), taskType, randomLong(), SemanticTextStatsTests.createRandomInstance());
     }
 
     @Override
     protected ModelStats mutateInstanceForVersion(ModelStats instance, TransportVersion version) {
         if (version.supports(ModelStats.INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS) == false) {
-            return new ModelStats(instance.service(), instance.taskType(), instance.count(), null);
+            // Field is not on the wire for older versions; reader initialises to empty.
+            return new ModelStats(instance.service(), instance.taskType(), instance.count(), new SemanticTextStats());
         }
         return instance;
     }

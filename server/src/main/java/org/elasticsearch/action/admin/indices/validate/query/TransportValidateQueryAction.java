@@ -140,6 +140,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
                     null,
                     null
                 ),
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
                 rewriteListener
             );
         }
@@ -152,7 +153,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
         final ProjectState projectState = getProjectState();
-        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
             projectState.metadata(),
             request.indices()
         );

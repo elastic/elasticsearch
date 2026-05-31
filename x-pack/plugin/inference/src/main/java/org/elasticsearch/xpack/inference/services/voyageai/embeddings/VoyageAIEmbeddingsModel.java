@@ -50,7 +50,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets),
+            DefaultSecretSettings.fromMap(secrets, context),
             buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
         );
     }
@@ -87,10 +87,12 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         super(
             new ModelConfigurations(inferenceId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings(),
             uri
         );
+    }
+
+    public VoyageAIEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri));
     }
 
     private VoyageAIEmbeddingsModel(VoyageAIEmbeddingsModel model, VoyageAIEmbeddingsTaskSettings taskSettings) {
@@ -109,11 +111,6 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
     @Override
     public VoyageAIEmbeddingsTaskSettings getTaskSettings() {
         return (VoyageAIEmbeddingsTaskSettings) super.getTaskSettings();
-    }
-
-    @Override
-    public DefaultSecretSettings getSecretSettings() {
-        return (DefaultSecretSettings) super.getSecretSettings();
     }
 
     @Override

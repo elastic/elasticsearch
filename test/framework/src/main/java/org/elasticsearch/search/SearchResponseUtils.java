@@ -26,7 +26,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -38,6 +37,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
@@ -113,7 +113,10 @@ public enum SearchResponseUtils {
             skippedShards,
             tookInMillis,
             shardFailures,
-            clusters
+            clusters,
+            null,
+            null,
+            null
         );
     }
 
@@ -224,7 +227,9 @@ public enum SearchResponseUtils {
                 tookInMillis,
                 shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
                 clusters,
-                pointInTimeId
+                pointInTimeId,
+                null,
+                null
             );
         }
     }
@@ -403,23 +408,39 @@ public enum SearchResponseUtils {
             }
         }
 
-        return new SearchResponse(
-            hits,
-            aggs,
-            suggest,
-            timedOut,
-            terminatedEarly,
-            profile,
-            numReducePhases,
-            scrollId,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            clusters,
-            searchContextId
-        );
+        SearchResponse searchResponse;
+        try {
+            searchResponse = new SearchResponse(
+                hits,
+                aggs,
+                suggest,
+                timedOut,
+                terminatedEarly,
+                profile,
+                numReducePhases,
+                scrollId,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                clusters,
+                searchContextId,
+                null,
+                null
+            );
+        } finally {
+            if (hits != null) {
+                hits.decRef();
+            }
+            if (suggest != null) {
+                List<SearchHit> completionHits = suggest.collectCompletionOptionHits(false);
+                if (completionHits != null) {
+                    completionHits.forEach(SearchHit::decRef);
+                }
+            }
+        }
+        return searchResponse;
     }
 
     private static SearchResponse.Clusters parseClusters(XContentParser parser) throws IOException {
@@ -486,8 +507,10 @@ public enum SearchResponseUtils {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         String clusterName = clusterAlias;
-        if (clusterAlias.equals(SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION)) {
+        String originClusterLabel = null;
+        if (clusterAlias.equals(SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION) || clusterAlias.equals(ProjectRoutingResolver.ORIGIN)) {
             clusterName = "";
+            originClusterLabel = clusterAlias;
         }
         String indexExpression = null;
         String status = "running";
@@ -566,7 +589,8 @@ public enum SearchResponseUtils {
             failedShardsFinal,
             failures,
             tookTimeValue,
-            timedOut
+            timedOut,
+            originClusterLabel
         );
     }
 
@@ -694,6 +718,9 @@ public enum SearchResponseUtils {
         return new QueryProfileShardResult(queryProfileResults, rewriteTime, collector, vectorOperationsCount);
     }
 
+    /**
+     * Parses search hits from XContent into a ref-counted {@link SearchHits}. Callers must {@link SearchHits#decRef()} when done.
+     */
     public static SearchHits parseSearchHits(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -735,7 +762,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
+        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     /**
@@ -758,6 +785,9 @@ public enum SearchResponseUtils {
         declareInnerHitsParseFields(MAP_PARSER);
     }
 
+    /**
+     * Parses a single search hit from XContent into a ref-counted {@link SearchHit}. Callers must {@link SearchHit#decRef()} when done.
+     */
     public static SearchHit parseSearchHit(XContentParser parser) {
         return searchHitFromMap(MAP_PARSER.apply(parser, null));
     }
@@ -1018,7 +1048,7 @@ public enum SearchResponseUtils {
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
-            RefCounted.ALWAYS_REFERENCED // TODO: do we ever want pooling here?
+            null
         );
     }
 

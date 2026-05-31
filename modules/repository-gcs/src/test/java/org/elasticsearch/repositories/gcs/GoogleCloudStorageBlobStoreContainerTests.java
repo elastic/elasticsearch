@@ -54,11 +54,7 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         } else {
             StorageBatchResult<Boolean> resultA = mock(StorageBatchResult.class);
             doReturn(resultA).when(batch).delete(eq(BlobId.of("bucket", "blobA")));
-            doAnswer(invocation -> {
-                StorageException storageException = new StorageException(new IOException("Batched delete throws a storage exception"));
-                ((BatchResult.Callback) invocation.getArguments()[0]).error(storageException);
-                return null;
-            }).when(resultA).notify(any(StorageBatchResult.Callback.class));
+            doThrow(new StorageException(new IOException("Batch item delete throws exception"))).when(resultA).get();
 
             StorageBatchResult<Boolean> resultB = mock(StorageBatchResult.class);
             doReturn(resultB).when(batch).delete(eq(BlobId.of("bucket", "blobB")));
@@ -84,6 +80,10 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
         final GoogleCloudStorageService storageService = mock(GoogleCloudStorageService.class);
         when(storageService.client(eq(ProjectId.DEFAULT), any(String.class), any(String.class), any(GcsRepositoryStatsCollector.class)))
             .thenReturn(meteredStorage);
+
+        GoogleCloudStorageClientSettings mockClientSettings = mock(GoogleCloudStorageClientSettings.class);
+        when(mockClientSettings.getTenaciousRetriesEnabled()).thenReturn(randomBoolean());
+        when(storageService.clientSettings(any(), any())).thenReturn(mockClientSettings);
 
         try (
             BlobStore store = new GoogleCloudStorageBlobStore(

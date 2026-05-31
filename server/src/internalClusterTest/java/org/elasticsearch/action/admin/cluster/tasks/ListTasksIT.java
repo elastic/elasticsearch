@@ -84,6 +84,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
 
         final var listWaitFuture = new PlainActionFuture<Void>();
         clusterAdmin().prepareListTasks()
+            .setActions(TestTransportAction.NAME)
             .setTargetTaskId(task.taskId())
             .setWaitForCompletion(true)
             .execute(listWaitFuture.delegateFailure((l, listResult) -> {

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,11 +28,7 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
     }
 
     public static CleanupRepositoryRequest readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            return new CleanupRepositoryRequest(in);
-        } else {
-            return new CleanupRepositoryRequest(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
-        }
+        return new CleanupRepositoryRequest(in);
     }
 
     private CleanupRepositoryRequest(StreamInput in) throws IOException {
@@ -48,9 +43,7 @@ public class CleanupRepositoryRequest extends AcknowledgedRequest<CleanupReposit
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            super.writeTo(out);
-        }
+        super.writeTo(out);
         out.writeString(repository);
     }
 

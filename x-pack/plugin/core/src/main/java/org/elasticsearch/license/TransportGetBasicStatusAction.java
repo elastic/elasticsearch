@@ -28,7 +28,7 @@ public class TransportGetBasicStatusAction extends TransportLocalClusterStateAct
      * Prior to 9.3 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetBasicStatusAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters) {

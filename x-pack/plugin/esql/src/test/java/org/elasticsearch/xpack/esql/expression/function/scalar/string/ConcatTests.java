@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -150,10 +150,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
-            Block block = eval.eval(row(fieldValues))
-        ) {
+        try (ExpressionEvaluator eval = evaluator(expression).get(driverContext()); Block block = eval.eval(row(fieldValues))) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
         }
     }
@@ -165,10 +162,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         }
         Expression expression = build(testCase.getSource(), mix);
         Exception e = expectThrows(EsqlClientException.class, () -> {
-            try (
-                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
-                Block block = eval.eval(row(fieldValues));
-            ) {}
+            try (ExpressionEvaluator eval = evaluator(expression).get(driverContext()); Block block = eval.eval(row(fieldValues))) {}
         });
         assertThat(e.getMessage(), is("concatenating more than [1048576] bytes is not supported"));
     }

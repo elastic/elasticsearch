@@ -467,6 +467,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         long expectedSize,
         RoutingChangesObserver routingChangesObserver
     ) {
+        assert noAssignedReplicaWithoutActivePrimary(unassignedShard)
+            : "Attempting to initialize a replica shard, but there is no active primary: " + unassignedShard;
         ensureMutable();
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
         ShardRouting initializedShard = unassignedShard.initialize(nodeId, existingAllocationId, expectedSize);
@@ -479,6 +481,29 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assignedShardsAdd(initializedShard);
         routingChangesObserver.shardInitialized(unassignedShard, initializedShard);
         return initializedShard;
+    }
+
+    /**
+     * Verifies that, if the unassigned shard is a replica, there is an active (started) primary shard. If the unassigned shard is a
+     * primary, there is no need to check and true is returned.
+     */
+    private boolean noAssignedReplicaWithoutActivePrimary(ShardRouting unassignedShard) {
+        assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
+        if (unassignedShard.primary()) {
+            // Assigning a primary, no need to check.
+            return true;
+        }
+
+        // unassignedShard is a replica, since it is not a primary. Ensure that there's a started primary.
+        var shards = assignedShards.get(unassignedShard.shardId());
+        if (shards != null) {
+            for (var shard : shards) {
+                if (shard.primary() && shard.active()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -1470,6 +1495,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 return nextShard;
             }
         };
+    }
+
+    public boolean isReadOnly() {
+        return readOnly;
     }
 
     private static final class Recoveries {

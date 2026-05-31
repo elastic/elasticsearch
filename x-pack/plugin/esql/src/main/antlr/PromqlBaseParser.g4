@@ -92,7 +92,12 @@ labels
     ;
 
 label
-    : labelName (kind=(LABEL_EQ | NEQ | LABEL_RGX | LABEL_RGX_NEQ) STRING)?
+    : labelName (kind=(LABEL_EQ | NEQ | LABEL_RGX | LABEL_RGX_NEQ) labelValue)?
+    ;
+
+labelValue
+    : STRING
+    | NAMED_OR_POSITIONAL_PARAM
     ;
 
 labelName
@@ -150,6 +155,7 @@ timeValue
     : TIME_VALUE_WITH_COLON
     | TIME_VALUE
     | number
+    | NAMED_OR_POSITIONAL_PARAM
     ;
 
 // declared tokens that can be used without special escaping

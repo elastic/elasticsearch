@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,7 +34,7 @@ public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCa
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MatchOperator(source, args.get(0), args.get(1));
+        return new MatchOperator(source, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
     }
 
     @Override
@@ -66,11 +67,12 @@ public class MatchOperatorErrorTests extends ErrorsForCasesWithoutExamplesTestCa
             }
         }
 
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature));
-        }
+        return typeErrorMessage(
+            true,
+            validPerPosition,
+            signature,
+            positionalErrorMessageSupplier,
+            () -> EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature))
+        );
     }
 }

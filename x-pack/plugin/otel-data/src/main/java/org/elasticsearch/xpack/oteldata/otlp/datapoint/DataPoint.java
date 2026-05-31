@@ -78,9 +78,11 @@ public interface DataPoint {
      *
      * @param mappingHints hints for building the metric value
      * @param builder the XContentBuilder to write the metric value to
+     * @param scratch a reusable, temporary buffer for building exponential histograms
      * @throws IOException if an I/O error occurs while writing to the builder
      */
-    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException;
+    void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+        throws IOException;
 
     /**
      * Returns the dynamic template name for the data point based on its type and value.
@@ -135,7 +137,8 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
             switch (dataPoint.getValueCase()) {
                 case AS_DOUBLE -> builder.value(dataPoint.getAsDouble());
                 case AS_INT -> builder.value(dataPoint.getAsInt());
@@ -202,19 +205,36 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
-            if (mappingHints.aggregateMetricDouble()) {
-                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
-            } else {
-                builder.startObject();
-                builder.startArray("counts");
-                HistogramConverter.counts(dataPoint, builder::value);
-                builder.endArray();
-                builder.startArray("values");
-                HistogramConverter.centroidValues(dataPoint, builder::value);
-                builder.endArray();
-                builder.endObject();
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
+            switch (mappingHints.histogramMapping()) {
+                case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
+                case TDIGEST -> buildTDigest(builder);
+                case HISTOGRAM_RAW -> buildRawHistogram(builder);
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder);
             }
+        }
+
+        private void buildRawHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            RawHistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            RawHistogramConverter.values(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
+        }
+
+        private void buildTDigest(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            TDigestConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            TDigestConverter.centroidValues(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         @Override
@@ -224,11 +244,7 @@ public interface DataPoint {
 
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
-            if (mappingHints.aggregateMetricDouble()) {
-                return "summary";
-            } else {
-                return "histogram";
-            }
+            return getHistogramDynamicTemplate(mappingHints);
         }
 
         @Override
@@ -268,19 +284,36 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
-            if (mappingHints.aggregateMetricDouble()) {
-                buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
-            } else {
-                builder.startObject();
-                builder.startArray("counts");
-                HistogramConverter.counts(dataPoint, builder::value);
-                builder.endArray();
-                builder.startArray("values");
-                HistogramConverter.centroidValues(dataPoint, builder::value);
-                builder.endArray();
-                builder.endObject();
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
+            switch (mappingHints.histogramMapping()) {
+                case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, scratch);
+                case TDIGEST -> buildTDigest(builder);
+                case HISTOGRAM_RAW -> buildRawHistogram(builder);
+                case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
             }
+        }
+
+        private void buildRawHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            RawHistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            RawHistogramConverter.values(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
+        }
+
+        private void buildTDigest(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            TDigestConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            TDigestConverter.centroidValues(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         @Override
@@ -290,11 +323,7 @@ public interface DataPoint {
 
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
-            if (mappingHints.aggregateMetricDouble()) {
-                return "summary";
-            } else {
-                return "histogram";
-            }
+            return getHistogramDynamicTemplate(mappingHints);
         }
 
         @Override
@@ -303,12 +332,28 @@ public interface DataPoint {
                 errors.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
                 return false;
             }
-            if (dataPoint.getBucketCountsCount() == 1 && dataPoint.getExplicitBoundsCount() == 0) {
-                errors.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
+            int bucketCountsCount = dataPoint.getBucketCountsCount();
+            int explicitBoundsCount = dataPoint.getExplicitBoundsCount();
+            if (bucketCountsCount > 0 && bucketCountsCount != explicitBoundsCount + 1) {
+                errors.add("histogram bucket count must be one greater than explicit bounds count, ignoring " + metric.getName());
                 return false;
+            }
+            for (int i = 1; i < explicitBoundsCount; i++) {
+                if (dataPoint.getExplicitBounds(i - 1) >= dataPoint.getExplicitBounds(i)) {
+                    errors.add("histogram bounds are not sorted or not unique, ignoring " + metric.getName());
+                    return false;
+                }
             }
             return true;
         }
+    }
+
+    private static String getHistogramDynamicTemplate(MappingHints mappingHints) {
+        return switch (mappingHints.histogramMapping()) {
+            case AGGREGATE_METRIC_DOUBLE -> "summary";
+            case TDIGEST, HISTOGRAM_RAW -> "histogram";
+            case EXPONENTIAL_HISTOGRAM -> "exponential_histogram";
+        };
     }
 
     record Summary(SummaryDataPoint dataPoint, Metric metric) implements DataPoint {
@@ -339,7 +384,8 @@ public interface DataPoint {
         }
 
         @Override
-        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder) throws IOException {
+        public void buildMetricValue(MappingHints mappingHints, XContentBuilder builder, ExponentialHistogramConverter.BucketBuffer scratch)
+            throws IOException {
             // TODO: Add support for quantiles
             buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
         }

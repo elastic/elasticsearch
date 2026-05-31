@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.hamcrest.Matcher;
 
@@ -38,7 +38,7 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, EsqlTestUtils.TEST_CFG);
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
@@ -64,8 +64,7 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         List<DataType> signature,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        boolean invalid = false;
-        for (int i = 0; i < signature.size() && invalid == false; i++) {
+        for (int i = 0; i < signature.size(); i++) {
             // Need to check for nulls and bad parameters in order
             if (signature.get(i) == DataType.NULL && i > 0) {
                 return TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT)
@@ -82,11 +81,6 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
             }
         }
 
-        try {
-            return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
-        } catch (IllegalStateException e) {
-            // This means all the positional args were okay, so the expected error is for nulls or from the combination
-            return EsqlBinaryComparison.formatIncompatibleTypesMessage(signature.get(0), signature.get(1), sourceForSignature(signature));
-        }
+        return typeErrorMessage(true, validPerPosition, signature, positionalErrorMessageSupplier);
     }
 }

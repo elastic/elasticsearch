@@ -13,7 +13,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoDeletionPolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -25,6 +24,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -176,7 +176,7 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
 
         try (DirectoryReader directoryReader = DirectoryReader.open(inMemoryNoOpCommitDirectory)) {
             assertThat(directoryReader.getIndexCommit().getUserData().get("user_data"), equalTo("original"));
-            final TopDocs topDocs = newSearcher(directoryReader).search(new MatchAllDocsQuery(), 1);
+            final TopDocs topDocs = newSearcher(directoryReader).search(Queries.ALL_DOCS_INSTANCE, 1);
             assertThat(topDocs.totalHits, equalTo(new TotalHits(1L, TotalHits.Relation.EQUAL_TO)));
             assertThat(topDocs.scoreDocs.length, equalTo(1));
             assertThat(directoryReader.storedFields().document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));
@@ -223,7 +223,7 @@ public class InMemoryNoOpCommitDirectoryTests extends ESTestCase {
 
         try (DirectoryReader directoryReader = DirectoryReader.open(inMemoryNoOpCommitDirectory)) {
             assertThat(directoryReader.getIndexCommit().getUserData().get("user_data"), equalTo("original"));
-            final TopDocs topDocs = newSearcher(directoryReader).search(new MatchAllDocsQuery(), 1);
+            final TopDocs topDocs = newSearcher(directoryReader).search(Queries.ALL_DOCS_INSTANCE, 1);
             assertThat(topDocs.totalHits, equalTo(new TotalHits(1L, TotalHits.Relation.EQUAL_TO)));
             assertThat(topDocs.scoreDocs.length, equalTo(1));
             assertThat(directoryReader.storedFields().document(topDocs.scoreDocs[0].doc).getField("foo").stringValue(), equalTo("bar"));

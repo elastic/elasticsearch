@@ -71,10 +71,14 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)
             // we only want to know if there is at least 1 new document
             .trackTotalHitsUpTo(1)
+            .runtimeMappings(transformConfig.getSource().getRuntimeMappings())
             .query(queryBuilder);
         SearchRequest searchRequest = new SearchRequest(transformConfig.getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .source(sourceBuilder);
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+            searchRequest.setProjectRouting(transformConfig.getSource().getProjectRouting());
+        }
 
         logger.trace("query for changes based on time: {}", sourceBuilder);
 

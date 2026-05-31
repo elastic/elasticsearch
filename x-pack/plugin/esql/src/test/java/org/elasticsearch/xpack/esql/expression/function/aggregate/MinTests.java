@@ -14,6 +14,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,6 +45,8 @@ public class MinTests extends AbstractAggregationTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
@@ -57,6 +60,13 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList()
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
@@ -202,7 +212,7 @@ public class MinTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override
@@ -231,13 +241,22 @@ public class MinTests extends AbstractAggregationTestCase {
                 expected = fieldTypedData.multiRowData()
                     .stream()
                     .map(obj -> (ExponentialHistogram) obj)
-                    .filter(histo -> histo.valueCount() > 0) // only non-empty histograms have an influence
+                    .filter(histo -> histo.isEmpty() == false)
                     .map(ExponentialHistogram::min)
                     .min(Comparator.naturalOrder())
                     .orElse(null);
                 expectedReturnType = DataType.DOUBLE;
-            } else {
+            } else if (fieldSupplier.type() == DataType.TDIGEST) {
                 expected = fieldTypedData.multiRowData()
+                    .stream()
+                    .map(obj -> (TDigestHolder) obj)
+                    .filter(histo -> histo.size() > 0) // only non-empty histograms have an influence
+                    .map(TDigestHolder::getMin)
+                    .min(Comparator.naturalOrder())
+                    .orElse(null);
+                expectedReturnType = DataType.DOUBLE;
+            } else {
+                expected = fieldTypedData.originalMultiRowData()
                     .stream()
                     .map(v -> (Comparable<? super Comparable<?>>) v)
                     .min(Comparator.naturalOrder())

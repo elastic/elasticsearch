@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -19,7 +20,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
@@ -90,8 +90,6 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingsTokenResponseJson));
 
             final var model = AzureAiStudioEmbeddingsModelTests.createModel(
@@ -107,7 +105,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             final var inputType = InputTypeTests.randomSearchAndIngestWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), null, listener);
 
             final var result = listener.actionGet(TIMEOUT);
 
@@ -129,8 +127,6 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));
             final var webserverUrl = getUrl(webServer);
             final var model = AzureAiStudioChatCompletionModelTests.createModel(
@@ -146,7 +142,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             final var action = creator.create(model, Map.of());
 
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), null, listener);
 
             final var result = listener.actionGet(TIMEOUT);
 
@@ -166,8 +162,6 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
             final var webserverUrl = getUrl(webServer);
             final var model = AzureAiStudioRerankModelTests.createModel(
@@ -189,8 +183,14 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
 
             final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(query, documents, returnDocuments, topN, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(
+                    InferenceString.ofText(query),
+                    InferenceString.fromStringList(documents),
+                    returnDocuments,
+                    topN,
+                    false
+                ),
+                null,
                 listener
             );
 

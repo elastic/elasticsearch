@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,6 +36,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     private String[] nodes = ALL_NODES;
 
+    @Nullable
     private TimeValue timeout;
 
     private String[] actions = ALL_ACTIONS;
@@ -42,6 +44,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     private TaskId targetParentTaskId = TaskId.EMPTY_TASK_ID;
 
     private TaskId targetTaskId = TaskId.EMPTY_TASK_ID;
+    // if you're adding new fields, also update the copyFieldsFrom method
 
     // NOTE: This constructor is only needed, because the setters in this class,
     // otherwise it can be removed and above fields can be made final.
@@ -161,6 +164,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return setTargetParentTaskId(parentTaskId);
     }
 
+    @Nullable
     public TimeValue getTimeout() {
         return this.timeout;
     }
@@ -172,7 +176,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     public boolean match(Task task) {
-        if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
+        if (matchesActionAndParent(task) == false) {
             return false;
         }
         if (getTargetTaskId().isSet()) {
@@ -180,11 +184,27 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
                 return false;
             }
         }
-        if (targetParentTaskId.isSet()) {
-            if (targetParentTaskId.equals(task.getParentTaskId()) == false) {
-                return false;
-            }
-        }
         return true;
+    }
+
+    protected final boolean matchesActionAndParent(Task task) {
+        if (canMatchAction(task.getAction()) == false) {
+            return false;
+        }
+        return targetParentTaskId.isSet() == false || targetParentTaskId.equals(task.getParentTaskId());
+    }
+
+    public boolean canMatchAction(final String action) {
+        return CollectionUtils.isEmpty(getActions()) || Regex.simpleMatch(getActions(), action);
+    }
+
+    public BaseTasksRequest<Request> copyFieldsFrom(final BaseTasksRequest<Request> request) {
+        super.copyFieldsFrom(request);
+        this.targetTaskId = request.targetTaskId;
+        this.targetParentTaskId = request.targetParentTaskId;
+        this.timeout = request.timeout;
+        this.actions = request.actions;
+        this.nodes = request.nodes;
+        return this;
     }
 }

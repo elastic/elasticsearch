@@ -12,6 +12,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.lang.model.element.Modifier;
 
@@ -19,11 +20,14 @@ import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.EXPONENTIAL_HISTOGRAM_BLOCK;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.FLOAT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
+import static org.elasticsearch.compute.gen.Types.LONG_RANGE_BLOCK;
+import static org.elasticsearch.compute.gen.Types.TDIGEST_BLOCK;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
@@ -85,13 +89,17 @@ public record StandardArgument(TypeName type, String name) implements Argument {
     }
 
     @Override
-    public void resolveVectors(MethodSpec.Builder builder, String... invokeBlockEval) {
+    public void resolveVectors(MethodSpec.Builder builder, Consumer<MethodSpec.Builder> onBlock, Consumer<MethodSpec.Builder> onAllNull) {
         builder.addStatement("$T $LVector = $LBlock.asVector()", vectorType(type), name, name);
         builder.beginControlFlow("if ($LVector == null)", name);
 
-        for (String statement : invokeBlockEval) {
-            builder.addStatement(statement);
+        if (onAllNull != null) {
+            builder.beginControlFlow("if ($LBlock.areAllValuesNull())", name);
+            onAllNull.accept(builder);
+            builder.endControlFlow();
         }
+
+        onBlock.accept(builder);
 
         builder.endControlFlow();
     }
@@ -123,7 +131,10 @@ public record StandardArgument(TypeName type, String name) implements Argument {
             || type.equals(DOUBLE_BLOCK)
             || type.equals(FLOAT_BLOCK)
             || type.equals(BOOLEAN_BLOCK)
-            || type.equals(BYTES_REF_BLOCK);
+            || type.equals(BYTES_REF_BLOCK)
+            || type.equals(EXPONENTIAL_HISTOGRAM_BLOCK)
+            || type.equals(TDIGEST_BLOCK)
+            || type.equals(LONG_RANGE_BLOCK);
     }
 
     @Override

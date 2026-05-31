@@ -9,38 +9,71 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils.API_KEY_HEADER;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
-public interface AzureOpenAiRequest extends Request {
+public abstract class AzureOpenAiRequest<M extends AzureOpenAiModel> implements OutboundRequest {
 
-    String MISSING_AUTHENTICATION_ERROR_MESSAGE =
-        "The request does not have any authentication methods set. One of [%s] or [%s] is required.";
+    protected final M model;
+    private final AzureOpenAiTaskSettings<?> taskSettings;
+    private final String requestEntity;
 
-    static void decorateWithAuthHeader(HttpPost httpPost, AzureOpenAiSecretSettings secretSettings) {
+    protected AzureOpenAiRequest(M model, AzureOpenAiTaskSettings<?> taskSettings, String requestEntity) {
+        this.model = Objects.requireNonNull(model);
+        this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.requestEntity = Objects.requireNonNull(requestEntity);
+    }
+
+    @Override
+    public void createHttpRequest(ActionListener<HttpRequest> listener) {
+        var httpPost = new HttpPost(getURI());
+
+        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
+        httpPost.setEntity(byteEntity);
+
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
-        var entraId = secretSettings.entraId();
-        var apiKey = secretSettings.apiKey();
-
-        if (entraId != null && entraId.isEmpty() == false) {
-            httpPost.setHeader(createAuthBearerHeader(entraId));
-        } else if (apiKey != null && apiKey.isEmpty() == false) {
-            httpPost.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
-        } else {
-            // should never happen due to the checks on the secret settings, but just in case
-            ValidationException validationException = new ValidationException();
-            validationException.addValidationError(Strings.format(MISSING_AUTHENTICATION_ERROR_MESSAGE, API_KEY, ENTRA_ID));
-            throw validationException;
+        var headers = taskSettings.headers();
+        if (headers.mapValue().isPresent()) {
+            for (var entry : headers.mapValue().get().entrySet()) {
+                httpPost.setHeader(entry.getKey(), entry.getValue());
+            }
         }
+
+        model.secretsApplier().applyTo(httpPost, listener.delegateFailureAndWrap((httpRequestActionListener, httpRequestBase) -> {
+            httpRequestActionListener.onResponse(new HttpRequest(httpRequestBase, getInferenceEntityId()));
+        }));
+    }
+
+    @Override
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
+    }
+
+    @Override
+    public URI getURI() {
+        return model.getUri();
+    }
+
+    @Override
+    public OutboundRequest truncate() {
+        // Default implementation: no truncation. Subclasses may override to apply truncation if needed.
+        return this;
+    }
+
+    @Override
+    public boolean[] getTruncationInfo() {
+        // Default implementation: no truncation was applied, so no truncation info is available.
+        return null;
     }
 }

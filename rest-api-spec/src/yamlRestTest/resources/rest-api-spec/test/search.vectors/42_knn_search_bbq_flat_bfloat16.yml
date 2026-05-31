@@ -110,12 +110,7 @@ setup:
 ---
 "Vector rescoring has same scoring as exact search for kNN section":
   - requires:
-      reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [knn_quantized_vector_rescore_oversample]
+      test_runner_features: "close_to"
   - skip:
       features: "headers"
 
@@ -172,43 +167,10 @@ setup:
                                  -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 0.00001 }}
 
----
-"Test bad parameters":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_flat
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                element_type: bfloat16
-                dims: 64
-                index: true
-                index_options:
-                  type: bbq_flat
-                  m: 42
----
-"Test bad raw vector size":
-  - do:
-      catch: bad_request
-      indices.create:
-        index: bad_bbq_flat
-        body:
-          mappings:
-            properties:
-              vector:
-                type: dense_vector
-                dims: 64
-                index: true
-                index_options:
-                  type: bbq_flat
-                  raw_vector_size: 25
 ---
 "Test few dimensions fail indexing":
   # verify index creation fails
@@ -260,8 +222,7 @@ setup:
 ---
 "Test index configured rescore vector":
   - requires:
-      cluster_features: ["mapper.dense_vector.rescore_vector"]
-      reason: Needs rescore_vector feature
+      test_runner_features: "close_to"
   - skip:
       features: "headers"
   - do:
@@ -345,15 +306,12 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 0.00001 }}
 
 ---
 "default oversample value":
-  - requires:
-      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
-      reason: "Needs default_oversample_value_for_bbq feature"
   - do:
       indices.get_mapping:
         index: bbq_flat

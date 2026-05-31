@@ -8,12 +8,18 @@
  */
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.vectors.diskbbq.Preconditioner;
+import org.elasticsearch.index.codec.vectors.diskbbq.VectorPreconditioner;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,20 +27,39 @@ import java.util.Arrays;
 /** A {@link IVFKnnFloatVectorQuery} that uses the IVF search strategy. */
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
-    private final float[] query;
+    private boolean isQueryPreconditioned = false;
+    private final int originalK;
+    private float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
      * @param query the query vector
-     * @param k the number of nearest neighbors to return
+     * @param k the number of nearest neighbors to return (possibly oversampled)
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
+     * @param overSampleFactor the oversample multiplier applied to the original k; must be {@code >= 1.0f}.
+     *                         When {@code 1.0f}, no oversampling is applied and originalK equals k.
      */
-    public IVFKnnFloatVectorQuery(String field, float[] query, int k, int numCands, Query filter, float visitRatio) {
-        super(field, visitRatio, k, numCands, filter);
+    public IVFKnnFloatVectorQuery(
+        String field,
+        float[] query,
+        int k,
+        int numCands,
+        Query filter,
+        float visitRatio,
+        boolean doPrecondition,
+        float overSampleFactor
+    ) {
+        super(field, visitRatio, k, numCands, filter, doPrecondition);
+        assert overSampleFactor >= 1.0f : "overSampleFactor [" + overSampleFactor + "] must be >= 1.0";
+        this.originalK = overSampleFactor > 1.0f ? Math.max(1, Math.round(k / overSampleFactor)) : k;
         this.query = query;
+    }
+
+    public float[] getQuery() {
+        return query;
     }
 
     @Override
@@ -71,6 +96,36 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
     }
 
     @Override
+    protected void preconditionQuery(LeafReaderContext context) throws IOException {
+        if (isQueryPreconditioned) {
+            // already preconditioned
+            return;
+        }
+        LeafReader reader = context.reader();
+        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(reader);
+        if (segmentReader == null) {
+            // ignore and continue to the next leaf context to see if we can get a segment reader there
+            return;
+        }
+        KnnVectorsReader fieldsReader = segmentReader.getVectorReader();
+        if (fieldsReader instanceof PerFieldKnnVectorsFormat.FieldsReader) {
+            KnnVectorsReader knnVectorsReader = ((PerFieldKnnVectorsFormat.FieldsReader) fieldsReader).getFieldReader(field);
+            if (knnVectorsReader instanceof VectorPreconditioner) {
+                FieldInfo fieldInfo = segmentReader.getFieldInfos().fieldInfo(field);
+                Preconditioner preconditioner = ((VectorPreconditioner) knnVectorsReader).getPreconditioner(fieldInfo);
+                if (preconditioner != null) {
+                    final float[] out = new float[query.length];
+                    preconditioner.applyTransform(query, out);
+                    // have to keep the copy to avoid issues with reused arrays by the caller of IVFKnnFloatVectorQuery which expects
+                    // a non-preconditioned query vector to still exist
+                    query = out;
+                    isQueryPreconditioned = true;
+                }
+            }
+        }
+    }
+
+    @Override
     protected TopDocs approximateSearch(
         LeafReaderContext context,
         AcceptDocs acceptDocs,
@@ -79,22 +134,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
-        FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-        if (floatVectorValues == null) {
-            FloatVectorValues.checkField(reader, field);
-            return NO_RESULTS;
-        }
-        if (floatVectorValues.size() == 0) {
-            return NO_RESULTS;
-        }
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, originalK, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
-        TopDocs results = knnCollector.topDocs();
+        TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
+            ? bulkKnnCollector.unsortedTopK()
+            : knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
     }
 }

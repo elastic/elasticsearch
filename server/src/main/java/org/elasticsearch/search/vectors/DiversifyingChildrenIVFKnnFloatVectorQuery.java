@@ -29,6 +29,7 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
      * @param childFilter   the filter to apply to the results
      * @param parentsFilter bitset producer for the parent documents
      * @param visitRatio        the ratio of documents to be scored for the IVF search strategy
+     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public DiversifyingChildrenIVFKnnFloatVectorQuery(
         String field,
@@ -37,9 +38,11 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         int numCands,
         Query childFilter,
         BitSetProducer parentsFilter,
-        float visitRatio
+        float visitRatio,
+        boolean doPrecondition,
+        float overSampleFactor
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, overSampleFactor);
         this.parentsFilter = parentsFilter;
     }
 

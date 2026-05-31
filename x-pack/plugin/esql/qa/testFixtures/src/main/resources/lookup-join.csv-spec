@@ -37,6 +37,7 @@ language_code:integer  | language_name:keyword
 
 basicOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -45,6 +46,8 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP emp_no, language_code, language_name
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
@@ -72,6 +75,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 
 subsequentEvalOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -82,6 +86,8 @@ FROM employees
 | EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
 10001          | 2                     | french                |                        4
 10002          | 5                     | null                  |                       10
@@ -90,6 +96,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 
 sortEvalBeforeLookup
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -98,6 +105,8 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 | LIMIT 3
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
@@ -210,15 +219,20 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code
 | DROP foo, country, country.keyword
 | SORT emp_no
-| LIMIT 5
+| LIMIT 10
 ;
 
 languages:integer | emp_no:integer | language_code:integer | language_name:keyword
 2                 | 10001          | 2                     | French
 2                 | 10001          | 2                     | French
 2                 | 10001          | 2                     | French
+2                 | 10001          | 2                     | French
 5                 | 10002          | 5                     | null
 4                 | 10003          | 4                     | German
+5                 | 10004          | 5                     | null
+1                 | 10005          | 1                     | English
+1                 | 10005          | 1                     | English
+1                 | 10005          | 1                     | English
 ;
 
 projectsWithShadowingAfterPushdown
@@ -258,6 +272,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:keyword
     10091      | 1                     | English               | United States of America
     10091      | 1                     | English               | null
     10092      | 2                     | German                | [Austria, Germany]
+    10092      | 2                     | German                | [Belgium, Germany]
     10092      | 2                     | German                | Switzerland
     10092      | 2                     | German                | null
     10093      | 3                     | null                  | null
@@ -267,6 +282,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 
 nonUniqueRightKeyOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -277,6 +293,8 @@ FROM employees
 | KEEP emp_no, language_code, language_name, country
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 ignoreOrder:true
 emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | English               | Canada
@@ -284,6 +302,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | null                  | United Kingdom
 10001          | 1                     | English               | United States of America
 10002          | 2                     | German                | [Austria, Germany]
+10002          | 2                     | German                | [Belgium, Germany]
 10002          | 2                     | German                | Switzerland
 10002          | 2                     | German                | null
 10003          | 3                     | null                  | null
@@ -294,6 +313,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 nonUniqueRightKeyOnTheCoordinatorCorrectOrdering
 // Same as above, but don't ignore the order completely. At least the emp_no col must remain correctly ordered.
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -303,11 +323,14 @@ FROM employees
 | KEEP emp_no, language_code
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer
 10001          | 1
 10001          | 1
 10001          | 1
 10001          | 1
+10002          | 2
 10002          | 2
 10002          | 2
 10002          | 2
@@ -318,6 +341,7 @@ emp_no:integer | language_code:integer
 
 nonUniqueRightKeyFromRow
 required_capability: join_lookup_v12
+required_capability: conditional_block_loader_for_text_fields
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -326,7 +350,8 @@ ROW language_code = 2
 
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
-2                     | [Germany, Austria] | German
+2                     | [Austria, Germany] | German
+2                     | [Belgium, Germany] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;
@@ -439,6 +464,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 10001          | 1                     | English
 10001          | 1                     | English
 10001          | 1                     | null
+10002          | 2                     | German
 10002          | 2                     | German
 10002          | 2                     | German
 10002          | 2                     | German
@@ -576,6 +602,146 @@ language_code:integer | language_name:keyword | country:text
 8                     | null                  | null
 ;
 
+
+#### 137269
+
+mvKeywordFieldJoinWarningsFromLeftSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW language_name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_name
+| KEEP language_name, country.keyword
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_name:keyword | country.keyword:keyword
+[English, Spanish]    | null
+;
+
+mvKeywordFieldJoinWarningsFromLeftSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW language_name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON language_name
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+mvKeywordExpressionJoinWarningsFromLeftSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name
+| KEEP name, country.keyword, language_name
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+name:keyword          | country.keyword:keyword | language_name:keyword
+[English, Spanish]    | null                    | null
+;
+
+mvKeywordExpressionJoinWarningsFromLeftSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = ["English", "Spanish"]
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == language_name] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+mvKeywordFieldJoinWarningsFromRightSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW country.keyword = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword
+| KEEP country.keyword, language_code, language_name
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+country.keyword:keyword | language_code:integer | language_name:keyword
+Germany                 | null                  | null                 
+;
+
+mvKeywordFieldJoinWarningsFromRightSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW country.keyword = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+mvKeywordExpressionJoinWarningsFromRightSide
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword
+| KEEP name, country.keyword, language_name
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+name:keyword          | country.keyword:keyword | language_name:keyword
+Germany               | null                    | null
+;
+
+mvKeywordExpressionJoinWarningsFromRightSideWhenNotKept
+required_capability: join_lookup_v12
+required_capability: async_operator_warnings_fix
+
+ROW name = "Germany"
+| LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword
+| KEEP language_code
+| LIMIT 5
+;
+
+warning:Line 2:3: evaluation of [LOOKUP JOIN languages_lookup_non_unique_key ON name == country.keyword] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+language_code:integer
+null
+;
+
+
 ###############################################
 # Filtering tests with languages_lookup index
 ###############################################
@@ -685,6 +851,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 filterOnRightSideOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -695,12 +862,15 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
 filterOnJoinKeyOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -711,12 +881,15 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
 filterOnJoinKeyAndRightSideOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -726,6 +899,8 @@ FROM employees
 | WHERE language_code > 1 AND language_name IS NOT NULL
 | KEEP emp_no, language_code, language_name
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
@@ -1603,7 +1778,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | sort language_code, birth_date
@@ -1620,7 +1795,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1638,7 +1813,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1654,7 +1829,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1672,7 +1847,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *
+from *,-addresses_*
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1719,6 +1894,7 @@ from languages,languages_lookup,languages_lookup_non_unique_key,languages_nested
 
 ignoreOrder:true
 language.name:text
+null
 null
 null
 null
@@ -1797,7 +1973,8 @@ joinMaskingRegex
 required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
-from books,message_*,ul*
+required_capability: lookup_join_sort_warning
+from books,message_*,ul_*
 | enrich languages_policy on status
 | drop `language_name`, `bytes_out`, `id`, id
 | dissect book_no "%{type}"
@@ -1817,6 +1994,8 @@ from books,message_*,ul*
 | stats  `type` = count(type), `ratings` = count(*)
 | keep `ratings`, ratings
 ;
+
+warning:Line 7:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 ratings:long
 1
@@ -4908,21 +5087,6 @@ Connected to 10.1.0.1 | English                      | English               | n
 Connected to 10.1.0.1 | English                      | null                  | United Kingdom
 ;
 
-enrichAfterLookupJoin
-required_capability: join_lookup_v12
-
-FROM sample_data
-| KEEP message
-| WHERE message == "Connected to 10.1.0.1"
-| EVAL language_code = "1"
-| LOOKUP JOIN message_types_lookup ON message
-| ENRICH languages_policy ON language_code
-;
-
-message:keyword       | language_code:keyword | type:keyword | language_name:keyword
-Connected to 10.1.0.1 | 1                     | Success      | English
-;
-
 ###############################################
 # LOOKUP JOIN and remote ENRICH
 ###############################################
@@ -5685,6 +5849,7 @@ language_name:keyword | language_code:integer
 lookupJoinWithSemanticFilterDeduplicationComplex
 required_capability: join_lookup_v12
 required_capability: lookup_join_semantic_filter_dedup
+required_capability: lookup_join_sort_warning
 
 from languages_lookup_non_unique_ke* 
 | enrich languages_policy on language_name 
@@ -5701,9 +5866,326 @@ from languages_lookup_non_unique_ke*
 | where  NOT false AND other2 == 50
 ;
 
+warning:Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 warning:Line 13:24: evaluation of [other2 == 50] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 13:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword |id_int:integer | ip_addr:ip |is_active_bool:boolean | name_str:keyword
+language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword | date:datetime | date_nanos:date_nanos | id_int:integer | ip_addr:ip | is_active_bool:boolean | name_str:keyword
 
 ;
+
+whereFalseBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereFalseBeforeLookupJoinWithFilterAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no > 100
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereFalseBeforeLookupJoinWithStatsAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+impossibleFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL a = 1, b = a + 1, c = b + a
+| WHERE c > 10
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE language_name IS NOT NULL
+| KEEP emp_no, language_name
+;
+
+emp_no:integer | language_name:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchPhrase
+required_capability: join_lookup_v12
+required_capability: match_phrase_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match_phrase(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchOperator
+required_capability: join_lookup_v12
+required_capability: match_operator_colon
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE message:"Connection error"
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseWithEvalBeforeLookupJoinAndMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| EVAL msg = message
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithFullTextDisjunction
+required_capability: join_lookup_v12
+required_capability: full_text_functions_disjunctions_compute_engine
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error") OR type LIKE "Success"
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchAndStats
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMultipleFullTextFunctions
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: match_phrase_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE false
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection") AND match_phrase(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereFalseBeforeLookupJoinWithMatchOnEmployees
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM employees
+| WHERE false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE match(first_name, "Georgi")
+| KEEP emp_no, first_name, language_name
+;
+
+emp_no:integer | first_name:keyword | language_name:keyword
+;
+
+whereNullBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+evalNullFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| EVAL x = null
+| WHERE x::int > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullBeforeLookupJoinWithStatsAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*)
+;
+
+c:long
+0
+;
+
+whereNullBeforeLookupJoinWithFilterAfter
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no > 100
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+nullArithmeticFilterBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE 1 + null > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullConjunctionBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null AND emp_no > 0
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+whereNullDisjunctionBeforeLookupJoin
+required_capability: join_lookup_v12
+
+FROM employees
+| WHERE null OR false
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+whereNullBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| WHERE null
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+
+// See https://github.com/elastic/elasticsearch/issues/144329
+evalNullFilterBeforeLookupJoinWithMatch
+required_capability: join_lookup_v12
+required_capability: match_function
+required_capability: propagate_empty_relation_past_joins
+
+FROM sample_data
+| EVAL x = null
+| WHERE x::int > 0
+| LOOKUP JOIN message_types_lookup ON message
+| WHERE match(message, "Connection error")
+| KEEP message, type
+;
+
+message:keyword | type:keyword
+;
+

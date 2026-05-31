@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -91,16 +92,18 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         String projectId,
         String modelId,
         String uri,
-        String serviceAccountJson
+        String serviceAccountJson,
+        String authHeaderValue
     ) {
         return new GoogleVertexAiEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
             uri,
-            new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null),
+            new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null, null),
             new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE, null),
-            new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray()))
+            new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 
@@ -118,6 +121,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 modelId,
                 false,
+                null,
                 null,
                 null,
                 similarityMeasure,
@@ -139,6 +143,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 "projectId",
                 modelId,
                 false,
+                null,
                 null,
                 null,
                 SimilarityMeasure.DOT_PRODUCT,
@@ -164,6 +169,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
                 randomAlphaOfLength(8),
                 modelId,
                 false,
+                null,
                 null,
                 null,
                 SimilarityMeasure.DOT_PRODUCT,

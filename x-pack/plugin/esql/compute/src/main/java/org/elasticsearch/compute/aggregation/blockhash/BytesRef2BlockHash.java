@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -34,7 +34,7 @@ final class BytesRef2BlockHash extends BlockHash {
     private final int channel2;
     private final BytesRefBlockHash hash1;
     private final BytesRefBlockHash hash2;
-    private final LongHash finalHash;
+    private final LongHashTable finalHash;
 
     BytesRef2BlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
         super(blockFactory);
@@ -45,7 +45,7 @@ final class BytesRef2BlockHash extends BlockHash {
         try {
             this.hash1 = new BytesRefBlockHash(channel1, blockFactory);
             this.hash2 = new BytesRefBlockHash(channel2, blockFactory);
-            this.finalHash = new LongHash(1, blockFactory.bigArrays());
+            this.finalHash = HashImplFactory.newLongHash(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -137,17 +137,16 @@ final class BytesRef2BlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
+    public Block[] getKeys(IntVector selected) {
         // TODO Build Ordinals blocks #114010
-        final int positions = (int) finalHash.size();
+        final int positions = selected.getPositionCount();
         final BytesRef scratch = new BytesRef();
         final BytesRefBlock[] outputBlocks = new BytesRefBlock[2];
         try {
             try (BytesRefBlock.Builder b1 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k1 = (int) (finalHash.get(i) & 0xffffffffL);
-                    // k1 is always positive, it's how hash values are generated, see BytesRefBlockHash.
-                    // For now, we only manage at most 2^31 hash entries
+                    int groupId = selected.getInt(i);
+                    int k1 = (int) (finalHash.get(groupId) & 0xffffffffL);
                     if (k1 == 0) {
                         b1.appendNull();
                     } else {
@@ -158,7 +157,8 @@ final class BytesRef2BlockHash extends BlockHash {
             }
             try (BytesRefBlock.Builder b2 = blockFactory.newBytesRefBlockBuilder(positions)) {
                 for (int i = 0; i < positions; i++) {
-                    int k2 = (int) (finalHash.get(i) >>> 32);
+                    int groupId = selected.getInt(i);
+                    int k2 = (int) (finalHash.get(groupId) >>> 32);
                     if (k2 == 0) {
                         b2.appendNull();
                     } else {
@@ -182,7 +182,12 @@ final class BytesRef2BlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(finalHash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override

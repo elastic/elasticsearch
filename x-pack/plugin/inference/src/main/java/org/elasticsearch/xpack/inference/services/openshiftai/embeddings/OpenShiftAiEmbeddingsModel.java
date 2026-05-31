@@ -42,7 +42,7 @@ public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
             service,
             OpenShiftAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -68,10 +68,20 @@ public class OpenShiftAiEmbeddingsModel extends OpenShiftAiModel {
         ChunkingSettings chunkingSettings,
         SecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
             new ModelSecrets(secrets)
         );
+    }
+
+    /**
+     * Constructor for creating an OpenShiftAiEmbeddingsModel from model configurations and secrets.
+     *
+     * @param modelConfigurations the configurations for the model
+     * @param modelSecrets the secret settings for the model
+     */
+    public OpenShiftAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     @Override

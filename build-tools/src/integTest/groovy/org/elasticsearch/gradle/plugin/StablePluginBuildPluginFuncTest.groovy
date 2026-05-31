@@ -73,7 +73,7 @@ class StablePluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("modulename") == null
         props.get("extended.plugins") == null
         props.get("has.native.controller") == null
-        props.size() == 5
+        props.size() == 6
 
     }
 

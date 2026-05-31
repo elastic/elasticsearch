@@ -128,7 +128,7 @@ public class NeighborQueue {
         return NumericUtils.sortableIntToFloat((int) (order.apply(heapValue) >> 32));
     }
 
-    private int decodeNodeId(long heapValue) {
+    public int decodeNodeId(long heapValue) {
         return (int) ~(order.apply(heapValue));
     }
 
@@ -143,17 +143,17 @@ public class NeighborQueue {
     }
 
     /**
-     * if the new element is the new top then return its node id. Otherwise,
+     * if the new element is the new top then return its raw value. Otherwise,
      * removes the current top element, returns its node id and adds the new element
      * to the queue.
      * */
-    public int popAndAddRaw(long raw) {
+    public long popRawAndAddRaw(long raw) {
         long top = heap.top();
         if (raw < top) {
-            return decodeNodeId(raw);
+            return raw;
         }
         heap.updateTop(raw);
-        return decodeNodeId(top);
+        return top;
     }
 
     public void clear() {

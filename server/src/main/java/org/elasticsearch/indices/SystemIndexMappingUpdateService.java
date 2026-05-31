@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -249,7 +250,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
     static State calculateIndexState(ProjectState state, SystemIndexDescriptor descriptor) {
-        final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
+        IndexMetadata indexMetadata = getSystemIndexMetadata(state, descriptor);
 
         if (indexMetadata == null) {
             return null;
@@ -276,6 +277,21 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
+    }
+
+    private static IndexMetadata getSystemIndexMetadata(ProjectState state, SystemIndexDescriptor descriptor) {
+        String primaryIndexName = descriptor.getPrimaryIndex();
+        ProjectMetadata projectMetadata = state.metadata();
+        IndexMetadata indexMetadata = projectMetadata.index(primaryIndexName);
+        if (indexMetadata == null) {
+            // The primary index name might be an alias pointing to the concrete index
+            // (e.g. ".fleet-agents-7" → ".fleet-agents-7-reindexed-for-9").
+            IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(primaryIndexName);
+            if (indexAbstraction != null && indexAbstraction.getWriteIndex() != null) {
+                indexMetadata = projectMetadata.getIndexSafe(indexAbstraction.getWriteIndex());
+            }
+        }
+        return indexMetadata;
     }
 
     /**

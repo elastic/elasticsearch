@@ -28,12 +28,14 @@ import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender.NodeListener;
 import org.junit.After;
@@ -73,11 +75,13 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 public class DataNodeRequestSenderTests extends ComputeTestCase {
 
-    private TestThreadPool threadPool;
+    private ThreadPool threadPool;
     private Executor executor = null;
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
@@ -97,18 +101,13 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
     @Before
     public void setThreadPool() {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "test",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
+        threadPool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "TransportActionTests").build(),
+            MeterRegistry.NOOP,
+            (settings, allocatedProcessors) -> Map.of(),
+            new FixedExecutorBuilder(Settings.EMPTY, ThreadPool.Names.SEARCH, numThreads, 1024, "", EsExecutors.TaskTrackingConfig.DEFAULT)
         );
-        executor = threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
+        executor = threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @After
@@ -322,6 +321,9 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             );
         }
 
+        // this will force requests to pile up
+        boolean forceConcurrent = randomBoolean();
+
         var concurrency = randomIntBetween(1, 2);
         AtomicInteger maxConcurrentRequests = new AtomicInteger(0);
         AtomicInteger concurrentRequests = new AtomicInteger(0);
@@ -339,12 +341,30 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
             sent.add(nodeRequest(node, shardIds));
             runWithDelay(() -> {
+                if (forceConcurrent) {
+                    int maxRetries = 0;
+                    // This forces the requests to pile up to test the concurrency limit is respected
+                    while (maxConcurrentRequests.get() < concurrency && maxRetries++ < 100) {
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
                 concurrentRequests.decrementAndGet();
                 listener.onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
             });
         }));
         assertThat(sent.size(), equalTo(shards));
-        assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        if (forceConcurrent) {
+            // Since we forced the concurrency, we should hit the exact concurrency limit here
+            assertThat(maxConcurrentRequests.get(), equalTo(concurrency));
+        } else {
+            // Since the requests are not forced to run concurrently, we might not hit the concurrency limit
+            // But we never have to exceed it
+            assertThat(maxConcurrentRequests.get(), is(lessThanOrEqualTo(concurrency)));
+        }
         assertThat(response.totalShards, equalTo(shards));
         assertThat(response.successfulShards, equalTo(shards));
         assertThat(response.failedShards, equalTo(0));
@@ -606,7 +626,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             shard.shardId(),
             new ArrayList<>(Arrays.asList(nodes)),
             null,
-            shard.reshardSplitShardCountSummary()
+            shard.splitShardCountSummary()
         );
     }
 

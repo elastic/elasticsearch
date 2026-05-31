@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -93,29 +92,51 @@ public enum CohereEmbeddingType {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static CohereEmbeddingType fromElementType(DenseVectorFieldMapper.ElementType elementType) {
-        var embedding = ELEMENT_TYPE_TO_COHERE_EMBEDDING.get(elementType);
-
-        if (embedding == null) {
-            var validElementTypes = SUPPORTED_ELEMENT_TYPES.stream()
-                .map(value -> value.toString().toLowerCase(Locale.ROOT))
-                .toArray(String[]::new);
-            Arrays.sort(validElementTypes);
-
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Element type [%s] does not map to a Cohere embedding value, must be one of [%s]",
-                    elementType,
-                    String.join(", ", validElementTypes)
-                )
-            );
+    /**
+     * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
+     * type was persisted as a {@link CohereEmbeddingType} enum. After
+     * {@link DenseVectorFieldMapper.ElementType} was used.
+     * <p>
+     * Parse either and convert to a {@link CohereEmbeddingType}.
+     *
+     * @param value the value to parse
+     */
+    public static CohereEmbeddingType fromCohereOrElementType(String value) {
+        try {
+            return fromString(value);
+        } catch (IllegalArgumentException fallback) {
+            try {
+                return fromElementType(value);
+            } catch (IllegalArgumentException e) {
+                var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
+                    .map(v -> v.toString().toLowerCase(Locale.ROOT))
+                    .toArray(String[]::new);
+                throw new IllegalArgumentException(
+                    Strings.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings))
+                );
+            }
         }
+    }
 
+    private static CohereEmbeddingType fromElementType(String value) {
+        var elementType = DenseVectorFieldMapper.ElementType.fromString(value);
+        var embedding = ELEMENT_TYPE_TO_COHERE_EMBEDDING.get(elementType);
+        if (embedding == null) {
+            throw new IllegalArgumentException("Unsupported element type [" + value + "]");
+        }
         return embedding;
     }
 
     public DenseVectorFieldMapper.ElementType toElementType() {
         return elementType;
+    }
+
+    /**
+     * Collapses synonym pairs to a single canonical value ({@code INT8 → BYTE}, {@code BINARY → BIT})
+     * so that objects holding semantically identical embedding types compare as equal.
+     */
+    public CohereEmbeddingType normalize() {
+        return ELEMENT_TYPE_TO_COHERE_EMBEDDING.getOrDefault(this.elementType, this);
     }
 
     /**
@@ -127,10 +148,6 @@ public enum CohereEmbeddingType {
      * @return the embedding type that is known to the version passed in
      */
     public static CohereEmbeddingType translateToVersion(CohereEmbeddingType embeddingType, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_14_0) && embeddingType == BYTE) {
-            return INT8;
-        }
-
         if (embeddingType == BIT) {
             if (version.supports(COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED)) {
                 // BIT embedding type is supported in these versions

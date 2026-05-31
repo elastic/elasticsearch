@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
@@ -50,7 +53,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null
         );
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
             "gemini-flash",
             null,
             null,
@@ -85,7 +88,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             123
         );
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
             null,
@@ -223,7 +226,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             123
         );
         var request = new UnifiedCompletionRequest(
-            List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
+            List.of(new Message(new ContentString("hello"), "user", null, null)),
             null,
             null,
             null,
@@ -268,6 +271,29 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
             new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static GoogleVertexAiChatCompletionModel createCompletionModel(
+        String projectId,
+        String location,
+        String modelId,
+        String apiKey,
+        RateLimitSettings rateLimitSettings,
+        ThinkingConfig thinkingConfig,
+        GoogleModelGardenProvider provider,
+        URI uri,
+        Integer maxTokens,
+        String authHeaderValue
+    ) {
+        return new GoogleVertexAiChatCompletionModel(
+            "google-vertex-ai-chat-test-id",
+            TaskType.CHAT_COMPLETION,
+            "google_vertex_ai",
+            new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
+            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
+            new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 

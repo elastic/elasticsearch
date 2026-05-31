@@ -15,6 +15,7 @@ dependencies {
   api project(':modules:transport-netty4')
   api project(':libs:ssl-config')
   api project(":server")
+  api project(":libs:native")
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
   api ("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
@@ -46,6 +47,9 @@ dependencies {
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
+  annotationProcessor "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  annotationProcessor "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+
   testImplementation project(":modules:mapper-extras")
   testImplementation project(':x-pack:plugin:core')
   testImplementation project(':x-pack:plugin:mapper-unsigned-long')
@@ -59,6 +63,14 @@ sourceSets {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
   }
+}
+
+// log4j-core registers both the PluginProcessor and GraalVmProcessor on the processor path; we only want the former
+tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(
+    "-processor",
+    "org.apache.logging.log4j.core.config.plugins.processor.PluginProcessor",
+  )
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs

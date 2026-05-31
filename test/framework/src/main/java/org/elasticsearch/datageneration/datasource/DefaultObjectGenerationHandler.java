@@ -13,9 +13,9 @@ import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -30,59 +30,83 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
      */
     public static final String RESERVED_FIELD_NAME_PREFIX = "_reserved_";
 
-    @Override
-    public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
-        return new DataSourceResponse.ChildFieldGenerator() {
-            @Override
-            public int generateChildFieldCount() {
-                // no child fields is legal
-                return ESTestCase.randomIntBetween(0, request.specification().maxFieldCountPerLevel());
+    public static class DefaultChildFieldGenerator implements DataSourceResponse.ChildFieldGenerator {
+        private final DataSourceRequest.ChildFieldGenerator request;
+
+        public DefaultChildFieldGenerator(DataSourceRequest.ChildFieldGenerator request) {
+            this.request = request;
+        }
+
+        @Override
+        public int generateChildFieldCount() {
+            // no child fields is legal
+            return ESTestCase.randomIntBetween(0, request.specification().maxFieldCountPerLevel());
+        }
+
+        @Override
+        public boolean generateDynamicSubObject() {
+            // Using a static 5% chance, this is just a chosen value that can be tweaked.
+            return randomDouble() <= 0.05;
+        }
+
+        @Override
+        public boolean generateNestedSubObject() {
+            // Using a static 5% chance, this is just a chosen value that can be tweaked.
+            return randomDouble() <= 0.05;
+        }
+
+        @Override
+        public boolean generateRegularSubObject() {
+            // Using a static 5% chance, this is just a chosen value that can be tweaked.
+            return randomDouble() <= 0.05;
+        }
+
+        @Override
+        public String generateFieldName() {
+            while (true) {
+                String fieldName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
+                if (fieldName.isBlank()) {
+                    continue;
+                }
+                if (fieldName.indexOf('.') != -1) {
+                    continue;
+                }
+                if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
+                    continue;
+                }
+                if (containsSurrogates(fieldName)) {
+                    continue;
+                }
+
+                return fieldName;
             }
+        }
 
-            @Override
-            public boolean generateDynamicSubObject() {
-                // Using a static 5% chance, this is just a chosen value that can be tweaked.
-                return randomDouble() <= 0.05;
-            }
-
-            @Override
-            public boolean generateNestedSubObject() {
-                // Using a static 5% chance, this is just a chosen value that can be tweaked.
-                return randomDouble() <= 0.05;
-            }
-
-            @Override
-            public boolean generateRegularSubObject() {
-                // Using a static 5% chance, this is just a chosen value that can be tweaked.
-                return randomDouble() <= 0.05;
-            }
-
-            @Override
-            public String generateFieldName() {
-                while (true) {
-                    String fieldName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
-                    if (fieldName.isBlank()) {
-                        continue;
-                    }
-                    if (fieldName.indexOf('.') != -1) {
-                        continue;
-                    }
-                    if (fieldName.startsWith(RESERVED_FIELD_NAME_PREFIX)) {
-                        continue;
-                    }
-
-                    return fieldName;
+        private boolean containsSurrogates(String str) {
+            for (int i = 0; i < str.length(); i++) {
+                if (Character.isSurrogate(str.charAt(i))) {
+                    return true;
                 }
             }
-        };
+            return false;
+        }
+    }
+
+    @Override
+    public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
+        return new DefaultChildFieldGenerator(request);
     }
 
     // UNSIGNED_LONG is excluded because it is mapped as long
     // and values larger than long fail to parse.
-    private static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(FieldType.UNSIGNED_LONG, FieldType.PASSTHROUGH);
-    private static final Set<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
+    public static final Set<FieldType> EXCLUDED_FROM_DYNAMIC_MAPPING = Set.of(
+        FieldType.UNSIGNED_LONG,
+        FieldType.PASSTHROUGH,
+        FieldType.FLATTENED
+    );
+    public static final List<FieldType> ALLOWED_FIELD_TYPES = Arrays.stream(FieldType.values())
         .filter(fieldType -> EXCLUDED_FROM_DYNAMIC_MAPPING.contains(fieldType) == false)
-        .collect(Collectors.toSet());
+        .toList();
 
     @Override
     public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {

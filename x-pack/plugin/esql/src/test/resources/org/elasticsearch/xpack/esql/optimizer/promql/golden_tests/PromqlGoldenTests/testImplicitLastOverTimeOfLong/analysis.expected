@@ -1,0 +1,7 @@
+Limit[10000[INTEGER],false,false]
+\_Filter[step{r}#0 >= 0[DATETIME] AND step{r}#0 <= 253402300799999[DATETIME]]
+  \_Filter[ISNOTNULL(bytes{r}#1)]
+    \_Project[[bytes{r}#1, step{r}#0, cluster{f}#2]]
+      \_Eval[[TODOUBLE(bytes{r}#3) AS bytes#1]]
+        \_TimeSeriesAggregate[[TSTEP(PT1M[TIME_DURATION],@timestamp{f}#4,0[DATETIME],253402300799999[DATETIME]) AS step#0, cluster{f}#2],[AVG(LASTOVERTIME(network.bytes_in{f}#5,true[BOOLEAN],PT0S[TIME_DURATION],@timestamp{f}#4),true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS bytes#3, step{r}#0, cluster{f}#2],null,null,@timestamp{f}#4,PROMQL_COMMAND]
+          \_EsRelation[k8s][TIME_SERIES][@timestamp{f}#4, client.ip{f}#6, cluster{f}#2, event{f}#7, event_city{f}#8, event_city_boundary{f}#9, event_location{f}#10, event_log{f}#11, event_shape{f}#12, events_received{f}#13, network.bytes_in{f}#5, network.cost{f}#14, network.eth0.currently_connected_clients{f}#15, network.eth0.firmware_version{f}#16, network.eth0.last_up{f}#17, network.eth0.rx{f}#18, network.eth0.tx{f}#19, network.eth0.up{f}#20, network.total_bytes_in{f}#21, network.total_bytes_out{f}#22, network.total_cost{f}#23, pod{f}#24, region{f}#25]

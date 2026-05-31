@@ -68,7 +68,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
 import static org.apache.lucene.search.RegexpQuery.DEFAULT_PROVIDER;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -114,6 +113,11 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         private VersionStringFieldType buildFieldType(MapperBuilderContext context, FieldType fieldtype) {
             return new VersionStringFieldType(context.buildFullName(leafName()), fieldtype, meta.getValue());
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -249,13 +253,16 @@ public class VersionStringFieldMapper extends FieldMapper {
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
                 );
             }
-            return new FuzzyQuery(
+            MultiTermQuery.RewriteMethod effectiveRewrite = rewriteMethod != null
+                ? rewriteMethod
+                : FuzzyQuery.defaultRewriteMethod(maxExpansions);
+            FuzzyQuery query = new FuzzyQuery(
                 new Term(name(), (BytesRef) value),
                 fuzziness.asDistance(BytesRefs.toString(value)),
                 prefixLength,
                 maxExpansions,
                 transpositions,
-                rewriteMethod == null ? defaultRewriteMethod(maxExpansions) : rewriteMethod
+                effectiveRewrite
             ) {
                 @Override
                 protected TermsEnum getTermsEnum(Terms terms, AttributeSource atts) throws IOException {
@@ -275,6 +282,7 @@ public class VersionStringFieldMapper extends FieldMapper {
                     };
                 }
             };
+            return query;
         }
 
         @Override
@@ -312,7 +320,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             failIfNoDocValues();
-            return new BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
         }
 
         @Override

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.custom.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
@@ -167,7 +168,12 @@ public class CustomResponseEntityTests extends ESTestCase {
             TaskType.RERANK,
             new RerankResponseParser("$.result.scores[*].score", "$.result.scores[*].index", null)
         );
-        var request = new CustomRequest(RerankParameters.of(new QueryAndDocsInputs("query", List.of("doc1", "doc2"))), model);
+        var request = new CustomRequest(
+            RerankParameters.of(
+                new QueryAndDocsInputs(InferenceString.ofText("query"), InferenceString.fromStringList(List.of("doc1", "doc2")))
+            ),
+            model
+        );
 
         InferenceServiceResults results = CustomResponseEntity.fromResponse(
             request,

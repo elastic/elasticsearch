@@ -35,7 +35,7 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(".fleet-file-fromhost-meta-ilm-policy", "/fleet-file-fromhost-meta-ilm-policy.json")
     );
 
-    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+    final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(
         new IndexTemplateConfig(
             ".fleet-fileds-fromhost-meta",
             "/fleet-file-fromhost-meta.json",
@@ -84,6 +84,6 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return composableIndexTemplates;
     }
 }

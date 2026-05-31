@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EsQueryExec extends LeafExec implements EstimatesRowSize {
+public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourceExec {
     public static final EsField DOC_ID_FIELD = new EsField(
         "_doc",
         DataType.DOC_DATA_TYPE,
@@ -130,9 +130,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
-        @Override
-        public String toString() {
-            return "QueryBuilderAndTags{" + "queryBuilder=[" + query + "], tags=" + tags.toString() + "}";
+        public QueryBuilderAndTags withQuery(QueryBuilder query) {
+            return new QueryBuilderAndTags(query, tags);
         }
     };
 
@@ -167,6 +166,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         throw new UnsupportedOperationException("not serialized");
     }
 
+    // TODO: Move this to DataType
     public static boolean isDocAttribute(Attribute attr) {
         // While the user can create columns with the same name as DOC_ID_FIELD, they cannot create a field with the DOC_DATA_TYPE.
         return attr.typeResolved().resolved() && attr.dataType() == DataType.DOC_DATA_TYPE;
@@ -304,6 +304,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private QueryBuilder queryWithoutTag() {
         QueryBuilder queryWithoutTag;
+
         if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
             return null;
         } else if (queryBuilderAndTags.size() == 1) {
@@ -347,24 +348,18 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
-        return nodeName()
-            + "["
-            + indexPattern
-            + "], "
-            + "indexMode["
-            + indexMode
-            + "], "
-            + NodeUtils.limitedToString(attrs)
-            + ", limit["
-            + (limit != null ? limit.toString() : "")
-            + "], sort["
-            + (sorts != null ? sorts.toString() : "")
-            + "] estimatedRowSize["
-            + estimatedRowSize
-            + "] queryBuilderAndTags ["
-            + (queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-            + "]";
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[").append(indexPattern).append("], ").append("indexMode[").append(indexMode).append("], ");
+        NodeUtils.toString(sb, attrs, format);
+        sb.append(", limit[")
+            .append(limit != null ? limit.toString(format) : "")
+            .append("], sort[")
+            .append(sorts != null ? sorts.toString() : "")
+            .append("] estimatedRowSize[")
+            .append(estimatedRowSize)
+            .append("] queryBuilderAndTags [")
+            .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
+            .append("]");
     }
 
     public enum Direction {
@@ -382,14 +377,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public enum Missing {
         FIRST("_first"),
-        LAST("_last"),
-        /**
-         * Nulls position has not been specified by the user and an appropriate default will be used.
-         *
-         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
-         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
-         */
-        ANY(null);
+        LAST("_last");
 
         private final String searchOrder;
 
@@ -401,7 +389,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return switch (pos) {
                 case FIRST -> FIRST;
                 case LAST -> LAST;
-                default -> ANY;
             };
         }
 

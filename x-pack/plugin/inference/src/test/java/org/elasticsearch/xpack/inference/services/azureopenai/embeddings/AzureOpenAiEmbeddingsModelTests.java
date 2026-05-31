@@ -7,34 +7,54 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.common.parser.StatefulValue;
+import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiEntraIdApiKeySecretsTests;
+import org.junit.After;
+import org.junit.Before;
 
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void init() throws Exception {
+        threadPool = createThreadPool(inferenceUtilityExecutors());
+    }
+
+    @After
+    public void shutdown() throws Exception {
+        terminate(threadPool);
+    }
+
     public void testOverrideWith_OverridesUser() {
-        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
-        var requestTaskSettingsMap = getAzureOpenAiRequestTaskSettingsMap("user_override");
+        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id", threadPool);
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 
-        assertThat(overriddenModel, is(createModel("resource", "deployment", "apiversion", "user_override", "api_key", null, "id")));
+        assertThat(
+            overriddenModel,
+            is(createModel("resource", "deployment", "apiversion", "user_override", "api_key", null, "id", threadPool))
+        );
     }
 
     public void testOverrideWith_EmptyMap() {
-        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
+        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id", threadPool);
 
         var requestTaskSettingsMap = Map.<String, Object>of();
 
@@ -43,14 +63,14 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_NullMap() {
-        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
+        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id", threadPool);
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, null);
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testCreateModel_FromUpdatedServiceSettings() {
-        var model = createModel("resource", "deployment", "apiversion", "user", "api_key", null, "id");
+        var model = createModel("resource", "deployment", "apiversion", "user", "api_key", null, "id", threadPool);
         var updatedSettings = new AzureOpenAiEmbeddingsServiceSettings(
             "resource",
             "deployment",
@@ -64,7 +84,10 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
         var overridenModel = new AzureOpenAiEmbeddingsModel(model, updatedSettings);
 
-        assertThat(overridenModel, is(createModel("resource", "deployment", "override_apiversion", "user", "api_key", null, "id")));
+        assertThat(
+            overridenModel,
+            is(createModel("resource", "deployment", "override_apiversion", "user", "api_key", null, "id", threadPool))
+        );
     }
 
     public void testBuildUriString() throws URISyntaxException {
@@ -76,7 +99,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         var inferenceEntityId = "inference entity id";
         var apiVersion = "2024";
 
-        var model = createModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId);
+        var model = createModel(resource, deploymentId, apiVersion, user, apiKey, entraId, inferenceEntityId, threadPool);
 
         assertThat(
             model.buildUriString().toString(),
@@ -84,7 +107,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         );
     }
 
-    public static AzureOpenAiEmbeddingsModel createModelWithRandomValues() {
+    public static AzureOpenAiEmbeddingsModel createModelWithRandomValues(ThreadPool threadPool) {
         return createModel(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -92,7 +115,8 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
+            randomAlphaOfLength(10),
+            threadPool
         );
     }
 
@@ -104,18 +128,21 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         ChunkingSettings chunkingSettings,
         @Nullable String apiKey,
         @Nullable String entraId,
-        String inferenceEntityId
+        String inferenceEntityId,
+        ThreadPool threadPool
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var secretSettings = AzureOpenAiEntraIdApiKeySecretsTests.createSecret(apiKey, entraId);
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             chunkingSettings,
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings,
+            threadPool
         );
     }
 
@@ -126,18 +153,21 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         String user,
         @Nullable String apiKey,
         @Nullable String entraId,
-        String inferenceEntityId
+        String inferenceEntityId,
+        ThreadPool threadPool
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var secretSettings = AzureOpenAiEntraIdApiKeySecretsTests.createSecret(apiKey, entraId);
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             null,
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings,
+            threadPool
         );
     }
 
@@ -152,10 +182,11 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String user,
         @Nullable String apiKey,
         @Nullable String entraId,
-        String inferenceEntityId
+        String inferenceEntityId,
+        ThreadPool threadPool
     ) {
-        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
-        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+        var secretSettings = AzureOpenAiEntraIdApiKeySecretsTests.createSecret(apiKey, entraId);
+        var userToUse = user == null ? StatefulValue.<String>undefined() : StatefulValue.of(user);
 
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
@@ -171,9 +202,10 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 similarity,
                 null
             ),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(userToUse, Headers.UNDEFINED_INSTANCE),
             null,
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            secretSettings,
+            threadPool
         );
     }
 }

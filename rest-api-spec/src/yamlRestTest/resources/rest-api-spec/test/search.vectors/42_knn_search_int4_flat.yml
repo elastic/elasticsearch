@@ -1,5 +1,9 @@
 setup:
+  - requires:
+        test_runner_features: [ "allowed_warnings" ]
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version",
+                         "Parameter [confidence_interval] in [index_options] for dense_vector field [another_vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_flat
         body:
@@ -17,6 +21,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
               another_vector:
                 type: dense_vector
                 dims: 4
@@ -24,6 +29,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_flat
+                  confidence_interval: 0.0
 
   - do:
       index:
@@ -306,6 +312,8 @@ setup:
                   type: int4_flat
 ---
 "Test odd dimensions fail indexing":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   # verify index creation fails
   - do:
       catch: bad_request
@@ -324,6 +332,7 @@ setup:
 
   # verify dynamic dimension fails
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: dynamic_dim_hnsw_quantized
         body:
@@ -335,6 +344,7 @@ setup:
                 similarity: l2_norm
                 index_options:
                   type: int4_hnsw
+                  confidence_interval: 0.0
 
   # verify index fails for odd dim vector
   - do:
@@ -346,6 +356,7 @@ setup:
 
   # verify that we can index an even dim vector after the odd dim vector failure
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       index:
         index: dynamic_dim_hnsw_quantized
         body:
@@ -354,7 +365,7 @@ setup:
 "Vector rescoring has the same scoring as exact search for kNN section":
   - requires:
       reason: 'Quantized vector rescoring is required'
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, "close_to"]
       capabilities:
         - method: GET
           path: /_search
@@ -402,17 +413,19 @@ setup:
 
   # Get rescoring scores - hit ordering may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 1E-10 } }
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 1E-10 } }
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 1E-10 } }
 ---
 "Test index configured rescore vector":
   - requires:
       cluster_features: ["mapper.dense_vector.rescore_vector"]
       reason: Needs rescore_vector feature
+      test_runner_features: [ "allowed_warnings", "close_to" ]
   - skip:
       features: "headers"
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_rescore_flat
         body:
@@ -430,6 +443,7 @@ setup:
                   type: int4_flat
                   rescore_vector:
                     oversample: 1.5
+                  confidence_interval: 0.0
 
   - do:
       bulk:
@@ -492,9 +506,9 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 1E-10 } }
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 1E-10 } }
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 1E-10 } }
 
 ---
 "no default oversample value":
@@ -508,7 +522,10 @@ setup:
   - not_exists: int4_flat.mappings.properties.vector.index_options.rescore_vector
 ---
 "Nested flat search":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
   - do:
+      allowed_warnings: ["Parameter [confidence_interval] in [index_options] for dense_vector field [vector] is deprecated and will be removed in a future version"]
       indices.create:
         index: int4_flat_nested
         body:
@@ -531,6 +548,7 @@ setup:
                     similarity: l2_norm
                     index_options:
                       type: int4_flat
+                      confidence_interval: 0.0
   - do:
       index:
         index: int4_flat_nested

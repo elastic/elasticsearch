@@ -38,6 +38,8 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TermsSetQueryScript;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -49,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -121,7 +124,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         queryBuilder.setMinimumShouldMatchField("m_s_m");
         context = createSearchExecutionContext();
         rewriteQuery(queryBuilder, new SearchExecutionContext(context));
-        assertNotNull(queryBuilder.doToQuery(context));
+        assertNotNull(queryBuilder.toQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.emptyList());
@@ -343,6 +346,52 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             values.add(getRandomValueForFieldName(fieldName));
         }
         return values;
+    }
+
+    public void testCancellationCheckWiredForTermsSetQueryScript() throws IOException {
+        AtomicReference<TermsSetQueryScript> capturedScript = new AtomicReference<>();
+        TermsSetQueryScript.LeafFactory leafFactory = ctx -> {
+            TermsSetQueryScript script = new TermsSetQueryScript() {
+                @Override
+                public Number execute() {
+                    return 1;
+                }
+            };
+            capturedScript.set(script);
+            return script;
+        };
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                TermsSetQueryBuilder.ScriptLongValueSource withCheck = new TermsSetQueryBuilder.ScriptLongValueSource(
+                    new Script("test"),
+                    leafFactory,
+                    contextSearcher::checkCancelled
+                );
+                withCheck.getValues(reader.leaves().get(0), null);
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+
+                capturedScript.set(null);
+                TermsSetQueryBuilder.ScriptLongValueSource withoutCheck = new TermsSetQueryBuilder.ScriptLongValueSource(
+                    new Script("test"),
+                    leafFactory,
+                    null
+                );
+                withoutCheck.getValues(reader.leaves().get(0), null);
+                assertNull(capturedScript.get()._getCancellationCheck());
+            }
+        }
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

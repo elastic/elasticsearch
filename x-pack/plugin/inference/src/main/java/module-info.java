@@ -36,6 +36,8 @@ module org.elasticsearch.inference {
     requires org.elasticsearch.sslconfig;
     requires org.apache.commons.text;
     requires software.amazon.awssdk.services.sagemakerruntime;
+    requires com.azure.identity;
+    requires com.azure.core;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
@@ -46,6 +48,10 @@ module org.elasticsearch.inference {
     exports org.elasticsearch.xpack.inference;
     exports org.elasticsearch.xpack.inference.action.task;
     exports org.elasticsearch.xpack.inference.telemetry;
+    exports org.elasticsearch.xpack.inference.external.http.sender;
+    exports org.elasticsearch.xpack.inference.services.elastic;
+    exports org.elasticsearch.xpack.inference.common.oauth2;
+    exports org.elasticsearch.xpack.inference.common;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

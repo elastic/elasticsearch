@@ -30,7 +30,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return createParameters();
+        return createParameters("10_fail");
     }
 
     @TestLogging(

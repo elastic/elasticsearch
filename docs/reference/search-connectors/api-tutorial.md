@@ -139,7 +139,7 @@ The `album` table should contain **347** entries and the `artist` table should c
 ::::
 
 
-This tutorial uses a very basic setup. To use advanced functionality such as filtering rules and incremental syncs, enable `track_commit_timestamp` on your PostgreSQL database. Refer to postgresql-connector-client-tutorial for more details.
+This tutorial uses a very basic setup. Refer to postgresql-connector-client-tutorial for more details.
 
 Now it’s time for the real fun! We’ll set up a connector to create a searchable mirror of our PostgreSQL data in {{es}}.
 
@@ -242,7 +242,7 @@ connectors:
     service_type: "postgresql"
 ```
 
-We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example) in the `elastic/connectors` repository for reference.
+We provide an [example configuration file](https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example) in the `elastic/connectors` repository for reference.
 
 
 #### Run the connector service [es-connectors-tutorial-api-run-connector-service]

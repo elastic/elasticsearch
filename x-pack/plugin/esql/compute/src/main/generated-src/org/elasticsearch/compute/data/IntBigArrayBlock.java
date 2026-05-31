@@ -87,12 +87,17 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getInt(int valueIndex) {
         return vector.getInt(valueIndex);
     }
 
     @Override
-    public IntBlock filter(int... positions) {
+    public IntBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -35,13 +35,13 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
 
     public static AmazonBedrockEmbeddingsTaskSettings randomTaskSettings() {
         var inputType = randomBoolean() ? randomWithoutUnspecified() : null;
-        var truncation = randomBoolean() ? randomFrom(CohereTruncation.values()) : null;
+        var truncation = randomBoolean() ? randomFrom(Truncation.values()) : null;
         return new AmazonBedrockEmbeddingsTaskSettings(truncation);
     }
 
     public static AmazonBedrockEmbeddingsTaskSettings mutateTaskSettings(AmazonBedrockEmbeddingsTaskSettings instance) {
         return randomValueOtherThanMany(
-            v -> Objects.equals(instance, v) || (instance.cohereTruncation() != null && v.cohereTruncation() == null),
+            v -> Objects.equals(instance, v) || (instance.truncation() != null && v.truncation() == null),
             AmazonBedrockEmbeddingsTaskSettingsTests::randomTaskSettings
         );
     }
@@ -79,16 +79,16 @@ public class AmazonBedrockEmbeddingsTaskSettingsTests extends AbstractBWCWireSer
         return new HashMap<>(Map.of(key, value.toString()));
     }
 
-    public void testValidCohereTruncations() {
-        for (var expectedCohereTruncation : CohereTruncation.ALL) {
-            var map = mutableMap(TRUNCATE_FIELD, expectedCohereTruncation);
+    public void testValidTruncations() {
+        for (var expectedTruncation : Truncation.ALL) {
+            var map = mutableMap(TRUNCATE_FIELD, expectedTruncation);
             var taskSettings = AmazonBedrockEmbeddingsTaskSettings.fromMap(map);
             assertFalse(taskSettings.isEmpty());
-            assertThat(taskSettings.cohereTruncation(), equalTo(expectedCohereTruncation));
+            assertThat(taskSettings.truncation(), equalTo(expectedTruncation));
         }
     }
 
-    public void testGarbageCohereTruncations() {
+    public void testGarbageTruncations() {
         var map = new HashMap<String, Object>(Map.of(TRUNCATE_FIELD, "oiuesoirtuoawoeirha"));
         assertThrows(ValidationException.class, () -> AmazonBedrockEmbeddingsTaskSettings.fromMap(map));
     }

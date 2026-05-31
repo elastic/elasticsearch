@@ -12,28 +12,27 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDegrees}.
+ * {@link ExpressionEvaluator} implementation for {@link ToDegrees}.
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDegreesEvaluator.class);
 
-  private final EvalOperator.ExpressionEvaluator deg;
+  private final ExpressionEvaluator deg;
 
-  public ToDegreesEvaluator(Source source, EvalOperator.ExpressionEvaluator deg,
-      DriverContext driverContext) {
+  public ToDegreesEvaluator(Source source, ExpressionEvaluator deg, DriverContext driverContext) {
     super(driverContext, source);
     this.deg = deg;
   }
 
   @Override
-  public EvalOperator.ExpressionEvaluator next() {
+  public ExpressionEvaluator next() {
     return deg;
   }
 
@@ -123,12 +122,12 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     return baseRamBytesUsed;
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  public static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory deg;
+    private final ExpressionEvaluator.Factory deg;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory deg) {
+    public Factory(Source source, ExpressionEvaluator.Factory deg) {
       this.source = source;
       this.deg = deg;
     }

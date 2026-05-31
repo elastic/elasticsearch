@@ -14,11 +14,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
-import org.hamcrest.MatcherAssert;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -95,14 +94,11 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
-        MatcherAssert.assertThat(
-            JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())),
-            is(new JinaAIEmbeddingsTaskSettings((InputType) null))
-        );
+        assertThat(JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of())), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
     }
 
     public void testFromMap_CreatesEmptySettings_WhenMapIsNull() {
-        MatcherAssert.assertThat(JinaAIEmbeddingsTaskSettings.fromMap(null), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
+        assertThat(JinaAIEmbeddingsTaskSettings.fromMap(null), is(new JinaAIEmbeddingsTaskSettings((InputType) null)));
     }
 
     public void testFromMap_CreatesSettings_WhenInputTypeIsPresent() {
@@ -149,12 +145,12 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
             () -> JinaAIEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, "abc")))
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getMessage(),
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [abc] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined()
                 )
             )
         );
@@ -168,19 +164,21 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
             )
         );
 
-        MatcherAssert.assertThat(
+        assertThat(
             exception.getMessage(),
             is(
                 Strings.format(
                     "Validation Failed: 1: [task_settings] Invalid value [unspecified] received. [input_type] must be one of [%s];",
-                    getValidValuesSortedAndCombined(VALID_INPUT_TYPE_VALUES)
+                    getValidValuesSortedAndCombined()
                 )
             )
         );
     }
 
-    private static <E extends Enum<E>> String getValidValuesSortedAndCombined(EnumSet<E> validValues) {
-        var validValuesAsStrings = validValues.stream().map(value -> value.toString().toLowerCase(Locale.ROOT)).toArray(String[]::new);
+    private static String getValidValuesSortedAndCombined() {
+        var validValuesAsStrings = JinaAIService.VALID_INPUT_TYPE_VALUES.stream()
+            .map(value -> value.toString().toLowerCase(Locale.ROOT))
+            .toArray(String[]::new);
         Arrays.sort(validValuesAsStrings);
 
         return String.join(", ", validValuesAsStrings);
@@ -188,20 +186,20 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
 
     public void testXContent_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
         var thrownException = expectThrows(AssertionError.class, () -> new JinaAIEmbeddingsTaskSettings(InputType.UNSPECIFIED));
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
+        assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull() {
         var taskSettings = new JinaAIEmbeddingsTaskSettings(InputType.INGEST);
         var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(taskSettings, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
+        assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
     public void testOf_UsesRequestTaskSettings() {
         var taskSettings = new JinaAIEmbeddingsTaskSettings((InputType) null);
         var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(taskSettings, new JinaAIEmbeddingsTaskSettings(InputType.INGEST));
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
+        assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
     }
 
     @Override
@@ -227,15 +225,19 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializat
         return new JinaAIEmbeddingsTaskSettings(inputType, lateChunking);
     }
 
-    public static Map<String, Object> getTaskSettingsMapEmpty() {
-        return new HashMap<>();
+    public static Map<String, Object> getTaskSettingsMap(@Nullable InputType inputType) {
+        return getTaskSettingsMap(inputType, null);
     }
 
-    public static Map<String, Object> getTaskSettingsMap(@Nullable InputType inputType) {
+    public static Map<String, Object> getTaskSettingsMap(@Nullable InputType inputType, @Nullable Boolean lateChunking) {
         var map = new HashMap<String, Object>();
 
         if (inputType != null) {
             map.put(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString());
+        }
+
+        if (lateChunking != null) {
+            map.put(JinaAIEmbeddingsTaskSettings.LATE_CHUNKING, lateChunking);
         }
 
         return map;

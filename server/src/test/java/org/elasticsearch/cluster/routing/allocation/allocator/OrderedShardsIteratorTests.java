@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -24,11 +23,10 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -48,6 +46,10 @@ import static org.hamcrest.Matchers.not;
 
 public class OrderedShardsIteratorTests extends ESAllocationTestCase {
 
+    protected ShardRelocationOrder createShardRelocationOrder() {
+        return new ShardRelocationOrder.DefaultOrder();
+    }
+
     public void testOrdersShardsAccordingToAllocationRecency() {
 
         var nodes = DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")).build();
@@ -65,7 +67,8 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
 
         var iterator = OrderedShardsIterator.createForNecessaryMoves(
             createRoutingAllocation(nodes, createMetadata(routing), routing),
-            ordering
+            ordering,
+            createShardRelocationOrder()
         );
 
         // order within same priority is not defined
@@ -100,7 +103,8 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
 
         var iterator = OrderedShardsIterator.createForNecessaryMoves(
             createRoutingAllocation(nodes, createMetadata(routing), routing),
-            ordering
+            ordering,
+            createShardRelocationOrder()
         );
 
         var first = iterator.next();
@@ -144,7 +148,8 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
                 3,
                 OrderedShardsIterator.createForNecessaryMoves(
                     createRoutingAllocation(nodes, metadata, routing),
-                    new NodeAllocationOrdering()
+                    new NodeAllocationOrdering(),
+                    createShardRelocationOrder()
                 )
             ),
             contains(
@@ -158,7 +163,11 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         assertThat(
             next(
                 3,
-                OrderedShardsIterator.createForBalancing(createRoutingAllocation(nodes, metadata, routing), new NodeAllocationOrdering())
+                OrderedShardsIterator.createForBalancing(
+                    createRoutingAllocation(nodes, metadata, routing),
+                    new NodeAllocationOrdering(),
+                    createShardRelocationOrder()
+                )
             ),
             contains(
                 isIndexShardAt(".ds-data-stream-2024.04.18-000001", "node-1"),
@@ -204,7 +213,8 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
                 3,
                 OrderedShardsIterator.createForNecessaryMoves(
                     createRoutingAllocation(nodes, metadata, routing),
-                    new NodeAllocationOrdering()
+                    new NodeAllocationOrdering(),
+                    createShardRelocationOrder()
                 )
             ),
             contains(
@@ -218,7 +228,11 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         assertThat(
             next(
                 3,
-                OrderedShardsIterator.createForBalancing(createRoutingAllocation(nodes, metadata, routing), new NodeAllocationOrdering())
+                OrderedShardsIterator.createForBalancing(
+                    createRoutingAllocation(nodes, metadata, routing),
+                    new NodeAllocationOrdering(),
+                    createShardRelocationOrder()
+                )
             ),
             contains(
                 isIndexShardAt(".ds-data-stream-2024.04.18-000001", "node-1"),
@@ -240,35 +254,27 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         return Metadata.builder().put(project).build();
     }
 
-    private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0
-        );
+    protected static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {
+        return TestRoutingAllocationFactory.forClusterState(
+            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build()
+        ).build();
     }
 
     private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, GlobalRoutingTable routing) {
-        return new RoutingAllocation(
-            new AllocationDeciders(List.of()),
-            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
-            ClusterInfo.EMPTY,
-            SnapshotShardSizeInfo.EMPTY,
-            0
-        );
+        return TestRoutingAllocationFactory.forClusterState(
+            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build()
+        ).build();
     }
 
     private static IndexRoutingTable index(String indexName, String nodeId) {
         return index(new Index(indexName, "_na_"), nodeId);
     }
 
-    private static IndexRoutingTable index(Index index, String nodeId) {
+    protected static IndexRoutingTable index(Index index, String nodeId) {
         return IndexRoutingTable.builder(index).addShard(newShardRouting(new ShardId(index, 0), nodeId, true, STARTED)).build();
     }
 
-    private static <T> List<T> next(int size, Iterator<T> iterator) {
+    protected static <T> List<T> next(int size, Iterator<T> iterator) {
         var list = new ArrayList<T>(size);
         for (int i = 0; i < size; i++) {
             assertThat(iterator.hasNext(), equalTo(true));
@@ -277,7 +283,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         return list;
     }
 
-    private static TypeSafeMatcher<ShardRouting> isIndexShardAt(String indexName, String nodeId) {
+    protected static TypeSafeMatcher<ShardRouting> isIndexShardAt(String indexName, String nodeId) {
         return new TypeSafeMatcher<>() {
             @Override
             protected boolean matchesSafely(ShardRouting item) {

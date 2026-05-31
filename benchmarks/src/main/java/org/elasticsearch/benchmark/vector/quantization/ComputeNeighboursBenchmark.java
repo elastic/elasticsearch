@@ -9,7 +9,8 @@
 
 package org.elasticsearch.benchmark.vector.quantization;
 
-import org.elasticsearch.common.logging.LogConfigurator;
+import org.apache.lucene.search.TaskExecutor;
+import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborHood;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -21,11 +22,14 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -40,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 public class ComputeNeighboursBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        Utils.configureBenchmarkLogging();
     }
 
     @Param({ "1000", "2000", "3000", "5000", "10000", "20000", "50000" })
@@ -52,6 +56,10 @@ public class ComputeNeighboursBenchmark {
     float[][] vectors;
     int clusterPerNeighbour = 128;
 
+    ExecutorService executorService;
+    TaskExecutor taskExecutor;
+    int numWorkers = 4;
+
     @Setup
     public void setup() throws IOException {
         Random random = new Random(123);
@@ -61,6 +69,13 @@ public class ComputeNeighboursBenchmark {
                 vector[i] = random.nextFloat();
             }
         }
+        executorService = Executors.newFixedThreadPool(numWorkers);
+        taskExecutor = new TaskExecutor(executorService);
+    }
+
+    @TearDown
+    public void teardown() throws IOException {
+        executorService.close();
     }
 
     @Benchmark
@@ -73,5 +88,11 @@ public class ComputeNeighboursBenchmark {
     @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     public void graph(Blackhole bh) throws IOException {
         bh.consume(NeighborHood.computeNeighborhoodsGraph(vectors, clusterPerNeighbour));
+    }
+
+    @Benchmark
+    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
+    public void graphConcurrent(Blackhole bh) throws IOException {
+        bh.consume(NeighborHood.computeNeighborhoodsGraph(taskExecutor, numWorkers, vectors, clusterPerNeighbour));
     }
 }

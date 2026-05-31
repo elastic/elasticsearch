@@ -35,8 +35,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -55,9 +55,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -96,11 +93,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private FileSettingsService fileSettingsService;
     private FileSettingsHealthTracker healthIndicatorTracker;
     private Path watchedFile;
-
-    /**
-     * We're not testing health info publication here.
-     */
-    public static final FileSettingsHealthIndicatorPublisher NOOP_PUBLISHER = (f, a) -> {};
 
     @Before
     public void setUp() throws Exception {
@@ -147,7 +139,7 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of()
             )
         );
-        healthIndicatorTracker = spy(new FileSettingsHealthTracker(Settings.EMPTY, NOOP_PUBLISHER));
+        healthIndicatorTracker = spy(new FileSettingsHealthTracker(Settings.EMPTY));
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorTracker));
         watchedFile = fileSettingsService.watchedFile();
     }
@@ -315,9 +307,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        // Touch the file to get an update
-        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
-        Files.setLastModifiedTime(watchedFile, FileTime.from(now));
+        // Touch the file to get an update; use +2s to guarantee we land in a different millisecond regardless of filesystem timestamp
+        // rounding or NTP shenanigans
+        Files.setLastModifiedTime(watchedFile, FileTime.from(Instant.now().plusSeconds(2)));
 
         longAwait(processFileChangeLatch);
 

@@ -17,8 +17,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -66,7 +66,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  *
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
-public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
+public class MoreLikeThisQueryBuilder extends LeafQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
 
     public static final int DEFAULT_MAX_QUERY_TERMS = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
@@ -201,13 +201,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @SuppressWarnings("unchecked")
         Item(StreamInput in) throws IOException {
             index = in.readOptionalString();
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                // types no longer relevant so ignore
-                String type = in.readOptionalString();
-                if (type != null) {
-                    throw new IllegalStateException("types are no longer supported but found [" + type + "]");
-                }
-            }
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
                 xContentType = in.readEnum(XContentType.class);
@@ -224,10 +217,6 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(index);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                // types not supported so send an empty array to previous versions
-                out.writeOptionalString(null);
-            }
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
@@ -1050,9 +1039,13 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void checkRoutingMissingException(MultiTermVectorsItemResponse response) {
-        Throwable cause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
-        if (cause != null) {
-            throw ((RoutingMissingException) cause);
+        Throwable routingCause = ExceptionsHelper.unwrap(response.getFailure().getCause(), RoutingMissingException.class);
+        if (routingCause != null) {
+            throw ((RoutingMissingException) routingCause);
+        }
+        Throwable sliceCause = ExceptionsHelper.unwrap(response.getFailure().getCause(), SliceMissingException.class);
+        if (sliceCause != null) {
+            throw ((SliceMissingException) sliceCause);
         }
     }
 

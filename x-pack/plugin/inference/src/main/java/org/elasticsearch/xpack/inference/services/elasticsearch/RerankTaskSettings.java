@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,7 +16,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -41,9 +39,7 @@ public class RerankTaskSettings implements TaskSettings {
         }
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         if (returnDocuments == null) {
             returnDocuments = true;
@@ -54,6 +50,7 @@ public class RerankTaskSettings implements TaskSettings {
 
     /**
      * From map without any validation
+     *
      * @param map source map
      * @return Task settings
      */
@@ -114,7 +111,7 @@ public class RerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -141,7 +138,7 @@ public class RerankTaskSettings implements TaskSettings {
 
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        RerankTaskSettings updatedSettings = RerankTaskSettings.fromMap(new HashMap<>(newSettings));
+        RerankTaskSettings updatedSettings = RerankTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
     }
 }

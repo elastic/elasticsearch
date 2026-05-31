@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -55,7 +54,6 @@ import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -245,27 +243,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
             ? new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
-
-        assert compatibilityVersions.isEmpty()
-            || blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            || assertEventIngestedIsUnknownInMixedClusters(metadata, this.minVersions);
-    }
-
-    private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
-        if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0)
-            && metadata != null
-            && metadata.getTotalNumberOfIndices() > 0) {
-            for (IndexMetadata indexMetadata : metadata.indicesAllProjects()) {
-                assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
-                    : "event.ingested range should be UNKNOWN but is "
-                        + indexMetadata.getEventIngestedRange()
-                        + " for index: "
-                        + indexMetadata.getIndex()
-                        + " minTransportVersion: "
-                        + compatibilityVersions.transportVersion();
-            }
-        }
-        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(

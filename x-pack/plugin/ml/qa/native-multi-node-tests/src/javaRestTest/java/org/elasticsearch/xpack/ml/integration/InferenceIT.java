@@ -49,6 +49,7 @@ public class InferenceIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
+        waitForPendingTasks(adminClient());
     }
 
     @SuppressWarnings("unchecked")

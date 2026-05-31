@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148086
+summary: Skip split discovery for aggregate pushdown
+type: enhancement

@@ -15,8 +15,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -34,7 +34,6 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
         HuggingFaceRateLimitServiceSettings {
 
     public static final String NAME = "hugging_face_rerank_service_settings";
-    public static final String URL = "url";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(3000);
 
@@ -43,20 +42,28 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
     );
 
     public static HuggingFaceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var uri = extractUri(map, URL, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
+        var validationException = new ValidationException();
+        var uri = extractUri(map, ServiceFields.URL, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
+
+        validationException.throwIfValidationErrorsExist();
+        return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
+    }
+
+    @Override
+    public HuggingFaceRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
             validationException,
-            HuggingFaceService.NAME,
-            context
+            ConfigurationParseContext.REQUEST
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-        return new HuggingFaceRerankServiceSettings(uri, rateLimitSettings);
+        validationException.throwIfValidationErrorsExist();
+
+        return new HuggingFaceRerankServiceSettings(this.uri, extractedRateLimitSettings);
     }
 
     private final URI uri;
@@ -105,7 +112,7 @@ public class HuggingFaceRerankServiceSettings extends FilteredXContentObject
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field(URL, uri.toString());
+        builder.field(ServiceFields.URL, uri.toString());
         rateLimitSettings.toXContent(builder, params);
 
         return builder;

@@ -88,6 +88,11 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
     }
 
     @Override
+    public BlockLoader.Block constantLong(long value, int count) {
+        return factory.newConstantLongBlockWith(value, count);
+    }
+
+    @Override
     public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
         return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
     }
@@ -149,12 +154,22 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
 
     @Override
     public BlockLoader.SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
-        return new SortedSetOrdinalsBuilder(factory, ordinals, count);
+        return OrdinalsBuilder.sortedSet(factory, ordinals, count);
+    }
+
+    @Override
+    public BlockLoader.SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count) {
+        return OrdinalsBuilder.arrayOrder(factory, ordinals, count);
     }
 
     @Override
     public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count) {
         return factory.newAggregateMetricDoubleBlockBuilder(count);
+    }
+
+    @Override
+    public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedCount) {
+        return factory.newLongRangeBlockBuilder(expectedCount);
     }
 
     @Override
@@ -190,7 +205,7 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) minima,
             (DoubleBlock) maxima,
             (DoubleBlock) sums,
-            (LongBlock) valueCounts,
+            (DoubleBlock) valueCounts,
             (DoubleBlock) zeroThresholds,
             (BytesRefBlock) encodedHistograms
         );
@@ -211,5 +226,10 @@ public abstract class DelegatingBlockLoaderFactory implements BlockLoader.BlockF
             (DoubleBlock) sums,
             (LongBlock) valueCounts
         );
+    }
+
+    @Override
+    public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+        return factory.newTDigestBlockBuilder(count);
     }
 }

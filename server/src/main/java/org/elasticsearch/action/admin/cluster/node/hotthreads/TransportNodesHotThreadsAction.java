@@ -87,7 +87,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             .interval(request.requestOptions.interval())
             .threadElementsSnapshotCount(request.requestOptions.snapshots())
             .ignoreIdleThreads(request.requestOptions.ignoreIdleThreads());
-        final var out = transportService.newNetworkBytesStream();
+        final var out = transportService.newNetworkBytesStream(null);
         final var trackedResource = LeakTracker.wrap(out);
         var success = false;
         try {

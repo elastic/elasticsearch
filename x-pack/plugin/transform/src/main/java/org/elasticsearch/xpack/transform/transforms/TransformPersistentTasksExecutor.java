@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -131,7 +130,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
         var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
-        if (transformMetadata.upgradeMode()) {
+        if (transformMetadata.isUpgradeMode()) {
             return AWAITING_UPGRADE;
         }
         if (transformMetadata.resetMode()) {
@@ -198,6 +197,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         }
         return unavailableIndices;
+    }
+
+    @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
     }
 
     @Override
@@ -351,7 +355,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 return;
             }
 
-            ValidationException validationException = config.validate(null);
+            var validationException = config.validate(null);
+
+            // if we had created a transform when the feature flag was enabled, but we disabled the feature flag
+            // then verify that this transform does not use CPS features
+            validationException = config.validateNoCrossProjectWhenCrossProjectIsDisabled(
+                transformServices.crossProjectModeDecider(),
+                validationException
+            );
+
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
                 transformServices.configManager().getTransformStoredDoc(transformId, false, l);

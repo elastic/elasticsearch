@@ -61,6 +61,18 @@ import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.Schedule.R
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.monitor.fs.FsProbe.getFSInfo;
 
+/// A node-level service that executes Lucene segment merge tasks submitted by per-shard [ThreadPoolMergeScheduler]
+/// instances.
+///
+/// All merge work on a node goes through this single executor. The number of merges running in parallel across all
+/// shards is bounded by [#maxConcurrentMerges].
+/// An [adaptive rate][#newTargetIORateBytesPerSec(long, int, int, int)] is applied to merge I/O to avoid starving
+/// indexing or search. The [AvailableDiskSpacePeriodicMonitor] also periodically checks available disk space and
+/// the [MergeTaskPriorityBlockingQueue] will block new merges when the node approaches the
+/// `INDICES_MERGE_DISK_HIGH_WATERMARK_SETTING` value.
+///
+/// @see ThreadPoolMergeScheduler
+///
 public class ThreadPoolMergeExecutorService implements Closeable {
     /** How frequently we check disk usage (default: 5 seconds). */
     public static final Setting<TimeValue> INDICES_MERGE_DISK_CHECK_INTERVAL_SETTING = Setting.positiveTimeSetting(
@@ -175,6 +187,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+
+    private static final Logger logger = LogManager.getLogger(ThreadPoolMergeExecutorService.class);
+
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
@@ -863,6 +878,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 MIN_IO_RATE.getBytes(),
                 currentTargetIORateBytesPerSec - currentTargetIORateBytesPerSec / 10L
             );
+            logger.debug("Decreasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
         } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
             && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
                 // increase target IO rate by 20% (capped)
@@ -870,6 +886,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                     MAX_IO_RATE.getBytes(),
                     currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 5L
                 );
+                logger.debug("Increasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
             } else {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
             }

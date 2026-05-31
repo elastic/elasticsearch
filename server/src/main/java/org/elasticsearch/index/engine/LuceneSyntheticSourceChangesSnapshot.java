@@ -12,15 +12,16 @@ package org.elasticsearch.index.engine;
 import com.carrotsearch.hppc.IntArrayList;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.translog.Translog;
@@ -42,11 +43,12 @@ import java.util.Set;
  * The {@code maxMemorySizeInBytes} parameter limits the total size of uncompressed _sources
  * loaded into memory during batch retrieval.
  */
-public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnapshot {
+public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnapshot {
     private final long maxMemorySizeInBytes;
     private final StoredFieldLoader storedFieldLoader;
     private final SourceLoader sourceLoader;
 
+    private final boolean routingDocValues;
     private int skippedOperations;
     private long lastSeenSeqNo;
 
@@ -75,10 +77,9 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         long fromSeqNo,
         long toSeqNo,
         boolean requiredFullRange,
-        boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean accessStats
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats);
         // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
         assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mapperService.mappingLookup().isSourceSynthetic()
             : "either an empty index or synthetic source must be enabled for proper functionality.";
@@ -90,6 +91,8 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         // zstd best compression stores upto 2048 docs in a block, so it is likely that in this case docs are co-located in same block:
         boolean forceSequentialReader = CodecService.BEST_COMPRESSION_CODEC.equals(defaultCodec);
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
+        RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
+        this.routingDocValues = routingMapper != null && routingMapper.docValues();
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 
@@ -188,6 +191,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         LeafReaderContext leafReaderContext = null;
         LeafStoredFieldLoader leafFieldLoader = null;
         SourceLoader.Leaf leafSourceLoader = null;
+        SortedDocValues leafRoutingDocValues = null;
         for (int i = 0; i < documentRecords.size(); i++) {
             SearchRecord docRecord = documentRecords.get(i);
             if (docRecord.docID() >= docBase + maxDoc) {
@@ -205,6 +209,10 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     if (record.isTombstone()) {
                         continue;
                     }
+                    if (record.hasRecoverySourceSize() == false) {
+                        assert requiredFullRange == false : "source not found for seqno=" + record.seqNo();
+                        continue;
+                    }
                     int docID = record.docID();
                     if (docID >= docBase + maxDoc) {
                         break;
@@ -219,11 +227,21 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
                 leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
+                if (routingDocValues) {
+                    leafRoutingDocValues = leafReaderContext.reader().getSortedDocValues(RoutingFieldMapper.NAME);
+                }
                 setNextSyntheticFieldsReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;
             leafFieldLoader.advanceTo(segmentDocID);
-            operations[docRecord.index()] = createOperation(docRecord, leafFieldLoader, leafSourceLoader, segmentDocID, leafReaderContext);
+            operations[docRecord.index()] = createOperation(
+                docRecord,
+                leafFieldLoader,
+                leafSourceLoader,
+                leafRoutingDocValues,
+                segmentDocID,
+                leafReaderContext
+            );
         }
         return operations;
     }
@@ -232,6 +250,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         SearchRecord docRecord,
         LeafStoredFieldLoader fieldLoader,
         SourceLoader.Leaf sourceLoader,
+        SortedDocValues routingDocValues,
         int segmentDocID,
         LeafReaderContext context
     ) throws IOException {
@@ -256,15 +275,26 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                 }
             }
             var source = addSyntheticFields(sourceLoader.source(fieldLoader, segmentDocID), segmentDocID);
+            String routing = fieldLoader.routing();
+            if (routing == null && routingDocValues != null) {
+                routing = readRoutingFromDocValues(routingDocValues, segmentDocID);
+            }
             return new Translog.Index(
                 fieldLoader.id(),
                 docRecord.seqNo(),
                 docRecord.primaryTerm(),
                 docRecord.version(),
-                source.internalSourceRef(),
-                fieldLoader.routing(),
+                source != null ? source.internalSourceRef() : null,
+                routing,
                 -1 // autogenerated timestamp
             );
         }
+    }
+
+    private static String readRoutingFromDocValues(SortedDocValues routingDocValues, int segmentDocID) throws IOException {
+        if (routingDocValues != null && routingDocValues.advanceExact(segmentDocID)) {
+            return routingDocValues.lookupOrd(routingDocValues.ordValue()).utf8ToString();
+        }
+        return null;
     }
 }

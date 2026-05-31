@@ -89,12 +89,17 @@ public final class DoubleArrayBlock extends AbstractArrayBlock implements Double
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public double getDouble(int valueIndex) {
         return vector.getDouble(valueIndex);
     }
 
     @Override
-    public DoubleBlock filter(int... positions) {
+    public DoubleBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newDoubleBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

@@ -6,12 +6,18 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,12 +32,17 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
+
+    private static final Logger logger = LogManager.getLogger(ScrollDataExtractorFactory.class);
 
     // This field type is not supported for scrolling datafeeds.
     private static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
@@ -43,6 +54,13 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final TimeBasedExtractedFields extractedFields;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
+
+    /**
+     * Scroll IDs that could not be cleared during a previous network disruption.
+     * These survive across extractor lifetimes and are retried when the next
+     * extractor successfully connects to the remote cluster.
+     */
+    private final List<String> orphanedScrollIds = new ArrayList<>();
 
     private ScrollDataExtractorFactory(
         Client client,
@@ -62,6 +80,48 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
     }
 
+    /**
+     * Records scroll IDs that a destroyed extractor failed to clear during a network disruption.
+     * These will be retried the next time an extractor successfully connects.
+     */
+    void addOrphanedScrollIds(List<String> scrollIds) {
+        orphanedScrollIds.addAll(scrollIds);
+    }
+
+    /**
+     * Returns {@code true} if there are orphaned scroll IDs waiting to be cleared.
+     */
+    boolean hasOrphanedScrollIds() {
+        return orphanedScrollIds.isEmpty() == false;
+    }
+
+    /**
+     * Attempts to clear all orphaned scroll IDs. Successfully cleared IDs are removed;
+     * IDs that still fail (e.g. persistent network issue) remain for the next retry.
+     */
+    void retryClearOrphanedScrollIds() {
+        Iterator<String> it = orphanedScrollIds.iterator();
+        while (it.hasNext()) {
+            String scrollId = it.next();
+            try {
+                ClearScrollRequest request = new ClearScrollRequest();
+                request.addScrollId(scrollId);
+                ClearScrollResponse response = ClientHelper.executeWithHeaders(
+                    datafeedConfig.getHeaders(),
+                    ClientHelper.ML_ORIGIN,
+                    client,
+                    () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
+                );
+                if (response.isSucceeded() == false) {
+                    throw new ElasticsearchException("Clear scroll returned failure for scroll [{}]", scrollId);
+                }
+                it.remove();
+            } catch (Exception e) {
+                logger.error(() -> "[" + job.getId() + "] Failed to clear orphaned scroll [" + scrollId + "]", e);
+            }
+        }
+    }
+
     @Override
     public DataExtractor newExtractor(long start, long end) {
         QueryBuilder queryBuilder = datafeedConfig.getParsedQuery(xContentRegistry);
@@ -79,9 +139,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             end,
             datafeedConfig.getHeaders(),
             datafeedConfig.getIndicesOptions(),
-            datafeedConfig.getRuntimeMappings()
+            datafeedConfig.getRuntimeMappings(),
+            datafeedConfig.getProjectRouting()
         );
-        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
+        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, this);
     }
 
     public static void create(
@@ -139,6 +200,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+            fieldCapabilitiesRequest.includeResolvedTo(true);
+        }
 
         // Cannot get field caps on RT fields defined at search
         Set<String> runtimefields = datafeed.getRuntimeMappings().keySet();

@@ -196,7 +196,7 @@ public abstract class ViewResolutionBenchmarkBase {
             new AnalyzerContext(
                 config,
                 functionRegistry,
-                new PromqlFunctionRegistry(),
+                PromqlFunctionRegistry.INSTANCE,
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),

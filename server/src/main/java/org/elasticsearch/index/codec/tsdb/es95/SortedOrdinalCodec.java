@@ -69,29 +69,27 @@ public final class SortedOrdinalCodec {
 
     public void encodeOrdinals(final long[] in, final DataOutput out, int bitsPerOrd) throws IOException {
         stats.recompute(in);
+        // NOTE: CONST always wins on allSame blocks; TWO_RUN always wins on 2-run blocks.
+        // Short-circuit these dominant cases to skip per-candidate estimation.
+        if (stats.allSame) {
+            constantCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            return;
+        }
+        if (stats.nRuns == 2) {
+            twoRunCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            return;
+        }
 
         BlockModeCodec winner = bitPackedCodec;
         long winnerSize = bitPackedCodec.estimateSize(in, stats, bitsPerOrd);
 
-        long constSize = constantCodec.estimateSize(in, stats, bitsPerOrd);
-        if (constSize < winnerSize) {
-            winner = constantCodec;
-            winnerSize = constSize;
-        }
-
-        long twoRunSize = twoRunCodec.estimateSize(in, stats, bitsPerOrd);
-        if (twoRunSize < winnerSize) {
-            winner = twoRunCodec;
-            winnerSize = twoRunSize;
-        }
-
-        long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
+        final long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
         if (rleSize < winnerSize) {
             winner = rleCodec;
             winnerSize = rleSize;
         }
 
-        long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
+        final long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
         if (bitpackSize < winnerSize) {
             winner = bitpackCodec;
         }

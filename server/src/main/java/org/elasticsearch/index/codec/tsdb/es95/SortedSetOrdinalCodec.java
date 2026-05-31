@@ -93,21 +93,17 @@ public final class SortedSetOrdinalCodec {
         int bitsPerOrd
     ) throws IOException {
         stats.recomputeWithCycle(in);
+        if (stats.allSame) {
+            constantCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            return;
+        }
+        if (stats.nRuns == 2) {
+            twoRunCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            return;
+        }
 
         BlockModeCodec winner = bitPackedCodec;
         long winnerSize = bitPackedCodec.estimateSize(in, stats, bitsPerOrd);
-
-        final long constSize = constantCodec.estimateSize(in, stats, bitsPerOrd);
-        if (constSize < winnerSize) {
-            winner = constantCodec;
-            winnerSize = constSize;
-        }
-
-        final long twoRunSize = twoRunCodec.estimateSize(in, stats, bitsPerOrd);
-        if (twoRunSize < winnerSize) {
-            winner = twoRunCodec;
-            winnerSize = twoRunSize;
-        }
 
         final long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
         if (rleSize < winnerSize) {

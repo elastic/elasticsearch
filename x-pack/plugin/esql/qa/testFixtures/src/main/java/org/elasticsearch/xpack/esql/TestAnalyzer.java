@@ -75,6 +75,10 @@ import static org.hamcrest.Matchers.instanceOf;
  * </ul>
  */
 public class TestAnalyzer {
+    // Mirrors the default of ViewAndSubqueryResolver.MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS_SETTING; a safety bound for the
+    // view / IN-subquery resolution loop in resolveViewsAndInSubqueries.
+    private static final int MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS = 10;
+
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
@@ -507,13 +511,28 @@ public class TestAnalyzer {
     }
 
     /**
-     * Resolves views first, then IN subquery expressions in a single pass — mirroring the production
-     * pipeline in {@code EsqlSession#execute}. Views referenced from inside an IN subquery's plan are
-     * not handled here; that case will be re-enabled when {@code ViewAndInSubqueryResolver} returns.
+     * Resolves views and IN subquery expressions to a fixed point, mirroring the production pipeline driven by
+     * {@code ViewAndSubqueryResolver} in {@code EsqlSession#execute}: each round expands views (which may reveal new IN subqueries) and
+     * then rewrites IN subqueries into Semi/Anti/LeftSemiJoins (which may expose views previously hidden inside an IN subquery's plan).
+     * The loop stops once an IN-subquery pass makes no further change.
      */
-    private LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
-        LogicalPlan afterViews = views.isEmpty() ? plan : resolveViews(plan);
-        return InSubqueryResolver.resolve(afterViews);
+    public LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
+        if (views.isEmpty()) {
+            return InSubqueryResolver.resolve(plan);
+        }
+        LogicalPlan current = plan;
+        for (int iteration = 0; iteration < MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS; iteration++) {
+            LogicalPlan afterViews = resolveViews(current);
+            LogicalPlan afterInSubquery = InSubqueryResolver.resolve(afterViews);
+            // No InSubquery was rewritten this round, so no new view references can have been exposed: fixed point reached.
+            if (afterInSubquery == afterViews) {
+                return afterInSubquery;
+            }
+            current = afterInSubquery;
+        }
+        throw new IllegalStateException(
+            "view/IN subquery resolution did not reach a fixed point within " + MAX_VIEW_SUBQUERY_RESOLUTION_ITERATIONS + " iterations"
+        );
     }
 
     // This most primitive view resolution only works for the simple cases being tested

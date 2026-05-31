@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.EnumSet;
+import java.util.Map;
 
 /**
  * Captures the analyzed and logically-optimized plans for IN/NOT IN subquery scenarios.
@@ -24,6 +25,14 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
         assumeTrue("Requires IN_SUBQUERY support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
     }
 
+    private static void requireInSubqueryViewSupport() {
+        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
+    }
+
+    private static void requireSubqueryInFromCommandSupport() {
+        assumeTrue("Requires IN subquery with view support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+    }
+
     public void testDisjunctiveInSubqueryAtTopLevel() {
         runGoldenTest("""
             FROM employees
@@ -32,7 +41,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveInSubqueryInsideFromSubquery() {
-        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        requireSubqueryInFromCommandSupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
@@ -40,7 +49,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     }
 
     public void testDisjunctiveNotInSubqueryInsideFromSubquery() {
-        assumeTrue("Requires FROM subquery support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        requireSubqueryInFromCommandSupport();
         runGoldenTest("""
             FROM employees,
                  (FROM employees | WHERE emp_no NOT IN (FROM employees | KEEP emp_no) OR salary > 50000 | KEEP emp_no)
@@ -92,5 +101,52 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
             FROM employees
             | WHERE emp_no IN (FROM employees | WHERE salary == 50000 or salary == 10000 | KEEP emp_no)
             """, STAGES);
+    }
+
+    // -- IN / NOT IN subqueries referencing views --
+
+    public void testInSubqueryReferencingView() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM emps_view)
+            | KEEP emp_no, first_name
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
+    }
+
+    public void testNotInSubqueryReferencingView() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no NOT IN (FROM emps_view)
+            | KEEP emp_no
+            """, STAGES, Map.of("emps_view", "FROM employees | WHERE salary > 50000 | KEEP emp_no"));
+    }
+
+    public void testInSubqueryReferencingViewWithInSubqueryInDefinition() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM filtered_emps)
+            | KEEP emp_no
+            """, STAGES, Map.of("filtered_emps", "FROM employees | WHERE emp_no IN (FROM employees | KEEP emp_no) | KEEP emp_no"));
+    }
+
+    public void testInSubqueryReferencingViewWithSortLimit() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM sorted_emps)
+            | KEEP emp_no
+            """, STAGES, Map.of("sorted_emps", "FROM employees | SORT emp_no | LIMIT 5 | KEEP emp_no"));
+    }
+
+    public void testDisjunctiveInSubqueryReferencingView() {
+        requireInSubqueryViewSupport();
+        runGoldenTest("""
+            FROM employees
+            | WHERE emp_no IN (FROM emps_view) OR salary > 50000
+            | KEEP emp_no
+            """, STAGES, Map.of("emps_view", "FROM employees | KEEP emp_no"));
     }
 }

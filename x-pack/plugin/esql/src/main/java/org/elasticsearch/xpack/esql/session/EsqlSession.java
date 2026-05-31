@@ -134,6 +134,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -178,6 +179,7 @@ public class EsqlSession {
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
+    private final ViewAndSubqueryResolver viewAndSubqueryResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
     private final EsqlParser parser;
@@ -261,6 +263,7 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
+        this.viewAndSubqueryResolver = new ViewAndSubqueryResolver(viewResolver, services.clusterService());
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;
@@ -314,7 +317,13 @@ public class EsqlSession {
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
         viewResolutionProfile.start();
-        viewResolver.replaceViews(
+        // Collect IN_SUBQUERY telemetry from the plan produced by each view-resolution pass, before the resolver rewrites the originating
+        // InSubquery expressions into SemiJoin/AntiJoin/LeftSemiJoin — mirroring how view telemetry is collected before view resolution
+        // discards the view-specific plan nodes. Inspecting every pass also catches IN subqueries revealed only after a view nested in an
+        // IN subquery is expanded; this flag keeps the counter to once per query. The WHERE counter is set by the analyzer/verifier plan
+        // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/LeftSemiJoin too.
+        AtomicBoolean inSubqueryMetricCounted = new AtomicBoolean();
+        viewAndSubqueryResolver.resolve(
             statement.plan(),
             projectRouting(request, statement),
             (query, viewName) -> parser.parseView(
@@ -324,26 +333,10 @@ public class EsqlSession {
                 inferenceService.inferenceSettings(),
                 viewName
             ).plan(),
+            afterViews -> gatherInSubqueryMetrics(afterViews, inSubqueryMetricCounted),
             listener.delegateFailureAndWrap((l, viewResolution) -> {
                 viewResolutionProfile.stop();
-                // InSubquery resolution runs immediately after view resolution. Views referenced from inside
-                // an IN subquery are not handled here yet — that requires alternating the two resolvers,
-                // which will be reintroduced in a follow-up.
-                // Collect IN_SUBQUERY telemetry from the pre-resolution plan before the resolver
-                // rewrites the originating InSubquery expressions into SemiJoin/AntiJoin/LeftSemiJoin
-                // — mirroring how view telemetry is collected before view resolution discards the
-                // view-specific plan nodes. The WHERE counter is set by the analyzer/verifier plan
-                // walk via FeatureMetric.WHERE matching SemiJoin/AntiJoin/LeftSemiJoin too.
-                gatherInSubqueryMetrics(viewResolution.plan());
-                // InSubqueryResolver.resolve is synchronous; any VerificationException it throws
-                // propagates out of this lambda and is caught by delegateFailureAndWrap, which
-                // routes it to the outer listener's onFailure.
-                LogicalPlan resolvedPlan = InSubqueryResolver.resolve(viewResolution.plan());
-                ViewResolver.ViewResolutionResult resolvedResult = new ViewResolver.ViewResolutionResult(
-                    resolvedPlan,
-                    viewResolution.viewQueries()
-                );
-                analyseAndExecute(request, executionInfo, planRunner, statement, resolvedResult, l);
+                analyseAndExecute(request, executionInfo, planRunner, statement, viewResolution, l);
             })
         );
     }
@@ -1055,21 +1048,24 @@ public class EsqlSession {
     }
 
     /**
-     * Increments the {@code IN_SUBQUERY} counter exactly once when the pre-resolution plan
+     * Increments the {@code IN_SUBQUERY} counter at most once per query when a view-resolved plan
      * contains any {@link org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InSubquery}
-     * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}. Called before
-     * {@link InSubqueryResolver} so the check sees the originating expressions still in place —
-     * the resolver replaces them with {@code SemiJoin}/{@code AntiJoin}/{@code LeftSemiJoin} and
-     * the source expression is no longer visible to plan traversals afterwards. Mirrors
-     * {@link #gatherViewMetrics}: direct increment, once per query. The {@code WHERE} counter
-     * is handled by the analyzer/verifier plan walk via {@code FeatureMetric#WHERE} matching
-     * SemiJoin/AntiJoin/LeftSemiJoin (which only originate from a {@code WHERE x IN (sub)}).
+     * inside a {@code WHERE} {@link org.elasticsearch.xpack.esql.plan.logical.Filter}.
+     * <p>
+     * {@link ViewAndSubqueryResolver} calls this after every view-resolution pass (each pass sees the originating
+     * {@code InSubquery} expressions still in place, before they are rewritten into
+     * {@code SemiJoin}/{@code AntiJoin}/{@code LeftSemiJoin}), so we also catch IN subqueries that only surface once a
+     * view referenced from inside another IN subquery is expanded in a later iteration. {@code alreadyCounted} keeps
+     * the increment to once per query no matter how many passes (or how many expressions) match; it is an
+     * {@link AtomicBoolean} because successive passes may run on different threads. Mirrors {@link #gatherViewMetrics}:
+     * direct increment, once per query. The {@code WHERE} counter is handled by the analyzer/verifier plan walk via
+     * {@code FeatureMetric#WHERE} matching SemiJoin/AntiJoin/LeftSemiJoin (which only originate from a {@code WHERE x IN (sub)}).
      */
-    private void gatherInSubqueryMetrics(LogicalPlan plan) {
+    private void gatherInSubqueryMetrics(LogicalPlan plan, AtomicBoolean alreadyCounted) {
         if (metrics == null) {
             return;
         }
-        if (InSubqueryResolver.hasInSubqueryInFilter(plan)) {
+        if (InSubqueryResolver.hasInSubqueryInFilter(plan) && alreadyCounted.compareAndSet(false, true)) {
             metrics.inc(FeatureMetric.IN_SUBQUERY);
         }
     }

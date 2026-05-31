@@ -205,7 +205,10 @@ public class ViewResolver {
                     viewQueries,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
+                        // Mark only the resolved result subtree, not the whole input tree: transformDown re-visits the
+                        // children of a transformed node, so we must stop it from re-resolving wildcards inside the view
+                        // body (#146144). Marking the entire input `plan` here would also skip sibling relations the
+                        // top-down traversal has not reached yet (e.g. the right side of a SemiJoin produced by an IN subquery).
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
@@ -219,9 +222,10 @@ public class ViewResolver {
                     viewQueries,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        plan.forEachDown(resolvedPlans::add);
-                        // Also mark the resolved result subtree so transformDown does not
-                        // re-process view-body nodes the UnresolvedRelation was replaced with.
+                        // Mark only the resolved result subtree so transformDown does not re-process view-body nodes the
+                        // UnresolvedRelation was replaced with (#146144). Marking the whole input `plan` here would also
+                        // skip sibling relations not yet reached by the top-down traversal (e.g. the right side of a
+                        // SemiJoin produced by an IN subquery).
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })

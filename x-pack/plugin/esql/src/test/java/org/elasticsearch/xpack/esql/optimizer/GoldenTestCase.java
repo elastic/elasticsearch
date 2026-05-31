@@ -132,6 +132,15 @@ public abstract class GoldenTestCase extends ESTestCase {
         builder(esqlQuery).stages(stages).nestedPath(nestedPath).run();
     }
 
+    /**
+     * Run a golden test where the query references views. {@code views} maps a view name to its definition query; the views are
+     * registered on the analyzer and expanded (together with IN subqueries) before pre-analysis, mirroring
+     * {@code EsqlSession#execute}.
+     */
+    protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, Map<String, String> views, String... nestedPath) {
+        builder(esqlQuery).stages(stages).views(views).nestedPath(nestedPath).run();
+    }
+
     protected void runGoldenTest(String esqlQuery, EnumSet<Stage> stages, SearchStats searchStats, String... nestedPath) {
         builder(esqlQuery).stages(stages).searchStats(searchStats).nestedPath(nestedPath).run();
     }
@@ -148,7 +157,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         String... nestedPath
     ) {
         String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, null).doTest();
+        new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, null, Map.of()).doTest();
     }
 
     protected TestBuilder builder(String esqlQuery) {
@@ -162,6 +171,7 @@ public abstract class GoldenTestCase extends ESTestCase {
         private String[] nestedPath;
         private TransportVersion transportVersion;
         private Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory;
+        private Map<String, String> views = Map.of();
 
         private TestBuilder(
             String esqlQuery,
@@ -222,9 +232,14 @@ public abstract class GoldenTestCase extends ESTestCase {
             return this;
         }
 
+        public TestBuilder views(Map<String, String> views) {
+            this.views = views;
+            return this;
+        }
+
         public void run() {
             String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-            new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, optimizerFactory).doTest();
+            new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, optimizerFactory, views).doTest();
         }
 
         public Optional<Throwable> tryRun() {
@@ -245,7 +260,8 @@ public abstract class GoldenTestCase extends ESTestCase {
         EnumSet<Stage> stages,
         SearchStats searchStats,
         TransportVersion transportVersion,
-        Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory
+        Function<LogicalOptimizerContext, LogicalPlanOptimizer> optimizerFactory,
+        Map<String, String> views
     ) {
 
         private void doTest() {
@@ -262,10 +278,18 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
             EsqlStatement statement = TEST_PARSER.createStatement(esqlQuery);
-            // Mirror EsqlSession#execute: rewrite IN subqueries into SemiJoin/AntiJoin/LeftSemiJoin before
-            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier
-            // checks (e.g. unbounded SORT inside an IN subquery) fire.
-            LogicalPlan parsedPlan = InSubqueryResolver.resolve(statement.plan());
+            // Mirror EsqlSession#execute: expand views and rewrite IN subqueries into SemiJoin/AntiJoin/LeftSemiJoin before
+            // running pre-analysis and analysis, so inner subquery indices are discovered and verifier checks (e.g. unbounded
+            // SORT inside an IN subquery) fire. When the query references views, register them and run the iterative
+            // view/IN-subquery resolution; otherwise resolve IN subqueries only.
+            LogicalPlan parsedPlan;
+            if (views.isEmpty()) {
+                parsedPlan = InSubqueryResolver.resolve(statement.plan());
+            } else {
+                TestAnalyzer viewAnalyzer = analyzer();
+                views.forEach(viewAnalyzer::addView);
+                parsedPlan = viewAnalyzer.resolveViewsAndInSubqueries(statement.plan());
+            }
             String[] queryPathParts = new String[nestedPath.length + 2];
             queryPathParts[0] = testName;
             System.arraycopy(nestedPath, 0, queryPathParts, 1, nestedPath.length);

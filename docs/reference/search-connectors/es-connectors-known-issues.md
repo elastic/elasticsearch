@@ -145,9 +145,9 @@ The connector service has the following known issues:
 
     Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar; navigating to it returned a 403.
 
-    **Affected versions**: Kibana 9.0 through 9.4.
+    **Affected versions**: Kibana 9.1 through 9.4.
 
-    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3, 9.4, and 9.5. 
+    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3.6, 9.4.3, and 9.5.0
 
 
 ## Individual connector known issues [es-connectors-known-issues-specific]

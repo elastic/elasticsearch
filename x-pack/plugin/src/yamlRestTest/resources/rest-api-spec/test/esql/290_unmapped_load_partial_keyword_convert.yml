@@ -50,17 +50,16 @@ setup:
 ---
 'to_degrees on punk field':
   - do:
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
+      catch: bad_request
       esql.query:
         body:
           # [foo] is double in index1
           # [foo] is unmapped in index3
           query: 'SET unmapped_fields="load"; FROM index1,index3 | EVAL x = TO_DEGREES(foo)'
-  - match: { columns.0.name: "foo" }
-  - match: { columns.0.type: "double" }
-  - match: { columns.1.name: "x" }
-  - match: { columns.1.type: "double" }
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'Found 1 problem' }
+  - contains: { error.reason: 'line 1:70: Cannot convert from all original types of partially-unmapped field [foo]' }
 ---
 'to_radians on punk field':
   - do:
@@ -73,7 +72,7 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: Cannot convert partially unmapped field [foo]: [TORADIANS] does not accept [KEYWORD]' }
+  - contains: { error.reason: 'line 1:70: Cannot convert from all original types of partially-unmapped field [foo]' }
 ---
 'aggregate_metric_double cast on fully unmapped field':
   - do:

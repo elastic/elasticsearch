@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -148,7 +147,6 @@ public class Verifier {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
-            checkConvertOnPartiallyUnmappedField(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -569,32 +567,6 @@ public class Verifier {
         }
 
         return names;
-    }
-
-    /**
-     * Check for convert functions that cannot handle partially unmapped fields because they don't support KEYWORD.
-     * This catches cases like {@code punk_field::aggregate_metric_double} where the field is partially unmapped
-     * (loaded as KEYWORD from unmapped indices) but the convert function doesn't accept KEYWORD.
-     */
-    private static void checkConvertOnPartiallyUnmappedField(LogicalPlan plan, Failures failures) {
-        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
-            if (fa.field() instanceof MultiTypeEsField mtf && mtf.getPotentiallyUnmappedExpression() != null) {
-                Expression unmappedExpr = mtf.getPotentiallyUnmappedExpression();
-                if (unmappedExpr instanceof AbstractConvertFunction convert) {
-                    // Check if the convert function is being applied to KEYWORD but doesn't support it
-                    if (convert.field().dataType() == DataType.KEYWORD && convert.supportedTypes().contains(DataType.KEYWORD) == false) {
-                        failures.add(
-                            fail(
-                                fa,
-                                "Cannot convert partially unmapped field [{}]: [{}] does not accept [KEYWORD]",
-                                mtf.getName(),
-                                convert.functionName()
-                            )
-                        );
-                    }
-                }
-            }
-        });
     }
 
     /**

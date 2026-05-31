@@ -2416,8 +2416,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ) {
             Expression convertExpression = (Expression) convert;
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-                Set<DataType> supportedTypes = convert.supportedTypes();
+                // The field has an unresolved type conflict (InvalidMappedField), so we attempt to create MultiTypeEsField with
+                // index-specific conversions
+
                 if (convert instanceof FoldablesConvertFunction fcf) {
                     // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
                     String unresolvedMessage = "argument of ["
@@ -2433,6 +2434,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(imf)) {
                     return fa;
                 }
+
+                Map<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                Set<DataType> supportedTypes = convert.supportedTypes();
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
                         typeResolutions(fa, convert, type, imf, typeResolutions);
@@ -2462,14 +2466,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
-                    if (((Expression) convert).dataType() == mtf.getDataType()) {
+                    if (((Expression) convert).dataType() == mtf.getDataType()
+                        && (mtf.getPotentiallyUnmappedExpression() == null || convert.supportedTypes().contains(KEYWORD))) {
                         return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
                     }
 
                     // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
                     // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
+                    if (supportedTypes.contains(fa.dataType())) {
+                        if (canConvertOriginalTypes(mtf, supportedTypes) == false) {
+                            // tbd
+                            String msg = String.format(
+                                "Cannot convert from all original types of partially-unmapped field [%s]",
+                                mtf.getName()
+                            );
+                            UnsupportedEsField uef = new UnsupportedEsField(
+                                fa.name(),
+                                supportedTypes.stream().map(DataType::typeName).toList()
+                            );
+                            return new UnsupportedAttribute(fa.source(), fa.name(), uef, msg);
+                        }
+
                         // Build the mapping between index name and conversion expressions
                         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
                         for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
@@ -2492,7 +2510,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                            fa.fieldName().string(),
+                            mtf.getName(),
                             convertExpression.dataType(),
                             false,
                             indexToConversionExpressions,
@@ -2564,7 +2582,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 .withPotentiallyUnmappedExpression(potentiallyUnmappedConversion);
         }
 
+        /**
+         * @param multiTypeEsField
+         * @param supportedTypes The types supported by the convert function
+         * @return True if all the original types in the {@code MultiTypeEsField}, in addition to KEYWORD, are supported by the convert
+         *         function
+         */
         private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
+
+            if (multiTypeEsField.getPotentiallyUnmappedExpression() != null && supportedTypes.contains(KEYWORD) == false) {
+                return false;
+            }
+
             return multiTypeEsField.getIndexToConversionExpressions()
                 .values()
                 .stream()
@@ -2682,7 +2711,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
                     if (f.field() instanceof InvalidMappedField imf && allDates(context, imf)) {
-                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
                         imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
                         // The allDates check filters out fields that are not mapped in all indices, which includes
@@ -2740,7 +2769,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return esRelation;
                 }
 
-                return esRelation.transformExpressionsUp(FieldAttribute.class, fa -> {
+                return esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
                     // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
                     if (fa.field() instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
                         DataType mappedType = imf.types().iterator().next();
@@ -2752,7 +2781,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             return fa;
                         }
                         ConvertFunction convert = convertFactory.apply(fa.source(), fa, context.configuration());
-                        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                        if (convert.supportedTypes().contains(KEYWORD) == false) {
+                            // Skip implicit casting: converter doesn't support KEYWORD input
+                            return fa;
+                        }
+
+                        Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         typeResolutions(fa, convert, mappedType, imf, typeResolutions);
 
                         Expression potentiallyUnmappedConversion = ResolveUnionTypes.typeSpecificConvert(
@@ -2790,7 +2824,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         ConvertFunction convert,
         DataType type,
         InvalidMappedField imf,
-        HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
+        Map<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
     ) {
         ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
         var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);

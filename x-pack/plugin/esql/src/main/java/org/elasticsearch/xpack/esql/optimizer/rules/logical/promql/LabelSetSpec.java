@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 
 public final class LabelSetSpec {
+    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
+
     /** Labels known to be visible so far. */
     private final List<Attribute> declaredLabels;
 
@@ -114,16 +116,18 @@ public final class LabelSetSpec {
     }
 
     /**
-     * Name-based set difference.
+     * Name-based set difference using PromQL label names.
+     * Prometheus passthrough indices expose bare label names (e.g. {@code le}) while
+     * backing fields use {@code labels.le}; both must compare equal here.
      */
     static List<Attribute> difference(List<Attribute> from, List<Attribute> toRemove) {
         Set<String> removeNames = new HashSet<>();
         for (Attribute attr : toRemove) {
-            removeNames.add(fieldName(attr));
+            removeNames.add(promqlLabelKey(attr));
         }
         List<Attribute> result = new ArrayList<>();
         for (Attribute attr : from) {
-            if (removeNames.contains(fieldName(attr)) == false) {
+            if (removeNames.contains(promqlLabelKey(attr)) == false) {
                 result.add(attr);
             }
         }
@@ -131,16 +135,16 @@ public final class LabelSetSpec {
     }
 
     /**
-     * Name-based set intersection.
+     * Name-based set intersection using PromQL label names.
      */
     static List<Attribute> intersection(List<Attribute> requested, List<Attribute> available) {
         Set<String> availableNames = new HashSet<>();
         for (Attribute attr : available) {
-            availableNames.add(fieldName(attr));
+            availableNames.add(promqlLabelKey(attr));
         }
         List<Attribute> result = new ArrayList<>();
         for (Attribute attr : requested) {
-            if (availableNames.contains(fieldName(attr))) {
+            if (availableNames.contains(promqlLabelKey(attr))) {
                 result.add(attr);
             }
         }
@@ -168,11 +172,23 @@ public final class LabelSetSpec {
 
     static Attribute findAttributeByFieldName(List<Attribute> attributes, String fieldNameToFind) {
         for (Attribute attribute : attributes) {
-            if (fieldName(attribute).equals(fieldNameToFind)) {
+            if (fieldName(attribute).equals(fieldNameToFind) || promqlLabelKey(attribute).equals(fieldNameToFind)) {
                 return attribute;
             }
         }
         return null;
+    }
+
+    /**
+     * PromQL-visible label name for an attribute.
+     * Strips the Prometheus {@code labels.} prefix from mapped field paths.
+     */
+    static String promqlLabelKey(Attribute attr) {
+        String name = fieldName(attr);
+        if (name.startsWith(PROMETHEUS_LABELS_PREFIX)) {
+            return name.substring(PROMETHEUS_LABELS_PREFIX.length());
+        }
+        return name;
     }
 
     /**
@@ -199,10 +215,37 @@ public final class LabelSetSpec {
 
     private static void addUniqueByFieldName(List<Attribute> result, Set<String> seen, List<Attribute> attrs) {
         for (Attribute attr : attrs) {
-            if (seen.add(fieldName(attr))) {
+            if (seen.add(promqlLabelKey(attr))) {
                 result.add(attr);
             }
         }
+    }
+
+    /**
+     * Resolve excluded PromQL labels to concrete dimension field attributes for time-series WITHOUT grouping.
+     * Prometheus passthrough indices expose bare label names while mapped fields live under {@code labels.*}.
+     */
+    static List<Attribute> resolveExcludedDimensions(List<Attribute> excluded, List<Attribute> available) {
+        List<Attribute> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Attribute excludedAttr : excluded) {
+            Attribute dimension = resolveDimensionAttribute(excludedAttr, available);
+            if (dimension != null && seen.add(promqlLabelKey(dimension))) {
+                result.add(dimension);
+            }
+        }
+        return result;
+    }
+
+    private static Attribute resolveDimensionAttribute(Attribute excluded, List<Attribute> available) {
+        if (excluded instanceof FieldAttribute fa && fa.isDimension()) {
+            return excluded;
+        }
+        Attribute resolved = findAttributeByFieldName(available, promqlLabelKey(excluded));
+        if (resolved instanceof FieldAttribute fa && fa.isDimension()) {
+            return resolved;
+        }
+        return null;
     }
 
     /**
@@ -246,12 +289,23 @@ public final class LabelSetSpec {
      * - excludedGroupings: concrete dimension exclusions for TimeSeriesWithout
      */
     public LabelSet apply() {
+        return apply(List.of());
+    }
+
+    /**
+     * Finalize the deferred spec into concrete aggregate shape, using {@code indexAttributes} only
+     * to resolve excluded PromQL labels to concrete dimension fields.
+     */
+    public LabelSet apply(List<Attribute> indexAttributes) {
         List<Attribute> available = availableLabels.isEmpty() ? declaredLabels : availableLabels;
 
         Attribute ts = findAttributeByFieldName(available, MetadataAttribute.TIMESERIES);
         List<Attribute> resolved = resolveLabels(byDeclaredLabels, available);
         List<Attribute> missing = difference(byDeclaredLabels, resolved);
-        List<Attribute> excludedDimensions = dimensionAttributes(unionByFieldName(excludedLabels, inheritedExcludedLabels));
+        List<Attribute> excludedDimensions = resolveExcludedDimensions(
+            unionByFieldName(excludedLabels, inheritedExcludedLabels),
+            unionByFieldName(available, indexAttributes)
+        );
 
         if (ts != null) {
             List<Attribute> attrs = new ArrayList<>();

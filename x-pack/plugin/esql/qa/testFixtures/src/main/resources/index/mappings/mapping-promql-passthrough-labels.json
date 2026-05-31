@@ -1,0 +1,23 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "labels": {
+      "properties": {
+        "foo": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "bar": {
+          "type": "keyword",
+          "time_series_dimension": true
+        }
+      }
+    },
+    "metric": {
+      "type": "double",
+      "time_series_metric": "gauge"
+    }
+  }
+}

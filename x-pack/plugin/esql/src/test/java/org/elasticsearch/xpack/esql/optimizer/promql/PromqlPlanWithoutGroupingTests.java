@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -288,5 +290,35 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     public void testScalarOverMaxOfWithoutProducesScalarOutput() {
         var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(max(sum without (pod, region) (avg_over_time(network.cost[1h])))))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+    }
+
+    public void testWithoutGroupingSupportsPrometheusPassthroughLabelFieldNames() {
+        assertPrometheusPassthroughWithoutFields("foo");
+        assertPrometheusPassthroughWithoutFields("labels.foo");
+    }
+
+    private static void assertPrometheusPassthroughWithoutFields(String label) {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            prometheusPassthroughAnalyzer().query("PROMQL index=prometheus step=1h result=(sum without (" + label + ") (metric))")
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.withoutFields(), hasItem("labels.foo"));
+        assertThat(timeSeriesMetadata.withoutFields(), hasItem("foo"));
+    }
+
+    private static TestAnalyzer prometheusPassthroughAnalyzer() {
+        return analyzerWithEnrichPolicies().addIndex(
+            "prometheus",
+            "mapping-promql-passthrough-labels.json",
+            IndexMode.TIME_SERIES
+        );
     }
 }

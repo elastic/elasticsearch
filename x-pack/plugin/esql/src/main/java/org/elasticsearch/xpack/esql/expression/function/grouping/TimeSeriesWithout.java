@@ -40,6 +40,10 @@ import java.util.Set;
  * An empty field list means "group by all dimensions".
  */
 public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFunction implements OptionalArgument {
+    // Prometheus passthrough dimensions are mapped under a "labels" object, so their backing field path
+    // carries this prefix while the bare PromQL label name does not. See PrometheusLabelsResponseListener.
+    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "TimeSeriesWithout",
@@ -145,12 +149,18 @@ public class TimeSeriesWithout extends GroupingFunction.NonEvaluatableGroupingFu
 
     /**
      * Returns the set of field names to exclude from the time-series grouping.
+     * Prometheus-style {@code labels.*} fields also emit their bare PromQL label name so
+     * TSDB metadata loading can match either form.
      */
     public Set<String> excludedFieldNames() {
         Set<String> excluded = new LinkedHashSet<>();
         for (Expression field : children()) {
             if (field instanceof FieldAttribute fa) {
-                excluded.add(fa.fieldName().string());
+                String fieldName = fa.fieldName().string();
+                excluded.add(fieldName);
+                if (fieldName.startsWith(PROMETHEUS_LABELS_PREFIX)) {
+                    excluded.add(fieldName.substring(PROMETHEUS_LABELS_PREFIX.length()));
+                }
             }
         }
         return excluded;

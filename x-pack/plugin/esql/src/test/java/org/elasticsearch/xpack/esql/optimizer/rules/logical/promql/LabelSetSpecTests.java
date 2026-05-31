@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LabelSetSpecTests extends ESTestCase {
 
@@ -233,6 +234,21 @@ public class LabelSetSpecTests extends ESTestCase {
         assertThat(result.excludedGroupings(), empty());
     }
 
+    public void testApplyExcludedGroupingsResolvesPrometheusPassthroughDimensions() {
+        Attribute job = passthroughLabel("job");
+        Attribute le = passthroughLabel("le");
+
+        var child = LabelSetSpec.without(
+            LabelSetSpec.of(List.of(job, le)),
+            List.of(new ReferenceAttribute(Source.EMPTY, null, "le", DataType.KEYWORD))
+        );
+        var result = child.withIncluded(List.of(job, le)).apply();
+
+        assertThat(result.excludedGroupings(), hasSize(1));
+        assertThat(LabelSetSpec.promqlLabelKey(result.excludedGroupings().getFirst()), equalTo("le"));
+        assertThat(result.excludedGroupings().getFirst().name(), equalTo("le"));
+    }
+
     public void testApplyExcludedGroupingsDeduplicates() {
         Attribute dimPod = dimensionAttr("pod");
 
@@ -241,6 +257,37 @@ public class LabelSetSpecTests extends ESTestCase {
 
         assertThat(result.excludedGroupings().size(), equalTo(1));
         assertThat(result.excludedGroupings().getFirst().name(), equalTo("pod"));
+    }
+
+    public void testWithoutMatchesPrometheusPassthroughLabelFieldNames() {
+        Attribute job = passthroughLabel("job");
+        Attribute le = passthroughLabel("le");
+        Attribute labelsLe = dimensionAttr("labels.le");
+
+        var input = LabelSetSpec.of(List.of(job, le));
+        var result = LabelSetSpec.without(input, List.of(labelsLe));
+
+        assertThat(names(result), equalTo(Set.of("job")));
+        assertThat(result.excluded().stream().map(LabelSetSpec::promqlLabelKey).collect(Collectors.toSet()), equalTo(Set.of("le")));
+        assertThat(
+            result.withExcluded(List.of())
+                .apply()
+                .excludedGroupings()
+                .stream()
+                .map(LabelSetSpec::promqlLabelKey)
+                .collect(Collectors.toSet()),
+            equalTo(Set.of("le"))
+        );
+    }
+
+    private static Attribute passthroughLabel(String promqlName) {
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            promqlName,
+            new EsField("labels." + promqlName, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION)
+        );
     }
 
     private static Attribute dimensionAttr(String name) {

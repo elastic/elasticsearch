@@ -115,7 +115,7 @@ public final class TupleRunCodec {
             if (continues) {
                 runs.runLens[runs.count - 1]++;
             } else {
-                final long[] full = new long[K];
+                final long[] full = runs.acquireTuple(K);
                 System.arraycopy(ords, ordPos, full, startInTuple, inBlockOrds);
                 runs.append(K, full);
             }
@@ -260,9 +260,12 @@ public final class TupleRunCodec {
 
     /**
      * Caller-owned scratch holding the runs of a single block. Reused across blocks by
-     * SortedSetOrdinalCodec to avoid per-block allocation of the runs structure itself.
-     * Per-run tuple arrays are still allocated on demand; pooling those is a separate
-     * optimization.
+     * SortedSetOrdinalCodec to avoid per-block allocation of the runs structure or its
+     * per-run tuple arrays.
+     *
+     * <p>The tuple pool grows on demand: when a new run needs K slots,
+     * {@link #acquireTuple} returns a long[] of length at least K from the pool,
+     * reallocating only if the pooled slot is too small for the requested K.
      */
     public static final class RunBuilder {
         int count;
@@ -273,15 +276,27 @@ public final class TupleRunCodec {
         final int[] runLens;
 
         public RunBuilder(int maxDocs) {
-            this.runTuples = new long[Math.max(1, maxDocs)][];
-            this.runKs = new int[Math.max(1, maxDocs)];
-            this.runLens = new int[Math.max(1, maxDocs)];
+            final int slots = Math.max(1, maxDocs);
+            this.runTuples = new long[slots][];
+            this.runKs = new int[slots];
+            this.runLens = new int[slots];
         }
 
         void reset() {
             count = 0;
             prevK = -1;
             prevTuple = null;
+        }
+
+        long[] acquireTuple(int K) {
+            long[] pooled = runTuples[count];
+            if (pooled == null || pooled.length < K) {
+                pooled = new long[K];
+                runTuples[count] = pooled;
+            } else {
+                Arrays.fill(pooled, 0, K, 0L);
+            }
+            return pooled;
         }
 
         void append(int K, long[] tuple) {

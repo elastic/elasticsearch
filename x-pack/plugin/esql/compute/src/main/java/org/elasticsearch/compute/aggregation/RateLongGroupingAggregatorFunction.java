@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.compute.aggregation;
 
-// begin generated imports
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -33,7 +31,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
-// end generated imports
 
 public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
 

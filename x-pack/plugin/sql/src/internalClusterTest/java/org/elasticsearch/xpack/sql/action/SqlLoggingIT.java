@@ -15,8 +15,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.QueryLogging.ES_QUERY_FIELDS_PREFIX;
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -96,6 +100,24 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
         assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
     }
 
+    public void testSqlLoggingFilter() {
+        prepareIndex();
+        QueryBuilder filter = new TermQueryBuilder("host", "192.168.0.1");
+        String query = "SELECT host FROM test LIMIT 100";
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)
+            .filter(filter)
+            .mode(Mode.JDBC)
+            .version(SqlVersions.SERVER_COMPAT_VERSION.toString())
+            .get();
+        assertThat(response.size(), equalTo(2L));
+        assertThat(appender.events.size(), equalTo(2));
+
+        var sqlMessage = getMessageData(appender.events.get(1));
+        assertMessageSuccess(sqlMessage, SqlLogContext.TYPE, query);
+        assertThat(sqlMessage.get(QUERY_FIELD_RESULT_COUNT), equalTo("2"));
+        assertThat(sqlMessage.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+    }
+
     public void testSqlFailureLogging() {
         String query = "SELECT data, count FROM test ORDER BY count";
         expectThrows(VerificationException.class, () -> new SqlQueryRequestBuilder(client()).query(query).get());
@@ -151,10 +173,10 @@ public class SqlLoggingIT extends AbstractSqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() {
-        assertAcked(indicesAdmin().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping("host", "type=keyword").get());
         client().prepareBulk()
-            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
-            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))
+            .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42, "host", "192.168.0.1"))
+            .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43, "host", "192.168.0.1"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("test");

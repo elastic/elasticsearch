@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.compute.aggregation;
 
-// begin generated imports
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -33,9 +31,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
-// end generated imports
 
-public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
+public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         private final boolean isRateOverTime;
@@ -64,25 +61,25 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
 
         @Override
-        public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+        public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
             var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
-            return new RateDoubleGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
+            return new RateIntGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 
         @Override
         public String describe() {
-            return "rate of double";
+            return "rate of int";
         }
     }
 
     static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("timestamps", ElementType.LONG),
-        new IntermediateStateDesc("values", ElementType.DOUBLE),
+        new IntermediateStateDesc("values", ElementType.INT),
         new IntermediateStateDesc("sampleCounts", ElementType.LONG),
         new IntermediateStateDesc("resets", ElementType.DOUBLE)
     );
 
-    private final DoubleRawBuffer rawBuffer;
+    private final IntRawBuffer rawBuffer;
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
@@ -95,7 +92,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
 
-    public RateDoubleGroupingAggregatorFunction(
+    public RateIntGroupingAggregatorFunction(
         List<Integer> channels,
         DriverContext driverContext,
         boolean isRateOverTime,
@@ -108,10 +105,10 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         this.warnings = warnings;
-        DoubleRawBuffer rawBuffer = null;
+        IntRawBuffer rawBuffer = null;
         IntervalBuffer intervalBuffer = null;
         try {
-            rawBuffer = new DoubleRawBuffer(driverContext.breaker());
+            rawBuffer = new IntRawBuffer(driverContext.breaker());
             intervalBuffer = new IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
@@ -130,7 +127,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        DoubleBlock valuesBlock = page.getBlock(channels.get(0));
+        IntBlock valuesBlock = page.getBlock(channels.get(0));
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
@@ -203,7 +200,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private void addRawInput(
         int positionOffset,
         IntBlock groups,
-        DoubleBlock valueBlock,
+        IntBlock valueBlock,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -225,7 +222,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             long timestamp = timestampVector.getLong(valuePosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 final int groupId = groups.getInt(g);
-                final var value = valueBlock.getDouble(valueBlock.getFirstValueIndex(valuePosition));
+                final var value = valueBlock.getInt(valueBlock.getFirstValueIndex(valuePosition));
                 if (lastGroup != groupId) {
                     try {
                         temporality = temporalityAccessor.get(valuePosition);
@@ -256,7 +253,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private void addRawInput(
         int positionOffset,
         IntVector groups,
-        DoubleBlock valueBlock,
+        IntBlock valueBlock,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -296,7 +293,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private void addRawInput(
         int positionOffset,
         IntVector groups,
-        DoubleVector valueVector,
+        IntVector valueVector,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -337,7 +334,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         int group,
         int from,
         int to,
-        DoubleVector valueVector,
+        IntVector valueVector,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -354,7 +351,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         } else {
             ReducedState state = getOrInitializeReducedState(group);
             for (int pos = from; pos < to; pos++) {
-                state.appendDeltaValue(timestampVector.getLong(pos), valueVector.getDouble(pos));
+                state.appendDeltaValue(timestampVector.getLong(pos), valueVector.getInt(pos));
             }
         }
     }
@@ -363,7 +360,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         int group,
         int from,
         int to,
-        DoubleBlock valueBlock,
+        IntBlock valueBlock,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -384,7 +381,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                     continue;
                 }
                 assert valueBlock.getValueCount(pos) == 1 : "expected single-valued block " + valueBlock;
-                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getDouble(valueBlock.getFirstValueIndex(pos)));
+                state.appendDeltaValue(timestampVector.getLong(pos), valueBlock.getInt(valueBlock.getFirstValueIndex(pos)));
             }
         }
     }
@@ -408,7 +405,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
-        DoubleBlock values = page.getBlock(channels.get(1));
+        IntBlock values = page.getBlock(channels.get(1));
         assert timestamps.getTotalValueCount() == values.getTotalValueCount() : "timestamps=" + timestamps + "; values=" + values;
         if (values.areAllValuesNull()) {
             return;
@@ -442,7 +439,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private void addIntermediateInputBlock(int positionOffset, IntBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
-        DoubleBlock values = page.getBlock(channels.get(1));
+        IntBlock values = page.getBlock(channels.get(1));
         assert timestamps.getTotalValueCount() == values.getTotalValueCount() : "timestamps=" + timestamps + "; values=" + values;
         if (values.areAllValuesNull()) {
             return;
@@ -484,7 +481,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         int positionCount = selectedInPage.getPositionCount();
         try (
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-            var values = blockFactory.newDoubleBlockBuilder(positionCount * 2);
+            var values = blockFactory.newIntBlockBuilder(positionCount * 2);
             var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
             var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
         ) {
@@ -498,7 +495,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                     resets.appendDouble(state.resets);
                 } else {
                     timestamps.appendLong(0);
-                    values.appendDouble(0);
+                    values.appendInt(0);
                     sampleCounts.appendLong(0);
                     resets.appendDouble(0);
                 }
@@ -535,14 +532,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         rawBuffer.clearBuffers();
     }
 
-    static final class DoubleRawBuffer extends RawBuffer {
-        private final DoubleBuffer values;
+    static final class IntRawBuffer extends RawBuffer {
+        private final IntBuffer values;
 
-        DoubleRawBuffer(CircuitBreaker breaker) {
+        IntRawBuffer(CircuitBreaker breaker) {
             super(breaker);
             boolean success = false;
             try {
-                this.values = new DoubleBuffer(breaker, PAGE_SIZE);
+                this.values = new IntBuffer(breaker, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
@@ -558,31 +555,31 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             values.ensureCapacity(newSize);
         }
 
-        void appendWithoutResize(long timestamp, double value) {
+        void appendWithoutResize(long timestamp, int value) {
             timestamps.append(timestamp);
             values.append(value);
         }
 
-        void maybeResizeAndAppend(long timestamp, double value) {
+        void maybeResizeAndAppend(long timestamp, int value) {
             timestamps.ensureCapacity(timestamps.size() + 1);
             values.ensureCapacity(values.size() + 1);
             appendWithoutResize(timestamp, value);
         }
 
-        void appendRange(int fromPosition, int toPosition, DoubleVector valueVector, LongVector timestampVector) {
+        void appendRange(int fromPosition, int toPosition, IntVector valueVector, LongVector timestampVector) {
             int count = toPosition - fromPosition;
             timestamps.appendRange(timestampVector, fromPosition, count);
             values.appendRange(valueVector, fromPosition, count);
         }
 
-        void appendRange(int fromPosition, int toPosition, DoubleBlock valueBlock, LongVector timestampVector) {
+        void appendRange(int fromPosition, int toPosition, IntBlock valueBlock, LongVector timestampVector) {
             for (int p = fromPosition; p < toPosition; p++) {
                 if (valueBlock.isNull(p)) {
                     continue;
                 }
                 assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
                 timestamps.append(timestampVector.getLong(p));
-                values.append(valueBlock.getDouble(p));
+                values.append(valueBlock.getInt(p));
             }
         }
 
@@ -598,7 +595,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
-    void flushGroup(ReducedState state, DoubleRawBuffer buffer, FlushQueue flushQueue) {
+    void flushGroup(ReducedState state, IntRawBuffer buffer, FlushQueue flushQueue) {
         var timestamps = buffer.timestamps;
         var values = buffer.values;
         if (flushQueue.valueCount == 1) {
@@ -610,7 +607,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
         // first
         final long lastTimestamp;
-        final double lastValue;
+        final int lastValue;
         Slice top;
         {
             top = flushQueue.top();
@@ -730,15 +727,15 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         // Each interval occupies two consecutive slots: slot 2*intervalId stores the last (most recent)
         // timestamp/value pair, slot 2*intervalId+1 stores the first (oldest) timestamp/value pair.
         private final LongBuffer timestamps;
-        private final DoubleBuffer values;
+        private final IntBuffer values;
 
         IntervalBuffer(CircuitBreaker cb) {
             LongBuffer timestamps = null;
-            DoubleBuffer values = null;
+            IntBuffer values = null;
             boolean success = false;
             try {
                 timestamps = new LongBuffer(cb, PAGE_SIZE);
-                values = new DoubleBuffer(cb, PAGE_SIZE);
+                values = new IntBuffer(cb, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
@@ -757,7 +754,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return timestamps.get(2 * intervalId);
         }
 
-        double lastValue(int intervalId) {
+        int lastValue(int intervalId) {
             return values.get(2 * intervalId);
         }
 
@@ -765,11 +762,11 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return timestamps.get(2 * intervalId + 1);
         }
 
-        double firstValue(int intervalId) {
+        int firstValue(int intervalId) {
             return values.get(2 * intervalId + 1);
         }
 
-        int appendInterval(long lastTs, double lastValue, long firstTs, double firstValue) {
+        int appendInterval(long lastTs, int lastValue, long firstTs, int firstValue) {
             int id = count();
             timestamps.ensureCapacity(timestamps.size() + 2);
             values.ensureCapacity(values.size() + 2);
@@ -780,7 +777,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return id;
         }
 
-        int appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {
+        int appendIntervalsFromBlocks(LongBlock ts, IntBlock vs, int position) {
             int tsFirst = ts.getFirstValueIndex(position);
             int vsFirst = vs.getFirstValueIndex(position);
             int valueCount = ts.getValueCount(position);
@@ -793,9 +790,9 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             int firstId = count();
             for (int i = 0; i < valueCount; i += 2) {
                 timestamps.append(ts.getLong(tsFirst + i));
-                values.append(vs.getDouble(vsFirst + i));
+                values.append(vs.getInt(vsFirst + i));
                 timestamps.append(ts.getLong(tsFirst + i + 1));
-                values.append(vs.getDouble(vsFirst + i + 1));
+                values.append(vs.getInt(vsFirst + i + 1));
             }
             return firstId;
         }
@@ -819,21 +816,21 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
         // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
         long deltaFirstTs = Long.MAX_VALUE;
-        double deltaFirstValue;
+        int deltaFirstValue;
         long deltaLastTs = Long.MIN_VALUE;
 
         boolean hasDelta() {
             return deltaLastTs >= deltaFirstTs;
         }
 
-        void appendInterval(long lastTs, double lastValue, long firstTs, double firstValue) {
+        void appendInterval(long lastTs, int lastValue, long firstTs, int firstValue) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
             this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
         }
 
-        void appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {
+        void appendIntervalsFromBlocks(LongBlock ts, IntBlock vs, int position) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int intervalCount = ts.getValueCount(position) / 2;
             int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(ts, vs, position);
@@ -844,28 +841,28 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             }
         }
 
-        void writeIntervalsToBlocks(LongBlock.Builder timestamps, DoubleBlock.Builder values) {
+        void writeIntervalsToBlocks(LongBlock.Builder timestamps, IntBlock.Builder values) {
             timestamps.beginPositionEntry();
             values.beginPositionEntry();
             if (hasDelta()) {
                 // delta data gets converted to a single, cumulative interval
                 timestamps.appendLong(lastTs());
                 timestamps.appendLong(firstTs());
-                values.appendDouble(lastValue());
-                values.appendDouble(firstValue());
+                values.appendInt(lastValue());
+                values.appendInt(firstValue());
             } else {
                 for (int intervalId : intervals) {
                     timestamps.appendLong(intervalBuffer.lastTs(intervalId));
                     timestamps.appendLong(intervalBuffer.firstTs(intervalId));
-                    values.appendDouble(intervalBuffer.lastValue(intervalId));
-                    values.appendDouble(intervalBuffer.firstValue(intervalId));
+                    values.appendInt(intervalBuffer.lastValue(intervalId));
+                    values.appendInt(intervalBuffer.firstValue(intervalId));
                 }
             }
             timestamps.endPositionEntry();
             values.endPositionEntry();
         }
 
-        public void appendDeltaValue(long timestamp, double value) {
+        public void appendDeltaValue(long timestamp, int value) {
             assert intervals.length == 0 : "cannot append delta data when intervals already exist";
             samples++;
             resets += value;
@@ -931,7 +928,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return intervalBuffer.lastTs(intervals[0]);
         }
 
-        double lastValue() {
+        int lastValue() {
             if (hasDelta()) {
                 // We use 0 as lastvalue for delta to force resets, the reset counter already has the real value in it
                 return 0;
@@ -946,7 +943,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             return intervalBuffer.firstTs(intervals[intervals.length - 1]);
         }
 
-        double firstValue() {
+        int firstValue() {
             if (hasDelta()) {
                 return deltaFirstValue;
             }

@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggrega
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -154,11 +155,14 @@ import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -468,19 +472,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#optionalLinkedResolution()}.
+     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#linkedResolution()}.
      * <p>
      * Each {@code ViewShadowRelation} represents a "if a remote project has an index with this
      * view's name, treat it as if the user wrote a remote index reference at this position"
      * lookup. The lenient field-caps integration (deferred to a follow-up PR) populates
-     * {@code optionalLinkedResolution}, keyed by the shadow's {@link ViewShadowRelation#optionalLinkedPattern()}
+     * {@code linkedResolution}, keyed by the shadow's {@link ViewShadowRelation#linkedIndexPattern()}
      * (view name + applicable exclusions). The full pattern is the lookup key — different
      * exclusion lists at the same view name produce distinct {@code ViewShadowRelation}
      * instances and may resolve differently (e.g. one comes back empty because of the
      * exclusions, the other resolves to a remote index). This rule:
      * <ul>
      *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link ViewShadowRelation#optionalLinkedPattern()}, replaces the shadow with an
+     *       {@link ViewShadowRelation#linkedIndexPattern()}, replaces the shadow with an
      *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
      *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
      *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
@@ -491,7 +495,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
-            IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
+            IndexResolution resolution = context.linkedResolution().get(shadow.linkedIndexPattern());
             if (resolution == null || resolution.isValid() == false) {
                 // No remote index found (or lookup didn't run yet) — leave the shadow alone for
                 // ViewCompactionPostIndexResolution to strip.
@@ -738,6 +742,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 case MvExpand p -> resolveMvExpand(p, childrenOutput);
                 case Lookup l -> resolveLookup(l, childrenOutput);
                 case LookupJoin j -> resolveLookupJoin(j, context);
+                case SemiJoin sj -> resolveSemiAntiJoin(sj);
                 case Insist i -> resolveInsist(i, childrenOutput);
                 case Fuse fuse -> resolveFuse(fuse, childrenOutput);
                 case Rerank r -> resolveRerank(r, childrenOutput, context);
@@ -1104,6 +1109,113 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // add error message
                 return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+        }
+
+        /**
+         * Resolves both sides of a SEMI/ANTI join created by {@link InSubqueryResolver}:
+         * <ul>
+         *   <li>Left fields: resolved against the left child's output using standard attribute resolution.</li>
+         *   <li>Right fields: set to the subquery's single output column, or an error attribute if the
+         *       subquery returns zero or more than one column, or references an index with empty
+         *       mapping (right output is {@link #NO_FIELDS}). Stale right fields (e.g. after
+         *       {@link ImplicitCasting} recreated the right subtree) are re-resolved.</li>
+         *   <li>Right child: when the subquery returns exactly one resolved field and the top of the
+         *       right plan is not already a {@link Project}, an explicit {@code Project[rightField]}
+         *       is inserted. The data-node fragment optimizer prunes source attributes down to
+         *       {@code _doc}, and only re-extracts fields that are referenced by an upstream
+         *       operator inside the fragment; without an explicit Project the {@code id}-style
+         *       single-field outputs would collapse to {@code _doc} and trip the post-optimization
+         *       output verifier.</li>
+         * </ul>
+         */
+        private SemiJoin resolveSemiAntiJoin(SemiJoin semiJoin) {
+            // Resolve left fields. Skip when every leftField is either already resolved or is an
+            // UnresolvedAttribute that already carries a custom message: resolveUsingColumns
+            // appends a " in left side of join" suffix on every call, and UnresolvedAttribute
+            // equality includes the message, so re-processing an already-customized message would
+            // loop forever in the rule executor. Mirrors the customMessage() bail-out in
+            // resolveLookupJoin.
+            List<Attribute> leftFields = semiJoin.config().leftFields();
+            boolean leftNeedsResolution = leftFields.stream()
+                .anyMatch(a -> a instanceof UnresolvedAttribute ua && ua.customMessage() == false);
+            List<Attribute> leftKeys = leftNeedsResolution ? resolveUsingColumns(leftFields, semiJoin.left().output(), "left") : leftFields;
+
+            // resolve right fields
+            List<Attribute> rightFields = resolveRightFields(semiJoin);
+
+            // Wrap the right side in an explicit Project on the single right field when the
+            // subquery plan does not already contain a Project or Aggregate anywhere. Both nodes
+            // pin the field for InsertFieldExtraction on the data node: Project explicitly lists
+            // the kept attributes; Aggregate produces the grouping/aggregate aliases that drive
+            // field extraction. When neither is present (e.g. plain {@code FROM ids}, or
+            // {@code FROM ids | LIMIT 5} / {@code FROM ids | WHERE id > 0}), the local fragment
+            // would otherwise collapse the right output to {@code _doc} after
+            // {@code ReplaceSourceAttributes} and trip the post-optimization output verifier.
+            // Skip when the right field failed to resolve (multi-column subquery, empty mapping)
+            // since we have no concrete attribute to project.
+            LogicalPlan right = semiJoin.right();
+            if (rightFields.size() == 1
+                && rightFields.get(0).resolved()
+                && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
+                right = new Project(semiJoin.source(), right, rightFields);
+            }
+
+            JoinConfig joinConfig = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
+
+            if (semiJoin instanceof LeftSemiJoin leftSemiJoin) {
+                return new LeftSemiJoin(leftSemiJoin.source(), leftSemiJoin.left(), right, joinConfig, leftSemiJoin.markAttribute());
+            }
+            return semiJoin instanceof AntiJoin
+                ? new AntiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig)
+                : new SemiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig);
+        }
+
+        private static List<Attribute> resolveRightFields(SemiJoin semiJoin) {
+            List<Attribute> rightFields = semiJoin.config().rightFields();
+            if (rightFields.isEmpty() == false) {
+                // Bail out if rightFields already carries an analyzer-supplied custom error message
+                // (e.g. NO_FIELDS placeholder, multi-column subquery): re-creating a fresh
+                // UnresolvedAttribute every iteration mints a new NameId and would never converge.
+                // Mirrors the customMessage() bail-out used for left fields.
+                if (rightFields.stream().anyMatch(a -> a instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return rightFields;
+                }
+                // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
+                if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
+                    List<Attribute> rightOutput = semiJoin.right().output();
+                    if (rightOutput.size() == 1) {
+                        return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+                    }
+                }
+                return rightFields;
+            }
+            List<Attribute> rightOutput = semiJoin.right().output();
+            if (rightOutput.size() != 1) {
+                return singletonList(
+                    new UnresolvedAttribute(
+                        semiJoin.source(),
+                        "*",
+                        "IN subquery must return exactly one column, found ["
+                            + rightOutput.stream().map(Attribute::name).collect(Collectors.joining(", "))
+                            + "]"
+                    )
+                );
+            }
+            return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+        }
+
+        /**
+         * If the lone right-side output is the {@link #NO_FIELDS} placeholder (meaning the
+         * subquery references an index with empty mapping and no projected/computed columns),
+         * surface a clear analyzer error instead of letting the type-compatibility check fail
+         * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
+         * unchanged.
+         */
+        private static Attribute resolveSingleRightField(SemiJoin semiJoin, Attribute rightAttr) {
+            if (NO_FIELDS_NAME.equals(rightAttr.name())) {
+                return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
+            }
+            return rightAttr;
         }
 
         private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {
@@ -2425,6 +2537,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         + "]";
                     Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
                     return fcf.replaceChildren(Collections.singletonList(ua));
+                }
+                // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
+                // Strip it so union resolution can defer to implicit aggregate_metric_double casting in aggregations.
+                if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(imf)) {
+                    return fa;
                 }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {

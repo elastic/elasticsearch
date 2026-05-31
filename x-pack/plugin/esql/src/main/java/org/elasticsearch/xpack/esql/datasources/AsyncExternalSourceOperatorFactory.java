@@ -43,8 +43,10 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
@@ -144,6 +146,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
+    private final int maxConcurrentOpenSegments;
+    private final int maxRecordBytes;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -217,6 +221,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
+        int maxConcurrentOpenSegments,
+        int maxRecordBytes,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -263,6 +269,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
+        this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -326,6 +334,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
+        // Production sets this from the max_concurrent_open_segments pragma via LocalExecutionPlanner; this
+        // is the test/internal fallback, sourced from the single source of truth.
+        private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -403,6 +415,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -465,6 +487,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 sliceQueue,
                 errorPolicy,
                 parsingParallelism,
+                maxConcurrentOpenSegments,
+                maxRecordBytes,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -666,7 +690,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
     /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns} (the
-     * post-projection, pre-injector channel layout); {@code -1} when the column is absent.
+     * post-projection, pre-virtual-column channel layout); {@code -1} when the column is absent.
      * Used by deferred-extraction wiring to know which channel the encoder must rewrite.
      */
     private static int rowPositionChannelIndex(List<String> projectedColumns) {
@@ -801,7 +825,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         @Nullable List<String> perFileCols
     ) {
-        if (mapping == null || mapping.isIdentity()) {
+        // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
+        // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
+        // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
+        // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
+        if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
             return pages;
         }
         // When deferred extraction is enabled for this factory, the reader appends the synthetic
@@ -911,7 +939,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             driverContext.removeAsyncAction();
             releaseOperator();
         }));
-        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit);
+        buffer.setSplitsTotal(sliceQueue.totalSlices());
+        ProducerState state = new ProducerState(sliceQueue, null, null, buffer, driverContext, rowLimit, formatReader);
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
         } catch (Exception e) {
@@ -934,7 +963,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             driverContext.removeAsyncAction();
             releaseOperator();
         }));
-        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit);
+        buffer.setSplitsTotal(fileList.fileCount());
+        ProducerState state = new ProducerState(null, fileList, projectedColumns, buffer, driverContext, rowLimit, formatReader);
         state.schemaInfo = schemaMap;
         try {
             executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
@@ -957,6 +987,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         final List<String> projectedColumns;
         final AsyncExternalSourceBuffer buffer;
         final DriverContext driverContext;
+        @Nullable
+        final FormatReader formatReader;
 
         int fileIndex;
         @Nullable
@@ -975,6 +1007,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StoragePath lastSchemaPath;
         @Nullable
         List<Attribute> lastBoundSchema;
+        // Per-storage-object running tally for bytes_read deltas. Reset whenever a new
+        // StorageObject is opened so deltas are attributed to a single object's lifetime.
+        @Nullable
+        StorageObject currentObject;
+        long currentObjectBytesSnapshot;
+        // 1-based index of the split / file the producer is currently working on (0 = not started).
+        int currentSplitIndex;
 
         ProducerState(
             @Nullable ExternalSliceQueue queue,
@@ -982,7 +1021,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             @Nullable List<String> projectedColumns,
             AsyncExternalSourceBuffer buffer,
             DriverContext driverContext,
-            int rowsRemaining
+            int rowsRemaining,
+            @Nullable FormatReader formatReader
         ) {
             if ((queue == null) == (fileList == null)) {
                 throw new IllegalArgumentException("ProducerState requires exactly one of queue or fileList");
@@ -993,6 +1033,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             this.buffer = buffer;
             this.driverContext = driverContext;
             this.rowsRemaining = rowsRemaining;
+            this.formatReader = formatReader;
         }
     }
 
@@ -1015,6 +1056,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Open an iterator for the next unit if we don't have one.
             if (state.pages == null) {
                 if (advanceToNextUnit(state) == false) {
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
                     completionListener.onResponse(null);
                     return;
                 }
@@ -1024,21 +1067,72 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 case DONE -> {
                     // Buffer finished (externally or by row-limit exhaustion) while an iterator is still open:
                     // close it before reporting completion so no resources leak on cancellation paths.
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
                     clearCurrentIterator(state);
                     completionListener.onResponse(null);
                 }
                 case EOF -> {
+                    // Finished consuming this unit: capture deltas, count the split as processed,
+                    // and resubmit to advance to the next unit.
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
+                    state.buffer.incSplitsProcessed();
                     clearCurrentIterator(state);
+                    state.currentObject = null;
+                    state.currentObjectBytesSnapshot = 0L;
                     // Re-submit to avoid unbounded recursion between units and to stay off the Driver thread.
                     executor.execute(ActionRunnable.wrap(completionListener, l -> runProducerLoop(state, l)));
                 }
                 case BLOCKED -> {
                     // A listener has been registered on waitForSpace that will re-submit runProducerLoop.
+                    snapshotBytesRead(state);
+                    snapshotFormatReaderStatus(state);
                 }
             }
         } catch (Exception e) {
             clearCurrentIterator(state);
             completionListener.onFailure(e);
+        }
+    }
+
+    /**
+     * Captures the delta in {@code StorageObject.metrics().bytesRead()} since the last snapshot
+     * for the currently-active object and forwards it to the buffer. Safe no-op when no object
+     * is active. Best-effort: telemetry must never break the producer lifecycle.
+     */
+    private static void snapshotBytesRead(ProducerState state) {
+        StorageObject obj = state.currentObject;
+        if (obj == null) {
+            return;
+        }
+        try {
+            StorageObjectMetrics metrics = obj.metrics();
+            if (metrics == null) {
+                return;
+            }
+            long current = metrics.bytesRead();
+            long delta = current - state.currentObjectBytesSnapshot;
+            if (delta > 0) {
+                state.buffer.addBytesRead(delta);
+                state.currentObjectBytesSnapshot = current;
+            }
+        } catch (Exception e) {
+            // metrics() is opt-in; never let an instrumentation accessor break the producer lifecycle.
+            // TRACE so on-call has a breadcrumb if telemetry counters silently flatline.
+            logger.trace(() -> "telemetry: bytesRead snapshot failed for " + state.currentObject, e);
+        }
+    }
+
+    /** Refreshes the buffer's view of the format reader's counter snapshot; best-effort. */
+    private static void snapshotFormatReaderStatus(ProducerState state) {
+        if (state.formatReader == null) {
+            return;
+        }
+        try {
+            state.buffer.recordFormatReaderStatus(state.formatReader.statusSnapshot());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + state.formatReader, e);
         }
     }
 
@@ -1208,6 +1302,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             }
             state.leaves = flattenToLeaves(split);
             state.leafIndex = 0;
+            state.currentSplitIndex++;
+            state.buffer.setCurrentSplit(state.currentSplitIndex);
         }
         ExternalSplit leaf = state.leaves.get(state.leafIndex++);
         if (leaf instanceof FileSplit == false) {
@@ -1244,6 +1340,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pages = rangeReader.readRange(fullObj, rangeCtx);
                 state.lastRangeFilePath = fileSplit.path();
                 state.lastFileContext = rangeCtx.fileContext();
+                state.currentObject = fullObj;
+                state.currentObjectBytesSnapshot = readBytesOrZero(fullObj);
             } else {
                 StorageObject obj = FileSplitProvider.storageObjectForSplit(storageProvider, fileSplit);
                 boolean recordAlignedMacro = FileSplitProvider.isRecordAlignedMacroSplit(fileSplit);
@@ -1284,9 +1382,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(perFileReadSchema)
+                        .maxRecordBytes(maxRecordBytes)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
+                state.currentObject = obj;
+                state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             }
             // Resolve the file's read schema and the reader's projected column order so the
             // adapter can disambiguate LongBlock sources when stringifying under UBN. Pulled
@@ -1391,6 +1492,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return false;
         }
         int fileIndex = state.fileIndex++;
+        state.currentSplitIndex = fileIndex + 1;
+        state.buffer.setCurrentSplit(state.currentSplitIndex);
         List<String> cols = state.projectedColumns;
 
         // Per-file partition values so {@code _file.path/name/directory/size/modified} reflect
@@ -1430,6 +1533,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
                     .readSchema(perFileReadSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -1438,12 +1542,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
             state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
+            state.currentObject = obj;
+            state.currentObjectBytesSnapshot = readBytesOrZero(obj);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
             if (e instanceof IOException io) throw io;
             if (e instanceof RuntimeException re) throw re;
             throw new IOException(e);
+        }
+    }
+
+    /** Best-effort read of {@code obj.metrics().bytesRead()}; returns 0 on null/throw so test mocks don't break the producer. */
+    private static long readBytesOrZero(StorageObject obj) {
+        try {
+            StorageObjectMetrics m = obj.metrics();
+            return m == null ? 0L : m.bytesRead();
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: bytesRead baseline read failed for " + obj, e);
+            return 0L;
         }
     }
 
@@ -1459,6 +1576,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
             return;
         }
+        buffer.setSplitsTotal(1);
+        buffer.setCurrentSplit(1);
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
@@ -1487,6 +1606,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             releaseOperator();
             return;
         }
+        buffer.setSplitsTotal(1);
+        buffer.setCurrentSplit(1);
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
             FormatReader reader = readerWithDynamicThreshold(formatReader);
@@ -1497,6 +1618,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .batchSize(batchSize)
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
@@ -1516,6 +1638,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 buffer,
                 executor,
                 ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
+                    recordSingleFileTelemetry(storageObject, buffer);
                     closeQuietly(finalPages);
                     driverContext.removeAsyncAction();
                     releaseOperator();
@@ -1545,12 +1668,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 buffer,
                 executor,
                 ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
+                    recordSingleFileTelemetry(storageObject, buffer);
                     closeQuietly(wrapped);
                     driverContext.removeAsyncAction();
                     releaseOperator();
                 })
             );
         }));
+    }
+
+    /**
+     * Records final telemetry for the single-file producer paths
+     * ({@link #startNativeAsyncRead}, {@link #startSyncWrapperRead}): increments
+     * splits_processed, captures the storage object's cumulative bytes_read, and
+     * forwards the latest format-reader counter snapshot. Best-effort: any
+     * accessor that misbehaves (e.g. returns {@code null} from a test mock) is
+     * tolerated so telemetry can never short-circuit the lifecycle callbacks.
+     */
+    private void recordSingleFileTelemetry(StorageObject storageObject, AsyncExternalSourceBuffer buffer) {
+        buffer.incSplitsProcessed();
+        try {
+            if (storageObject != null) {
+                StorageObjectMetrics metrics = storageObject.metrics();
+                if (metrics != null) {
+                    long bytes = metrics.bytesRead();
+                    if (bytes > 0) {
+                        buffer.addBytesRead(bytes);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: bytesRead snapshot failed for " + storageObject, e);
+        }
+        try {
+            buffer.recordFormatReaderStatus(formatReader.statusSnapshot());
+        } catch (Exception e) {
+            logger.trace(() -> "telemetry: format-reader statusSnapshot failed for " + formatReader, e);
+        }
     }
 
     private static List<ExternalSplit> flattenToLeaves(ExternalSplit split) {
@@ -1690,10 +1844,15 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     policy,
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
-                    perFileReadSchema
+                    perFileReadSchema,
+                    maxConcurrentOpenSegments,
+                    maxRecordBytes
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
+                // No open-segment cap here, unlike SEGMENTABLE_UNCOMPRESSED: a compressed file is read as a
+                // single serial decompressing stream in bounded (~1 MiB) chunks, so it has natural
+                // back-pressure and never fans out into many concurrent per-segment streams/buffers.
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 DecompressionCodec codec = cdr.codec();
@@ -1722,7 +1881,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         parsingParallelism,
                         executor,
                         policy,
-                        perFileReadSchema
+                        perFileReadSchema,
+                        maxRecordBytes
                     );
                 } catch (Exception e) {
                     try {
@@ -1771,7 +1931,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         } else {
             asyncMode = "sync-wrapper";
         }
-        return "AsyncExternalSourceOperator["
+        return "ExternalDataSourceOperator["
             + "storage="
             + storageProvider.getClass().getSimpleName()
             + ", format="

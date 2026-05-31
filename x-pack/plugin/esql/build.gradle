@@ -108,6 +108,7 @@ dependencies {
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-ndjson'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
   internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
   internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"

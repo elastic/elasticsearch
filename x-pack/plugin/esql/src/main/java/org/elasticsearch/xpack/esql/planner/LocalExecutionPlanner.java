@@ -244,7 +244,7 @@ public class LocalExecutionPlanner {
     private final UserAgentParserRegistry userAgentParserRegistry;
     private final IpLocationService ipLocationService;
     private final ProjectResolver projectResolver;
-    private final PhysicalOperationProviders physicalOperationProviders;
+    private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     public LocalExecutionPlanner(
@@ -263,7 +263,7 @@ public class LocalExecutionPlanner {
         UserAgentParserRegistry userAgentParserRegistry,
         IpLocationService ipLocationService,
         ProjectResolver projectResolver,
-        PhysicalOperationProviders physicalOperationProviders,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
 
@@ -1692,12 +1692,15 @@ public class LocalExecutionPlanner {
         int instanceCount = 1;
 
         /*
-         * Data nodes don't have a resolved FileList (it isn't serialized), so they must rely on explicit splits.
-         * If we received a single coalesced split, we still need to route execution through the slice queue so
-         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
-         * (potentially globbed) source path as a single object.
+         * Whenever explicit splits are assigned to this instance, route execution through the slice queue so
+         * the operator reads exactly those splits (expanding a single coalesced split into its leaf
+         * FileSplits). This must hold even when a resolved FileList is also present — the coordinator keeps
+         * one, but a data node does not (it isn't serialized). Falling through to the resolved-FileList
+         * multi-file read when splits are assigned would re-read the entire glob behind the assigned splits,
+         * double-counting the rows the slice-queue instances also read. The multi-file read path is therefore
+         * only for the no-splits case, where this instance owns the whole resolved FileList.
          */
-        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileList == null || fileList.isResolved() == false);
+        boolean useSliceQueue = splitCount > 0;
         if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
@@ -1747,6 +1750,8 @@ public class LocalExecutionPlanner {
             .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
+            .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .build();
 

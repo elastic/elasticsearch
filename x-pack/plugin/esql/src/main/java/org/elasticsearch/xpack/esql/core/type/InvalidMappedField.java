@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -63,7 +64,9 @@ public final class InvalidMappedField extends TypeConflictedField {
 
     @Override
     Map<String, Sample> samples() {
-        Map<String, Sample> samples = new TreeMap<>();
+        // Preserve typesToIndices' own iteration order so the rendered error lists types in the order they were discovered (which the
+        // production resolver supplies as a TreeMap, but tests may supply in a deliberate insertion order).
+        Map<String, Sample> samples = new LinkedHashMap<>();
         typesToIndices.forEach((type, indices) -> samples.put(type, toSample(indices)));
         return samples;
     }

@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * Integration tests for WHERE ... IN (subquery) and WHERE ... NOT IN (subquery).
+ * Integration tests for WHERE IN (subquery) and WHERE NOT IN (subquery).
  */
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class InSubqueryIT extends AbstractEsqlIntegTestCase {

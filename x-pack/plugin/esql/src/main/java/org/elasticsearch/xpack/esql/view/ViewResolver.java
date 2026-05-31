@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -128,6 +129,10 @@ public class ViewResolver {
      *       then recursively processes those plans</li>
      *   <li>{@code Fork}: Recursively processes each child branch</li>
      *   <li>{@code UnionAll}: Skipped (assumes rewriting is already complete)</li>
+     *   <li>{@code SemiJoin} (and subclasses {@code AntiJoin}, {@code LeftSemiJoin}): Recursively
+     *       processes the left and right sides independently so each side gets its own view
+     *       resolution context</li>
+     *   <li>{@code ViewUnionAll}: Skipped (already the result of view resolution)</li>
      * </ul>
      * <p>
      * View resolution may introduce new nodes that need further processing, so explicit
@@ -205,10 +210,19 @@ public class ViewResolver {
                     viewQueries,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        // Mark only the resolved result subtree, not the whole input tree: transformDown re-visits the
-                        // children of a transformed node, so we must stop it from re-resolving wildcards inside the view
-                        // body (#146144). Marking the entire input `plan` here would also skip sibling relations the
-                        // top-down traversal has not reached yet (e.g. the right side of a SemiJoin produced by an IN subquery).
+                        plan.forEachDown(resolvedPlans::add);
+                        result.forEachDown(resolvedPlans::add);
+                        l.onResponse(result);
+                    })
+                );
+                case SemiJoin semiJoin -> replaceViewsSemiJoin(
+                    semiJoin,
+                    projectRouting,
+                    parser,
+                    seenInner,
+                    viewQueries,
+                    depth,
+                    planListener.delegateFailureAndWrap((l, result) -> {
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
@@ -222,10 +236,9 @@ public class ViewResolver {
                     viewQueries,
                     depth,
                     planListener.delegateFailureAndWrap((l, result) -> {
-                        // Mark only the resolved result subtree so transformDown does not re-process view-body nodes the
-                        // UnresolvedRelation was replaced with (#146144). Marking the whole input `plan` here would also
-                        // skip sibling relations not yet reached by the top-down traversal (e.g. the right side of a
-                        // SemiJoin produced by an IN subquery).
+                        plan.forEachDown(resolvedPlans::add);
+                        // Also mark the resolved result subtree so transformDown does not
+                        // re-process view-body nodes the UnresolvedRelation was replaced with.
                         result.forEachDown(resolvedPlans::add);
                         l.onResponse(result);
                     })
@@ -281,6 +294,55 @@ public class ViewResolver {
             }
             return (LogicalPlan) fork;
         }).addListener(listener);
+    }
+
+    private void replaceViewsSemiJoin(
+        SemiJoin semiJoin,
+        String projectRouting,
+        BiFunction<String, String, LogicalPlan> parser,
+        LinkedHashSet<String> seenViews,
+        Map<String, String> viewQueries,
+        int depth,
+        ActionListener<LogicalPlan> listener
+    ) {
+        LogicalPlan origLeft = semiJoin.left();
+        LogicalPlan origRight = semiJoin.right();
+        SubscribableListener<LogicalPlan> leftChain = SubscribableListener.newForked(
+            l -> replaceViews(
+                origLeft,
+                projectRouting,
+                parser,
+                seenViews,
+                viewQueries,
+                depth + 1,
+                l.delegateFailureAndWrap((sl, newLeft) -> {
+                    if (newLeft instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                        newLeft = named;
+                    }
+                    sl.onResponse(newLeft);
+                })
+            )
+        );
+        leftChain.<LogicalPlan>andThen(
+            (l, newLeft) -> replaceViews(
+                origRight,
+                projectRouting,
+                parser,
+                seenViews,
+                viewQueries,
+                depth + 1,
+                l.delegateFailureAndWrap((sl, newRight) -> {
+                    if (newRight instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
+                        newRight = named;
+                    }
+                    if (newLeft.equals(origLeft) == false || newRight.equals(origRight) == false) {
+                        sl.onResponse(semiJoin.replaceChildren(newLeft, newRight));
+                    } else {
+                        sl.onResponse(semiJoin);
+                    }
+                })
+            )
+        ).addListener(listener);
     }
 
     private void replaceViewsUnresolvedRelation(

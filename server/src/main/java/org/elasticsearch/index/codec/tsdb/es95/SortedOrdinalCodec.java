@@ -80,22 +80,35 @@ public final class SortedOrdinalCodec {
             return;
         }
 
-        BlockModeCodec winner = bitPackedCodec;
-        long winnerSize = bitPackedCodec.estimateSize(in, stats, bitsPerOrd);
-
+        final long bitPackedSize = bitPackedCodec.estimateSize(in, stats, bitsPerOrd);
         final long rleSize = rleCodec.estimateSize(in, stats, bitsPerOrd);
+        final long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
+
+        // NOTE: track the chosen codec by an integer index instead of a BlockModeCodec
+        // reference. The final `winner.encodePayload(...)` call would otherwise see
+        // 3+ concrete types at one call site and go megamorphic, blocking JIT inlining.
+        // The switch below makes each dispatch a monomorphic call on a typed field.
+        int winner = WINNER_BIT_PACKED;
+        long winnerSize = bitPackedSize;
         if (rleSize < winnerSize) {
-            winner = rleCodec;
+            winner = WINNER_RLE;
             winnerSize = rleSize;
         }
-
-        final long bitpackSize = bitpackCodec.estimateSize(in, stats, bitsPerOrd);
         if (bitpackSize < winnerSize) {
-            winner = bitpackCodec;
+            winner = WINNER_BITPACK_LOCAL;
         }
 
-        winner.encodePayload(in, stats, ctx, out, bitsPerOrd);
+        switch (winner) {
+            case WINNER_BIT_PACKED -> bitPackedCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            case WINNER_RLE -> rleCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            case WINNER_BITPACK_LOCAL -> bitpackCodec.encodePayload(in, stats, ctx, out, bitsPerOrd);
+            default -> throw new AssertionError("unexpected winner: " + winner);
+        }
     }
+
+    private static final int WINNER_BIT_PACKED = 0;
+    private static final int WINNER_RLE = 1;
+    private static final int WINNER_BITPACK_LOCAL = 2;
 
     public void decodeOrdinals(final DataInput in, final long[] out, int bitsPerOrd) throws IOException {
         long v1 = in.readVLong();

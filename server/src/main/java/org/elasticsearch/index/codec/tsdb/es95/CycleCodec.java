@@ -93,7 +93,52 @@ public final class CycleCodec implements BlockModeCodec {
         for (int k = 1; k < period; k++) {
             tuple[k] = tuple[k - 1] + in.readVLong() + 1L;
         }
-        for (int i = 0; i < out.length; i++) {
+        cyclicFill(out, tuple, period);
+    }
+
+    // NOTE: explicit small-K specializations let the JIT unroll the inner loop and
+    // auto-vectorize the long writes. Without specialization the period stays a runtime
+    // value and the `out[i] = tuple[i % period]` form blocks vectorization.
+    private static void cyclicFill(final long[] out, final long[] tuple, int period) {
+        final int n = out.length;
+        if (period == 2) {
+            final long t0 = tuple[0];
+            final long t1 = tuple[1];
+            for (int i = 0; i + 2 <= n; i += 2) {
+                out[i] = t0;
+                out[i + 1] = t1;
+            }
+            return;
+        }
+        if (period == 3) {
+            final long t0 = tuple[0];
+            final long t1 = tuple[1];
+            final long t2 = tuple[2];
+            int i = 0;
+            final int limit = n - n % 3;
+            for (; i < limit; i += 3) {
+                out[i] = t0;
+                out[i + 1] = t1;
+                out[i + 2] = t2;
+            }
+            if (i < n) out[i++] = t0;
+            if (i < n) out[i] = t1;
+            return;
+        }
+        if (period == 4) {
+            final long t0 = tuple[0];
+            final long t1 = tuple[1];
+            final long t2 = tuple[2];
+            final long t3 = tuple[3];
+            for (int i = 0; i + 4 <= n; i += 4) {
+                out[i] = t0;
+                out[i + 1] = t1;
+                out[i + 2] = t2;
+                out[i + 3] = t3;
+            }
+            return;
+        }
+        for (int i = 0; i < n; i++) {
             out[i] = tuple[i % period];
         }
     }

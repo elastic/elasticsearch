@@ -61,6 +61,13 @@ public class InsertDefaultInnerTimeSeriesAggregate extends Rule<LogicalPlan, Log
     }
 
     public LogicalPlan rule(TimeSeriesAggregate aggregate) {
+        // The TranslatePromqlToEsqlPlan rule handles wrapping the DefaultTimeSeriesAggregate for queries
+        // originating from the PromqlCommand. Additionally, certain PromQL queries should *not* be wrapped
+        // with a LastOverTime (such as queries with scalars and ones that use the time() function), so
+        // we skip this rule for PromQL queries altogether.
+        if (aggregate.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
+            return aggregate;
+        }
         Holder<Boolean> changed = new Holder<>(false);
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> {
             // The actual aggregation functions in aggregates will be aliases, while the groupings in aggregates will be Attributes

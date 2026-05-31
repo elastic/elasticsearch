@@ -593,15 +593,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotsServiceIT
   method: testDeleteSnapshotWhenNotWaitingForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/150257
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
-  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150281
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
-  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=NONE, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150282
-- class: org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldBlockLoaderTests
-  method: testBlockLoaderOfMultiFieldWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150283
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testLatestCommitDependenciesUsesTheRightGenerations
   issue: https://github.com/elastic/elasticsearch/issues/150287
@@ -632,3 +623,15 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/150302
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=NONE, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150308
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150309
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150310
+- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
+  method: testRenameBucketColumnHasNoMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/150311

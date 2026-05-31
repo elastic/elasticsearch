@@ -56,12 +56,14 @@ import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedTsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -1459,7 +1461,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // Partially unmapped fields are already wrapped during index resolution:
-            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → InvalidMappedField.potentiallyUnmapped.
+            // keyword → PotentiallyUnmappedKeywordEsField, non-keyword → TypeConflictedField.potentiallyUnmapped.
             return resolvedCol;
         }
 
@@ -1845,7 +1847,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return enrich;
                 }
                 // For type-conflicted fields, defer to ResolveUnionTypes and ultimately UnionTypesCleanup (which produces the "Cannot use
-                // field ... due to ambiguities" error for incompatible ones). Reading dataType() off an InvalidMappedField returns
+                // field ... due to ambiguities" error for incompatible ones). Reading dataType() off an TypeConflictedField returns
                 // UNSUPPORTED, which would otherwise produce a misleading error here.
                 boolean deferToUnionTypes = resolved instanceof FieldAttribute fa && fa.hasTypeConflicts();
                 if (deferToUnionTypes == false && resolved.resolved() && resolved.dataType() != NULL && enrich.policy() != null) {
@@ -2486,10 +2488,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
+     * The EsqlIndexResolver will create TypeConflictedField instances for fields that are ambiguous (i.e. have multiple mappings).
      * During {@link ResolveRefs} we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
      * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
-     * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
+     * those fields into UnionTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
      * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
      * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
      * (See {@link UnionTypesCleanup} below).
@@ -2504,23 +2506,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return plan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : doRule(p, unionFieldAttributes, context));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan, List<Attribute.IdIgnoringWrapper> unionFieldAttributes, AnalyzerContext context) {
+        private static LogicalPlan doRule(
+            LogicalPlan plan,
+            List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
+            AnalyzerContext context
+        ) {
             Holder<Integer> alreadyAddedUnionFieldAttributes = new Holder<>(unionFieldAttributes.size());
             // Collect field attributes from previous runs
             if (plan instanceof EsRelation rel) {
                 unionFieldAttributes.clear();
                 for (Attribute attr : rel.output()) {
-                    if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField && fa.synthetic()) {
+                    if (attr instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField && fa.synthetic()) {
                         unionFieldAttributes.add(fa.ignoreId());
                     }
                 }
             }
 
-            // See if the eval function has an unresolved MultiTypeEsField field
+            // See if the eval function has an unresolved UnionTypeEsField field
             // Replace the entire convert function with a new FieldAttribute (containing type conversion knowledge)
             plan = plan.transformExpressionsOnly(e -> {
                 if (e instanceof ConvertFunction convert) {
-                    return resolveConvertFunction(convert, unionFieldAttributes, context.unmappedResolution() == UnmappedResolution.LOAD);
+                    return resolveConvertFunction(convert, unionFieldAttributes, context);
                 }
                 return e;
             });
@@ -2558,13 +2564,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return res;
         }
 
-        private Expression resolveConvertFunction(
+        private static Expression resolveConvertFunction(
             ConvertFunction convert,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes,
-            boolean loadUnmappedFields
+            AnalyzerContext context
         ) {
             Expression convertExpression = (Expression) convert;
-            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
+            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
                 if (convert instanceof FoldablesConvertFunction fcf) {
@@ -2579,72 +2585,56 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 // TO_GAUGE is a no-op when every branch is already a non-counter type (including aggregate_metric_double).
                 // Strip it so union resolution can defer to implicit aggregate_metric_double casting in aggregations.
-                if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(imf)) {
+                if (convert instanceof ToGauge && ToGauge.isNoOpOnAllUnionTypes(tcf)) {
                     return fa;
                 }
-                imf.types().forEach(type -> {
+                tcf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
-                        typeResolutions(fa, convert, type, imf, typeResolutions);
+                        typeResolutions(convert, type, fa, tcf, typeResolutions);
                     }
                 });
 
-                // If all mapped types were resolved, create a new FieldAttribute with the resolved MultiTypeEsField
-                if (typeResolutions.size() == imf.getTypesToIndices().size()) {
-                    if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, imf, supportedTypes)) {
+                // If all mapped types were resolved, create a new FieldAttribute with the resolved UnionTypeEsField
+                if (typeResolutions.size() == tcf.getTypesToIndices().size()) {
+                    boolean loadUnmappedFields = context.unmappedResolution() == UnmappedResolution.LOAD;
+                    if (skipMultiTypeForPotentiallyUnmappedKeyword(loadUnmappedFields, tcf, supportedTypes)) {
                         return convertExpression;
                     }
 
-                    Expression potentiallyUnmappedConversion = imf.isPotentiallyUnmapped()
-                        ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, imf)
+                    Expression potentiallyUnmappedConversion = tcf.isPotentiallyUnmapped()
+                        ? ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), KEYWORD, tcf)
                         : null;
-                    var resolvedField = resolvedMultiTypeEsField(fa, typeResolutions, potentiallyUnmappedConversion);
+                    EsField resolvedField = resolvedUnionTypeFields(fa, tcf, typeResolutions, potentiallyUnmappedConversion, context);
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
-                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
-                && fa.field() instanceof MultiTypeEsField mtf) {
-                    // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
+                && fa.synthetic() == false // UnionTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
+                && fa.field() instanceof UnionTypeEsField unionTypeEsField) {
+                    // This is an explicit casting of a union typed field that has been converted to UnionTypeEsField in EsRelation by
                     // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
                     // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
                     // the multiTypeEsField is not casted to datetime directly.
-                    if (((Expression) convert).dataType() == mtf.getDataType()) {
-                        return createIfDoesNotAlreadyExist(fa, mtf, unionFieldAttributes);
+                    if (((Expression) convert).dataType() == fa.field().getDataType()) {
+                        return createIfDoesNotAlreadyExist(fa, fa.field(), unionFieldAttributes);
                     }
 
                     // Data type is different between implicit(date_nanos) and explicit casting, if the conversion is supported, create a
-                    // new MultiTypeEsField with explicit casting type, and add it to unionFieldAttributes.
+                    // new UnionTypeEsField with explicit casting type, and add it to unionFieldAttributes.
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(mtf, supportedTypes)) {
-                        // Build the mapping between index name and conversion expressions
-                        Map<String, Expression> indexToConversionExpressions = new HashMap<>();
-                        for (Map.Entry<String, Expression> entry : mtf.getIndexToConversionExpressions().entrySet()) {
-                            String indexName = entry.getKey();
-                            AbstractConvertFunction originalConversionFunction = (AbstractConvertFunction) entry.getValue();
-                            Expression originalField = originalConversionFunction.field();
-                            Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
-                            indexToConversionExpressions.put(indexName, newConvertFunction);
-                        }
-                        // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
+                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
+                        // The only code that creates UnionTypeEsField with synthetic=false (reaching this branch) is
                         // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
                         // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
-                        if (mtf.getPotentiallyUnmappedExpression() != null) {
+                        if (((UnionTypeEsField) fa.field()).getUnmappedConversionExpression() != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
-                        MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
-                            fa.fieldName().string(),
-                            convertExpression.dataType(),
-                            false,
-                            indexToConversionExpressions,
-                            fa.field().getTimeSeriesFieldType(),
-                            null
-                        );
-                        return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
+                        return createIfDoesNotAlreadyExist(fa, unionTypeEsField.rewrapWithCast(convertExpression), unionFieldAttributes);
                     }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
-                        Collections.singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, loadUnmappedFields))
+                        singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
                     );
                 }
             return convertExpression;
@@ -2652,15 +2642,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static boolean skipMultiTypeForPotentiallyUnmappedKeyword(
             boolean loadUnmappedFields,
-            InvalidMappedField imf,
+            TypeConflictedField tcf,
             Set<DataType> supportedTypes
         ) {
-            return loadUnmappedFields && imf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false;
+            return loadUnmappedFields && tcf.isPotentiallyUnmapped() && supportedTypes.contains(KEYWORD) == false;
         }
 
-        private Expression createIfDoesNotAlreadyExist(
+        private static Expression createIfDoesNotAlreadyExist(
             FieldAttribute fa,
-            MultiTypeEsField resolvedField,
+            EsField resolvedField,
             List<Attribute.IdIgnoringWrapper> unionFieldAttributes
         ) {
             // Generate new ID for the field and suffix it with the data type to maintain unique attribute names.
@@ -2687,27 +2677,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
         }
 
-        private static MultiTypeEsField resolvedMultiTypeEsField(
+        private static EsField resolvedUnionTypeFields(
             FieldAttribute fa,
+            TypeConflictedField tcf,
             Map<TypeResolutionKey, Expression> typeResolutions,
-            @Nullable Expression potentiallyUnmappedConversion
+            @Nullable Expression potentiallyUnmappedConversion,
+            AnalyzerContext context
         ) {
             Map<String, Expression> typesToConversionExpressions = new HashMap<>();
-            InvalidMappedField imf = (InvalidMappedField) fa.field();
-            imf.getTypesToIndices().forEach((typeName, indexNames) -> {
+            tcf.getTypesToIndices().forEach((typeName, indexNames) -> {
                 DataType type = DataType.fromTypeName(typeName);
                 TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                 if (typeResolutions.containsKey(key)) {
                     typesToConversionExpressions.put(typeName, typeResolutions.get(key));
                 }
             });
-            return MultiTypeEsField.resolveFrom(imf, typesToConversionExpressions)
-                .withPotentiallyUnmappedExpression(potentiallyUnmappedConversion);
+            return buildUnionTypeField(tcf, typesToConversionExpressions, potentiallyUnmappedConversion, context);
         }
 
-        private static boolean canConvertOriginalTypes(MultiTypeEsField multiTypeEsField, Set<DataType> supportedTypes) {
-            return multiTypeEsField.getIndexToConversionExpressions()
-                .values()
+        private static UnionTypeEsField buildUnionTypeField(
+            TypeConflictedField tcf,
+            Map<String, Expression> typesToConversionExpressions,
+            @Nullable Expression unmappedConversionExpression,
+            AnalyzerContext context
+        ) {
+            return context.minimumVersion().supports(CompactMultiTypeEsField.CompactMultiTypeEsField)
+                ? CompactMultiTypeEsField.resolveFrom(tcf, typesToConversionExpressions, unmappedConversionExpression)
+                : MultiTypeEsField.resolveFrom(tcf, typesToConversionExpressions)
+                    .withPotentiallyUnmappedExpression(unmappedConversionExpression);
+        }
+
+        private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
+            return unionTypeEsField.getConversionExpressions()
                 .stream()
                 .allMatch(
                     e -> e instanceof AbstractConvertFunction convertFunction
@@ -2715,8 +2716,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
         }
 
-        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, InvalidMappedField mtf) {
-            EsField field = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable(), mtf.getTimeSeriesFieldType());
+        private static Expression typeSpecificConvert(ConvertFunction convert, Source source, DataType type, TypeConflictedField tcf) {
+            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -2744,7 +2745,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     /**
      * {@link ResolveUnionTypes} creates new, synthetic attributes for union types:
      * If there was no {@code AbstractConvertFunction} that resolved multi-type fields in the {@link ResolveUnionTypes} rule,
-     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link MultiTypeEsField}s.
+     * then there could still be some {@code FieldAttribute}s that contain unresolved {@link UnionTypeEsField}s.
      * These need to be converted back to actual {@code UnresolvedAttribute} in order for validation to generate appropriate failures.
      * <p>
      * Finally, if {@code client_ip} is present in 2 indices, once with type {@code ip} and once with type {@code keyword},
@@ -2775,9 +2776,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          */
         private static Attribute cleanTypeConflicts(FieldAttribute fa) {
             EsField field = fa.field();
-            if (field instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
-                DataType type = imf.types().iterator().next();
-                var restoredField = new EsField(imf.getName(), type, imf.getProperties(), false, imf.getTimeSeriesFieldType());
+            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+                DataType type = tcf.types().iterator().next();
+                var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
                 // TODO: add test where not passing on the parent name fails the test
                 // TODO: add TS tests and tests with different time series field types
                 return new FieldAttribute(
@@ -2826,15 +2827,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return relation;
                 }
                 return relation.transformExpressionsUp(FieldAttribute.class, f -> {
-                    if (f.field() instanceof InvalidMappedField imf && allDates(context, imf)) {
+                    if (f.field() instanceof TypeConflictedField tcf && allDates(context, tcf)) {
                         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                         var convert = new ToDateNanos(f.source(), f, context.configuration());
-                        imf.types().forEach(type -> typeResolutions(f, convert, type, imf, typeResolutions));
+                        tcf.types().forEach(type -> typeResolutions(convert, type, f, tcf, typeResolutions));
                         // The allDates check filters out fields that are not mapped in all indices, which includes
                         // potentiallyUnmapped fields. This assertion guards against future changes breaking that invariant.
-                        assert imf.isPotentiallyUnmapped() == false
-                            : "Unexpected potentially unmapped field [" + imf.getName() + "] in DateMillisToNanosInEsRelation";
-                        var resolvedField = ResolveUnionTypes.resolvedMultiTypeEsField(f, typeResolutions, null);
+                        assert tcf.isPotentiallyUnmapped() == false
+                            : "Unexpected potentially unmapped field [" + tcf.getName() + "] in DateMillisToNanosInEsRelation";
+                        var resolvedField = ResolveUnionTypes.resolvedUnionTypeFields(f, tcf, typeResolutions, null, context);
                         return new FieldAttribute(
                             f.source(),
                             f.parentName(),
@@ -2851,13 +2852,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
         }
 
-        private static boolean allDates(AnalyzerContext context, InvalidMappedField imf) {
-            if (imf.types().stream().allMatch(DataType::isDate) == false) {
+        private static boolean allDates(AnalyzerContext context, TypeConflictedField tcf) {
+            if (tcf.types().stream().allMatch(DataType::isDate) == false) {
                 return false;
             }
             // If the field is potentially unmapped (i.e. not mapped in all indices), we treat it as a keyword (not all dates),
-            // so that it can be resolved via the union types / MultiTypeEsField mechanism instead.
-            if (context.unmappedResolution() == UnmappedResolution.LOAD && imf.isPotentiallyUnmapped()) {
+            // so that it can be resolved via the union types / UnionTypeEsField mechanism instead.
+            if (context.unmappedResolution() == UnmappedResolution.LOAD && tcf.isPotentiallyUnmapped()) {
                 return false;
             }
             return true;
@@ -2865,35 +2866,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static void typeResolutions(
-        FieldAttribute fieldAttribute,
         ConvertFunction convert,
         DataType type,
-        InvalidMappedField imf,
+        FieldAttribute fa,
+        TypeConflictedField tcf,
         HashMap<ResolveUnionTypes.TypeResolutionKey, Expression> typeResolutions
     ) {
-        ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fieldAttribute.name(), type);
-        var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fieldAttribute.source(), type, imf);
+        ResolveUnionTypes.TypeResolutionKey key = new ResolveUnionTypes.TypeResolutionKey(fa.name(), type);
+        var concreteConvert = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, tcf);
         typeResolutions.put(key, concreteConvert);
     }
 
     /**
-     * Take InvalidMappedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
+     * Take TypeConflictedFields in specific aggregations (min, max, sum, count, and avg) and if all original data types
      * are aggregate metric double + any combination of numerics, implicitly cast them to the same type: aggregate metric
      * double for count, and double for min, max, and sum. Avg gets replaced with its surrogate (Div(Sum, Count))
      */
-    private static class ImplicitCastAggregateMetricDoubles extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ImplicitCastAggregateMetricDoubles extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
 
         private boolean isTimeSeries = false;
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             Holder<IndexMode> indexMode = new Holder<>(IndexMode.STANDARD);
             plan.forEachUp(EsRelation.class, esRelation -> { indexMode.set(esRelation.indexMode()); });
             isTimeSeries = indexMode.get() == IndexMode.TIME_SERIES;
-            return plan.transformUp(LogicalPlan.class, this::doRule);
+            return plan.transformUp(LogicalPlan.class, p -> doRule(p, context));
         }
 
-        private LogicalPlan doRule(LogicalPlan plan) {
+        private LogicalPlan doRule(LogicalPlan plan, AnalyzerContext context) {
             if (plan instanceof EsRelation || plan instanceof Project || plan.childrenResolved() == false) {
                 return plan;
             }
@@ -2902,17 +2903,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var newPlan = plan.transformExpressionsOnly(AggregateFunction.class, aggFunc -> {
                 Expression child;
                 if (aggFunc.field() instanceof ToAggregateMetricDouble toAMD) {
-                    child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields);
+                    child = tryToTransformFunction(aggFunc, toAMD.field(), aborted, unionFields, context);
                 } else {
-                    child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields);
+                    child = tryToTransformFunction(aggFunc, aggFunc.field(), aborted, unionFields, context);
                 }
                 return child;
             }).transformExpressionsOnly(EsqlBinaryComparison.class, comparison -> {
                 Expression left = comparison.left();
                 Expression right = comparison.right();
                 Holder<Boolean> modified = new Holder<>(Boolean.FALSE);
-                left = tryToTransformBinaryComparison(comparison, left, modified, unionFields);
-                right = tryToTransformBinaryComparison(comparison, right, modified, unionFields);
+                left = tryToTransformBinaryComparison(comparison, left, modified, unionFields, context);
+                right = tryToTransformBinaryComparison(comparison, right, modified, unionFields, context);
                 if (modified.get() == false) {
                     return comparison;
                 }
@@ -2928,15 +2929,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsqlBinaryComparison comparison,
             Expression original,
             Holder<Boolean> modified,
-            Map<String, FieldAttribute> unionFields
+            Map<String, FieldAttribute> unionFields,
+            AnalyzerContext context
         ) {
-            if (original instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf && canBeCasted(imf)) {
+            if (original instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf && canBeCasted(tcf)) {
                 Map<String, Expression> typeConverters = new HashMap<>();
-                for (DataType type : imf.types()) {
+                for (DataType type : tcf.types()) {
                     ConvertFunction convert = type == AGGREGATE_METRIC_DOUBLE
                         ? FromAggregateMetricDouble.withMetric(comparison.source(), fa, AggregateMetricDoubleBlockBuilder.Metric.DEFAULT)
                         : new ToDouble(fa.source(), fa);
-                    Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, imf);
+                    Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, tcf);
                     typeConverters.put(type.typeName(), expression);
                 }
                 var newField = unionFields.computeIfAbsent(
@@ -2946,7 +2948,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.parentName(),
                         fa.qualifier(),
                         newName,
-                        MultiTypeEsField.resolveFrom(imf, typeConverters),
+                        ResolveUnionTypes.buildUnionTypeField(tcf, typeConverters, null, context),
                         fa.nullable(),
                         null,
                         true
@@ -2958,19 +2960,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return original;
         }
 
-        private static boolean canBeCasted(InvalidMappedField imf) {
-            return imf.types().contains(AGGREGATE_METRIC_DOUBLE)
-                && imf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
+        private static boolean canBeCasted(TypeConflictedField tcf) {
+            return tcf.types().contains(AGGREGATE_METRIC_DOUBLE)
+                && tcf.types().stream().allMatch(f -> f == AGGREGATE_METRIC_DOUBLE || f.isNumeric());
         }
 
         private Expression tryToTransformFunction(
             AggregateFunction aggFunc,
             Expression field,
             Holder<Boolean> aborted,
-            Map<String, FieldAttribute> unionFields
+            Map<String, FieldAttribute> unionFields,
+            AnalyzerContext context
         ) {
-            if (field instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                if (canBeCasted(imf) == false) {
+            if (field instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
+                if (canBeCasted(tcf) == false) {
                     aborted.set(Boolean.TRUE);
                     return aggFunc;
                 }
@@ -2991,7 +2994,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                 }
 
-                Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, imf);
+                Map<String, Expression> typeConverters = typeConverters(aggFunc, fa, tcf);
                 var newField = unionFields.computeIfAbsent(
                     Attribute.rawTemporaryName(fa.name(), aggFunc.functionName(), aggFunc.sourceText()),
                     newName -> new FieldAttribute(
@@ -2999,7 +3002,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         fa.parentName(),
                         fa.qualifier(),
                         newName,
-                        MultiTypeEsField.resolveFrom(imf, typeConverters),
+                        ResolveUnionTypes.buildUnionTypeField(tcf, typeConverters, null, context),
                         fa.nullable(),
                         null,
                         true
@@ -3019,29 +3022,29 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return aggFunc;
         }
 
-        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, InvalidMappedField mtf) {
+        private Map<String, Expression> typeConverters(AggregateFunction aggFunc, FieldAttribute fa, TypeConflictedField tcf) {
             var metric = getMetric(aggFunc, isTimeSeries);
             Map<String, Expression> typeConverter = new HashMap<>();
-            for (DataType type : mtf.types()) {
+            for (DataType type : tcf.types()) {
                 final ConvertFunction convert;
                 if (type == AGGREGATE_METRIC_DOUBLE) {
                     convert = FromAggregateMetricDouble.withMetric(aggFunc.source(), fa, metric);
                 } else if (metric == AggregateMetricDoubleBlockBuilder.Metric.COUNT) {
                     // we have a numeric on hand so calculate MvCount on it so we can plug it into Sum(metric.count)
                     var tempConvert = new MvCount(aggFunc.source(), fa);
-                    typeConverter.put(type.typeName(), countConvert(tempConvert, fa.source(), type, mtf));
+                    typeConverter.put(type.typeName(), countConvert(tempConvert, fa.source(), type, tcf));
                     continue;
                 } else {
                     convert = new ToDouble(fa.source(), fa);
                 }
-                Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, mtf);
+                Expression expression = ResolveUnionTypes.typeSpecificConvert(convert, fa.source(), type, tcf);
                 typeConverter.put(type.typeName(), expression);
             }
             return typeConverter;
         }
 
-        private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, InvalidMappedField imf) {
-            EsField field = new EsField(imf.getName(), type, imf.getProperties(), imf.isAggregatable(), imf.getTimeSeriesFieldType());
+        private Expression countConvert(UnaryScalarFunction convert, Source source, DataType type, TypeConflictedField tcf) {
+            EsField field = new EsField(tcf.getName(), type, tcf.getProperties(), tcf.isAggregatable(), tcf.getTimeSeriesFieldType());
             FieldAttribute originalFieldAttr = (FieldAttribute) convert.field();
             FieldAttribute resolvedAttr = new FieldAttribute(
                 source,
@@ -3097,7 +3100,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class InsertFromAggregateMetricDouble extends Rule<LogicalPlan, LogicalPlan> {
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() == false ? p : doRule(p))
+            return plan.transformUp(Aggregate.class, p -> p.childrenResolved() ? doRule(p) : p)
                 .transformExpressionsUp(EsqlBinaryComparison.class, this::doRule);
         }
 
@@ -3568,8 +3571,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String> dataTypes = new ArrayList<>();
             for (List<Attribute> out : outputs) {
                 Attribute attr = out.get(columnIndex);
-                if (attr instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
-                    dataTypes.addAll(imf.types().stream().map(DataType::typeName).toList());
+                if (attr instanceof FieldAttribute fa && fa.field() instanceof TypeConflictedField tcf) {
+                    dataTypes.addAll(tcf.types().stream().map(DataType::typeName).toList());
                 } else {
                     dataTypes.add(attr.dataType().typeName());
                 }

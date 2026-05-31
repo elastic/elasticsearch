@@ -698,8 +698,6 @@ public final class EsqlTestUtils {
 
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
 
-    public static final PromqlFunctionRegistry TEST_PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
-
     /**
      * A lightweight {@link IpLocationService} for parse-time tests. Backed by a null-returning
      * {@link IpDatabaseProvider} so that {@code getIpDataLookupInfo} resolves database schemas

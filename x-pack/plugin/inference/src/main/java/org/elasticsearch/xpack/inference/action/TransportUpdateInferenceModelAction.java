@@ -164,13 +164,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, newServiceSettingsMap);
 
-                validateConsumedUpdateSettings(
-                    service.get(),
-                    serviceName,
-                    newServiceSettingsMap,
-                    newTaskSettingsMap,
-                    newChunkingSettingsMap
-                );
+                validateConsumedUpdateSettings(service.get(), serviceName, newServiceSettingsMap, newTaskSettingsMap);
 
                 Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
                 if (mergedParsedModel.equals(existingParsedModel)) {
@@ -236,8 +230,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         InferenceService inferenceService,
         String serviceName,
         @Nullable Map<String, Object> serviceSettingsMap,
-        @Nullable Map<String, Object> taskSettingsMap,
-        @Nullable Map<String, Object> chunkingSettingsMap
+        @Nullable Map<String, Object> taskSettingsMap
     ) {
         if (inferenceService.usesParserForServiceSettings() == false) {
             throwIfNotEmptyMap(serviceSettingsMap, serviceName);
@@ -245,7 +238,6 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         if (inferenceService.usesParserForTaskSettings() == false) {
             throwIfNotEmptyMap(taskSettingsMap, serviceName);
         }
-        throwIfNotEmptyMap(chunkingSettingsMap, serviceName);
     }
 
     /**

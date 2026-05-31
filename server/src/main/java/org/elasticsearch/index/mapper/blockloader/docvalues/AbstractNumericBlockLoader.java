@@ -59,7 +59,15 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
 
         // If the value is singleton, then we can skip reading offsets altogether
         if (readInArrayOrder && dv.singleton() == null) {
-            TrackingSortedDocValues offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            TrackingSortedDocValues offsets;
+            try {
+                offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            } catch (Exception e) {
+                // We already reserved breaker space for the doc values above. If acquiring the offsets companion fails (ex. circuit
+                // breaker) we must release that reservation here, otherwise it leaks.
+                Releasables.close(dv.sorted());
+                throw e;
+            }
             if (offsets != null) {
                 return new ArrayOrder<>(this, readerName, dv.sorted(), offsets);
             }
@@ -224,7 +232,7 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
         }
     }
 
-    static final class ArrayOrder<B extends BlockLoader.Builder> extends BlockDocValuesReader {
+    public static final class ArrayOrder<B extends BlockLoader.Builder> extends BlockDocValuesReader {
 
         private final AbstractNumericBlockLoader<B> loader;
         private final String name;
@@ -275,11 +283,19 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
                 return;
             }
 
-            // materialize the per-doc values once so we can index into them by ord
+            // Offsets are encoded against a unique collection of entries, but for numerics, the underlying doc values
+            // (SortedNumericDocValuesField) does not dedupe, it just sorts. Hence, we must dedupe ourselves.
             int count = values.docValues().docValueCount();
             long[] materialized = new long[count];
+            int duplicates = 0;
             for (int i = 0; i < count; i++) {
-                materialized[i] = values.docValues().nextValue();
+                long value = values.docValues().nextValue();
+                // since the values are in sorted order, to detect a duplicate compare the current value against the previous one
+                if (i > 0 && value == materialized[i - duplicates - 1]) {
+                    duplicates++;
+                    continue;
+                }
+                materialized[i - duplicates] = value;
             }
 
             OffsetsAwareBlockLoaderHelper.emit(offsetToOrd, builder, ord -> loader.appendValue(builder, materialized[ord]));
@@ -298,7 +314,8 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
 
         @Override
         public void close() {
-            Releasables.close(values, offsets, sortedFallback);
+            // sortedFallback wraps `values` and owns no other resources, so closing it would double-release `values`.
+            Releasables.close(values, offsets);
         }
     }
 }

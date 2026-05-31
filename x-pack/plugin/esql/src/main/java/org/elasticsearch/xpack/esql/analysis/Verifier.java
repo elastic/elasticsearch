@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -63,7 +64,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
 import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
@@ -305,14 +305,7 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            }
-            // The expressions of the PromqlCommand itself are not relevant here.
-            // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
-            else if (p instanceof PromqlCommand promql) {
-                promql.promqlPlan().forEachExpressionDown(Expression.class, unresolvedExpressions);
-            }
-
-            else {
+            } else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
@@ -400,12 +393,11 @@ public class Verifier {
      */
     private static void checkLimitBeforeInlineStats(LogicalPlan plan, Failures failures) {
         if (plan instanceof InlineStats is) {
-            Holder<Limit> inlineStatsDescendantLimit = new Holder<>();
+            Holder<LogicalPlan> inlineStatsDescendantLimit = new Holder<>();
             is.forEachDownMayReturnEarly((p, breakEarly) -> {
-                if (p instanceof Limit l) {
-                    inlineStatsDescendantLimit.set(l);
+                if (p instanceof Limit || p instanceof LimitBy) {
+                    inlineStatsDescendantLimit.set(p);
                     breakEarly.set(true);
-                    return;
                 }
             });
 
@@ -490,7 +482,7 @@ public class Verifier {
             if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
                 failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
-            if (p instanceof PromqlCommand) {
+            if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));
             }
         });

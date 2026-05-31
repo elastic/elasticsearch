@@ -234,15 +234,43 @@ public final class TupleRunCodec {
                     in
                 );
             }
-            int c = cursor;
-            for (int i = 0; i < totalOrds; i++) {
-                out[pos++] = tuple[c];
-                c++;
-                if (c == K) {
-                    c = 0;
-                }
+            pos = emitCyclic(out, pos, tuple, K, cursor, totalOrds);
+        }
+    }
+
+    // NOTE: cursor walks 0..K-1 modulo K. Emit head fragment up to the first
+    // K-aligned offset, then doubling-arraycopy whole tuples, then any tail.
+    private static int emitCyclic(final long[] out, int pos, final long[] tuple, int K, int cursor, int totalOrds) {
+        int remaining = totalOrds;
+        // Emit the partial "first" portion of a tuple starting at cursor.
+        if (cursor != 0) {
+            final int firstSpan = Math.min(K - cursor, remaining);
+            for (int k = 0; k < firstSpan; k++) {
+                out[pos++] = tuple[cursor + k];
+            }
+            remaining -= firstSpan;
+            if (remaining == 0) {
+                return pos;
             }
         }
+        // Lay down one full tuple at the new K-aligned position, then double-copy.
+        final int blockStart = pos;
+        for (int k = 0; k < K && remaining > 0; k++) {
+            out[pos++] = tuple[k];
+            remaining--;
+        }
+        int filled = pos - blockStart;
+        while (remaining >= filled) {
+            System.arraycopy(out, blockStart, out, pos, filled);
+            pos += filled;
+            remaining -= filled;
+            filled <<= 1;
+        }
+        if (remaining > 0) {
+            System.arraycopy(out, blockStart, out, pos, remaining);
+            pos += remaining;
+        }
+        return pos;
     }
 
     private static int ordsInWire(int r, int K, int runLen, int headOffset, int tailMissing, int nRuns) {

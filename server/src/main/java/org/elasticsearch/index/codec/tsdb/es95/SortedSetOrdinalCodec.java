@@ -175,6 +175,9 @@ public final class SortedSetOrdinalCodec {
         }
     }
 
-    /** Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}, {@link CycleCodec}). */
+    /**
+     * Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by
+     * {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}, {@link CycleCodec}).
+     */
     static final int ADAPTIVE_EXTRA_ENCODING = 3;
 }

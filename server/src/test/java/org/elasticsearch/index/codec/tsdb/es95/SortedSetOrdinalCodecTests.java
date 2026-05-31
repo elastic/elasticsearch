@@ -36,8 +36,9 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 64; d++) {
             perDocK[numDocs++] = K;
-            for (long o : tuple)
+            for (long o : tuple) {
                 in[pos++] = o;
+            }
         }
         assertEquals(128, pos);
 
@@ -66,8 +67,9 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 42; d++) {
             perDocK[numDocs++] = K;
-            for (long o : tuple)
+            for (long o : tuple) {
                 in[pos++] = o;
+            }
         }
         perDocK[numDocs++] = K;
         in[pos++] = tuple[0];
@@ -101,20 +103,23 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 21; d++) {
             perDocK[numDocs++] = K;
-            for (long o : tupleA)
+            for (long o : tupleA) {
                 in[pos++] = o;
+            }
         }
         while (pos + K <= 128) {
             perDocK[numDocs++] = K;
-            for (long o : tupleB)
+            for (long o : tupleB) {
                 in[pos++] = o;
+            }
         }
         final int tailLeft = 128 - pos;
         int tailMissing = 0;
         if (tailLeft > 0) {
             perDocK[numDocs++] = K;
-            for (int k = 0; k < tailLeft; k++)
+            for (int k = 0; k < tailLeft; k++) {
                 in[pos++] = tupleB[k];
+            }
             tailMissing = K - tailLeft;
         }
         assertEquals(128, pos);
@@ -147,8 +152,9 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 42; d++) {
             perDocK[numDocs++] = K;
-            for (long o : tuple)
+            for (long o : tuple) {
                 in[pos++] = o;
+            }
         }
         perDocK[numDocs++] = K;
         in[pos++] = tuple[0];
@@ -166,8 +172,9 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         long[] in = new long[128];
         Arrays.fill(in, 42L);
         int[] perDocK = new int[129];
-        for (int d = 0; d < 128; d++)
+        for (int d = 0; d < 128; d++) {
             perDocK[d] = 1;
+        }
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
@@ -185,8 +192,9 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         Arrays.fill(in, 0, 80, 7L);
         Arrays.fill(in, 80, 128, 11L);
         int[] perDocK = new int[129];
-        for (int d = 0; d < 128; d++)
+        for (int d = 0; d < 128; d++) {
             perDocK[d] = 1;
+        }
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
@@ -206,8 +214,9 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         Arrays.fill(in, 64, 96, 13L);
         Arrays.fill(in, 96, 128, 17L);
         int[] perDocK = new int[129];
-        for (int d = 0; d < 128; d++)
+        for (int d = 0; d < 128; d++) {
             perDocK[d] = 1;
+        }
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
         ByteBuffersDataOutput out = new ByteBuffersDataOutput();

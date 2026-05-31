@@ -43,8 +43,9 @@ public class TupleRunCodecTests extends ESTestCase {
         // Fill 42 full docs of K=3 = 126 ords; one more partial doc fills 2 of K=3
         for (int d = 0; d < 42; d++) {
             perDocK[numDocs++] = K;
-            for (int k = 0; k < K; k++)
+            for (int k = 0; k < K; k++) {
                 ords[pos++] = tuple[k];
+            }
         }
         // One more doc, partial: contributes 2 ords (positions 0..1 of K=3)
         perDocK[numDocs++] = K;
@@ -83,13 +84,15 @@ public class TupleRunCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 20; d++) {
             perDocK[numDocs++] = 3;
-            for (long o : tupleA)
+            for (long o : tupleA) {
                 ords[pos++] = o;
+            }
         }
         for (int d = 0; d < 22; d++) {
             perDocK[numDocs++] = 3;
-            for (long o : tupleB)
+            for (long o : tupleB) {
                 ords[pos++] = o;
+            }
         }
         // partial tail doc: 2 of 3 ords of another tupleB doc
         perDocK[numDocs++] = 3;
@@ -127,13 +130,15 @@ public class TupleRunCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 16; d++) {
             perDocK[numDocs++] = 4;
-            for (long o : tupleA)
+            for (long o : tupleA) {
                 ords[pos++] = o;
+            }
         }
         for (int d = 0; d < 32; d++) {
             perDocK[numDocs++] = 2;
-            for (long o : tupleB)
+            for (long o : tupleB) {
                 ords[pos++] = o;
+            }
         }
         assertEquals(128, pos);
 
@@ -169,8 +174,9 @@ public class TupleRunCodecTests extends ESTestCase {
         // 31 full docs of K=4 = 124 ords; total so far 126
         for (int d = 0; d < 31; d++) {
             perDocK[numDocs++] = K;
-            for (long o : tuple)
+            for (long o : tuple) {
                 ords[pos++] = o;
+            }
         }
         // Tail-partial doc: positions [0,1] = 2 ords
         perDocK[numDocs++] = K;
@@ -206,8 +212,9 @@ public class TupleRunCodecTests extends ESTestCase {
         int pos = 0;
         for (int d = 0; d < 10; d++) {
             perDocK[numDocs++] = K;
-            for (long o : tuple)
+            for (long o : tuple) {
                 ords[pos++] = o;
+            }
         }
         // remaining positions in ords[] are 0 (matches what TSDBDocValuesBlockWriter pads)
 

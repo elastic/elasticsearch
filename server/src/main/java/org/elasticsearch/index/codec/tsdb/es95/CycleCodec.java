@@ -138,8 +138,18 @@ public final class CycleCodec implements BlockModeCodec {
             }
             return;
         }
-        for (int i = 0; i < n; i++) {
-            out[i] = tuple[i % period];
+        // NOTE: K >= 5 - lay down one tuple at position 0, then arraycopy it forward
+        // in doubling chunks. arraycopy on a long[] is intrinsified to SIMD on the JVM.
+        for (int k = 0; k < period; k++) {
+            out[k] = tuple[k];
+        }
+        int filled = period;
+        while (filled + filled <= n) {
+            System.arraycopy(out, 0, out, filled, filled);
+            filled <<= 1;
+        }
+        if (filled < n) {
+            System.arraycopy(out, 0, out, filled, n - filled);
         }
     }
 

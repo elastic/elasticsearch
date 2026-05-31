@@ -344,30 +344,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testMasterOperation_UnknownServiceSetting_ThrowsBadRequest() {
-        var serviceSettings = mock(ServiceSettings.class);
-        when(serviceSettings.updateServiceSettings(any())).thenAnswer(invocation -> serviceSettings);
-        var model = createMockedModel(serviceSettings, mock(TaskSettings.class), null, null);
-
-        mockGetModelWithSecretsToReturnUnparsedModel(
-            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
-        );
-        mockServiceRegistryToReturnService(service);
-        mockLicenseStateIsAllowed(true);
-        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
-
-        var listener = callMasterOperationWithRequestBody("""
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
             {
                 "service_settings": {
                     "unknown_setting": "unknown_value"
                 }
             }
             """);
-
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
-        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
-        verifyNoModelRegistryMutations();
     }
 
     public void testMasterOperation_UnknownServiceSetting_ThrowsWhenParserUsedForServiceSettings() {
@@ -401,6 +384,16 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     public void testMasterOperation_UnknownTaskSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    private void assertMasterOperation_UnknownSetting_ThrowsBadRequest(String requestBody) {
         mockGetModelWithSecretsToReturnUnparsedModel(
             new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
         );
@@ -408,18 +401,21 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         mockParsePersistedConfigWithSecretsToReturnModel(createModel());
 
-        var listener = callMasterOperationWithRequestBody("""
-            {
-                "task_settings": {
-                    "unknown_setting": "unknown_value"
-                }
-            }
-            """);
+        var listener = callMasterOperationWithRequestBody(requestBody);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
-        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
+        );
         verifyNoModelRegistryMutations();
     }
 

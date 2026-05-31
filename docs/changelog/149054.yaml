@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 149054
-summary: Fix gpu close resource ordering
-type: bug

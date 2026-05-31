@@ -165,11 +165,11 @@ public final class SortedSetOrdinalCodec {
                 bitpackCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
             } else if (subMode == TupleRunCodec.SUB_MODE) {
                 tupleRunCodec.decodePayload(in, out);
-            } else if (subMode == CycleCodec.SUB_MODE) {
-                cycleCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
             } else {
                 throw new CorruptIndexException(String.format(Locale.ROOT, "unknown ADAPTIVE_EXTRA sub-mode 0x%02x", subMode & 0xff), in);
             }
+        } else if (encoding == CycleCodec.ENCODING) {
+            cycleCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
         } else {
             throw new CorruptIndexException(String.format(Locale.ROOT, "unknown sorted-set ordinal encoding %d", encoding), in);
         }
@@ -177,7 +177,7 @@ public final class SortedSetOrdinalCodec {
 
     /**
      * Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by
-     * {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}, {@link CycleCodec}).
+     * {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}).
      */
     static final int ADAPTIVE_EXTRA_ENCODING = 3;
 }

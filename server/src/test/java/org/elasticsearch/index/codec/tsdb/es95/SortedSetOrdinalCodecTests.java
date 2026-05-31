@@ -47,8 +47,7 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, numDocs, 0, 0, out, bitsPerOrd);
 
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        assertEquals(SortedSetOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
-        assertEquals(CycleCodec.SUB_MODE, peek.readByte());
+        assertEquals(CycleCodec.ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
 
         long[] decoded = new long[128];
         codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);
@@ -82,8 +81,7 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, numDocs, 0, tailMissing, out, bitsPerOrd);
 
         ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
-        assertEquals(SortedSetOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
-        assertEquals(CycleCodec.SUB_MODE, peek.readByte());
+        assertEquals(CycleCodec.ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
 
         long[] decoded = new long[128];
         codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);

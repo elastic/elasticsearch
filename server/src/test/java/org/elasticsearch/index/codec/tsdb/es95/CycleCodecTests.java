@@ -37,9 +37,8 @@ public class CycleCodecTests extends ESTestCase {
 
         final ByteBuffersDataInput reader = new ByteBuffersDataInput(out.toBufferList());
         final long header = reader.readVLong();
-        final byte subMode = reader.readByte();
         assertEquals(CycleCodec.ENCODING, Long.numberOfTrailingZeros(~header));
-        assertEquals(CycleCodec.SUB_MODE, subMode);
+        assertEquals(3, (int) (header >>> 5));
         final long[] decoded = new long[128];
         CycleCodec.INSTANCE.decodePayload(ctx, reader, decoded, 16, header);
         assertArrayEquals(in, decoded);

@@ -120,7 +120,7 @@ public class OrdinalCodecBenchmark {
     // NOTE: TSID_RUNS uses this as the number of tsid runs in the block. MULTIVALUE shapes
     // use it as the K of the (first) tsid run; boundary/varying-K shapes derive the second
     // tuple deterministically from K.
-    @Param({ "1", "2", "4", "6" })
+    @Param({ "1", "2", "3", "4", "5", "6", "8" })
     private int runsPerBlock;
 
     private int bitsPerOrd;

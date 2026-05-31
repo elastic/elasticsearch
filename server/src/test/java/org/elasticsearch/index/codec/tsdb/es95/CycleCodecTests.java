@@ -98,11 +98,37 @@ public class CycleCodecTests extends ESTestCase {
         assertEquals(Long.MAX_VALUE, CycleCodec.INSTANCE.estimateSize(in, stats, 16));
     }
 
-    public void testRoundTripBitForBitParityFootprintAtK2() throws Exception {
-        // NOTE: K=2 with HIGH cardinality scattered values lands at ~6 bytes,
-        // closing the gap with legacy CYCLE on the pure mid-tsid case.
+    public void testWireFormatBytesLowK2() throws Exception {
+        // NOTE: LOW K=2 ords 0 and 7 round to 3 bytes total - matches legacy CYCLE exactly.
+        assertEncodedSize(new long[] { 0L, 7L }, 4, 3);
+    }
+
+    public void testWireFormatBytesLowK3() throws Exception {
+        // NOTE: LOW K=3 ords 0, 5, 10 round to 4 bytes total - matches legacy CYCLE.
+        assertEncodedSize(new long[] { 0L, 5L, 10L }, 4, 4);
+    }
+
+    public void testWireFormatBytesLowK4() throws Exception {
+        // NOTE: LOW K=4 spills the period into a 2-byte header due to encoding-4's
+        // 5-bit-trailing requirement. Lands 1 byte over legacy's 5; acceptable POC trade.
+        assertEncodedSize(new long[] { 0L, 4L, 8L, 12L }, 4, 6);
+    }
+
+    public void testWireFormatBytesHighK2() throws Exception {
+        // NOTE: HIGH K=2 (16-bit ords scattered) beats legacy by 1 byte.
         final long mask = (1L << 16) - 1L;
-        final long[] cycleValues = { 0L, mask / 2 };
+        assertEncodedSize(new long[] { 0L, mask / 2 }, 16, 5);
+    }
+
+    public void testWireFormatBytesHighK4() throws Exception {
+        // NOTE: HIGH K=4 ords evenly spread - 2-byte header + 4 delta vlongs.
+        final long mask = (1L << 16) - 1L;
+        final long[] tuple = { 0L, mask / 4, mask / 2, (3 * mask) / 4 };
+        assertEncodedSize(tuple, 16, 9);
+    }
+
+    public void testHeaderTrailingOneBitsCountIsFour() throws Exception {
+        final long[] cycleValues = { 0L, 100L, 200L };
         final long[] in = new long[128];
         for (int i = 0; i < in.length; i++) {
             in[i] = cycleValues[i % cycleValues.length];
@@ -113,17 +139,43 @@ public class CycleCodecTests extends ESTestCase {
 
         final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
         CycleCodec.INSTANCE.encodePayload(in, stats, ctx, out, 16);
-        assertTrue("expected compact cycle to land at <=7 bytes for K=2 HIGH, got " + out.size(), out.size() <= 7);
+        final ByteBuffersDataInput reader = new ByteBuffersDataInput(out.toBufferList());
+        final long header = reader.readVLong();
+        assertEquals(4, Long.numberOfTrailingZeros(~header));
+        assertEquals(3, (int) (header >>> 5));
     }
 
-    public void testInvalidPeriodThrows() throws Exception {
+    public void testInvalidPeriodInHeaderThrows() {
         final CodecContext ctx = new CodecContext(128);
-        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-        out.writeVInt(200);
         final long[] decoded = new long[128];
+        // NOTE: leadingVLong encodes period 200 in bits 5+. Decoder must reject it
+        // because 200 exceeds blockSize / MAX_CYCLE_DIVISOR (= 16 at blockSize 128).
+        final long badLeading = (200L << 5) | CycleCodec.ENCODING_MARKER;
         expectThrows(
             CorruptIndexException.class,
-            () -> CycleCodec.INSTANCE.decodePayload(ctx, new ByteBuffersDataInput(out.toBufferList()), decoded, 16, 0L)
+            () -> CycleCodec.INSTANCE.decodePayload(
+                ctx,
+                new ByteBuffersDataInput(new ByteBuffersDataOutput().toBufferList()),
+                decoded,
+                16,
+                badLeading
+            )
         );
+    }
+
+    private static void assertEncodedSize(long[] tuple, int bitsPerOrd, int expectedBytes) throws Exception {
+        final int period = tuple.length;
+        final long[] in = new long[128];
+        for (int i = 0; i < in.length; i++) {
+            in[i] = tuple[i % period];
+        }
+        final BlockStats stats = new BlockStats();
+        stats.recomputeWithCycle(in);
+        assertEquals(period, stats.cycleLength);
+        final CodecContext ctx = new CodecContext(128);
+
+        final ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        CycleCodec.INSTANCE.encodePayload(in, stats, ctx, out, bitsPerOrd);
+        assertEquals("period=" + period + " bitsPerOrd=" + bitsPerOrd, expectedBytes, (int) out.size());
     }
 }

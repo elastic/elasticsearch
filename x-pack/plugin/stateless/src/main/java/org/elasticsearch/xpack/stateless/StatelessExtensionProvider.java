@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
@@ -26,6 +27,7 @@ public interface StatelessExtensionProvider {
         HollowShardsService hollowShardsService,
         SearchShardSizeCollector searchShardSizeCollector,
         StatelessMemoryMetricsService statelessMemoryMetricsService,
-        ObjectStoreService objectStoreService
+        ObjectStoreService objectStoreService,
+        BlobCacheMetrics blobCacheMetrics
     ) {}
 }

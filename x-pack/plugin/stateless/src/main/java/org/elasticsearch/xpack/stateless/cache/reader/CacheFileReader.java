@@ -192,14 +192,15 @@ public class CacheFileReader {
         String executorName = EsExecutors.executorName(Thread.currentThread());
 
         if (executorName != null
-            && (executorName.equals(SEARCH) || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
+            && (executorName.equals(SEARCH)
+                || executorName.equals("esql_worker")
+                || executorName.equals(GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL))) {
             long start = relativeTimeInMillisSupplier.getAsLong();
             doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
+            long elapsed = relativeTimeInMillisSupplier.getAsLong() - start;
             blobCacheMetrics.getSearchOriginDownloadTime()
-                .record(
-                    relativeTimeInMillisSupplier.getAsLong() - start,
-                    executorName.equals(SEARCH) ? BLOB_POPULATION_SOURCE_ATTRIBUTES : PEER_POPULATION_SOURCE_ATTRIBUTES
-                );
+                .record(elapsed, executorName.equals(SEARCH) ? BLOB_POPULATION_SOURCE_ATTRIBUTES : PEER_POPULATION_SOURCE_ATTRIBUTES);
+            blobCacheMetrics.addSearchCacheMissDownloadTotal(elapsed);
         } else {
             doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
         }

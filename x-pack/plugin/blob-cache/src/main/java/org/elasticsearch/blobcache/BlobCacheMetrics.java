@@ -54,6 +54,12 @@ public class BlobCacheMetrics {
     private final LongCounter epochChanges;
     private final LongHistogram searchOriginDownloadTime;
 
+    // Cumulative accumulators for cache-miss download time on search threads.
+    // Updated alongside the searchOriginDownloadTime histogram so that callers
+    // can compute per-interval deltas (note that the histogram is lossy)
+    private final LongAdder searchCacheMissDownloadTotal = new LongAdder();
+    private final LongAdder searchCacheMissDownloadCount = new LongAdder();
+
     public enum CachePopulationReason {
         /**
          * When warming the cache
@@ -210,6 +216,24 @@ public class BlobCacheMetrics {
 
     public LongHistogram getSearchOriginDownloadTime() {
         return searchOriginDownloadTime;
+    }
+
+    /**
+     * Accumulates cache-miss download time for search-origin reads.
+     * Called alongside {@link #getSearchOriginDownloadTime()} so that the cumulative totals can be
+     * differenced per sampling interval without reading back from the write-only histogram.
+     */
+    public void addSearchCacheMissDownloadTotal(long elapsedMillis) {
+        searchCacheMissDownloadTotal.add(elapsedMillis);
+        searchCacheMissDownloadCount.increment();
+    }
+
+    public long searchCacheMissDownloadTimeMillis() {
+        return searchCacheMissDownloadTotal.longValue();
+    }
+
+    public long searchCacheMissDownloadCount() {
+        return searchCacheMissDownloadCount.longValue();
     }
 
     /**

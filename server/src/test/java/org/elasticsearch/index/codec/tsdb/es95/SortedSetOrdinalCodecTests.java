@@ -24,7 +24,39 @@ import java.util.Arrays;
  */
 public class SortedSetOrdinalCodecTests extends ESTestCase {
 
-    public void testTupleRunChosenForMultiValuedCycle() throws Exception {
+    public void testCycleChosenForPureMidTsidBlock() throws Exception {
+        // NOTE: 64 docs of [10, 20] fill the block exactly with no straddle, a clean K=2 cycle.
+        // CycleCodec must beat TupleRunCodec on framing here.
+        int bitsPerOrd = 16;
+        long[] tuple = { 10L, 20L };
+        int K = tuple.length;
+        long[] in = new long[128];
+        int[] perDocK = new int[129];
+        int numDocs = 0;
+        int pos = 0;
+        for (int d = 0; d < 64; d++) {
+            perDocK[numDocs++] = K;
+            for (long o : tuple)
+                in[pos++] = o;
+        }
+        assertEquals(128, pos);
+
+        SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, numDocs, 0, 0, out, bitsPerOrd);
+
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        assertEquals(SortedSetOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
+        assertEquals(CycleCodec.SUB_MODE, peek.readByte());
+
+        long[] decoded = new long[128];
+        codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);
+        assertArrayEquals(in, decoded);
+    }
+
+    public void testCycleChosenForPartialEdgeBlockThatStillFormsCleanCycle() throws Exception {
+        // NOTE: 42 full K=3 docs + 1 partial K=3 doc (2 of 3 ords). The flat ord stream
+        // is still a clean K=3 cycle for every position, so CycleCodec wins over TupleRun.
         int bitsPerOrd = 16;
         long[] tuple = { 17L, 4242L, 65000L };
         int K = tuple.length;
@@ -41,6 +73,50 @@ public class SortedSetOrdinalCodecTests extends ESTestCase {
         in[pos++] = tuple[0];
         in[pos++] = tuple[1];
         int tailMissing = 1;
+        assertEquals(128, pos);
+
+        SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        codec.encodeOrdinals(Arrays.copyOf(in, in.length), perDocK, numDocs, 0, tailMissing, out, bitsPerOrd);
+
+        ByteBuffersDataInput peek = new ByteBuffersDataInput(out.toBufferList());
+        assertEquals(SortedSetOrdinalCodec.ADAPTIVE_EXTRA_ENCODING, Long.numberOfTrailingZeros(~peek.readVLong()));
+        assertEquals(CycleCodec.SUB_MODE, peek.readByte());
+
+        long[] decoded = new long[128];
+        codec.decodeOrdinals(new ByteBuffersDataInput(out.toBufferList()), decoded, bitsPerOrd);
+        assertArrayEquals(in, decoded);
+    }
+
+    public void testTupleRunChosenForBoundaryBlock() throws Exception {
+        // NOTE: two tuple-runs across a tsid boundary. Flat ord stream is NOT a clean cycle,
+        // so CycleCodec declines and TupleRunCodec wins.
+        int bitsPerOrd = 16;
+        long[] tupleA = { 1L, 10L, 20L };
+        long[] tupleB = { 100L, 200L, 300L };
+        int K = 3;
+        long[] in = new long[128];
+        int[] perDocK = new int[129];
+        int numDocs = 0;
+        int pos = 0;
+        for (int d = 0; d < 21; d++) {
+            perDocK[numDocs++] = K;
+            for (long o : tupleA)
+                in[pos++] = o;
+        }
+        while (pos + K <= 128) {
+            perDocK[numDocs++] = K;
+            for (long o : tupleB)
+                in[pos++] = o;
+        }
+        final int tailLeft = 128 - pos;
+        int tailMissing = 0;
+        if (tailLeft > 0) {
+            perDocK[numDocs++] = K;
+            for (int k = 0; k < tailLeft; k++)
+                in[pos++] = tupleB[k];
+            tailMissing = K - tailLeft;
+        }
         assertEquals(128, pos);
 
         SortedSetOrdinalCodec codec = new SortedSetOrdinalCodec(128);

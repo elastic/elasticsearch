@@ -42,6 +42,7 @@ public final class SortedSetOrdinalCodec {
     private final BitPackedCodec bitPackedCodec;
     private final RleCodec rleCodec;
     private final BitpackCodec bitpackCodec;
+    private final CycleCodec cycleCodec;
     private final TupleRunCodec tupleRunCodec;
     private final CodecContext ctx;
     private final BlockStats stats;
@@ -54,6 +55,7 @@ public final class SortedSetOrdinalCodec {
             BitPackedCodec.INSTANCE,
             RleCodec.INSTANCE,
             BitpackCodec.INSTANCE,
+            CycleCodec.INSTANCE,
             TupleRunCodec.INSTANCE
         );
     }
@@ -65,6 +67,7 @@ public final class SortedSetOrdinalCodec {
         final BitPackedCodec bitPackedCodec,
         final RleCodec rleCodec,
         final BitpackCodec bitpackCodec,
+        final CycleCodec cycleCodec,
         final TupleRunCodec tupleRunCodec
     ) {
         this.constantCodec = constantCodec;
@@ -72,6 +75,7 @@ public final class SortedSetOrdinalCodec {
         this.bitPackedCodec = bitPackedCodec;
         this.rleCodec = rleCodec;
         this.bitpackCodec = bitpackCodec;
+        this.cycleCodec = cycleCodec;
         this.tupleRunCodec = tupleRunCodec;
         this.ctx = new CodecContext(blockSize);
         this.stats = new BlockStats();
@@ -86,7 +90,7 @@ public final class SortedSetOrdinalCodec {
         final DataOutput out,
         int bitsPerOrd
     ) throws IOException {
-        stats.recompute(in);
+        stats.recomputeWithCycle(in);
 
         BlockModeCodec winner = bitPackedCodec;
         long winnerSize = bitPackedCodec.estimateSize(in, stats, bitsPerOrd);
@@ -115,6 +119,12 @@ public final class SortedSetOrdinalCodec {
             winnerSize = bitpackSize;
         }
 
+        final long cycleSize = cycleCodec.estimateSize(in, stats, bitsPerOrd);
+        if (cycleSize < winnerSize) {
+            winner = cycleCodec;
+            winnerSize = cycleSize;
+        }
+
         final long tupleRunSize = tupleRunCodec.estimateSize(in, perDocK, numDocs, headOffset, tailMissing);
         if (tupleRunSize < winnerSize) {
             tupleRunCodec.encodePayload(in, perDocK, numDocs, headOffset, tailMissing, out);
@@ -141,6 +151,8 @@ public final class SortedSetOrdinalCodec {
                 bitpackCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
             } else if (subMode == TupleRunCodec.SUB_MODE) {
                 tupleRunCodec.decodePayload(in, out);
+            } else if (subMode == CycleCodec.SUB_MODE) {
+                cycleCodec.decodePayload(ctx, in, out, bitsPerOrd, v1);
             } else {
                 throw new CorruptIndexException(String.format(Locale.ROOT, "unknown ADAPTIVE_EXTRA sub-mode 0x%02x", subMode & 0xff), in);
             }
@@ -149,6 +161,6 @@ public final class SortedSetOrdinalCodec {
         }
     }
 
-    /** Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}). */
+    /** Trailing-one-bits count for the ADAPTIVE_EXTRA dispatch (shared by {@link RleCodec}, {@link BitpackCodec}, {@link TupleRunCodec}, {@link CycleCodec}). */
     static final int ADAPTIVE_EXTRA_ENCODING = 3;
 }

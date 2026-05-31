@@ -1203,7 +1203,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
-                null,
                 List.of(),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,

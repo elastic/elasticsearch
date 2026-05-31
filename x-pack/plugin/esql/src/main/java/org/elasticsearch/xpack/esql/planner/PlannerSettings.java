@@ -230,6 +230,19 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Threshold for the number of values returned by an IN subquery above which a hash join is used
+     * instead of an IN list filter. Below or equal to this threshold, the subquery result is inlined
+     * as {@code WHERE field IN (v1, v2, ...)}. Above it, a LEFT hash join is used for better performance.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting(
+        "esql.in_subquery_hash_join_threshold",
+        100,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static List<Setting<?>> settings() {
         return List.of(
             DEFAULT_DATA_PARTITIONING,
@@ -247,7 +260,8 @@ public class PlannerSettings {
             SOURCE_RESERVATION_FACTOR,
             BYTES_REF_RAM_OVERESTIMATE_THRESHOLD,
             BYTES_REF_RAM_OVERESTIMATE_FACTOR,
-            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD
+            DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
+            IN_SUBQUERY_HASH_JOIN_THRESHOLD
         );
     }
 
@@ -295,6 +309,10 @@ public class PlannerSettings {
                 DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.docSequenceBytesRefFieldThreshold(v))
             );
+            clusterSettings.initializeAndWatch(
+                IN_SUBQUERY_HASH_JOIN_THRESHOLD,
+                v -> settings.updateAndGet(s -> s.inSubqueryHashJoinThreshold(v))
+            );
         }
 
         public PlannerSettings get() {
@@ -317,6 +335,7 @@ public class PlannerSettings {
     private final ByteSizeValue bytesRefRamOverestimateThreshold;
     private final double bytesRefRamOverestimateFactor;
     private final int docSequenceBytesRefFieldThreshold;
+    private final int inSubqueryHashJoinThreshold;
 
     /**
      * Defaults.
@@ -336,7 +355,8 @@ public class PlannerSettings {
         SOURCE_RESERVATION_FACTOR.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_THRESHOLD.getDefault(Settings.EMPTY),
         BYTES_REF_RAM_OVERESTIMATE_FACTOR.getDefault(Settings.EMPTY),
-        DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+        DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+        IN_SUBQUERY_HASH_JOIN_THRESHOLD.getDefault(Settings.EMPTY)
     );
 
     /**
@@ -357,7 +377,8 @@ public class PlannerSettings {
         double sourceReservationFactor,
         ByteSizeValue bytesRefRamOverestimateThreshold,
         double bytesRefRamOverestimateFactor,
-        int docSequenceBytesRefFieldThreshold
+        int docSequenceBytesRefFieldThreshold,
+        int inSubqueryHashJoinThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.docsThresholdForAutoPartitioning = docsThresholdForAutoPartitioning;
@@ -374,6 +395,7 @@ public class PlannerSettings {
         this.bytesRefRamOverestimateThreshold = bytesRefRamOverestimateThreshold;
         this.bytesRefRamOverestimateFactor = bytesRefRamOverestimateFactor;
         this.docSequenceBytesRefFieldThreshold = docSequenceBytesRefFieldThreshold;
+        this.inSubqueryHashJoinThreshold = inSubqueryHashJoinThreshold;
     }
 
     public PlannerSettings defaultDataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -392,7 +414,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -416,7 +439,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -440,7 +464,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -478,7 +503,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -502,7 +528,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -526,7 +553,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -550,7 +578,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -581,7 +610,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -608,7 +638,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -635,7 +666,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -659,7 +691,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -683,7 +716,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -707,7 +741,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -731,7 +766,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -755,7 +791,8 @@ public class PlannerSettings {
             sourceReservationFactor,
             bytesRefRamOverestimateThreshold,
             bytesRefRamOverestimateFactor,
-            docSequenceBytesRefFieldThreshold
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
         );
     }
 
@@ -763,4 +800,28 @@ public class PlannerSettings {
         return docsThresholdForAutoPartitioning;
     }
 
+    public PlannerSettings inSubqueryHashJoinThreshold(int inSubqueryHashJoinThreshold) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold,
+            inSubqueryHashJoinThreshold
+        );
+    }
+
+    public int inSubqueryHashJoinThreshold() {
+        return inSubqueryHashJoinThreshold;
+    }
 }

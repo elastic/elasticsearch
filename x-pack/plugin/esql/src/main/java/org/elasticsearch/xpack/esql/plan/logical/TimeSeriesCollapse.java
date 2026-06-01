@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -52,7 +51,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * the way down to the Mapper, which folds them to {@code long} when building the physical
  * {@code TimeSeriesCollapseExec}.
  */
-public class TimeSeriesCollapse extends UnaryPlan implements PostAnalysisVerificationAware, PostOptimizationVerificationAware {
+public class TimeSeriesCollapse extends UnaryPlan implements PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "TimeSeriesCollapse",
@@ -206,8 +205,7 @@ public class TimeSeriesCollapse extends UnaryPlan implements PostAnalysisVerific
         return NodeInfo.create(this, TimeSeriesCollapse::new, child(), value, step, dimensions, start, end, stepBucketSize);
     }
 
-    @Override
-    public void postAnalysisVerification(Failures failures) {
+    public void verify(Failures failures) {
         Optional<PromqlCommand> source = sourcePromqlCommand();
         if (source.isEmpty()) {
             // Missing Prometheus indices resolve the child to LIMIT 0 before this verifier runs.

@@ -84,7 +84,10 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.LeftSemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
@@ -182,14 +185,17 @@ public class ApproximationSupportTests extends ESTestCase {
         CompoundOutputEval.class,
 
         // These plans don't occur in a correct analyzed query.
+        AntiJoin.class,
         Drop.class,
         InlineStats.class,
         Keep.class,
+        LeftSemiJoin.class,
         Lookup.class,
         LookupJoin.class,
         ParameterizedQuery.class,
         Rename.class,
         ResolvingProject.class,
+        SemiJoin.class,
         SparklineGenerateEmptyBuckets.class,
         UnresolvedExternalRelation.class,
         UnresolvedRelation.class,

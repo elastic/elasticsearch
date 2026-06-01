@@ -58,8 +58,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupLogicalOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LookupPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -679,7 +679,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             LookupExecutionPlanner.QueryListFromPlanFactory queryListFactory;
             if (configuration != null) {
                 LogicalPlan logicalPlan = extractOrBuildLogicalPlan(request);
-                physicalPlan = createLookupPhysicalPlan(logicalPlan, configuration, plannerSettings, foldCtx, searchStats, flags);
+                physicalPlan = createLookupPhysicalPlan(
+                    logicalPlan,
+                    configuration,
+                    plannerSettings,
+                    foldCtx,
+                    searchStats,
+                    flags,
+                    aliasFilter
+                );
                 queryListFactory = this::queryListFromPlan;
             } else {
                 // BWC: old data node without Configuration
@@ -913,17 +921,19 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         PlannerSettings plannerSettings,
         FoldContext foldCtx,
         SearchStats searchStats,
-        EsqlFlags flags
+        EsqlFlags flags,
+        AliasFilter aliasFilter
     ) {
         LogicalPlan optimizedLogical = new LookupLogicalOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats))
             .localOptimize(logicalPlan);
         PhysicalPlan physicalPlan = LocalMapper.INSTANCE.map(optimizedLogical);
-        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+        LookupPhysicalOptimizerContext context = new LookupPhysicalOptimizerContext(
             plannerSettings,
             flags,
             configuration,
             foldCtx,
-            searchStats
+            searchStats,
+            aliasFilter
         );
         return new LookupPhysicalPlanOptimizer(context).optimize(physicalPlan);
     }

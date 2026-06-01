@@ -718,7 +718,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 params.getId(),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 memoryTracker,
-                params.isAllowLazyStart() ? Integer.MAX_VALUE : maxLazyMLNodes,
+                (maxLazyMLNodes == 0 && params.isAllowLazyStart()) ? Integer.MAX_VALUE : maxLazyMLNodes,
                 node -> nodeFilter(node, params)
             );
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do

@@ -1299,6 +1299,46 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
     }
 
+    public void testConsiderLazyAssignmentGivenNodeCapShouldFail() {
+        long trialNodeMemoryBytes = 4L * 1024 * 1024 * 1024;
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNodeUtils.create(
+                    "trial_ml_node",
+                    "trial_ml_node_id",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Map.of(
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(trialNodeMemoryBytes),
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        Long.toString(trialNodeMemoryBytes / 2)
+                    ),
+                    ROLES_WITH_ML
+                )
+            )
+            .build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            shuffled(cs.nodes().getAllNodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            1,
+            node -> nodeFilter(node, job)
+        );
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(4).getBytes()
+        );
+        assertEquals("foo", result.getExplanation());
+        assertNull(result.getExecutorNode());
+    }
+
     public void testMaximumPossibleNodeMemoryTooSmall() {
         int numNodes = randomIntBetween(1, 10);
         int maxRunningJobsPerNode = randomIntBetween(1, 100);

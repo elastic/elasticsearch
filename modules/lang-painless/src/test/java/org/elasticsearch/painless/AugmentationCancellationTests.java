@@ -9,16 +9,23 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
+import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Tests for {@code @cancellation_aware} whitelist augmentations.  These verify that the
@@ -36,7 +43,14 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        // InitScript supports cancellation; also register the shadow fixture used by the def
+        // fallback test so a def receiver can resolve a non-cancellation-aware method named `each`.
+        List<Whitelist> initWhitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
+        initWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.cancellation-shadow"));
+        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, initWhitelists);
+        // PainlessTestScript does NOT support cancellation; used by the inherited exec() helper to
+        // verify @cancellation_aware augmentations resolve to the plain (script-less) overload.
+        contexts.put(PainlessTestScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 
@@ -199,5 +213,103 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         ScriptException ex = expectThrows(ScriptException.class, script::execute);
         assertEquals("cancelled-with-capture", ex.getCause().getMessage());
         assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * In a context whose base class does NOT support cancellation ({@link PainlessTestScript}),
+     * the {@code @cancellation_aware} annotation is dropped during lookup and {@code each} resolves
+     * to the plain {@code each(Iterable, Consumer)} overload.  Verifies the call still runs and
+     * produces the expected result with no script receiver involved.
+     */
+    public void testEachInNonCancellationContextRunsViaPlainOverload() {
+        Object result = exec(
+            "List l = new ArrayList(); l.add(1); l.add(2); l.add(3);" + "List out = new ArrayList(); l.each(x -> out.add(x)); return out;"
+        );
+        assertEquals(List.of(1, 2, 3), result);
+    }
+
+    /**
+     * The "don't add parameters where they aren't needed" guarantee for the static call path:
+     * in a non-cancellation context the emitted bytecode must invoke the plain, receiver-first
+     * {@code each(Iterable, Consumer)} overload and must not reference {@code PainlessScript}
+     * (no synthetic {@code aload 0} / script-first overload).  {@link Debugger} compiles against
+     * {@link PainlessTestScript}, which does not support cancellation.
+     */
+    public void testEachInNonCancellationContextEmitsNoScriptThis() {
+        String bytecode = Debugger.toString("List l = new ArrayList(); l.add(1); l.each(x -> x.toString());");
+        assertThat(bytecode, containsString("each (Ljava/lang/Iterable;Ljava/util/function/Consumer;)"));
+        // The generated script class is itself named PainlessScript$Script, so assert specifically
+        // that the script-first augmentation overload (leading PainlessScript parameter) is absent.
+        assertThat(bytecode, not(containsString("each (Lorg/elasticsearch/painless/PainlessScript;")));
+    }
+
+    /**
+     * Lookup-time guard: {@code @cancellation_aware} on a whitelist line that declares no
+     * augmentation class is rejected, because the annotation can only redirect to a script-first
+     * augmentation overload.
+     */
+    public void testCancellationAwareWithoutAugmentationClassFailsLookup() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PainlessLookupBuilder.buildFromWhitelists(
+                List.of(
+                    WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.cancellation-no-augmentation")
+                ),
+                ScriptedMetricAggContexts.InitScript.class,
+                new HashMap<>(),
+                new HashMap<>()
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("requires the whitelist line to declare an augmentation class"));
+    }
+
+    /**
+     * Lookup-time guard: in a cancellation-supporting context, a {@code @cancellation_aware}
+     * augmentation whose augmentation class lacks the script-first overload (leading
+     * {@code PainlessScript} parameter) is rejected with an actionable message.
+     */
+    public void testCancellationAwareAugmentationMissingScriptOverloadFailsLookup() {
+        // Include the base whitelist so primitive/base types (e.g. the int return type) resolve and
+        // the augmentation line reaches the reflection lookup where the missing-overload guard fires.
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
+        whitelists.add(
+            WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.cancellation-missing-overload")
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PainlessLookupBuilder.buildFromWhitelists(
+                whitelists,
+                ScriptedMetricAggContexts.InitScript.class,
+                new HashMap<>(),
+                new HashMap<>()
+            )
+        );
+        assertThat(e.getCause().getMessage(), containsString("with a leading [org.elasticsearch.painless.PainlessScript] parameter"));
+    }
+
+    /**
+     * The def-dispatch fallback: {@code each} is in the cancellation-aware name set (the
+     * {@code Iterable} augmentation), so a {@code def} call to {@code each} pushes the synthetic
+     * script-this slot.  When the runtime receiver resolves {@code each} to an ordinary method
+     * that is NOT cancellation-aware (see {@link CancellationShadowTestObject}), {@code
+     * Def.lookupMethod} must drop the extra slot so the call still resolves and runs correctly.
+     */
+    public void testDefShadowingMethodFallsBackToPlainCall() {
+        ScriptedMetricAggContexts.InitScript.Factory factory = scriptEngine.compile(
+            "test",
+            "def x = new CancellationShadowTestObject(); state.result = x.each(41);",
+            ScriptedMetricAggContexts.InitScript.CONTEXT,
+            Collections.emptyMap()
+        );
+        Map<String, Object> state = new HashMap<>();
+        ScriptedMetricAggContexts.InitScript script = factory.newInstance(new HashMap<>(), state);
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(callCount::incrementAndGet);
+
+        script.execute();  // must not throw despite the name-gated script-this push
+        assertEquals(42, ((Number) state.get("result")).intValue());
+        // The resolved method is not cancellation-aware, so it never polls the runnable itself.
+        assertEquals(0, callCount.get());
     }
 }

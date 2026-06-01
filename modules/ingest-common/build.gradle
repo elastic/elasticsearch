@@ -6,7 +6,7 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
@@ -34,7 +34,7 @@ restResources {
   }
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+restTests.tasks.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

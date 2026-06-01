@@ -10,7 +10,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin
 import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 // Don't add default distro dependency for these projects, they're special
 def integTestDistroProjects = [':x-pack:plugin:sql:qa:jdbc']
@@ -47,7 +46,7 @@ plugins.withType(InternalJavaRestTestPlugin) {
     enabled = false
   }
 
-  tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  restTests.tasks.configureEach {
     testClassesDirs = sourceSets.javaRestTest.output.classesDirs
     classpath = sourceSets.javaRestTest.runtimeClasspath
     if (integTestDistroProjects.contains(project.path) == false) {

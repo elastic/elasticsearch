@@ -211,7 +211,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         queryDepth++;
         if (queryDepth > MAX_QUERY_DEPTH) {
             throw new ParsingException(
-                "ESQL statement exceeded the maximum query depth allowed ({}): [{}]",
+                "ES|QL statement exceeded the maximum query depth allowed ({}): [{}]",
                 MAX_QUERY_DEPTH,
                 ctx.getText()
             );
@@ -426,8 +426,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
-        // build a subquery tree starting from its source command (FROM or ROW),
-        // then fold any trailing processing commands on top of it
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
@@ -440,6 +438,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) {
         if (ctx.fromCommand() != null) {
             return visitFromCommand(ctx.fromCommand());
+        } else if (ctx.timeSeriesCommand() != null) {
+            return visitTimeSeriesCommand(ctx.timeSeriesCommand());
         } else {
             return visitRowCommand(ctx.rowCommand());
         }
@@ -651,7 +651,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     stats.groupings(),
                     stats.aggregates(),
                     null,
-                    new UnresolvedTimestamp(source(ctx))
+                    new UnresolvedTimestamp(source(ctx)),
+                    TimeSeriesAggregate.Origin.TS_COMMAND
                 );
             } else {
                 return new Aggregate(source(ctx), input, stats.groupings(), stats.aggregates());

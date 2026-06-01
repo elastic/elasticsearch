@@ -41,8 +41,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
@@ -114,7 +114,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
     private final ParentTaskAssigningClient searchClient;
     private final ParentTaskAssigningClient bulkClient;
-    private final ActionListener<BulkByScrollResponse> listener;
+    private final ActionListener<BulkByPaginatedSearchResponse> listener;
     private final Retry bulkRetry;
     private final PaginatedHitSource paginatedHitSource;
 
@@ -185,7 +185,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ParentTaskAssigningClient client,
         ThreadPool threadPool,
         Request mainRequest,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
@@ -230,7 +230,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         ParentTaskAssigningClient bulkClient,
         ThreadPool threadPool,
         Request mainRequest,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         @Nullable ScriptService scriptService,
         @Nullable ReindexSslConfig sslConfig,
         @Nullable Version remoteVersion,
@@ -427,7 +427,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
                     if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
-                        reservedBytes.set(bulkRequest.estimatedSizeInBytes());
+                        reservedBytes.addAndGet(delta);
                     }
                 }
             }
@@ -473,14 +473,14 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
     /**
      * Build the response for reindex actions.
      */
-    protected BulkByScrollResponse buildResponse(
+    protected BulkByPaginatedSearchResponse buildResponse(
         TimeValue took,
         List<BulkItemResponse.Failure> indexingFailures,
         List<PaginatedSearchFailure> searchFailures,
         boolean timedOut
     ) {
         BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
-        return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut, null, pitId);
+        return new BulkByPaginatedSearchResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut, null, pitId);
     }
 
     /**
@@ -811,7 +811,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     // its own combined status from it to serialize to .tasks index.
                     // For non-sliced, status is unused (comes from the worker state).
                     BytesReference pitId = paginatedHitSource instanceof PitPaginatedHitSource pit ? pit.getPitId() : null;
-                    final BulkByScrollResponse response = new BulkByScrollResponse(
+                    final BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
                         TimeValue.MINUS_ONE,
                         task.getStatus(),
                         List.of(),
@@ -969,7 +969,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (resolvedFailure == null) {
-                BulkByScrollResponse response = buildResponse(
+                BulkByPaginatedSearchResponse response = buildResponse(
                     timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
                     resolvedSearchFailures,

@@ -20,7 +20,9 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -49,6 +51,17 @@ public class TransportActionsTests extends ESTestCase {
     public void testTimeoutExceptionsAreRetriable() {
         // 429 TOO_MANY_REQUESTS — transient, a different replica may not share the condition
         assertTrue(TransportActions.isRetriableShardLevelException(new ElasticsearchTimeoutException("timed out")));
+    }
+
+    public void testSearchTimeoutExceptionIsNotRetriable() {
+        SearchShardTarget target = new SearchShardTarget("node1", SHARD_ID, null);
+        assertFalse(TransportActions.isRetriableShardLevelException(new SearchTimeoutException(target, "Time exceeded")));
+    }
+
+    public void testWrappedSearchTimeoutExceptionIsNotRetriable() {
+        SearchShardTarget target = new SearchShardTarget("node1", SHARD_ID, null);
+        Exception wrapped = new RemoteTransportException("remote", new SearchTimeoutException(target, "Time exceeded"));
+        assertFalse(TransportActions.isRetriableShardLevelException(wrapped));
     }
 
     public void testWrappedBadRequestIsNotRetriable() {

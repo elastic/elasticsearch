@@ -7,8 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -19,6 +23,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSerializationTests<ExternalSourceExec> {
 
@@ -158,5 +165,61 @@ public class ExternalSourceExecSerializationTests extends AbstractPhysicalPlanSe
     @Override
     protected boolean alwaysEmptySource() {
         return true;
+    }
+
+    private static ExternalSourceExec externalSourceExecWithConfig(Map<String, Object> config) {
+        return new ExternalSourceExec(
+            randomSource(),
+            "teststore:///data.csv",
+            "csv",
+            randomFieldAttributes(1, 3, false),
+            config,
+            Map.of(),
+            null,
+            List.of(),
+            FormatReader.NO_LIMIT,
+            null,
+            null,
+            Map.of(),
+            List.of()
+        );
+    }
+
+    /**
+     * A target node on a transport version that supports the encrypted carrier receives the secret still
+     * encrypted in the plan config — it decrypts at the point of use, not over the wire.
+     */
+    public void testEncryptedDatasourceSecretSurvivesRoundTripWhenSupported() throws IOException {
+        EncryptedData secret = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, Object> datasource = new HashMap<>();
+        datasource.put("secret_token", secret);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config), TransportVersion.current());
+
+        Object ds = roundTripped.config().get(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        assertThat(ds, instanceOf(Map.class));
+        assertThat(((Map<?, ?>) ds).get("secret_token"), equalTo(secret));
+    }
+
+    /**
+     * A target node on a transport version that predates the carrier cannot deserialize it, so the
+     * coordinator strips {@code _datasource} before serializing and the node reverts to prior behavior.
+     */
+    public void testEncryptedDatasourceSecretStrippedForOlderTransportVersion() throws IOException {
+        EncryptedData secret = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, Object> datasource = new HashMap<>();
+        datasource.put("secret_token", secret);
+        Map<String, Object> config = new HashMap<>();
+        config.put("format", "csv");
+        config.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, datasource);
+
+        TransportVersion beforeCarrier = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("data_source_encrypted_data"));
+        ExternalSourceExec roundTripped = copyInstance(externalSourceExecWithConfig(config), beforeCarrier);
+
+        assertThat(roundTripped.config().containsKey(ExternalSourceResolver.DATASOURCE_CONFIG_KEY), equalTo(false));
+        assertThat(roundTripped.config().get("format"), equalTo("csv"));
     }
 }

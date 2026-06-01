@@ -19,8 +19,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -28,8 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
@@ -37,7 +33,6 @@ import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
@@ -47,22 +42,23 @@ import org.junit.Before;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Regression guard for the file-on-blob-storage read path: the {@link StorageProvider} factory must
@@ -90,6 +86,11 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
     static volatile String capturedConstructionThread;
     /** Makes each secret value unique so the provider cache never short-circuits a re-run. */
     private static final AtomicLong SECRET_SEQ = new AtomicLong();
+    /**
+     * If non-null, the storage provider built by the factory will only accept reads when {@link #capturedSecret}
+     * equals this value — modelling a "wrong password" rejection. {@code null} means any plaintext String passes.
+     */
+    static volatile String expectedCredentialOverride;
 
     /**
      * {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses {@link ExtensiblePlugin#loadExtensions}
@@ -129,8 +130,8 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
     private static final class CapturingStorageProviderFactory implements StorageProviderFactory {
         @Override
         public StorageProvider create(Settings settings) {
-            // Zero-config path: no secret to capture.
-            return new CapturingStorageProvider();
+            // Zero-config path: no credential, so any subsequent byte read will throw via the provider's gate.
+            return new CredentialGatedLocalStorageProvider(SCHEME, null);
         }
 
         @Override
@@ -138,154 +139,10 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
             capturedSecretKeyPresent = config != null && config.containsKey(SECRET_KEY);
             capturedSecret = config == null ? null : config.get(SECRET_KEY);
             capturedConstructionThread = Thread.currentThread().getName();
-            // Claim the secret key so the unknown-key validator does not reject it.
-            return new Configured<>(new CapturingStorageProvider(), capturedSecretKeyPresent ? Set.of(SECRET_KEY) : Set.of());
-        }
-    }
-
-    /** Serves bytes from the local file the {@code teststore} URI points at; delegates to a {@code file://} object. */
-    private static final class CapturingStorageProvider implements StorageProvider {
-        @Override
-        public StorageObject newObject(StoragePath path) {
-            return new LocalDelegateObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length) {
-            return new LocalDelegateObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return new LocalDelegateObject(path);
-        }
-
-        @Override
-        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
-            // Single-file fixtures only; no directory listing exercised by these tests.
-            return new StorageIterator() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-
-                @Override
-                public StorageEntry next() {
-                    throw new NoSuchElementException();
-                }
-
-                @Override
-                public void close() {}
-            };
-        }
-
-        @Override
-        public boolean exists(StoragePath path) {
-            return Files.exists(localPathOf(path));
-        }
-
-        @Override
-        public List<String> supportedSchemes() {
-            return List.of(SCHEME);
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    @SuppressForbidden(reason = "test converts a teststore:// URI to a local Path to serve fixture bytes")
-    private static Path localPathOf(StoragePath path) {
-        return PathUtils.get(path.localPath());
-    }
-
-    /** Reads the local file the {@code teststore} URI names. Minimal {@link StorageObject} surface. */
-    private static final class LocalDelegateObject implements StorageObject {
-        private final StoragePath path;
-        private final Path file;
-
-        LocalDelegateObject(StoragePath path) {
-            this.path = path;
-            this.file = localPathOf(path);
-        }
-
-        @Override
-        public InputStream newStream() throws IOException {
-            return Files.newInputStream(file);
-        }
-
-        @Override
-        public InputStream newStream(long position, long length) throws IOException {
-            InputStream in = Files.newInputStream(file);
-            long skipped = 0;
-            while (skipped < position) {
-                long n = in.skip(position - skipped);
-                if (n <= 0) {
-                    break;
-                }
-                skipped += n;
-            }
-            return new BoundedInputStream(in, length);
-        }
-
-        @Override
-        public long length() throws IOException {
-            return Files.size(file);
-        }
-
-        @Override
-        public Instant lastModified() throws IOException {
-            return Files.getLastModifiedTime(file).toInstant();
-        }
-
-        @Override
-        public boolean exists() {
-            return Files.exists(file);
-        }
-
-        @Override
-        public StoragePath path() {
-            return path;
-        }
-    }
-
-    /** Caps an InputStream to a byte length, for range reads. */
-    private static final class BoundedInputStream extends InputStream {
-        private final InputStream delegate;
-        private long remaining;
-
-        BoundedInputStream(InputStream delegate, long length) {
-            this.delegate = delegate;
-            this.remaining = length;
-        }
-
-        @Override
-        public int read() throws IOException {
-            if (remaining <= 0) {
-                return -1;
-            }
-            int b = delegate.read();
-            if (b >= 0) {
-                remaining--;
-            }
-            return b;
-        }
-
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            if (remaining <= 0) {
-                return -1;
-            }
-            int toRead = (int) Math.min(len, remaining);
-            int n = delegate.read(b, off, toRead);
-            if (n > 0) {
-                remaining -= n;
-            }
-            return n;
-        }
-
-        @Override
-        public void close() throws IOException {
-            delegate.close();
+            return new Configured<>(
+                new CredentialGatedLocalStorageProvider(SCHEME, capturedSecret, expectedCredentialOverride),
+                capturedSecretKeyPresent ? Set.of(SECRET_KEY) : Set.of()
+            );
         }
     }
 
@@ -318,6 +175,7 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
         capturedSecret = null;
         capturedSecretKeyPresent = false;
         capturedConstructionThread = null;
+        expectedCredentialOverride = null;
     }
 
     @After
@@ -396,9 +254,27 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
             )
         );
 
+        // End-to-end: the read must complete and return the fixture rows. If decryption succeeded but a
+        // downstream step (storage byte-read, format decode, response wiring) broke, this assertion catches
+        // it where a credential-only assertion would have silently passed.
         Exception queryFailure = null;
-        try (var ignored = run(syncEsqlQueryRequest("FROM secret_ds | LIMIT 5"), TIMEOUT)) {
-            // read may or may not complete depending on whether the gap throws downstream
+        try (
+            org.elasticsearch.xpack.esql.action.EsqlQueryResponse response = run(
+                syncEsqlQueryRequest("FROM secret_ds | KEEP emp_no, first_name | SORT emp_no | LIMIT 5"),
+                TIMEOUT
+            )
+        ) {
+            assertThat("[" + format + "] expected emp_no + first_name columns from the fixture", response.columns(), hasSize(2));
+            assertThat(response.columns().get(0).name(), equalTo("emp_no"));
+            assertThat(response.columns().get(1).name(), equalTo("first_name"));
+            java.util.List<java.util.List<Object>> rows = getValuesList(response);
+            assertThat("[" + format + "] expected at least one row from the fixture", rows, hasSize(greaterThanOrEqualTo(1)));
+            assertThat(
+                "[" + format + "] first row's emp_no must be the lowest int the fixture wrote",
+                ((Number) rows.get(0).get(0)).intValue(),
+                greaterThanOrEqualTo(0)
+            );
+            assertNotNull("[" + format + "] first row's first_name must not be null", rows.get(0).get(1));
         } catch (Exception e) {
             queryFailure = e;
         }
@@ -436,6 +312,68 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
             captured.getClass()
         );
         assertEquals("[" + format + "] decrypted secret value", secretValue, captured);
+        // End-to-end gate: the read had to actually complete. With the credential-gated provider,
+        // this fails loudly if decryption produced anything other than the expected plaintext String.
+        assertNull("[" + format + "] FROM query must complete without exception; got: " + queryFailure, queryFailure);
+    }
+
+    /**
+     * Wrong-credential failure scenario: the storage provider is configured to require {@code RIGHT_PASSWORD}.
+     * The data source's secret is {@code WRONG_PASSWORD}, which gets correctly encrypted at PUT and correctly
+     * decrypted at read time — but the provider rejects it as a wrong-password mismatch. The query must fail
+     * gracefully (a clean {@link Exception} surfaced to the client, no node crash), and the failure message
+     * must point at the credential rejection so an operator can diagnose it.
+     */
+    public void testWrongCredentialFailsGracefully() throws Exception {
+        expectedCredentialOverride = "RIGHT_PASSWORD_" + SECRET_SEQ.incrementAndGet();
+        final String wrongSecret = "WRONG_PASSWORD_" + SECRET_SEQ.incrementAndGet();
+
+        Path fixture = createTempFile("secret-fixture-wrong-", ".csv");
+        Files.writeString(fixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob") + "\n");
+
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                new PutDataSourceAction.Request(
+                    TIMEOUT,
+                    TIMEOUT,
+                    "secret_src",
+                    "test",
+                    null,
+                    new HashMap<>(Map.of(SECRET_KEY, wrongSecret))
+                )
+            )
+        );
+        String uri = SCHEME + "://" + StoragePath.fileUri(fixture).substring("file://".length());
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                new PutDatasetAction.Request(TIMEOUT, TIMEOUT, "secret_ds", "secret_src", uri, null, new HashMap<>(Map.of("format", "csv")))
+            )
+        );
+
+        Exception queryFailure = null;
+        try (var ignored = run(syncEsqlQueryRequest("FROM secret_ds | LIMIT 5"), TIMEOUT)) {
+            fail("expected the query to fail because the provider rejects the credential as wrong");
+        } catch (Exception e) {
+            queryFailure = e;
+        }
+
+        assertNotNull("expected a graceful failure surfaced to the client; got null", queryFailure);
+        // Walk the cause chain: the IOException from the provider's gate is wrapped by the framework, so we
+        // expect "read denied" to appear at some level — pointing the operator at the credential rejection.
+        Throwable cur = queryFailure;
+        boolean foundReadDenied = false;
+        while (cur != null) {
+            if (cur.getMessage() != null && cur.getMessage().contains("read denied")) {
+                foundReadDenied = true;
+                break;
+            }
+            cur = cur.getCause();
+        }
+        assertTrue("expected 'read denied' somewhere in the failure cause chain; full toString=[" + queryFailure + "]", foundReadDenied);
+        // Decryption itself must still have succeeded: the captured value is the wrong (but plaintext) secret.
+        assertEquals("provider must have observed the decrypted (wrong) secret", wrongSecret, capturedSecret);
     }
 
     private static void writeParquetFile(Path target, int rowCount) throws IOException {

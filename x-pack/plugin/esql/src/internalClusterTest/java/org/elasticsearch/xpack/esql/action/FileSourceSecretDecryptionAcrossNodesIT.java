@@ -9,45 +9,38 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.StorageEntry;
-import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Live multi-node demonstration that the data-source encryption pipeline survives cluster-state
@@ -95,7 +88,8 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
     private static final class CapturingStorageProviderFactory implements StorageProviderFactory {
         @Override
         public StorageProvider create(Settings settings) {
-            return new LocalFileStorageProvider();
+            // No-config path: any byte read on the returned provider throws via its credential gate.
+            return new CredentialGatedLocalStorageProvider(SCHEME, null);
         }
 
         @Override
@@ -105,114 +99,14 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
             if (secret instanceof String s) {
                 capturedByNode.put(node, s);
             } else if (secret instanceof EncryptedData) {
-                // Loud signal if a data node ever sees an undecrypted carrier: the whole point of this PR
-                // is that the registry decrypts at the chokepoint before the factory is called.
+                // The whole point of the PR is the registry decrypts at the chokepoint; a data node ever
+                // seeing the carrier means that chokepoint was bypassed.
                 throw new IllegalStateException("node [" + node + "] received an UNDECRYPTED secret carrier: " + secret);
             }
-            return new Configured<>(new LocalFileStorageProvider(), secret == null ? Set.of() : Set.of(SECRET_KEY));
-        }
-    }
-
-    private static final class LocalFileStorageProvider implements StorageProvider {
-        @Override
-        public StorageObject newObject(StoragePath path) {
-            return new LocalDelegateObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length) {
-            return new LocalDelegateObject(path);
-        }
-
-        @Override
-        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return new LocalDelegateObject(path);
-        }
-
-        @Override
-        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
-            // Single-file fixture; no directory listing exercised by this test.
-            return new StorageIterator() {
-                @Override
-                public boolean hasNext() {
-                    return false;
-                }
-
-                @Override
-                public StorageEntry next() {
-                    throw new NoSuchElementException();
-                }
-
-                @Override
-                public void close() {}
-            };
-        }
-
-        @Override
-        public boolean exists(StoragePath path) {
-            return Files.exists(localPathOf(path));
-        }
-
-        @Override
-        public List<String> supportedSchemes() {
-            return List.of(SCHEME);
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    @SuppressForbidden(reason = "test converts a teststorexn URI to a local Path to serve fixture bytes")
-    private static Path localPathOf(StoragePath path) {
-        return PathUtils.get(path.localPath());
-    }
-
-    private static final class LocalDelegateObject implements StorageObject {
-        private final StoragePath path;
-        private final Path file;
-
-        LocalDelegateObject(StoragePath path) {
-            this.path = path;
-            this.file = localPathOf(path);
-        }
-
-        @Override
-        public InputStream newStream() throws IOException {
-            return Files.newInputStream(file);
-        }
-
-        @Override
-        public InputStream newStream(long position, long length) throws IOException {
-            InputStream in = Files.newInputStream(file);
-            long skipped = 0;
-            while (skipped < position) {
-                long n = in.skip(position - skipped);
-                if (n <= 0) {
-                    break;
-                }
-                skipped += n;
-            }
-            return in;
-        }
-
-        @Override
-        public long length() throws IOException {
-            return Files.size(file);
-        }
-
-        @Override
-        public Instant lastModified() throws IOException {
-            return Files.getLastModifiedTime(file).toInstant();
-        }
-
-        @Override
-        public boolean exists() {
-            return Files.exists(file);
-        }
-
-        @Override
-        public StoragePath path() {
-            return path;
+            return new Configured<>(
+                new CredentialGatedLocalStorageProvider(SCHEME, secret),
+                secret == null ? Set.of() : Set.of(SECRET_KEY)
+            );
         }
     }
 
@@ -285,14 +179,25 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
         ensureGreen();
 
         // Step 4 — route the query through the joined node's client so that node is the coordinator for
-        // this query; with coordinator_only distribution the read runs there. The point being proven:
-        // the joined node, which got the encrypted dataset purely via cluster state, can serve a query
-        // against it — its registry decrypts and the provider observes the plaintext.
+        // this query; with coordinator_only distribution the read runs there. End-to-end: the joined node,
+        // which got the encrypted dataset purely via cluster state, must run the query to completion. The
+        // credential-gated provider would throw on read if decryption did not produce plaintext, so a
+        // successful response with the fixture rows is itself proof of end-to-end decryption + read.
         try (
-            var ignored = client(joinedNodeName).execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest("FROM secret_ds | LIMIT 5"))
-                .get(30, TimeUnit.SECONDS)
+            EsqlQueryResponse response = client(joinedNodeName).execute(
+                EsqlQueryAction.INSTANCE,
+                syncEsqlQueryRequest("FROM secret_ds | KEEP emp_no, first_name | SORT emp_no | LIMIT 5")
+            ).get(30, TimeUnit.SECONDS)
         ) {
-            // consumed for side effects
+            assertThat("expected emp_no + first_name columns from the fixture", response.columns(), hasSize(2));
+            assertThat(response.columns().get(0).name(), equalTo("emp_no"));
+            assertThat(response.columns().get(1).name(), equalTo("first_name"));
+            List<List<Object>> rows = getValuesList(response);
+            assertThat("expected the fixture's two rows back", rows, hasSize(2));
+            assertThat(((Number) rows.get(0).get(0)).intValue(), equalTo(1));
+            assertThat(rows.get(0).get(1).toString(), equalTo("Alice"));
+            assertThat(((Number) rows.get(1).get(0)).intValue(), equalTo(2));
+            assertThat(rows.get(1).get(1).toString(), equalTo("Bob"));
         }
 
         logger.info("bootstrap=[{}] joined=[{}] capturedByNode={}", bootstrapName, joinedNodeName, capturedByNode);

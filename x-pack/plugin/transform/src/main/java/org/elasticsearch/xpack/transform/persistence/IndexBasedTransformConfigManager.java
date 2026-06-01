@@ -1051,7 +1051,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                             logger.warn("cloud credential document [{}] missing persisted_credential field", hit.getId());
                         }
                     } catch (IOException e) {
-                        logger.warn("failed to parse cloud credential document [{}]", hit.getId(), e);
+                        logger.atWarn().withThrowable(e).log("failed to parse cloud credential document [{}]", hit.getId());
                     }
                 }
 

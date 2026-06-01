@@ -18,6 +18,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -99,7 +100,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             }
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
-            throw wrapException(e, "Failed to read object from");
+            throw throwReadFailure("Failed to read object from", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
@@ -122,7 +123,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             reader.limit(position + length);
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
-            throw wrapException(e, "Range request failed for");
+            throw throwReadFailure("Range request failed for", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, length);
         }
@@ -182,7 +183,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 return totalRead == 0 ? -1 : totalRead;
             }
         } catch (StorageException e) {
-            throw wrapException(e, "Failed to read bytes from");
+            throw throwReadFailure("Failed to read bytes from", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, totalRead);
         }
@@ -282,9 +283,35 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         return reader.read(target);
     }
 
-    private IOException wrapException(StorageException e, String operation) {
-        String message = e.getCode() == 404 ? "Object not found: " + path : operation + " " + path;
-        return new IOException(message, e);
+    /**
+     * Maps a failure from the GCS client into the exception to surface to ES|QL. A retryable transport
+     * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
+     * retry); a missing object or any other failure becomes an {@link IOException}, which the external
+     * source operator classifies as a client-class 400. Returns (never throws) so both the synchronous
+     * and async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof StorageException se) {
+            if (ExternalUnavailableException.isRetryableStatus(se.getCode())) {
+                return new ExternalUnavailableException(cause, "GCS store unavailable reading [{}] (HTTP {})", path, se.getCode());
+            }
+            if (se.getCode() == 404) {
+                return new IOException("Object not found: " + path, cause);
+            }
+        }
+        return new IOException(context + " " + path, cause);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, Throwable cause) throws IOException {
+        Exception mapped = mapReadFailure(context, cause);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
     }
 
     private void fetchMetadata() throws IOException {

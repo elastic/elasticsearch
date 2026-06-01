@@ -1326,9 +1326,21 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support IN non-correlated subqueries in WHERE command without View. When a view is referenced by an IN subquery, or there is an
+         * IN subquery inside the view definition(especially nested views), it is out of the scope of this capability.
+         * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
+         */
+        WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+
+        /**
+         * Support TS as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2109,6 +2121,13 @@ public class EsqlCapabilities {
          * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
+         * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
+         * https://github.com/elastic/elasticsearch-serverless/issues/6817
+         */
+        FIX_PROMQL_TIME_BUCKET_V3(false),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356

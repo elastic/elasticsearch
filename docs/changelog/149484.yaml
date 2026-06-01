@@ -1,0 +1,5 @@
+area: Engine
+issues: []
+pr: 149484
+summary: Log BCC upload progress and BCC queueing time
+type: enhancement

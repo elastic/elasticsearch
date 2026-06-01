@@ -464,16 +464,44 @@ public class DynamicTemplate implements ToXContentObject {
         return false;
     }
 
+    public boolean isSimplePathMatch() {
+        return pathMatch.isEmpty() == false
+            && pathUnmatch.isEmpty()
+            && match.isEmpty()
+            && unmatch.isEmpty()
+            && matchMappingType.isEmpty()
+            && unmatchMappingType.isEmpty()
+            && matchType != MatchType.REGEX;
+    }
+
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
         // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
         if (templateName != null) {
             return templateName.equals(name);
         }
-        if (matchesAny(matchType, pathMatch, path) == false) {
-            return false;
+        if (pathMatch.isEmpty() == false) {
+            boolean matched = false;
+            for (String pm : pathMatch) {
+                if (matchType.matches(pm, path)) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched == false) {
+                return false;
+            }
         }
-        if (matchesAny(matchType, match, fieldName) == false) {
-            return false;
+        if (match.isEmpty() == false) {
+            boolean matched = false;
+            for (String m : match) {
+                if (matchType.matches(m, fieldName)) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched == false) {
+                return false;
+            }
         }
         for (String um : pathUnmatch) {
             if (matchType.matches(um, path)) {
@@ -499,15 +527,6 @@ public class DynamicTemplate implements ToXContentObject {
             return false;
         }
         return true;
-    }
-
-    private static boolean matchesAny(MatchType matchType, List<String> patterns, String value) {
-        for (String pattern : patterns) {
-            if (matchType.matches(pattern, value)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public String mappingType(String dynamicType) {

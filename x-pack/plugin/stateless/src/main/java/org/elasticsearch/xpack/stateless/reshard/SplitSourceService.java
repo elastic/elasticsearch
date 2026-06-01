@@ -677,6 +677,10 @@ public class SplitSourceService {
         }
     }
 
+    /// This function needs to be called from [IndexEventListener#afterIndexShardClosed(ShardId, IndexShard, Settings)] event handler
+    /// so that it runs _after_ the shard state is set to `CLOSED` and not before.
+    /// We rely on this fact in [#setupSourceShardStateMachine(IndexShard)] to handle the possible race
+    /// of this function and adding a new state machine to the `activeSourceShards` map.
     public void cancelSplits(IndexShard indexShard) {
         activeTargetRequests.remove(indexShard);
         var stateMachine = activeSourceShards.remove(indexShard);
@@ -882,38 +886,24 @@ public class SplitSourceService {
             var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
                 @Override
                 public boolean test(ClusterState state) {
-                    if (cancelled.get()) {
+                    if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
                         return true;
                     }
-
-                    Index index = indexShard.shardId().getIndex();
-                    Optional<IndexMetadata> indexMetadata = state.metadata()
-                        .lookupProject(index)
-                        .flatMap(p -> Optional.ofNullable(p.index(index)));
-
-                    if (indexMetadata.isEmpty()) {
-                        // Index was deletedm but we didn't observe it yet via the `cancelled` flag.
-                        // We'll wait for the cancel.
-                        return false;
-                    }
-
-                    assert indexMetadata.get().getReshardingMetadata() != null;
-                    IndexReshardingState.Split split = indexMetadata.get().getReshardingMetadata().getSplit();
-                    // This shouldn't be possible.
-                    // If there is a new instance of the shard that already completed the split,
-                    // current instance of the shard should be removed and we would hit the cancelled branch above.
-                    assert split != null;
 
                     if (indexShard.state() != IndexShardState.STARTED) {
                         // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
                         // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
                         // completed yet.
                         // We need to be STARTED to properly execute deletion of unowned documents so we'll wait for the cluster state
-                        // change that sets this shard to STARTED.
-                        // CLOSED is also possible if state change is applied to the shard but not yet reflected in the `cancelled`.
-                        // In this case we will eventually observe this change via `cancelled` and handle it properly.
+                        // change that sets this shard to STARTED.`
                         return false;
                     }
+
+                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    // This shouldn't be possible.
+                    // If there is a new instance of the shard that already completed the split,
+                    // current instance of the shard should be removed and we would hit one of the branches above.
+                    assert split != null;
 
                     return split.targetsDone(indexShard.shardId().getId());
                 }
@@ -925,7 +915,7 @@ public class SplitSourceService {
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        if (cancelled.get()) {
+                        if (cancelled.get() || indexShard.state() == IndexShardState.CLOSED) {
                             return;
                         }
 

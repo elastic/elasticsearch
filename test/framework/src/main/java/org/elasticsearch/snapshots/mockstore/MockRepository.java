@@ -606,7 +606,7 @@ public class MockRepository extends FsRepository {
                 logger.info(
                     "---> Deleting path {}",
                     store instanceof BlobStoreWrapper && ((BlobStoreWrapper) store).delegate instanceof FsBlobStore
-                        ? ((FsBlobStore) ((BlobStoreWrapper) store).delegate).buildPath(path().parent())
+                        ? ((FsBlobStore) ((BlobStoreWrapper) store).delegate).buildPath(path())
                         : path()
                 );
                 blobStore().blobContainer(path().parent())

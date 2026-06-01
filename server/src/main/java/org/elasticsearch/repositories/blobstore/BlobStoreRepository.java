@@ -1573,7 +1573,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (staleRootBlobs.isEmpty() == false) {
                     staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
                         try (ref) {
-                            logger.info("---> Running task: cleanupUnlinkedRootAndIndicesBlobs");
+                            logger.info("---> Cleaning up stale root blobs from cleanupUnlinkedRootAndIndicesBlobs");
                             logStaleRootLevelBlobs(newRepositoryData.getGenId() - 1, snapshotIds, staleRootBlobs);
                             deleteFromContainer(OperationPurpose.SNAPSHOT_METADATA, blobContainer(), staleRootBlobs.iterator());
                             for (final var staleRootBlob : staleRootBlobs) {
@@ -1671,23 +1671,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Collection<SnapshotId> snapshotIds,
             List<String> blobsToDelete
         ) {
-            if (logger.isInfoEnabled()) {
-                // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
-                // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
-                // delete would also log a confusing INFO message about "stale blobs".
-                final Set<String> blobNamesToIgnore = snapshotIds.stream()
-                    .flatMap(
-                        snapshotId -> Stream.of(
-                            GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
-                            SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                            getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
-                        )
+            // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
+            // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
+            // delete would also log a confusing INFO message about "stale blobs".
+            final Set<String> blobNamesToIgnore = snapshotIds.stream()
+                .flatMap(
+                    snapshotId -> Stream.of(
+                        GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
+                        SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
+                        getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
                     )
-                    .collect(Collectors.toSet());
-                final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
-                if (blobsToLog.isEmpty() == false) {
-                    logger.info("{} Found stale root level blobs {}. Cleaning them up", toStringShort(), blobsToLog);
-                }
+                )
+                .collect(Collectors.toSet());
+            final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
+            if (blobsToLog.isEmpty() == false) {
+                logger.info("---> {} Found stale root level blobs {}. Cleaning them up", toStringShort(), blobsToLog);
             }
         }
     }
@@ -2336,24 +2334,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void deleteFromContainer(OperationPurpose purpose, BlobContainer container, Iterator<String> blobs) throws IOException {
-        final Iterator<String> wrappedIterator;
-        if (logger.isTraceEnabled()) {
-            wrappedIterator = new Iterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return blobs.hasNext();
-                }
+        final Iterator<String> wrappedIterator = new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return blobs.hasNext();
+            }
 
-                @Override
-                public String next() {
-                    final String blobName = blobs.next();
-                    logger.info("---> deleteFromContainer: [{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
-                    return blobName;
-                }
-            };
-        } else {
-            wrappedIterator = blobs;
-        }
+            @Override
+            public String next() {
+                final String blobName = blobs.next();
+                logger.info("---> deleteFromContainer: [{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
+                return blobName;
+            }
+        };
         container.deleteBlobsIgnoringIfNotExists(purpose, wrappedIterator);
     }
 

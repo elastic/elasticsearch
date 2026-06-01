@@ -38,7 +38,7 @@ public final class PainlessLookup {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
-    private final Set<String> cancellationAwareMethodNames;
+    private final Set<String> cancellationAwareMethodKeys;
 
     PainlessLookup(
         Map<String, Class<?>> javaClassNamesToClasses,
@@ -48,7 +48,7 @@ public final class PainlessLookup {
         Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
         Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
-        Set<String> cancellationAwareMethodNames
+        Set<String> cancellationAwareMethodKeys
     ) {
         this.javaClassNamesToClasses = Map.copyOf(javaClassNamesToClasses);
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
@@ -59,19 +59,23 @@ public final class PainlessLookup {
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
 
-        this.cancellationAwareMethodNames = Set.copyOf(cancellationAwareMethodNames);
+        this.cancellationAwareMethodKeys = Set.copyOf(cancellationAwareMethodKeys);
     }
 
     /**
      * Returns {@code true} when at least one whitelisted method registered with this lookup
      * carries the {@code @cancellation_aware} annotation under the given user-visible method
-     * name.  Consulted at every def call site in a cancellation-aware function to decide
-     * whether the script receiver ({@code aload 0}) needs to be pushed ahead of the user
-     * args — most def calls (e.g. {@code toString}, {@code get}, etc.) do not have any
-     * cancellation-aware overload and skip the push entirely.
+     * name and arity.  Consulted at every def call site in a cancellation-aware function to
+     * decide whether the script receiver ({@code aload 0}) needs to be pushed ahead of the user
+     * args.  Keying on {@code name/arity} (rather than name alone) lets a def call whose argument
+     * count can never match a cancellation-aware overload (e.g. {@code each} at any arity other
+     * than 1) skip the push at compile time; most def calls (e.g. {@code toString}, {@code get})
+     * have no cancellation-aware overload at all and skip it too.  Matching is necessarily an
+     * over-approximation for the names/arities that do collide — the runtime annotation check in
+     * {@code Def.lookupMethod} makes the final, exact decision.
      */
-    public boolean hasCancellationAwareMethodName(String methodName) {
-        return cancellationAwareMethodNames.contains(methodName);
+    public boolean hasCancellationAwareMethod(String methodName, int methodArity) {
+        return cancellationAwareMethodKeys.contains(buildPainlessMethodKey(methodName, methodArity));
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {

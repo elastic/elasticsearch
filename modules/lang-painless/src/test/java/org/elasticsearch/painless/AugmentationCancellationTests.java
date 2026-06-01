@@ -9,6 +9,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -311,5 +312,41 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertEquals(42, ((Number) state.get("result")).intValue());
         // The resolved method is not cancellation-aware, so it never polls the runnable itself.
         assertEquals(0, callCount.get());
+    }
+
+    /**
+     * The def call-site gate keys on {@code name/arity}, not name alone, so a def call whose
+     * argument count cannot match a cancellation-aware overload skips the script-this push at
+     * compile time.  {@code each(Consumer)} is the only cancellation-aware augmentation, with
+     * user-visible arity 1.
+     */
+    public void testCancellationAwareGateKeyedOnNameAndArity() {
+        PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
+            PAINLESS_BASE_WHITELIST,
+            ScriptedMetricAggContexts.InitScript.class,
+            new HashMap<>(),
+            new HashMap<>()
+        );
+        assertTrue(lookup.hasCancellationAwareMethod("each", 1));
+        // Arity mismatches can never resolve to each(Consumer): the gate (and thus the push) is skipped.
+        assertFalse(lookup.hasCancellationAwareMethod("each", 0));
+        assertFalse(lookup.hasCancellationAwareMethod("each", 2));
+        // Unrelated method names are never gated regardless of arity.
+        assertFalse(lookup.hasCancellationAwareMethod("toString", 0));
+    }
+
+    /**
+     * In a context whose base class does not support cancellation, the {@code @cancellation_aware}
+     * annotation is dropped during lookup, so no method key (not even the real {@code each/1}) is
+     * registered and every def call skips the push.
+     */
+    public void testCancellationAwareGateEmptyInNonCancellationContext() {
+        PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
+            PAINLESS_BASE_WHITELIST,
+            PainlessTestScript.class,
+            new HashMap<>(),
+            new HashMap<>()
+        );
+        assertFalse(lookup.hasCancellationAwareMethod("each", 1));
     }
 }

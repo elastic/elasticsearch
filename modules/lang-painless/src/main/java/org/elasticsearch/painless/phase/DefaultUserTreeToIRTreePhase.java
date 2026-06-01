@@ -1916,12 +1916,15 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
-            // Pre-decide at IR construction time whether this def call's method name might resolve
-            // to a @cancellation_aware augmentation. The lookup's name set is built once at script-
-            // engine startup and is empty for non-cancellation-aware contexts, so the condition is
-            // only attached in scripts that could benefit from it. The bytecode phase further
-            // gates on the enclosing function having a cached #cancelRunnable.
-            if (scriptScope.getPainlessLookup().hasCancellationAwareMethodName(userCallNode.getMethodName())) {
+            // Pre-decide at IR construction time whether this def call's method name and arity
+            // might resolve to a @cancellation_aware augmentation. The lookup's key set is built
+            // once at script-engine startup and is empty for non-cancellation-aware contexts, so
+            // the condition is only attached in scripts that could benefit from it; gating on the
+            // user-visible argument count additionally skips def calls whose arity can never match
+            // a cancellation-aware overload. The bytecode phase further gates on the enclosing
+            // function having a cached #cancelRunnable.
+            if (scriptScope.getPainlessLookup()
+                .hasCancellationAwareMethod(userCallNode.getMethodName(), userCallNode.getArgumentNodes().size())) {
                 irCallSubDefNode.attachCondition(IRCMaybeNeedsScriptThis.class);
             }
             irExpressionNode = irCallSubDefNode;

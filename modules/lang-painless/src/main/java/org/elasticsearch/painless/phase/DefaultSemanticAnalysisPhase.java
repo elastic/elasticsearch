@@ -2460,14 +2460,18 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         Class<?> targetClass
     ) {
         PainlessLookup lookup = scriptScope.getPainlessLookup();
-        if (lookup.hasCancellationAwareMethodName(methodName) == false) {
-            return false;
-        }
         PainlessMethod interfaceMethod = lookup.lookupFunctionalInterfacePainlessMethod(targetClass);
         if (interfaceMethod == null) {
             return false;
         }
         int arity = interfaceMethod.typeParameters().size();
+        // Cheap pre-filter: bail unless some cancellation-aware overload exists for this name at
+        // either the bound arity or the unbound arity (receiver as leading interface parameter),
+        // mirroring the two lookups below. The precise annotation check still happens afterwards.
+        if (lookup.hasCancellationAwareMethod(methodName, arity) == false
+            && (arity == 0 || lookup.hasCancellationAwareMethod(methodName, arity - 1) == false)) {
+            return false;
+        }
         Class<?> receiverClass = lookup.canonicalTypeNameToType(symbol);
         if (receiverClass == null) {
             return false;

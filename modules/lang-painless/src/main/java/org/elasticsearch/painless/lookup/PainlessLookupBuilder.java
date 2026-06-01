@@ -194,11 +194,13 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
-    // User-visible names of whitelisted methods carrying @cancellation_aware, used by def call
-    // sites to gate the script-this push to only the calls that might resolve to a cancellation-
-    // aware overload. Populated only when the current script context's base class supports
-    // cancellation; empty otherwise so non-cancellation-aware contexts skip the push entirely.
-    private final Set<String> cancellationAwareMethodNames;
+    // User-visible method keys (name/arity) of whitelisted methods carrying @cancellation_aware,
+    // used by def call sites to gate the script-this push to only the calls that might resolve to
+    // a cancellation-aware overload. Keying on arity as well as name lets a def call with a
+    // non-matching argument count skip the push at compile time. Populated only when the current
+    // script context's base class supports cancellation; empty otherwise so non-cancellation-aware
+    // contexts skip the push entirely.
+    private final Set<String> cancellationAwareMethodKeys;
 
     private final boolean supportsCancellation;
 
@@ -212,7 +214,7 @@ public final class PainlessLookupBuilder {
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
         painlessMethodKeysToPainlessInstanceBindings = new HashMap<>();
 
-        cancellationAwareMethodNames = new HashSet<>();
+        cancellationAwareMethodKeys = new HashSet<>();
         this.supportsCancellation = supportsCancellation;
     }
 
@@ -745,8 +747,6 @@ public final class PainlessLookupBuilder {
             Map<Class<?>, Object> stripped = new HashMap<>(annotations);
             stripped.remove(CancellationAwareAnnotation.class);
             annotations = Map.copyOf(stripped);
-        } else if (isCancellationAware) {
-            cancellationAwareMethodNames.add(methodName);
         }
 
         // injections alter the type parameters required for the user to call this method, since some are injected by compiler
@@ -809,6 +809,11 @@ public final class PainlessLookupBuilder {
         MethodType methodType = methodHandle.type();
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
+        if (isCancellationAware) {
+            // Register the user-visible key (post-injection arity) so it matches both the def
+            // call-site arity and the runtime lookup key in Def.lookupMethod.
+            cancellationAwareMethodKeys.add(painlessMethodKey);
+        }
         PainlessMethod existingPainlessMethod = isStatic
             ? painlessClassBuilder.staticMethods.get(painlessMethodKey)
             : painlessClassBuilder.methods.get(painlessMethodKey);
@@ -1775,7 +1780,7 @@ public final class PainlessLookupBuilder {
             painlessMethodKeysToImportedPainlessMethods,
             painlessMethodKeysToPainlessClassBindings,
             painlessMethodKeysToPainlessInstanceBindings,
-            cancellationAwareMethodNames
+            cancellationAwareMethodKeys
         );
     }
 

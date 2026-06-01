@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -100,6 +101,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 

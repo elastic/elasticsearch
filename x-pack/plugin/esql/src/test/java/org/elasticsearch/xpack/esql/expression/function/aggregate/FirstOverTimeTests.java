@@ -107,9 +107,15 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
                     lastTimestamp = timestamps.get(i);
                 }
             }
+
+            String evaluatorStr = switch (type) {
+                case EXPONENTIAL_HISTOGRAM -> "AllFirstExponentialHistogramByLong";
+                case TDIGEST -> "AllFirstTDigestByLong";
+                default -> standardAggregatorNameAllBytesTheSame("First", type) + "ByTimestamp";
+            };
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorNameAllBytesTheSame("First", type) + "ByTimestamp",
+                evaluatorStr,
                 fieldSupplier.type(),
                 equalTo(expected)
             );

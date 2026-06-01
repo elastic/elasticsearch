@@ -6,12 +6,17 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -37,6 +42,8 @@ import java.util.Optional;
 import java.util.Set;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
+
+    private static final Logger logger = LogManager.getLogger(ScrollDataExtractorFactory.class);
 
     // This field type is not supported for scrolling datafeeds.
     private static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
@@ -114,6 +121,29 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         return orphanedScrolls.isEmpty() == false;
     }
 
+    private boolean tryClearOrphanedScroll(String scrollId) {
+        try {
+            ClearScrollRequest request = new ClearScrollRequest();
+            request.addScrollId(scrollId);
+            ClearScrollResponse response = ClientHelper.executeWithHeaders(
+                datafeedConfig.getHeaders(),
+                ClientHelper.ML_ORIGIN,
+                client,
+                () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
+            );
+            return response.isSucceeded();
+        } catch (RuntimeException e) {
+            logger.debug(() -> Strings.format("[%s] Orphaned scroll clear failed for [{}]", job.getId(), scrollId), e);
+            return false;
+        }
+    }
+
+    private void requeueOrphanedScroll(OrphanedScroll entry) {
+        int newRetries = entry.retryAttempts() + 1;
+        logger.debug("[{}] Retry {} for orphaned scroll [{}] still failed", job.getId(), newRetries, entry.scrollId());
+        orphanedScrolls.addLast(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));
+    }
+
     /**
      * Attempts to clear every queued orphaned scroll ID. Successfully cleared IDs are removed.
      * Entries that are stale (age exceeds {@link #ORPHAN_TTL_MILLIS}) or have exhausted their
@@ -136,25 +166,8 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 );
                 continue;
             }
-            try {
-                ClearScrollRequest request = new ClearScrollRequest();
-                request.addScrollId(entry.scrollId());
-                ClearScrollResponse response = ClientHelper.executeWithHeaders(
-                    datafeedConfig.getHeaders(),
-                    ClientHelper.ML_ORIGIN,
-                    client,
-                    () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
-                );
-                if (response.isSucceeded() == false) {
-                    throw new ElasticsearchException("Clear scroll returned failure for scroll [{}]", entry.scrollId());
-                }
-            } catch (Exception e) {
-                int newRetries = entry.retryAttempts() + 1;
-                logger.debug(
-                    () -> Strings.format("[%s] Retry %d for orphaned scroll [%s] still failed", job.getId(), newRetries, entry.scrollId()),
-                    e
-                );
-                orphanedScrolls.addLast(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));
+            if (tryClearOrphanedScroll(entry.scrollId()) == false) {
+                requeueOrphanedScroll(entry);
             }
         }
     }
@@ -178,7 +191,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.getIndicesOptions(),
             datafeedConfig.getRuntimeMappings()
         );
-        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
+        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, this);
     }
 
     public static void create(

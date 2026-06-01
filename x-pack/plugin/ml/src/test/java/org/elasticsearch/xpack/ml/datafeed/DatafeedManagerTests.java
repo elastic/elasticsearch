@@ -1223,6 +1223,82 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(apiKeyService).revokeCloudAuthentication(same(minted), any());
     }
 
+    public void testPutDatafeedWithRequestCloudCredentialShouldInjectWhenThreadContextLacksTransient() {
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = invocation.getArgument(1);
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mlExtension,
+            mockAuditor()
+        );
+
+        CloudCredential requestCredential = new CloudCredential(new SecureString("from-request".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(false);
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        request.setCloudCredential(requestCredential);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.putDatafeed(request, null, null, threadPool, ActionListener.wrap(r -> fail("unexpected success"), failure::set));
+
+        verify(credentialManager).injectCloudManagedCredential(same(threadContext), same(requestCredential));
+    }
+
+    public void testPutDatafeedWithRequestCloudCredentialShouldNotDoubleInjectWhenTransientPresent() {
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        doAnswer(invocation -> {
+            ActionListener<Set<String>> listener = invocation.getArgument(1);
+            listener.onResponse(Collections.emptySet());
+            return null;
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any());
+
+        DatafeedManager manager = newDatafeedManager(
+            datafeedConfigProvider,
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mlExtension,
+            mockAuditor()
+        );
+
+        CloudCredential requestCredential = new CloudCredential(new SecureString("from-request".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        request.setCloudCredential(requestCredential);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        manager.putDatafeed(request, null, null, threadPool, ActionListener.wrap(r -> fail("unexpected success"), failure::set));
+
+        verify(credentialManager, never()).injectCloudManagedCredential(any(), any());
+    }
+
     /**
      * Creates a mock ClusterState suitable for both task checks and ElasticsearchMappings.addDocMappingIfMissing.
      */

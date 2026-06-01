@@ -250,8 +250,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     /**
      * Visible for testing
      */
-    @SuppressWarnings("PMD.AvoidCatchingGenericException") // reason: preview transport boundary; stream/XContent failures must reach
-                                                           // listener.onFailure
     static void previewDatafeed(DataExtractor dataExtractor, ActionListener<PreviewDatafeedAction.Response> listener) {
         try {
             Optional<InputStream> inputStream = dataExtractor.next().data();

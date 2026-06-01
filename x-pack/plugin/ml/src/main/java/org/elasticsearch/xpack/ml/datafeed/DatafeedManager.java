@@ -51,6 +51,8 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.MachineLearningExtension;
@@ -64,7 +66,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.function.Predicate.not;
@@ -92,6 +96,7 @@ public final class DatafeedManager {
     private final Settings settings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final CredentialTransitions credentialTransitions;
+    private final Supplier<CloudCredentialManager> credentialManagerSupplier;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
@@ -108,10 +113,12 @@ public final class DatafeedManager {
         this.client = client;
         this.settings = settings;
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        MachineLearningExtension extension = Objects.requireNonNull(mlExtension);
+        this.credentialManagerSupplier = extension::getCloudCredentialManager;
         this.credentialTransitions = new CredentialTransitions(
             Objects.requireNonNull(auditor),
-            () -> Objects.requireNonNull(mlExtension).getCloudApiKeyService(),
-            () -> mlExtension.getCloudCredentialManager(),
+            () -> extension.getCloudApiKeyService(),
+            credentialManagerSupplier,
             client,
             xContentRegistry,
             datafeedConfigProvider
@@ -122,6 +129,37 @@ public final class DatafeedManager {
         return crossProjectModeDecider.crossProjectEnabled() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled();
     }
 
+    /**
+     * Returns the cloud-managed credential for the caller in the current thread context, or {@code null} if CPS is
+     * disabled or the caller is not cloud-managed. Used on the coordinating node before forwarding a master request.
+     */
+    @Nullable
+    public CloudCredential currentCallerCredential(ThreadPool threadPool, @Nullable SecurityContext securityContext) {
+        if (crossProjectMlEnabled() == false) {
+            return null;
+        }
+        AtomicReference<CloudCredential> callerCredential = new AtomicReference<>();
+        useSecondaryAuthIfAvailable(securityContext, () -> {
+            CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+            var threadContext = threadPool.getThreadContext();
+            if (credentialManager.hasCloudManagedCredential(threadContext)) {
+                callerCredential.set(credentialManager.extractCloudManagedCredential(threadContext));
+            }
+        });
+        return callerCredential.get();
+    }
+
+    private void injectRequestCloudCredentialIfAbsent(@Nullable CloudCredential cloudCredential, ThreadPool threadPool) {
+        if (cloudCredential == null) {
+            return;
+        }
+        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+        var threadContext = threadPool.getThreadContext();
+        if (credentialManager.hasCloudManagedCredential(threadContext) == false) {
+            credentialManager.injectCloudManagedCredential(threadContext, cloudCredential);
+        }
+    }
+
     public void putDatafeed(
         PutDatafeedAction.Request request,
         ClusterState state,
@@ -129,6 +167,7 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        injectRequestCloudCredentialIfAbsent(request.getCloudCredential(), threadPool);
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
@@ -225,6 +264,7 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
+        injectRequestCloudCredentialIfAbsent(request.getCloudCredential(), threadPool);
         // Check datafeed is stopped
         if (getDatafeedTask(state, request.getUpdate().getId()) != null) {
             listener.onFailure(

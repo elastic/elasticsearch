@@ -50,7 +50,10 @@ class RangeStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream(long position, long rangeLength) throws IOException {
-        return delegate.newStream(Math.addExact(offset, position), rangeLength);
+        // READ_TO_END within this view means "to the end of the VIEW", which is a bounded read of the delegate
+        // (offset + length), not to the end of the underlying object. Translate it to the view's remaining length.
+        long effectiveLength = rangeLength == READ_TO_END ? length - position : rangeLength;
+        return delegate.newStream(Math.addExact(offset, position), effectiveLength);
     }
 
     @Override

@@ -135,14 +135,16 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length <= 0) {
-            throw new IllegalArgumentException("length must be positive, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
-        long endPosition = position + length - 1;
-        String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
+        // READ_TO_END -> open-ended "bytes=position-" (no up-front length() lookup); otherwise a closed range.
+        String rangeHeader = toEnd ? Strings.format("bytes=%d-", position) : Strings.format("bytes=%d-%d", position, position + length - 1);
 
         long startNanos = System.nanoTime();
+        long requestedBytes = toEnd ? 0L : length;
         try {
             GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
             ResponseInputStream<GetObjectResponse> response = s3Client.getObject(request);
@@ -157,14 +159,23 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (cachedLastModified == null) {
                 cachedLastModified = metadata.lastModified();
             }
-
+            if (toEnd) {
+                requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
+            }
             return new TransientTypingInputStream(response, path);
         } catch (NoSuchKeyException e) {
             throw new IOException("Object not found: " + path, e);
+        } catch (S3Exception e) {
+            if (toEnd && e.statusCode() == 416) {
+                // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                // contract for an open-ended read past the end is an empty stream.
+                return InputStream.nullInputStream();
+            }
+            throw new IOException("Range request failed for " + path, e);
         } catch (Exception e) {
             throw new IOException("Range request failed for " + path, e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, requestedBytes);
         }
     }
 

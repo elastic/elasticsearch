@@ -63,7 +63,14 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        return retryPolicy.execute(delegate::newStream, "newStream", delegate.path(), retryCounters::addRetry);
+        // Whole-object open via the delegate's whole-object read — no length() lookup, so it works for streams
+        // with no known length (e.g. compressed objects). Wrapped so a transient fault DURING the read re-opens
+        // the undelivered tail [delivered, end] as an open-ended (READ_TO_END) range and resumes, byte-exact.
+        // This gives single-file text, compressed text and the ORC seed stream the same resume as ranged reads.
+        // In production the decompressor sits ABOVE this layer, so a resume re-opens the (length-bearing)
+        // compressed bytes.
+        InputStream initial = retryPolicy.execute(delegate::newStream, "newStream", delegate.path(), retryCounters::addRetry);
+        return new ResumingInputStream(initial, 0, READ_TO_END);
     }
 
     @Override
@@ -292,7 +299,6 @@ class RetryableStorageObject implements StorageObject {
             retryCounters.addRetry();
             failuresSinceProgress++;
             totalResumes++;
-            long remaining = length - delivered;
             long resumeFrom = position + delivered;
             logger.debug(
                 "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]/[{}]): [{}]",
@@ -303,15 +309,29 @@ class RetryableStorageObject implements StorageObject {
                 e.getMessage()
             );
             // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the
-            // range (not just to read it) is itself retried. If everything was delivered, an empty stream is EOF.
-            current = remaining > 0
-                ? retryPolicy.execute(
-                    () -> delegate.newStream(resumeFrom, remaining),
-                    "newStream(resume)",
+            // range (not just to read it) is itself retried.
+            if (length == READ_TO_END) {
+                // Open-ended (to-EOF) mode: re-open [resumeFrom, end] as an open-ended range; the underlying
+                // stream's EOF marks completion. If the fault landed exactly at EOF, the provider answers the
+                // past-the-end open-ended read with an empty stream.
+                current = retryPolicy.execute(
+                    () -> delegate.newStream(resumeFrom, READ_TO_END),
+                    "newStream(resume-open)",
                     delegate.path(),
                     retryCounters::addRetry
-                )
-                : InputStream.nullInputStream();
+                );
+            } else {
+                long remaining = length - delivered;
+                // If everything was delivered, an empty stream is EOF.
+                current = remaining > 0
+                    ? retryPolicy.execute(
+                        () -> delegate.newStream(resumeFrom, remaining),
+                        "newStream(resume)",
+                        delegate.path(),
+                        retryCounters::addRetry
+                    )
+                    : InputStream.nullInputStream();
+            }
         }
 
         @Override

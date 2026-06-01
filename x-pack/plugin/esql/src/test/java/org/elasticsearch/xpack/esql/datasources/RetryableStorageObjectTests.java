@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -243,6 +244,39 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * The whole-object read ({@code newStream()}) routes through the open-ended path ({@code newStream(0)}) and
+     * gets the same byte-exact resume as a ranged read, in unknown-end mode — this is what covers single-file
+     * text, compressed text and the ORC seed stream. The fault here is a raw {@link SocketException} (not a
+     * pre-typed marker): it must be classified transient through the real predicate and resumed from the exact
+     * offset, with no byte duplicated or skipped.
+     */
+    public void testWholeObjectReadResumesByteExactAfterMidReadFault() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        byte[] payload = new byte[1000];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        // Whole-object open delivers 350 bytes then the connection resets; the open-ended re-open from byte 350
+        // delivers the rest.
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/whole.ndjson"),
+            payload,
+            350,
+            new SocketException("Connection reset")
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream()) {
+            read = in.readAllBytes();
+        }
+
+        assertArrayEquals("whole-object read recovers the exact payload across a mid-read reset", payload, read);
+        assertEquals("the object was re-opened exactly once", 2, delegate.openCount());
+        assertEquals("the resume was counted as a retry", 1L, obj.metrics().retryCount());
+    }
+
+    /**
      * A non-transient error mid-read (e.g. a permission error surfacing on the stream) must propagate
      * unchanged — no re-open, no retry.
      */
@@ -348,7 +382,8 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public InputStream newStream(long position, long length) {
             int pos = Math.toIntExact(position);
-            int len = Math.toIntExact(Math.min(length, payload.length - pos));
+            int remaining = payload.length - pos;
+            int len = length == READ_TO_END ? remaining : Math.toIntExact(Math.min(length, remaining));
             byte[] slice = Arrays.copyOfRange(payload, pos, pos + len);
             boolean fail = alwaysFail || opens == 0;
             opens++;

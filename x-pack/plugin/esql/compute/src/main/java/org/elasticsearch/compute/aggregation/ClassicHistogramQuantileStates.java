@@ -27,6 +27,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.LongStream;
 
+/**
+ * Aggregation state and PromQL {@code histogram_quantile} evaluation for classic cumulative histogram buckets
+ * ({@code le} upper bound plus cumulative count), used by {@link ClassicHistogramQuantileAggregator}.
+ */
 final class ClassicHistogramQuantileStates {
     static final double SMALL_DELTA_TOLERANCE = 1e-12;
 
@@ -70,6 +74,14 @@ final class ClassicHistogramQuantileStates {
         }
     }
 
+    /**
+     * Estimates a quantile from classic histogram buckets using PromQL {@code histogram_quantile} semantics:
+     * coalesce duplicate bounds, repair non-monotonic counts, then linearly interpolate within the target bucket.
+     *
+     * @param quantile fraction in {@code [0, 1]}; out-of-range and NaN inputs follow PromQL edge-case rules
+     * @param inputBuckets cumulative buckets sorted by upper bound, ending with {@code +Inf}
+     * @return the interpolated estimate, or {@link Double#NaN} when the histogram cannot produce one
+     */
     static double bucketQuantile(double quantile, List<Bucket> inputBuckets) {
         if (Double.isNaN(quantile)) {
             return Double.NaN;
@@ -123,6 +135,10 @@ final class ClassicHistogramQuantileStates {
         return bucketStart + (bucketEnd - bucketStart) * (rank / count);
     }
 
+    /**
+     * Returns the index of the first bucket whose cumulative count is at least {@code rank}, excluding the
+     * sentinel {@code +Inf} bucket at the end of the list.
+     */
     private static int searchBucket(List<Bucket> buckets, double rank) {
         int low = 0;
         int high = buckets.size() - 2;
@@ -139,6 +155,9 @@ final class ClassicHistogramQuantileStates {
         return result;
     }
 
+    /**
+     * Merges buckets that share the same upper bound by summing their cumulative counts.
+     */
     private static List<Bucket> coalesceBuckets(List<Bucket> buckets) {
         List<Bucket> result = new ArrayList<>(buckets.size());
         Bucket previous = buckets.getFirst();
@@ -155,6 +174,18 @@ final class ClassicHistogramQuantileStates {
         return result;
     }
 
+    /**
+     * Repairs cumulative counts in place so the invariant that each bucket's cumulative count is at least as large
+     * as the previous one stays intact, clamping decreases and treating relative differences below {@code tolerance}
+     * as flat to match PromQL floating-point repair.
+     * <p>
+     * Example:
+     * </p>
+     * <pre>{@code
+     * before: (le=1, 2), (le=2, 1), (le=+Inf, 5)
+     * after:  (le=1, 2), (le=2, 2), (le=+Inf, 5)
+     * }</pre>
+     */
     private static void ensureMonotonicAndIgnoreSmallDeltas(List<Bucket> buckets, double tolerance) {
         double previous = buckets.getFirst().count();
         for (int i = 1; i < buckets.size(); i++) {
@@ -175,6 +206,9 @@ final class ClassicHistogramQuantileStates {
         }
     }
 
+    /**
+     * Returns whether {@code left} and {@code right} are equal within a relative {@code epsilon} tolerance.
+     */
     private static boolean almostEqual(double left, double right, double epsilon) {
         if (left == right) {
             return true;

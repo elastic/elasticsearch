@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
@@ -38,6 +39,86 @@ public final class OtelSdkSettings {
     public static final Setting<Boolean> TELEMETRY_OTEL_METRICS_ENABLED = Setting.boolSetting(
         "telemetry.otel.metrics.enabled",
         false,
+        NodeScope
+    );
+
+    /** Disk cap for buffered batches while OTLP is unreachable. {@code 0b} disables buffering. */
+    public static final Setting<ByteSizeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE = Setting.byteSizeSetting(
+        "telemetry.otel.metrics.disk_buffer_size",
+        ByteSizeValue.ofMb(512),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        NodeScope
+    );
+
+    /** Buffered entries older than this are dropped. */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_BUFFER_TTL = Setting.timeSetting(
+        "telemetry.otel.metrics.buffer_ttl",
+        TimeValue.timeValueHours(12),
+        NodeScope
+    );
+
+    /**
+     * How long the current write file is kept open before rotating to a new one. Maps to
+     * {@code FileStorageConfiguration.maxFileAgeForWriteMillis}; must be strictly less than
+     * {@link #TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE} or the library rejects the config.
+     */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW = Setting.timeSetting(
+        "telemetry.otel.metrics.disk_buffer_write_window",
+        TimeValue.timeValueSeconds(30),
+        NodeScope
+    );
+
+    /**
+     * Minimum age before a buffered file is eligible for replay. Maps to
+     * {@code FileStorageConfiguration.minFileAgeForReadMillis}; must be strictly greater than
+     * {@link #TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW}.
+     */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE = Setting.timeSetting(
+        "telemetry.otel.metrics.disk_buffer_read_min_age",
+        TimeValue.timeValueSeconds(33),
+        NodeScope
+    );
+
+    /** Total attempts per export (initial + retries). {@code 1} disables retry. */
+    public static final Setting<Integer> TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS = Setting.intSetting(
+        "telemetry.otel.otlp.retry.max_attempts",
+        2,
+        1,
+        5,
+        NodeScope
+    );
+
+    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF = Setting.timeSetting(
+        "telemetry.otel.otlp.retry.initial_backoff",
+        TimeValue.timeValueSeconds(1),
+        NodeScope
+    );
+
+    public static final Setting<Double> TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER = Setting.doubleSetting(
+        "telemetry.otel.otlp.retry.backoff_multiplier",
+        1.5,
+        1.0,
+        NodeScope
+    );
+
+    /**
+     * Total deadline for one OTLP send() including retries; must stay below the collection interval so a slow export
+     * does not stretch into the next cycle.
+     */
+    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_SEND_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.otlp.send_timeout",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(60),
+        NodeScope
+    );
+
+    public static final Setting<TimeValue> TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT = Setting.timeSetting(
+        "telemetry.otel.otlp.connect_timeout",
+        TimeValue.timeValueSeconds(2),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueSeconds(10),
         NodeScope
     );
 
@@ -73,4 +154,9 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path.*/
+    public static final Setting.AffixSetting<String> TELEMETRY_OTEL_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
+        "telemetry.otel.resource.",
+        key -> Setting.simpleString(key, NodeScope)
+    );
 }

@@ -772,10 +772,10 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             this.acceptDocs = acceptDocs;
             quantizedVectorByteSize = quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension());
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + Integer.BYTES;
-            ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding =
+            ES940OSQVectorsScorer.BitEncoding bitEncoding =
                 quantEncoding == ES940DiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC_PACKED
-                    ? ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE
-                    : ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED;
+                    ? ES940OSQVectorsScorer.BitEncoding.PACKED
+                    : ES940OSQVectorsScorer.BitEncoding.STRIPED;
             osqVectorsScorer = ESVectorUtil.getES940OSQVectorsScorer(
                 indexInput,
                 quantEncoding.queryBits(),
@@ -783,7 +783,7 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
                 fieldInfo.getVectorDimension(),
                 (int) quantizedVectorByteSize,
                 BULK_SIZE,
-                int4Encoding
+                bitEncoding
             );
         }
 
@@ -989,6 +989,12 @@ public class ES940DiskBBQVectorsReader extends IVFVectorsReader<ES940DiskBBQVect
             }
             return scoredDocs;
         }
+    }
+
+    @Override
+    public CentroidData readCentroidData(FieldInfo fieldInfo) {
+        // The ES940 writer does not consume CentroidData during merge, so reading it is not implemented.
+        return null;
     }
 
 }

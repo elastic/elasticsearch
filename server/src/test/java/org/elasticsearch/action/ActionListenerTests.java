@@ -740,8 +740,7 @@ public class ActionListenerTests extends ESTestCase {
                         assertThat(deterministicTaskQueue.getCurrentTimeMillis(), lessThan(timeout.millis()));
                     }
                 }
-            },
-            () -> fail("should not clean up")
+            }
         );
         final Runnable completer = expectException
             ? () -> listenerDoesNotTimeOut.onFailure(expectedOutcome)
@@ -757,7 +756,6 @@ public class ActionListenerTests extends ESTestCase {
         }
 
         final var listenerTimesOutComplete = new AtomicBoolean();
-        final var listenerTimesOutCleansUp = new AtomicBoolean();
         final var listenerTimesOut = ActionListener.addTimeout(
             timeout,
             threadpool,
@@ -774,8 +772,7 @@ public class ActionListenerTests extends ESTestCase {
                     assertTrue(listenerTimesOutComplete.compareAndSet(false, true));
                     assertEquals(timeout.millis(), deterministicTaskQueue.getCurrentTimeMillis());
                 }
-            },
-            () -> assertTrue(listenerTimesOutCleansUp.compareAndSet(false, true))
+            }
         );
 
         if (randomBoolean()) {
@@ -788,6 +785,5 @@ public class ActionListenerTests extends ESTestCase {
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(listenerDoesNotTimeOutComplete.get());
         assertTrue(listenerTimesOutComplete.get());
-        assertTrue(listenerTimesOutCleansUp.get());
     }
 }

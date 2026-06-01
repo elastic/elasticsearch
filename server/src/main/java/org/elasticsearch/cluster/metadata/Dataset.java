@@ -33,10 +33,10 @@ import java.util.Objects;
  * Datasets inherit credentials from their parent data source at query time.
  *
  * <p>Dataset settings are plain values ({@code Map<String, Object>}) — no secrets.
- * Credentials are always inherited from the parent {@link DataSource}.
+ * Credentials are always inherited from the parent {@code DataSource}.
  *
  * <p><b>Referential integrity.</b> The {@link #dataSource} field is a name reference, not an
- * embedded object — the data source it points to lives in {@link DataSourceMetadata}, a separate
+ * embedded object — the data source it points to lives in {@code DataSourceMetadata}, a separate
  * cluster-state container with an independent update lifecycle. Integrity (i.e., the referenced
  * data source actually exists) is enforced at the service layer when datasets are created or
  * deleted, not by this class. A cluster state that arrives via gateway recovery or rollback could

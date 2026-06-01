@@ -96,7 +96,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -539,7 +538,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 model,
                 new RerankRequest(
                     InferenceString.fromStringList(List.of("doc1")),
-                    new InferenceString(TEXT, "search query"),
+                    InferenceString.ofText("search query"),
                     randomNonNegativeIntOrNull(),
                     returnDocuments,
                     Map.of()
@@ -573,7 +572,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
         try (var service = createService(factory)) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             MatcherAssert.assertThat(
@@ -614,7 +613,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
+            service.infer(model, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(
@@ -659,7 +658,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var input = "input text";
             var inputType = "search";
-            service.infer(model, null, null, null, List.of(input), false, new HashMap<>(), InputType.fromString(inputType), null, listener);
+            service.infer(model, List.of(input), false, new HashMap<>(), InputType.fromString(inputType), null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
@@ -700,7 +699,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var rerankRequest = new RerankRequest(
                 InferenceString.fromStringList(docsStrings),
-                new InferenceString(TEXT, queryString),
+                InferenceString.ofText(queryString),
                 topN,
                 null,
                 Map.of()
@@ -772,7 +771,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 model,
                 new RerankRequest(
                     InferenceString.fromStringList(List.of("doc1")),
-                    new InferenceString(TEXT, "search query"),
+                    InferenceString.ofText("search query"),
                     randomNonNegativeIntOrNull(),
                     null,
                     Map.of()
@@ -855,7 +854,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(model, null, null, null, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
+            service.infer(model, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             // Verify the response was processed correctly
@@ -1306,7 +1305,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             // 2 inputs
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("hello world"), new ChunkInferenceInput("dense embedding")),
                 new HashMap<>(),
                 InputType.INGEST,
@@ -1425,7 +1423,6 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var inputType = "ingest";
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput(firstInput), new ChunkInferenceInput(secondInput)),
                 new HashMap<>(),
                 InputType.fromString(inputType),
@@ -1500,7 +1497,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
         try (var service = createService(senderFactory, getUrl(webServer))) {
             TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INGEST, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INGEST, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1536,7 +1533,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var inputs = List.of(
                 new InferenceStringGroup("first_text_input"),
                 new InferenceStringGroup(
-                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), new InferenceString(DataType.TEXT, "second_text_input"))
+                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), InferenceString.ofText("second_text_input"))
                 )
             );
 

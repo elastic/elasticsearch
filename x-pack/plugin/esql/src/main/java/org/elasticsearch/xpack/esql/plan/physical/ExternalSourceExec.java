@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -60,6 +61,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+    private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
 
     private final String sourcePath;
     private final String sourceType;
@@ -324,7 +326,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeString(sourcePath);
         out.writeString(sourceType);
         out.writeNamedWriteableCollection(attributes);
-        out.writeGenericValue(config);
+        // Encrypted secrets in _datasource ride to data nodes that support the carrier; strip them for
+        // older targets, which cannot deserialize the carrier and revert to prior behavior.
+        out.writeGenericValue(
+            out.getTransportVersion().supports(DATA_SOURCE_ENCRYPTED_DATA) ? config : ExternalSourceResolver.planConfig(config)
+        );
         out.writeGenericValue(sourceMetadata);
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
@@ -660,6 +666,14 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(unifiedSchema, other.unifiedSchema)
             && Objects.equals(splits, other.splits);
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        // config and sourceMetadata may carry SecureString (dataset path) or plaintext String
+        // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
+        // debug-log output.
+        return List.of(sourcePath, sourceType, attributes);
     }
 
     @Override

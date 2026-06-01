@@ -35,6 +35,8 @@ dependencies {
   testImplementation project(':modules:repository-s3')
   testImplementation project(':modules:repository-gcs')
   testImplementation project(':modules:repository-azure')
+  testImplementation project(':modules:reindex')
+  testImplementation project(':modules:reindex-management')
   testImplementation testArtifact(project(':server'))
   internalClusterTestImplementation testArtifact(project(xpackModule('core')))
   internalClusterTestImplementation project(xpackModule('shutdown'))
@@ -42,6 +44,8 @@ dependencies {
   internalClusterTestImplementation project(':modules:mapper-extras')
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation project(xpackModule('esql-core'))
+  internalClusterTestImplementation project(':x-pack:plugin:encryption')
+  internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
   internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
 
   javaRestTestImplementation project(':x-pack:test:stateless-test-framework')

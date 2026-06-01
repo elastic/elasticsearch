@@ -607,6 +607,80 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         );
     }
 
+    public void testIncludedAndExcludedProjects() {
+        final ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        final List<ProjectRoutingInfo> linked = List.of(
+            createRandomProjectWithAlias("P1"),
+            createRandomProjectWithAlias("P2"),
+            createRandomProjectWithAlias("Q1")
+        );
+
+        assertProjectSets(rewrite(origin, linked, "logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "-logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "*:logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "_origin:logs"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P0:logs"), Set.of("P0"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "P1:logs"), Set.of("P1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P*:logs"), Set.of("P0", "P1", "P2"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "-_origin:*"), Set.of(), Set.of("P0"));
+        assertProjectSets(rewrite(origin, linked, "-P0:*"), Set.of(), Set.of("P0"));
+        assertProjectSets(rewrite(origin, linked, "-P1:*"), Set.of(), Set.of("P1"));
+        assertProjectSets(rewrite(origin, linked, "-P*:*"), Set.of(), Set.of("P0", "P1", "P2"));
+        assertProjectSets(rewrite(origin, linked, "-*:*"), Set.of(), Set.of("P0", "P1", "P2", "Q1"));
+
+        assertProjectSets(rewrite(origin, linked, "-_origin:logs"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "_origin:-logs"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "_origin:-*"), Set.of("P0"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P1:-logs"), Set.of("P1"), Set.of());
+        assertProjectSets(rewrite(origin, linked, "P1:-*"), Set.of("P1"), Set.of());
+
+        assertProjectSets(rewrite(origin, linked, "*:-logs"), Set.of("P0", "P1", "P2", "Q1"), Set.of());
+
+        Set<String> included = new java.util.LinkedHashSet<>();
+        for (var expr : List.of("-_origin:*", "_origin:logs")) {
+            var r = rewriteIndexExpression(expr, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+            included.addAll(r.includedProjects());
+            included.removeAll(r.excludedProjects());
+        }
+        assertThat(included, containsInAnyOrder("P0"));
+
+        included.clear();
+        for (var expr : List.of("*:logs", "-_origin:*")) {
+            var r = rewriteIndexExpression(expr, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+            included.addAll(r.includedProjects());
+            included.removeAll(r.excludedProjects());
+        }
+        assertThat(included, containsInAnyOrder("P1", "P2", "Q1"));
+
+        included.clear();
+        for (var expr : List.of("*:logs", "-*:*")) {
+            var r = rewriteIndexExpression(expr, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+            included.addAll(r.includedProjects());
+            included.removeAll(r.excludedProjects());
+        }
+        assertThat(included, equalTo(Set.of()));
+    }
+
+    private static CrossProjectIndexExpressionsRewriter.IndexRewriteResult rewrite(
+        ProjectRoutingInfo origin,
+        List<ProjectRoutingInfo> linked,
+        String expression
+    ) {
+        return rewriteIndexExpression(expression, origin.projectAlias(), getAllProjectAliases(origin, linked), null);
+    }
+
+    private static void assertProjectSets(
+        CrossProjectIndexExpressionsRewriter.IndexRewriteResult result,
+        Set<String> expectedIncluded,
+        Set<String> expectedExcluded
+    ) {
+        assertThat(result.includedProjects(), equalTo(expectedIncluded));
+        assertThat(result.excludedProjects(), equalTo(expectedExcluded));
+    }
+
     private ProjectRoutingInfo createRandomProjectWithAlias(String alias) {
         ProjectId projectId = randomUniqueProjectId();
         String type = randomFrom("elasticsearch", "security", "observability");

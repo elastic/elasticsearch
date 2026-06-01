@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -221,13 +222,14 @@ public class FileSplitProvider implements SplitProvider {
         for (int i = 0; i < fileList.fileCount(); i++) {
             StoragePath filePath = fileList.path(i);
 
-            Map<String, Object> partitionValues = Map.of();
+            Map<String, Object> partitionValues = new HashMap<>();
             if (partitionInfo != null && partitionInfo.isEmpty() == false) {
                 Map<String, Object> filePartitions = partitionInfo.filePartitionValues().get(filePath);
                 if (filePartitions != null) {
-                    partitionValues = filePartitions;
+                    partitionValues.putAll(filePartitions);
                 }
             }
+            partitionValues.putAll(FileMetadataColumns.extractValues(fileList, i));
 
             if (partitionValues.isEmpty() == false && filterHints.isEmpty() == false) {
                 if (matchesPartitionFilters(partitionValues, filterHints) == false) {
@@ -718,7 +720,10 @@ public class FileSplitProvider implements SplitProvider {
             if (remaining < minSegment) {
                 break;
             }
-            try (InputStream stream = storageObject.newStream(pos, remaining)) {
+            InputStream stream = storageObject.newStream(pos, remaining);
+            // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
+            // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
+            try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
                 long skipped = reader.findNextRecordBoundary(stream);
                 if (skipped < 0) {
                     break;

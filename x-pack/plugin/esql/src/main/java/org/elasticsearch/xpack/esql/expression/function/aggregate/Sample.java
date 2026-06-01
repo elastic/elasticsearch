@@ -72,7 +72,15 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "version" },
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "stats_sample", tag = "doc"),
+        examples = {
+            @Example(file = "stats_sample", tag = "doc"),
+            @Example(
+                description = "`SAMPLE` returns up to the requested number of values per group. "
+                    + "When a group has fewer values than the limit, all values are returned. "
+                    + "When a group has more, a multivalue array of randomly sampled values is returned. ",
+                file = "stats_sample",
+                tag = "docsSampleByGroup"
+            ) },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
 
     )

@@ -73,7 +73,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         createIndex(SOURCE_INDEX, DEST_INDEX);
         indexRandom(true, SOURCE_INDEX, NUMBER_OF_DOCUMENTS_THAT_TAKES_30_SECS_TO_INGEST);
@@ -93,7 +92,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
      * We test synchronous (<code>?wait_for_completion=true</code>) invocation of the _cancel endpoint in this test.
      */
     public void testCancelEndpointEndToEndSynchronously() throws Exception {
-        assumeTrue("PIT-based reindex path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
@@ -155,7 +153,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
 
     /** Same test as above but calling _cancel asynchronously and wrapping assertions after cancellation in assertBusy. */
     public void testCancelEndpointEndToEndAsynchronously() throws Exception {
-        assumeTrue("PIT-based reindex path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TaskId parentTaskId = startAsyncThrottledReindex();
 
@@ -241,7 +238,6 @@ public class ReindexCancelIT extends ESIntegTestCase {
      * Cancelling a reindex sub-task (slice worker) by its task id must be rejected with a reindex 404
      */
     public void testCancellingChildTaskRejected() throws Exception {
-        assumeTrue("PIT-based reindex path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TaskId parentTaskId = startAsyncThrottledReindex();
         try {
@@ -263,8 +259,7 @@ public class ReindexCancelIT extends ESIntegTestCase {
                 is(expected)
             );
         } finally {
-            // Clean up the parent reindex via the real cancel API so the test's @After teardown isn't slow.
-            cancelReindexAsynchronously(parentTaskId);
+            cancelReindexSynchronously(parentTaskId);
         }
     }
 

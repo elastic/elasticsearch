@@ -264,7 +264,7 @@ final class PrefetchedRowGroupBuilder {
             }
             return new PrefetchedPageReader(decompressor, pages, dictPage, valueCount);
         } catch (IOException e) {
-            throw new UncheckedIOException(
+            throw new IllegalArgumentException(
                 "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
                 e
             );
@@ -292,7 +292,7 @@ final class PrefetchedRowGroupBuilder {
             return null;
         }
         ByteBuffer dictSlice = source.slice(dictOffset, (int) dictSpan, column.getPath().toDotString(), -1);
-        ByteArrayInputStream stream = bufferAsStream(dictSlice);
+        InputStream stream = bufferAsStream(dictSlice);
         try {
             int before = stream.available();
             PageHeader header = Util.readPageHeader(stream);
@@ -333,7 +333,7 @@ final class PrefetchedRowGroupBuilder {
         String path,
         int rowGroupOrdinal
     ) {
-        ByteArrayInputStream stream = bufferAsStream(pageSlice);
+        InputStream stream = bufferAsStream(pageSlice);
         try {
             int before = stream.available();
             PageHeader header = Util.readPageHeader(stream);
@@ -448,7 +448,9 @@ final class PrefetchedRowGroupBuilder {
 
     /**
      * Source of column page bytes. Two implementations: prefetched (random-access slices into
-     * heap buffers) and storage-object (sequential streaming with no random access).
+     * direct buffers — {@link ColumnChunkPrefetcher} promotes any heap buffer returned by
+     * {@code readBytesAsync} to direct) and storage-object (sequential streaming with no random
+     * access).
      */
     private interface ColumnPageBytesSource {
         ByteBuffer slice(long fileOffset, int length, String columnPath, int pageIndex);
@@ -655,16 +657,14 @@ final class PrefetchedRowGroupBuilder {
 
     // ---------------- ByteBuffer / BytesInput helpers ----------------
 
-    private static ByteArrayInputStream bufferAsStream(ByteBuffer buffer) {
-        // Util.readPageHeader needs an InputStream; copying a small header-prefix is cheaper
-        // than wrapping the buffer in a ByteBufferInputStream just to track available()/read().
-        // We keep the buffer for the payload slice afterwards.
+    private static InputStream bufferAsStream(ByteBuffer buffer) {
+        // Util.readPageHeader needs an InputStream. Heap buffers can be wrapped zero-copy via
+        // ByteArrayInputStream. Direct buffers use ByteBufferPageHeaderStream to avoid copying
+        // the entire page just to parse a ~20-byte header.
         if (buffer.hasArray()) {
             return new ByteArrayInputStream(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        byte[] copy = UninitializedArrays.newByteArray(buffer.remaining());
-        buffer.duplicate().get(copy);
-        return new ByteArrayInputStream(copy);
+        return new ByteBufferPageHeaderStream(buffer.duplicate());
     }
 
     private static ByteBuffer sliceFromBuffer(ByteBuffer source, int offsetFromPosition, int length) {
@@ -674,26 +674,26 @@ final class PrefetchedRowGroupBuilder {
         return dup.slice();
     }
 
-    private static BytesInput bytesInputFrom(ByteBuffer buffer) {
+    static BytesInput bytesInputFrom(ByteBuffer buffer) {
         if (buffer.hasArray()) {
             return BytesInput.from(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        byte[] copy = UninitializedArrays.newByteArray(buffer.remaining());
-        buffer.duplicate().get(copy);
-        return BytesInput.from(copy);
+        // Direct buffer: wrap as-is so decompressToDirectBuffer sees isDirect()==true and skips
+        // the heap→direct copy that would otherwise fire per page.
+        return BytesInput.from(buffer.duplicate());
     }
 
-    private static BytesInput bytesInputFromSlice(ByteBuffer source, int offsetFromPosition, int length) {
+    static BytesInput bytesInputFromSlice(ByteBuffer source, int offsetFromPosition, int length) {
         if (length == 0) {
             return BytesInput.empty();
         }
         if (source.hasArray()) {
             return BytesInput.from(source.array(), source.arrayOffset() + source.position() + offsetFromPosition, length);
         }
-        byte[] copy = UninitializedArrays.newByteArray(length);
-        ByteBuffer dup = source.duplicate();
-        dup.position(source.position() + offsetFromPosition);
-        dup.get(copy);
-        return BytesInput.from(copy);
+        // Direct buffer: slice without copying.
+        ByteBuffer slice = source.duplicate();
+        slice.position(source.position() + offsetFromPosition);
+        slice.limit(slice.position() + length);
+        return BytesInput.from(slice.slice());
     }
 }

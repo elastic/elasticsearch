@@ -32,6 +32,7 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -39,6 +40,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
+import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction;
@@ -206,6 +208,10 @@ public final class IndexPrivilege extends Privilege {
     private static final Automaton READ_VIEW_METADATA_AUTOMATON = patterns(EsqlViewActionNames.ESQL_GET_VIEW_ACTION_NAME);
     private static final Automaton DELETE_VIEW_AUTOMATON = patterns(EsqlViewActionNames.ESQL_DELETE_VIEW_ACTION_NAME);
     private static final Automaton MANAGE_VIEW_AUTOMATON = patterns("indices:admin/esql/view*");
+    private static final Automaton CREATE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_PUT_DATASET_ACTION_NAME);
+    private static final Automaton DELETE_DATASET_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_DELETE_DATASET_ACTION_NAME);
+    private static final Automaton READ_DATASET_METADATA_AUTOMATON = patterns(EsqlDatasetActionNames.ESQL_GET_DATASET_ACTION_NAME);
+    private static final Automaton MANAGE_DATASET_AUTOMATON = patterns("indices:admin/esql/dataset/*");
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
@@ -250,6 +256,10 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege CREATE_VIEW = new IndexPrivilege("create_view", CREATE_VIEW_AUTOMATON);
     public static final IndexPrivilege DELETE_VIEW = new IndexPrivilege("delete_view", DELETE_VIEW_AUTOMATON);
     public static final IndexPrivilege READ_VIEW_METADATA = new IndexPrivilege("read_view_metadata", READ_VIEW_METADATA_AUTOMATON);
+    public static final IndexPrivilege MANAGE_DATASET = new IndexPrivilege("manage_dataset", MANAGE_DATASET_AUTOMATON);
+    public static final IndexPrivilege CREATE_DATASET = new IndexPrivilege("create_dataset", CREATE_DATASET_AUTOMATON);
+    public static final IndexPrivilege DELETE_DATASET = new IndexPrivilege("delete_dataset", DELETE_DATASET_AUTOMATON);
+    public static final IndexPrivilege READ_DATASET_METADATA = new IndexPrivilege("read_dataset_metadata", READ_DATASET_METADATA_AUTOMATON);
 
     public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
         "read_failure_store",
@@ -272,33 +282,43 @@ public final class IndexPrivilege extends Privilege {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         ),
         sortByAccessLevel(
-            Stream.of(
-                entry("none", NONE),
-                entry("all", ALL),
-                entry("manage", MANAGE),
-                entry("create_index", CREATE_INDEX),
-                entry("monitor", MONITOR),
-                entry("read", READ),
-                entry("index", INDEX),
-                entry("delete", DELETE),
-                entry("write", WRITE),
-                entry("create", CREATE),
-                entry("create_doc", CREATE_DOC),
-                entry("delete_index", DELETE_INDEX),
-                entry("view_index_metadata", VIEW_METADATA),
-                entry("read_cross_cluster", DEPRECATED_READ_CROSS_CLUSTER),
-                entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
-                entry("manage_leader_index", MANAGE_LEADER_INDEX),
-                entry("manage_ilm", MANAGE_ILM),
-                entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
-                entry("maintenance", MAINTENANCE),
-                entry("auto_configure", AUTO_CONFIGURE),
-                entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
-                entry("manage_view", MANAGE_VIEW),
-                entry("create_view", CREATE_VIEW),
-                entry("delete_view", DELETE_VIEW),
-                entry("read_view_metadata", READ_VIEW_METADATA)
+            Stream.concat(
+                Stream.of(
+                    entry("none", NONE),
+                    entry("all", ALL),
+                    entry("manage", MANAGE),
+                    entry("create_index", CREATE_INDEX),
+                    entry("monitor", MONITOR),
+                    entry("read", READ),
+                    entry("index", INDEX),
+                    entry("delete", DELETE),
+                    entry("write", WRITE),
+                    entry("create", CREATE),
+                    entry("create_doc", CREATE_DOC),
+                    entry("delete_index", DELETE_INDEX),
+                    entry("view_index_metadata", VIEW_METADATA),
+                    entry("read_cross_cluster", DEPRECATED_READ_CROSS_CLUSTER),
+                    entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
+                    entry("manage_leader_index", MANAGE_LEADER_INDEX),
+                    entry("manage_ilm", MANAGE_ILM),
+                    entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
+                    entry("maintenance", MAINTENANCE),
+                    entry("auto_configure", AUTO_CONFIGURE),
+                    entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
+                    entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
+                    entry("manage_view", MANAGE_VIEW),
+                    entry("create_view", CREATE_VIEW),
+                    entry("delete_view", DELETE_VIEW),
+                    entry("read_view_metadata", READ_VIEW_METADATA)
+                ),
+                DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                    ? Stream.of(
+                        entry("manage_dataset", MANAGE_DATASET),
+                        entry("create_dataset", CREATE_DATASET),
+                        entry("delete_dataset", DELETE_DATASET),
+                        entry("read_dataset_metadata", READ_DATASET_METADATA)
+                    )
+                    : Stream.of()
             ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
         )
     );

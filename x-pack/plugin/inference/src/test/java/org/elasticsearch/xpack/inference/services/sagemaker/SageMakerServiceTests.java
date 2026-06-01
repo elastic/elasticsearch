@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.assertArg;
@@ -176,22 +177,11 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvoke();
 
-        sageMakerService.infer(
-            model,
-            QUERY,
-            null,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
-            THIRTY_SECONDS,
-            assertNoFailureListener(ignored -> {
-                verify(schemas, only()).schemaFor(eq(model));
-                verify(schema, times(1)).request(eq(model), assertRequest());
-                verify(schema, times(1)).response(eq(model), any(), any());
-            })
-        );
+        sageMakerService.infer(model, INPUT, false, null, INPUT_TYPE, THIRTY_SECONDS, assertNoFailureListener(ignored -> {
+            verify(schemas, only()).schemaFor(eq(model));
+            verify(schema, times(1)).request(eq(model), assertRequest());
+            verify(schema, times(1)).response(eq(model), any(), any());
+        }));
         verify(client, only()).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
@@ -207,13 +197,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         var topN = randomNonNegativeIntOrNull();
         sageMakerService.rerankInfer(
             model,
-            new RerankRequest(
-                InferenceString.fromStringList(INPUT),
-                new InferenceString(DataType.TEXT, QUERY),
-                topN,
-                returnDocuments,
-                null
-            ),
+            new RerankRequest(InferenceString.fromStringList(INPUT), InferenceString.ofText(QUERY), topN, returnDocuments, null),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).schemaFor(eq(model));
@@ -282,7 +266,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
-        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, null, latchedListener);
+        service.infer(model, INPUT, false, null, InputType.SEARCH, null, latchedListener);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         assertEquals(configuredTimeout, capturedTimeout.get());
@@ -309,7 +293,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
-        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, providedTimeout, latchedListener);
+        service.infer(model, INPUT, false, null, InputType.SEARCH, providedTimeout, latchedListener);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
         assertEquals(providedTimeout, capturedTimeout.get());
@@ -334,7 +318,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private static SageMakerInferenceRequest assertRequest() {
         return assertArg(request -> {
-            assertThat(request.query(), equalTo(QUERY));
+            assertThat(request.query(), is(nullValue()));
             assertThat(request.input(), containsInAnyOrder(INPUT.toArray()));
             assertThat(request.inputType(), equalTo(InputType.UNSPECIFIED));
             assertNull(request.returnDocuments());
@@ -359,7 +343,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
         mockInvokeStream();
 
-        sageMakerService.infer(model, QUERY, null, null, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoFailureListener(ignored -> {
+        sageMakerService.infer(model, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoFailureListener(ignored -> {
             verify(schemas, only()).streamSchemaFor(eq(model));
             verify(schema, times(1)).streamRequest(eq(model), assertRequest());
             verify(schema, times(1)).streamResponse(eq(model), any());
@@ -386,22 +370,11 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.schemaFor(model)).thenReturn(schema);
         mockInvokeFailure(expectedException);
 
-        sageMakerService.infer(
-            model,
-            QUERY,
-            null,
-            null,
-            INPUT,
-            false,
-            null,
-            INPUT_TYPE,
-            THIRTY_SECONDS,
-            assertNoSuccessListener(ignored -> {
-                verify(schemas, only()).schemaFor(eq(model));
-                verify(schema, times(1)).request(eq(model), assertRequest());
-                verify(schema, times(1)).error(eq(model), assertArg(e -> assertThat(e, equalTo(expectedException))));
-            })
-        );
+        sageMakerService.infer(model, INPUT, false, null, INPUT_TYPE, THIRTY_SECONDS, assertNoSuccessListener(ignored -> {
+            verify(schemas, only()).schemaFor(eq(model));
+            verify(schema, times(1)).request(eq(model), assertRequest());
+            verify(schema, times(1)).error(eq(model), assertArg(e -> assertThat(e, equalTo(expectedException))));
+        }));
         verify(client, only()).invoke(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(client, schemas, schema);
     }
@@ -422,7 +395,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         when(schemas.streamSchemaFor(model)).thenReturn(schema);
         doThrow(new IllegalArgumentException("wow, really?")).when(client).invokeStream(any(), any(), any(), any(), any());
 
-        sageMakerService.infer(model, QUERY, null, null, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoSuccessListener(e -> {
+        sageMakerService.infer(model, INPUT, true, null, INPUT_TYPE, THIRTY_SECONDS, assertNoSuccessListener(e -> {
             verify(schemas, only()).streamSchemaFor(eq(model));
             verify(schema, times(1)).streamRequest(eq(model), assertRequest());
             assertThat(e, isA(ElasticsearchStatusException.class));
@@ -520,7 +493,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
     public void testChunkedInferWithWrongModel() {
         sageMakerService.chunkedInfer(
             mockUnsupportedModel(),
-            QUERY,
             INPUT.stream().map(ChunkInferenceInput::new).toList(),
             null,
             INPUT_TYPE,
@@ -541,7 +513,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.chunkedInfer(
             model,
-            QUERY,
             expectedInput.stream().map(ChunkInferenceInput::new).toList(),
             null,
             INPUT_TYPE,
@@ -565,7 +536,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.chunkedInfer(
             model,
-            QUERY,
             List.of(),
             null,
             INPUT_TYPE,
@@ -591,7 +561,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
     private static SageMakerInferenceRequest assertChunkRequest(Set<String> expectedInput) {
         return assertArg(request -> {
-            assertThat(request.query(), equalTo(QUERY));
+            assertThat(request.query(), is(nullValue()));
             assertThat(request.input(), hasSize(1));
             assertThat(request.input().get(0), in(expectedInput));
             assertThat(request.inputType(), equalTo(InputType.UNSPECIFIED));
@@ -615,7 +585,6 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
 
         sageMakerService.chunkedInfer(
             model,
-            QUERY,
             expectedInput.stream().map(ChunkInferenceInput::new).toList(),
             null,
             INPUT_TYPE,

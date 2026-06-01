@@ -35,20 +35,13 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 
 import java.util.List;
 
-public final class RateExponentialHistogramGroupingAggregatorFunction extends AbstractRateGroupingFunction
+public final class IncreaseExponentialHistogramGroupingAggregatorFunction extends AbstractRateGroupingFunction
     implements
         GroupingAggregatorFunction {
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
-        private final boolean isRateOverTime;
-        private final boolean isDateNanos;
         private final WarningSourceLocation source;
 
-        public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos, WarningSourceLocation source) {
-            if (isRateOverTime) {
-                throw new IllegalArgumentException("Only increase is supported for exponential histograms");
-            }
-            this.isRateOverTime = isRateOverTime;
-            this.isDateNanos = isDateNanos;
+        public FunctionSupplier(WarningSourceLocation source) {
             this.source = source;
         }
 
@@ -68,14 +61,17 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
         }
 
         @Override
-        public RateExponentialHistogramGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+        public IncreaseExponentialHistogramGroupingAggregatorFunction groupingAggregator(
+            DriverContext driverContext,
+            List<Integer> channels
+        ) {
             var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
-            return new RateExponentialHistogramGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
+            return new IncreaseExponentialHistogramGroupingAggregatorFunction(channels, driverContext, warnings);
         }
 
         @Override
         public String describe() {
-            return "rate of ExponentialHistogram";
+            return "increase of ExponentialHistogram";
         }
     }
 
@@ -92,25 +88,15 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final IntervalBuffer intervalBuffer;
-    private final boolean isRateOverTime;
-    private final double dateFactor;
     private final Warnings warnings;
     private final ExponentialHistogramMerger.Factory mergerFactory;
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
 
-    public RateExponentialHistogramGroupingAggregatorFunction(
-        List<Integer> channels,
-        DriverContext driverContext,
-        boolean isRateOverTime,
-        boolean isDateNanos,
-        Warnings warnings
-    ) {
+    public IncreaseExponentialHistogramGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, Warnings warnings) {
         this.channels = channels;
         this.driverContext = driverContext;
-        this.isRateOverTime = isRateOverTime;
         this.bigArrays = driverContext.bigArrays();
-        this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         this.warnings = warnings;
         ExponentialHistogramRawBuffer rawBuffer = null;
         IntervalBuffer intervalBuffer = null;
@@ -541,54 +527,46 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
         }
     }
 
-    static boolean isCumulativeReset(ExponentialHistogram value, ExponentialHistogram valueAfter) {
-        return valueAfter.valueCount() < value.valueCount();
-    }
-
-    private static class ValueWithTimestamp {
+    private static class ValueWithScratch {
         ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
         ExponentialHistogram v;
-        long ts;
 
-        void loadValue(ExponentialHistogramRawBuffer buffer, int valueIndex) {
-            ts = buffer.timestamps.get(valueIndex);
-            v = buffer.values.get(valueIndex, scratch);
+        void load(ExponentialHistogramBuffer buffer, int valueIndex) {
+            v = buffer.get(valueIndex, scratch);
         }
 
-        void swapWith(ValueWithTimestamp other) {
+        void assignFrom(ValueWithScratch other) {
+            // swap the scratches, as the values are just pointers into the scratches
             ExponentialHistogramScratch tmpScratch = scratch;
             scratch = other.scratch;
             other.scratch = tmpScratch;
-            ExponentialHistogram tmpV = v;
             v = other.v;
-            other.v = tmpV;
-
-            long tmpTs = ts;
-            ts = other.ts;
-            other.ts = tmpTs;
+            other.v = null;
         }
     }
 
     void flushGroup(ReducedState state, ExponentialHistogramRawBuffer buffer, FlushQueue flushQueue) {
+        var timestamps = buffer.timestamps;
+        var values = buffer.values;
         if (flushQueue.valueCount == 1) {
             state.samples++;
-            final var first = new ValueWithTimestamp();
-            first.loadValue(buffer, flushQueue.top().start);
-            state.appendInterval(first.ts, first.v, first.ts, first.v);
+            long t = timestamps.get(flushQueue.top().start);
+            var v = values.get(flushQueue.top().start, new ExponentialHistogramScratch());
+            state.appendInterval(t, v, t, v);
             return;
         }
-        // JIT scalar replacement should have an easy job on these three values below
-        // making this as fast as directly using primitives
-        final var prev = new ValueWithTimestamp();
-        final var current = new ValueWithTimestamp();
-        final var last = new ValueWithTimestamp();
-        // first in queue, so last in time (most recent)
+        // first
+        final long lastTimestamp;
+        // JIT scalar replacement should have an easy job on these values
+        final ValueWithScratch lastValue = new ValueWithScratch();
+        final ValueWithScratch prevValue = new ValueWithScratch();
         Slice top;
         {
             top = flushQueue.top();
             int position = top.next();
-            last.loadValue(buffer, position);
-            prev.loadValue(buffer, position);
+            lastTimestamp = timestamps.get(position);
+            lastValue.load(values, position);
+            prevValue.load(values, position);
             if (top.exhausted()) {
                 flushQueue.pop();
                 top = flushQueue.top();
@@ -596,6 +574,7 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
                 top = flushQueue.updateTop();
             }
         }
+        final ValueWithScratch currentValue = new ValueWithScratch();
         long secondNextTimestamp = flushQueue.secondNextTimestamp();
         while (flushQueue.size() > 1) {
             // If the last timestamp is greater than the maximum timestamp of the next two candidate slices,
@@ -603,24 +582,22 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
             // timestamps from the buffer.
             if (top.lastTimestamp() > secondNextTimestamp) {
                 for (int p = top.start; p < top.end; p++) {
-                    current.loadValue(buffer, p);
-                    // prev is more recent (later in time) than current, hence the order
-                    if (isCumulativeReset(current.v, prev.v)) {
-                        state.addToResets(current.v);
+                    currentValue.load(values, p);
+                    if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
+                        state.addToResets(currentValue.v);
                     }
-                    prev.swapWith(current);
+                    prevValue.assignFrom(currentValue);
                 }
                 flushQueue.pop();
                 top = flushQueue.top();
                 secondNextTimestamp = flushQueue.secondNextTimestamp();
                 continue;
             }
-            current.loadValue(buffer, top.next());
-            // prev is more recent (later in time) than current, hence the order
-            if (isCumulativeReset(current.v, prev.v)) {
-                state.addToResets(current.v);
+            currentValue.load(values, top.next());
+            if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
+                state.addToResets(currentValue.v);
             }
-            prev.swapWith(current);
+            prevValue.assignFrom(currentValue);
             if (top.exhausted()) {
                 flushQueue.pop();
                 top = flushQueue.top();
@@ -633,15 +610,14 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
         // last slice
         top = flushQueue.top();
         for (int p = top.start; p < top.end; p++) {
-            current.loadValue(buffer, p);
-            // prev is more recent (later in time) than current, hence the order
-            if (isCumulativeReset(current.v, prev.v)) {
-                state.addToResets(current.v);
+            currentValue.load(values, p);
+            if (currentValue.v.valueCount() > prevValue.v.valueCount()) {
+                state.addToResets(currentValue.v);
             }
-            prev.swapWith(current);
+            prevValue.assignFrom(currentValue);
         }
         state.samples += flushQueue.valueCount;
-        state.appendInterval(last.ts, last.v, buffer.timestamps.get(top.end - 1), prev.v);
+        state.appendInterval(lastTimestamp, lastValue.v, timestamps.get(top.end - 1), prevValue.v);
     }
 
     @Override
@@ -915,7 +891,7 @@ public final class RateExponentialHistogramGroupingAggregatorFunction extends Ab
                     int prevInterval = intervals[i];
                     ExponentialHistogram prevLast = intervalBuffer.lastValue(prevInterval, prevScratch);
                     ExponentialHistogram nextFirst = intervalBuffer.firstValue(nextInterval, nextScratch);
-                    if (isCumulativeReset(prevLast, nextFirst)) {
+                    if (nextFirst.valueCount() < prevLast.valueCount()) {
                         addToResets(prevLast);
                     }
                 }

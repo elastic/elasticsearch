@@ -21,4 +21,4 @@ Two rules apply:
 
 Hand-written families:
 
-- `Rate*GroupingAggregatorFunction`
+- `Rate*GroupingAggregatorFunction` — `IncreaseExponentialHistogramGroupingAggregatorFunction` also belongs to this family.

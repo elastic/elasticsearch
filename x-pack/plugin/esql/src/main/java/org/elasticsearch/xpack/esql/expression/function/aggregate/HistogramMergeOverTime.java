@@ -11,7 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.RateExponentialHistogramGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.IncreaseExponentialHistogramGroupingAggregatorFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
@@ -167,10 +167,8 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        final DataType tsType = timestamp.dataType();
-        final boolean isDateNanos = tsType == DataType.DATE_NANOS;
         if (type == DataType.EXPONENTIAL_HISTOGRAM) {
-            return new RateExponentialHistogramGroupingAggregatorFunction.FunctionSupplier(false, isDateNanos, source());
+            return new IncreaseExponentialHistogramGroupingAggregatorFunction.FunctionSupplier(source());
         }
         if (type == DataType.TDIGEST) {
             throw new IllegalStateException("TDigest type should have caused a surrogate replacement");

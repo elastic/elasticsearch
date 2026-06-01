@@ -114,7 +114,7 @@ public class HistogramMergeOverTimeTests extends AbstractAggregationTestCase {
                 Matcher<?> resultMatcher = histogramMergeMatcher(dataRows, temporality, expectedWarnings);
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData, timestampsField, temporalityField, sliceIndexField, maxTimestampField),
-                    "RateExponentialHistogram",
+                    "IncreaseExponentialHistogram",
                     DataType.EXPONENTIAL_HISTOGRAM,
                     resultMatcher
                 );

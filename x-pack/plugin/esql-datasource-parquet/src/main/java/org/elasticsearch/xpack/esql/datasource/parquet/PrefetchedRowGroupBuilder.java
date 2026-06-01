@@ -264,7 +264,7 @@ final class PrefetchedRowGroupBuilder {
             }
             return new PrefetchedPageReader(decompressor, pages, dictPage, valueCount);
         } catch (IOException e) {
-            throw new UncheckedIOException(
+            throw new IllegalArgumentException(
                 "Failed to read column [" + column.getPath().toDotString() + "] in row group [" + rowGroupOrdinal + "]: " + e.getMessage(),
                 e
             );

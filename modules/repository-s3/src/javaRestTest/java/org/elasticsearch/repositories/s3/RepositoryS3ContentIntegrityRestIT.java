@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.ChunkedEncodingConfiguration;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
@@ -17,6 +18,7 @@ import fixture.s3.S3HttpHandler;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -39,9 +41,13 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
     private static final String SECRET_KEY = PREFIX + "secret-key";
     private static final String CLIENT = "content_integrity_client";
 
+    private static final Supplier<ChunkedEncodingConfiguration> chunkedEncodingConfigurationSupplier = ChunkedEncodingConfiguration
+        .randomSupplier();
+
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
@@ -52,7 +58,14 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         protected HttpHandler createHandler() {
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
-                delegate.assertContentSha256Header(exchange, equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD"));
+                delegate.assertContentSha256Header(
+                    exchange,
+                    equalTo(
+                        chunkedEncodingConfigurationSupplier.get() == ChunkedEncodingConfiguration.DISABLED
+                            ? "STREAMING-AWS4-HMAC-SHA256-PAYLOAD"
+                            : "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER"
+                    )
+                );
                 delegate.handle(exchange);
             };
         }
@@ -64,7 +77,6 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .build();
 
     @ClassRule
@@ -88,5 +100,10 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
     @Override
     protected String getClientName() {
         return CLIENT;
+    }
+
+    @Override
+    protected Settings extraRepositorySettings() {
+        return chunkedEncodingConfigurationSupplier.get().asSettings();
     }
 }

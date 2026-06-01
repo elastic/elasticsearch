@@ -673,7 +673,7 @@ public class ESNextDiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCas
                         while (iterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             maxDoc = iterator.docID();
                         }
-                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc);
+                        ESAcceptDocs.SliceAcceptDocs sliceAcceptDocs = new SliceAcceptDocs(minDoc, maxDoc + 1);
                         Bits liveDocs = leafReader.getLiveDocs();
                         ESAcceptDocs acceptDocs;
                         if (applyFilter) {

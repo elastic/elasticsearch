@@ -122,13 +122,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             MappedFieldType.FieldExtractPreference.NONE,
             MappedFieldType.FieldExtractPreference.STORED
         )) {
-            for (IndexMode indexMode : IndexMode.values()) {
-                // TODO: Support COLUMNAR and LOGSDB_COLUMNAR modes in BWC tests
-                // These modes are currently skipped to avoid "No enum constant" errors in mixed-version clusters
-                // where older nodes don't have these enum values yet.
-                if (indexMode.isStrictColumnar()) {
-                    continue;
-                }
+            for (IndexMode indexMode : IndexMode.availableModes()) {
                 args.add(new Object[] { extractPreference, indexMode });
             }
         }
@@ -286,7 +280,18 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     @Before
     public void createIndices() throws IOException {
         if (indexMode == IndexMode.VECTORDB_DOCUMENT) {
-            assumeTrue("Cluster has nodes that do not support index.mode=vectordb_document", vectordbDocumentIndexModeSupported());
+            assumeTrue("vectordb_document index mode requires a snapshot build", Build.current().isSnapshot());
+            assumeTrue(
+                "Cluster has nodes that do not support index.mode=vectordb_document",
+                minVersion().supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
+            );
+        }
+        if (indexMode == IndexMode.COLUMNAR || indexMode == IndexMode.LOGSDB_COLUMNAR) {
+            assumeTrue("Columnar index modes require a snapshot build", Build.current().isSnapshot());
+            assumeTrue(
+                "Cluster has nodes that do not support columnar index modes",
+                minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+            );
         }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {
@@ -665,6 +670,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     }
 
     protected String allIndexPattern() {
+        if (indexMode == IndexMode.LOGSDB) {
+            // logsdb* would also match logsdb_columnar* indices created by the LOGSDB_COLUMNAR test setup
+            return "%mode%*,-" + IndexMode.LOGSDB_COLUMNAR.getName() + "*";
+        }
         return "%mode%*";
     }
 
@@ -1501,7 +1510,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case FLATTENED -> useStoredLoader()
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
                 : matchesList().item("column_at_a_time:");
-            case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
+            case DENSE_VECTOR -> indexMode.isStrictColumnar()
+                ? matchesList().item("column_at_a_time:FloatDenseVectorFromBinary.Bytes")
+                : matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
             case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
                 ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
                 : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");

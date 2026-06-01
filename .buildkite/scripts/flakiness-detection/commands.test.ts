@@ -468,6 +468,66 @@ describe("buildCommands", () => {
     expect(cmds[0].command).toContain("--tests B");
   });
 
+  test("uses default capByKind values when batching all test kinds", () => {
+    const tests: ClassifiedTest[] = [
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit1Tests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit2Tests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit3Tests" },
+      { gradleProject: ":server", kind: "test", sourceSet: "test", fqcn: "Unit4Tests" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "Integ1IT" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "Integ2IT" },
+      { gradleProject: ":server", kind: "internalClusterTest", sourceSet: "internalClusterTest", fqcn: "Integ3IT" },
+      { gradleProject: ":modules:rest", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Rest1IT" },
+      { gradleProject: ":modules:rest", kind: "javaRestTest", sourceSet: "javaRestTest", fqcn: "Rest2IT" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/a/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/b/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/c/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/d/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestSuite", sourceSet: "yamlRestTest", suitePath: "ml/e/test" },
+      { gradleProject: ":x-pack:plugin:ml", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+      { gradleProject: ":x-pack:plugin:security", kind: "yamlRestTestRunner", sourceSet: "yamlRestTest" },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/0}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/1}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/2}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/3}",
+      },
+      {
+        gradleProject: ":x-pack:plugin:esql",
+        kind: "yamlRestTestCase",
+        sourceSet: "yamlRestTest",
+        yamlTest: "test {yaml=esql/4}",
+      },
+    ];
+
+    const cmds = buildCommands(tests, DEFAULT_BATCHING_CONFIG);
+
+    expect(cmds.filter((c) => c.kind === "test")).toHaveLength(2); // 3 + 1
+    expect(cmds.filter((c) => c.kind === "internalClusterTest")).toHaveLength(2); // 2 + 1
+    expect(cmds.filter((c) => c.kind === "javaRestTest")).toHaveLength(2); // 1 + 1
+    expect(cmds.filter((c) => c.kind === "yamlRestTestSuite")).toHaveLength(2); // 4 + 1
+    expect(cmds.filter((c) => c.kind === "yamlRestTestRunner")).toHaveLength(2); // 1 + 1
+    expect(cmds.filter((c) => c.kind === "yamlRestTestCase")).toHaveLength(2); // 4 + 1
+  });
+
   test("respects capByKind to produce multiple batches per kind", () => {
     const tests: ClassifiedTest[] = Array.from({ length: 5 }, (_, i) => ({
       gradleProject: ":server",

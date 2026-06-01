@@ -159,6 +159,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot(forceMergeIndex);
+            waitForMountedIndexToBeAvailable();
             maybeCleanup(forceMergeIndex);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -486,10 +487,31 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 );
             }
             logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
-        } catch (ExecutionException e) {
-            throw ExceptionsHelper.convertToElastic(e, "DLM failed while mounting snapshot [{}]", snapshotName);
+        } catch (Exception e) {
+            Throwable unwrapped = unwrapNestedExceptions(e);
+            if (unwrapped instanceof InterruptedException ie) {
+                throw ie;
+            }
+            throw e instanceof ElasticsearchException ee
+                ? ee
+                : new ElasticsearchException("DLM failed while mounting snapshot [{}]", e, snapshotName);
         }
+    }
 
+    /**
+     * Waits for the mounted searchable snapshot index to reach yellow status (all primary shards allocated) before
+     * the cleanup step swaps it into the data stream. This guards against a partial mount being promoted, which would
+     * point the data stream at an index with no allocated shards while the original index is deleted.
+     * <p>
+     * This is a distinct step to handle both the normal path and a retry / resumption after master failover.
+     * <p>
+     * On timeout this method throws, the error is recorded in the DLM error store, and the next poll-cycle retry
+     * re-enters this same step.
+     */
+    public void waitForMountedIndexToBeAvailable() throws InterruptedException {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+        waitForIndexYellowStatus(snapshotName(indexName));
     }
 
     void maybeCleanup(String forceMergeIndex) throws InterruptedException {
@@ -651,11 +673,11 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Waits up to 1 minute for the given index to reach yellow status (all primary shards allocated).
+     * Waits up to 5 minutes for the given index to reach yellow status (all primary shards allocated).
      * Throws an {@link ElasticsearchException} if the timeout is breached.
      */
     protected void waitForIndexYellowStatus(String index) throws InterruptedException {
-        final TimeValue timeout = TimeValue.timeValueMinutes(1);
+        final TimeValue timeout = TimeValue.timeValueMinutes(5);
         // Use a latch because we do no work, only waiting
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> observerError = new AtomicReference<>();
@@ -695,7 +717,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             timeout,
             logger
         );
-
         try {
             latch.await();
         } catch (InterruptedException e) {

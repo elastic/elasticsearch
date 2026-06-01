@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 145509
-pr: 145960
-summary: Node-reduce driver should not release search contexts on failure
-type: bug

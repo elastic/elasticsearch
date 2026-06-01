@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -124,7 +125,10 @@ public class UnresolvedExternalRelationTests extends ESTestCase {
         Expression nonLiteral = new UnresolvedAttribute(source, "?param");
         UnresolvedExternalRelation relation = new UnresolvedExternalRelation(source, nonLiteral, new HashMap<>());
 
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> new PreAnalyzer().preAnalyze(relation));
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
+            () -> new PreAnalyzer(EsqlTestUtils.TEST_FUNCTION_REGISTRY).preAnalyze(relation)
+        );
         assertThat(ex.getMessage(), containsString("UnresolvedExternalRelation tablePath is not a non-null Literal"));
     }
 

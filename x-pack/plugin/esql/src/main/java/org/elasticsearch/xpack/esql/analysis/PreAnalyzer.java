@@ -43,13 +43,9 @@ public class PreAnalyzer {
 
     private final EsqlFunctionRegistry functionRegistry;
 
-    public PreAnalyzer() {
-        this(null);
-    }
-
     /**
      * @param functionRegistry the function registry to use for inference function resolution
-     *  */
+     */
     public PreAnalyzer(EsqlFunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;
     }

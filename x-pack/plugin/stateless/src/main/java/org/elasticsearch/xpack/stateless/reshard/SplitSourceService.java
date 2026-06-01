@@ -407,7 +407,7 @@ public class SplitSourceService {
                 // We use shard state to do that.
                 // If this function runs first and observes CLOSED, `cancelSplits` may have been executed already
                 // so we need to handle that.
-                // If we don't observe CLOSED, we can rely on `cancelSplits` to be executed (either in the future on right after this).
+                // If we don't observe CLOSED, we can rely on `cancelSplits` to be executed (either in the future or right after this).
                 if (shard.state() == IndexShardState.CLOSED) {
                     return null;
                 }

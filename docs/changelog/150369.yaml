@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150369
+summary: Add ESET PROTECT device vulnerability source index to kibana_system role
+type: enhancement

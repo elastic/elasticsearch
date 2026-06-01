@@ -77,7 +77,6 @@ import java.util.Set;
  * A registry for PromQL functions that maps function names to their respective definitions.
  */
 public class PromqlFunctionRegistry {
-
     private static final PromqlFunctionDefinition[] FUNCTION_DEFINITIONS = new PromqlFunctionDefinition[] {
         //
         Delta.PROMQL_DEFINITION,
@@ -153,9 +152,11 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
+    public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry();
+
     private final Map<String, PromqlFunctionDefinition> promqlFunctions = new HashMap<>();
 
-    public PromqlFunctionRegistry() {
+    private PromqlFunctionRegistry() {
         for (PromqlFunctionDefinition def : FUNCTION_DEFINITIONS) {
             String normalized = normalize(def.name());
             promqlFunctions.put(normalized, def);

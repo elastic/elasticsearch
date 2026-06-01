@@ -63,10 +63,6 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
         return null;
     }
 
-    public static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
-        return OAuth2Settings.hasAnyOAuth2Fields(map) || map.containsKey(AUTH_URL);
-    }
-
     private static boolean validateFields(
         ValidationResult<OAuth2Settings> oauth2Settings,
         @Nullable URI authUrl,
@@ -147,6 +143,10 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
         }
 
         return updatedOAuth2Settings;
+    }
+
+    private static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
+        return OAuth2Settings.hasAnyOAuth2Fields(map) || map.containsKey(AUTH_URL);
     }
 
     public OpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettingsMap, ValidationException validationException) {

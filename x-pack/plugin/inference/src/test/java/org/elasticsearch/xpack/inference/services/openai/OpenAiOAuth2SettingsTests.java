@@ -8,17 +8,19 @@
 package org.elasticsearch.xpack.inference.services.openai;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings;
 
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.AUTH_URL;
+import static org.hamcrest.Matchers.is;
 
 public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OpenAiOAuth2Settings> {
 
@@ -58,17 +60,17 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
     public void testFromMap_BuildsSettingsWhenAllFieldsPresent() {
         var map = new HashMap<String, Object>();
-        map.put("client_id", CLIENT_ID);
-        map.put("scopes", SCOPES);
-        map.put("auth_url", TEST_AUTH_URL.toString());
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
+        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
+        map.put(AUTH_URL, TEST_AUTH_URL.toString());
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
 
         assertNotNull(result);
-        assertEquals(CLIENT_ID, result.clientId());
-        assertEquals(SCOPES, result.scopes());
-        assertEquals(TEST_AUTH_URL, result.authUrl());
+        assertThat(result.clientId(), is(CLIENT_ID));
+        assertThat(result.scopes(), is(SCOPES));
+        assertThat(result.authUrl(), is(TEST_AUTH_URL));
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
@@ -84,31 +86,40 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
     public void testFromMap_ValidationErrorWhenAuthUrlMissing() {
         var map = new HashMap<String, Object>();
-        map.put("client_id", CLIENT_ID);
-        map.put("scopes", SCOPES);
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
+        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
 
         assertNull(result);
         assertFalse(validationException.validationErrors().isEmpty());
-        assertThat(validationException.validationErrors().get(0), containsString("auth_url"));
+        assertThat(
+            validationException.validationErrors().getFirst(),
+            is(Strings.format("[service_settings] all OpenAI OAuth2 fields must be provided together; missing: [%s]", AUTH_URL))
+        );
     }
 
     public void testFromMap_ValidationErrorWhenClientIdMissingButAuthUrlPresent() {
         var map = new HashMap<String, Object>();
-        map.put("auth_url", TEST_AUTH_URL.toString());
+        map.put(AUTH_URL, TEST_AUTH_URL.toString());
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
 
         assertNull(result);
-        assertFalse(validationException.validationErrors().isEmpty());
-    }
-
-    public void testHasAnyOAuth2Fields_ReturnsTrueForAuthUrlOnly() {
-        Map<String, Object> map = Map.of("auth_url", TEST_AUTH_URL.toString());
-        assertTrue(OpenAiOAuth2Settings.hasAnyOAuth2Fields(map));
+        assertThat(
+            validationException.validationErrors(),
+            is(
+                List.of(
+                    Strings.format(
+                        "[service_settings] all OpenAI OAuth2 fields must be provided together; missing: [%s, %s]",
+                        OAuth2Settings.CLIENT_ID_FIELD,
+                        OAuth2Settings.SCOPES_FIELD
+                    )
+                )
+            )
+        );
     }
 
     public void testUpdateServiceSettings_RetainsExistingFieldsWhenMapEmpty() {
@@ -117,7 +128,7 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
         var updated = original.updateServiceSettings(new HashMap<>(), validationException);
 
-        assertEquals(original, updated);
+        assertThat(updated, is(original));
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
@@ -125,12 +136,12 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
         var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, INITIAL_TEST_AUTH_URL);
 
         var map = new HashMap<String, Object>();
-        map.put("auth_url", TEST_AUTH_URL.toString());
+        map.put(AUTH_URL, TEST_AUTH_URL.toString());
 
         var updated = original.updateServiceSettings(map, new ValidationException());
 
-        assertEquals(TEST_AUTH_URL, updated.authUrl());
-        assertEquals(original.clientId(), updated.clientId());
-        assertEquals(original.scopes(), updated.scopes());
+        assertThat(updated.authUrl(), is(TEST_AUTH_URL));
+        assertThat(updated.clientId(), is(original.clientId()));
+        assertThat(updated.scopes(), is(original.scopes()));
     }
 }

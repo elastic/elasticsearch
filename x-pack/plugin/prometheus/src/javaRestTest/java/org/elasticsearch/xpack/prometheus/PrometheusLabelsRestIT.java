@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.prometheus;
 
-import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.NameValuePair;
+import org.apache.http.message.BasicNameValuePair;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 
-import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +34,6 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
     public void testInvalidSelectorSyntaxReturnsBadRequest() throws Exception {
         // {not valid!!!} is not valid PromQL
         Request request = labelsRequest("{not valid!!!}");
-        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -41,7 +41,6 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
     public void testRangeSelectorReturnsBadRequest() throws Exception {
         // up[5m] is a range vector, not an instant vector
         Request request = labelsRequest("up[5m]");
-        addReadAuth(request);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
@@ -49,8 +48,7 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
     public void testGetWithNoMatchSelectorReturnsSuccess() throws Exception {
         // match[] is optional for the labels endpoint (unlike series)
         writeMetric("labels_no_selector_gauge", Map.of());
-        Request request = new Request("GET", "/_prometheus/api/v1/labels");
-        addReadAuth(request);
+        Request request = prometheusReadRequest("/_prometheus/api/v1/labels");
         Response response = client().performRequest(request);
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -104,38 +102,31 @@ public class PrometheusLabelsRestIT extends AbstractPrometheusRestIT {
         writeMetric("multi_labels_metric_b", Map.of("label_only_in_b", "value_b"));
         writeMetric("multi_labels_metric_c", Map.of("label_only_in_c", "value_c")); // must not appear in results
 
-        // Use URIBuilder to send two match[] selectors in a single request, working around the
-        // test client's single-value-per-key restriction on Request.addParameter.
-        Request request = new Request(
-            "GET",
-            new URIBuilder("/_prometheus/api/v1/labels").addParameter("match[]", "multi_labels_metric_a")
-                .addParameter("match[]", "multi_labels_metric_b")
-                .build()
-                .toString()
+        Request request = prometheusReadRequest(
+            "/_prometheus/api/v1/labels",
+            new BasicNameValuePair("match[]", "multi_labels_metric_a"),
+            new BasicNameValuePair("match[]", "multi_labels_metric_b")
         );
-        addReadAuth(request);
         List<String> data = (List<String>) entityAsMap(client().performRequest(request)).get("data");
 
         assertThat(data, containsInAnyOrder("__name__", "label_only_in_a", "label_only_in_b"));
     }
 
     /** Builds a labels request with optional {@code match[]} parameters. */
-    private static Request labelsRequest(String... matchers) {
-        Request request = new Request("GET", "/_prometheus/api/v1/labels");
-        for (String matcher : matchers) {
-            request.addParameter("match[]", matcher);
-        }
-        return request;
+    private Request labelsRequest(String... matchers) {
+        return prometheusReadRequest(
+            "/_prometheus/api/v1/labels",
+            Arrays.stream(matchers).map(matcher -> new BasicNameValuePair("match[]", matcher)).toArray(NameValuePair[]::new)
+        );
     }
 
-    private Response queryLabels(String... matchers) throws IOException {
+    private Response queryLabels(String... matchers) throws Exception {
         Request request = labelsRequest(matchers);
-        addReadAuth(request);
         return client().performRequest(request);
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> queryLabelsData(String... matchers) throws IOException {
+    private List<String> queryLabelsData(String... matchers) throws Exception {
         Map<String, Object> body = entityAsMap(queryLabels(matchers));
         return (List<String>) body.get("data");
     }

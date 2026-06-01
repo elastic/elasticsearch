@@ -1,5 +1,0 @@
-area: "Infra/Logging"
-issues: []
-pr: 148362
-summary: Monitor exceptions in processing queries and log them as failures
-type: bug

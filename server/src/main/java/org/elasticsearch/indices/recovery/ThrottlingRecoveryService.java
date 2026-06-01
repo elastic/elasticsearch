@@ -35,6 +35,7 @@ import java.util.function.Consumer;
  * which can be dynamically updated. If limit is increased, pending tasks will be dispatched up to the new limit.
  * If limit decreases, no tasks will be canceled, and we will let running tasks finish.
  */
+// todo: Cleanup logging. Some logging will be useful, but currently it's too much
 public final class ThrottlingRecoveryService {
     /**
      * Controls the number of concurrent recoveries allowed on target node.
@@ -95,6 +96,7 @@ public final class ThrottlingRecoveryService {
     private void fillSlots() {
         int current;
         while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && !pendingRecoveries.isEmpty()) {
+            logger.trace("--> try to dispatch on current [{}]", current);
             if (runningRecoveries.compareAndSet(current, current + 1)) {
                 RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
@@ -105,10 +107,15 @@ public final class ThrottlingRecoveryService {
                     );
                     executor.execute(nextTask);
                 } else {
+                    logger.trace("--> nothing in queue when looked again, try again");
                     runningRecoveries.decrementAndGet();
                 }
+            } else {
+                logger.trace("--> failed in CAS, try again");
             }
+            logger.trace("--> end of loop, try again");
         }
+        logger.trace("--> exit dispatch, pendingSize: [{}], running: [{}]", pendingRecoveries.size(), current);
     }
 
     private void closeAndFillSlots(RecoveryTask recoveryTask) {
@@ -124,9 +131,11 @@ public final class ThrottlingRecoveryService {
     }
 
     private void setMaxConcurrentRecoveries(Integer newMaxConcurrentRecoveries) {
+        logger.info("--> set max concurrent recoveries to [{}]", newMaxConcurrentRecoveries);
         int oldMax = this.maxConcurrentRecoveries;
         this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
         if (oldMax < newMaxConcurrentRecoveries) {
+            logger.info("--> call dispatch from settings update");
             fillSlots();
         }
     }
@@ -143,7 +152,7 @@ public final class ThrottlingRecoveryService {
             this.listener = RecoveryListener.runAfter(recoveryListener, () -> {
                 boolean firstRelease = released.compareAndSet(false, true);
                 assert firstRelease : "already released";
-                //noinspection ConstantValue
+                // noinspection ConstantValue
                 if (firstRelease) {
                     closeAndFillSlots(this);
                 }

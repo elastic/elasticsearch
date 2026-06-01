@@ -53,7 +53,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void waitForTrialLicenseToBeGenerated() throws Exception {
-        assertBusy(() -> assertNotNull(getInstanceFromNode(ClusterService.class).state().metadata().custom(LicensesMetadata.TYPE)));
+        awaitClusterState(state -> state.metadata().custom(LicensesMetadata.TYPE) != null);
     }
 
     public void testStoreAndGetLicenses() throws Exception {

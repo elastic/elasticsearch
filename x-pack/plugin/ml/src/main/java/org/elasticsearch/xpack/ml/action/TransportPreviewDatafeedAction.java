@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -165,17 +167,30 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             previewDatafeedBuilder.setHeaders(
                 ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state())
             );
+            // Preview uses the caller's cloud credential, not the datafeed's persisted minted key (same as
+            // overwriting stored security headers with the previewing user's headers).
+            previewDatafeedBuilder.setCloudInternalCredential(null);
             // NB: this is using the client from the transport layer, NOT the internal client.
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
+            if (previewDatafeedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
+                listener.onFailure(projectRoutingRequiresCpsException());
+                return;
+            }
             // Apply cross-project search mode to IndicesOptions before creating the factory
             DatafeedConfig effectiveDatafeedConfig = DatafeedConfig.withCrossProjectModeIfEnabled(
                 previewDatafeedConfig,
                 crossProjectModeDecider
             );
-            DataExtractorFactory.create(
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            final CloudCredential callerCredential = extractCallerCloudCredential(cloudCredentialManager, threadContext);
+            final Client previewClient = cloudCredentialManager.wrapClient(
                 new ParentTaskAssigningClient(client, parentTaskId),
+                callerCredential
+            );
+            DataExtractorFactory.create(
+                previewClient,
                 cloudCredentialManager,
                 effectiveDatafeedConfig,
                 extraFilters,
@@ -185,7 +200,8 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy, listener1) -> {}),
                 responseHeaderPreservingListener.delegateFailure(
                     (l, dataExtractorFactory) -> isDateNanos(
-                        previewDatafeedConfig,
+                        previewClient,
+                        effectiveDatafeedConfig,
                         job.getDataDescription().getTimeField(),
                         l.delegateFailure((l2, isDateNanos) -> {
                             final long start = request.getStartTime().orElse(0);
@@ -219,19 +235,34 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         return previewDatafeed;
     }
 
-    private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+    /**
+     * Visible for testing
+     */
+    static CloudCredential extractCallerCloudCredential(CloudCredentialManager cloudCredentialManager, ThreadContext threadContext) {
+        if (cloudCredentialManager.hasCloudManagedCredential(threadContext)) {
+            return cloudCredentialManager.extractCloudManagedCredential(threadContext);
+        }
+        return null;
+    }
+
+    /**
+     * Visible for testing
+     */
+    static ElasticsearchStatusException projectRoutingRequiresCpsException() {
+        return new ElasticsearchStatusException(
+            "project_routing is only supported in environments that support cross-project calls",
+            RestStatus.BAD_REQUEST
+        );
+    }
+
+    private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
         fieldCapabilitiesRequest.fields(timeField);
-        final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final CloudCredential callerCredential = cloudCredentialManager.hasCloudManagedCredential(threadContext)
-            ? cloudCredentialManager.extractCloudManagedCredential(threadContext)
-            : null;
-        final Client fieldCapsClient = cloudCredentialManager.wrapClient(client, callerCredential);
         executeWithHeadersAsync(
             datafeed.getHeaders(),
             ML_ORIGIN,
-            fieldCapsClient,
+            previewClient,
             TransportFieldCapabilitiesAction.TYPE,
             fieldCapabilitiesRequest,
             listener.delegateFailureAndWrap((l, fieldCapsResponse) -> l.onResponse(timeFieldIsDateNanos(fieldCapsResponse, timeField)))

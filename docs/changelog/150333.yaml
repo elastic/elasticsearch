@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 150333
+summary: Compare PromQL labels across passthrough fields
+type: bug

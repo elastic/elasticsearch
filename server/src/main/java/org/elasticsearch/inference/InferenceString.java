@@ -55,6 +55,13 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
     }
 
     /**
+     * Convenience constructor for creating {@link InferenceString} with {@link DataType#TEXT} and {@link DataFormat#TEXT}
+     */
+    public static InferenceString ofText(String textValue) {
+        return new InferenceString(DataType.TEXT, DataFormat.TEXT, textValue);
+    }
+
+    /**
      * Constructs an {@link InferenceString} with the given value and {@link DataType}, using the
      * default {@link DataFormat} for the data type
      *
@@ -144,7 +151,7 @@ public record InferenceString(DataType dataType, DataFormat dataFormat, String v
      * @return a list of {@link InferenceString}
      */
     public static List<InferenceString> fromStringList(List<String> strings) {
-        return strings.stream().map(aString -> new InferenceString(DataType.TEXT, aString)).toList();
+        return strings.stream().map(InferenceString::ofText).toList();
     }
 
     /**

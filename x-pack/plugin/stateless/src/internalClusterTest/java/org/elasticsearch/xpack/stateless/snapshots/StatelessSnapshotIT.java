@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -15,22 +16,31 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.NodeShutdownTestUtils;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -41,12 +51,19 @@ import org.elasticsearch.xpack.stateless.StatelessMockRepository;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryPlugin;
 import org.elasticsearch.xpack.stateless.StatelessMockRepositoryStrategy;
 import org.elasticsearch.xpack.stateless.TestUtils;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.RefreshManagerService;
+import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotSettings.StatelessSnapshotEnabledStatus;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
@@ -61,6 +78,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -90,6 +111,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         plugins.add(ShutdownPlugin.class);
+        plugins.add(InternalSettingsPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -98,13 +120,17 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         return false;
     }
 
-    public void testStatelessSnapshotReadsFromObjectStore() {
+    public void testStatelessSnapshotReadsFromObjectStore() throws IOException {
+        // Create the node and index with disabled background refresh, flush and merge
+        // so that we get expected number and layout for generated commits.
         final var indexNodeName = startMasterAndIndexNode(
-            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+            Settings.builder()
+                .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .build()
         );
-
         final String indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
+        createIndex(indexName, indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build());
         indexAndMaybeFlush(indexName);
 
         final var repoName = randomIdentifier();
@@ -146,7 +172,9 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
         // 2. Enable stateless snapshot and take another snapshot. The object store should see reads with SNAPSHOT_DATA operation purpose
         indexAndMaybeFlush(indexName);
-        updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store"));
+        updateClusterSettings(
+            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), randomFrom("read_from_object_store", "enabled"))
+        );
         createSnapshot(repoName, "snap-2", List.of(indexName), List.of());
         assertTrue(snapshotReadSeen.get());
 
@@ -157,9 +185,53 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "disabled"));
         createSnapshot(repoName, "snap-3", List.of(indexName), List.of());
         assertFalse(snapshotReadSeen.get());
+
+        // Verify the snapshots should have expected deduplication, i.e. the later snapshot should reference files from the earlier
+        // ones without re-creating them. Note this assumes no merge happens between snapshots which is true in this test since it is
+        // disabled when creating the index earlier.
+        final var repositoriesService = internalCluster().getInstance(RepositoriesService.class, indexNodeName);
+        final var repositoryData = safeAwait(
+            (ActionListener<RepositoryData> l) -> repositoriesService.getRepositoryData(ProjectId.DEFAULT, repoName, l)
+        );
+        final IndexId indexId = repositoryData.resolveIndexId(indexName);
+        final var repo = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
+        final var blobStoreIndexShardSnapshots = repo.getBlobStoreIndexShardSnapshots(
+            indexId,
+            0,
+            repositoryData.shardGenerations().getShardGen(indexId, 0)
+        );
+
+        // Build a map of snapshot names to their corresponding file names, excluding the segment_N file since it is
+        // unique to each snapshot due to new commit being created in between.
+        final Map<String, List<String>> snapshotToFiles = blobStoreIndexShardSnapshots.snapshots()
+            .stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    SnapshotFiles::snapshot,
+                    snapshotFiles -> snapshotFiles.indexFiles()
+                        .stream()
+                        .map(BlobStoreIndexShardSnapshot.FileInfo::name)
+                        .filter(
+                            physicalName -> blobStoreIndexShardSnapshots.findNameFile(physicalName)
+                                .metadata()
+                                .name()
+                                .startsWith(IndexFileNames.SEGMENTS + "_") == false
+                        )
+                        .collect(Collectors.toList())
+                )
+            );
+
+        assertTrue(
+            "unmatched snapshot files: " + snapshotToFiles,
+            snapshotToFiles.get("snap-2").containsAll(snapshotToFiles.get("snap-1"))
+        );
+        assertTrue(
+            "unmatched snapshot files: " + snapshotToFiles,
+            snapshotToFiles.get("snap-3").containsAll(snapshotToFiles.get("snap-2"))
+        );
     }
 
-    public void testStatelessSnapshotBasic() {
+    public void testStatelessSnapshotBasic() throws Exception {
         final var settings = Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store").build();
         startMasterAndIndexNode(settings);
         startSearchNode(settings);
@@ -189,6 +261,11 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
         ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName), nDocs);
+
+        // continuing indexing works as expected
+        final var moreDocs = between(10, 50);
+        indexDocsAndRefresh(indexName, moreDocs);
+        assertHitCount(prepareSearch(indexName), nDocs + moreDocs);
     }
 
     public void testStatelessSnapshotDoesNotReadFromCache() {
@@ -482,6 +559,114 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testCommitReleasedPromptlyOnRelocation() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), StatelessSnapshotEnabledStatus.ENABLED)
+            .put(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put("thread_pool.snapshot.max", 1) // single thread for controlled test
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+
+        final var bufferSize = BlobStoreRepository.BUFFER_SIZE_SETTING.get(Settings.EMPTY);
+        // Create a large segment so that the file is large enough (> default 128KB buffer size) so that they require multiple reads
+        indexDocs(indexName, 500, UnaryOperator.identity(), null, () -> Map.of("field", randomUnicodeOfCodepointLength(1024)));
+        flush(indexName);
+
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        // Block snapshot data reads twice so that the 2nd one has a chance to release the commit
+        final var blockingCount = new AtomicInteger(2);
+        final var dataReadProceedBarrier = new CyclicBarrier(2);
+
+        setNodeRepositoryStrategy(node0, new AssertNoMissingBlobStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                final var original = super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+                if (purpose == OperationPurpose.SNAPSHOT_DATA && length > bufferSize.getBytes()) {
+                    return new FilterInputStream(original) {
+                        @Override
+                        public int read() throws IOException {
+                            maybeBlockRead();
+                            return super.read();
+                        }
+
+                        @Override
+                        public int read(byte[] b, int off, int len) throws IOException {
+                            maybeBlockRead();
+                            return super.read(b, off, len);
+                        }
+
+                        private void maybeBlockRead() {
+                            if (blockingCount.decrementAndGet() >= 0) {
+                                logger.info("--> blocking snapshot data read");
+                                safeAwait(dataReadProceedBarrier);
+                                safeAwait(dataReadProceedBarrier);
+                                logger.info("--> proceeding with snapshot data read");
+                            }
+                        }
+                    };
+                }
+                return original;
+            }
+        });
+
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomSnapshotName())
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        // Wait till the snapshot read is blocked the first time
+        safeAwait(dataReadProceedBarrier);
+
+        logger.info("--> relocating to [{}]", node1);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node1)));
+
+        // The tracked commit is released by SnapshotsCommitService due to relocation
+        final var snapshotCommitService = internalCluster().getInstance(SnapshotsCommitService.class, node0);
+        assertBusy(() -> assertFalse(snapshotCommitService.hasTrackingForShard(shardId)));
+
+        // Let the first snapshot data read proceed, it should release the commit on detecting relocation and keep reading.
+        safeAwait(dataReadProceedBarrier);
+        // Wait for it to block the 2nd time.
+        safeAwait(dataReadProceedBarrier);
+
+        // Verify the shard can relocate back, i.e. the store is closed because the commit is fully released
+        logger.info("--> relocating back to [{}]", node0);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node1));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node0)));
+
+        // Unblock data reads and let the snapshot complete
+        safeAwait(dataReadProceedBarrier);
+
+        final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+
+        for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
+            assertBusy(() -> assertFalse(commitService.hasTrackingForShard(shardId)));
+        }
+    }
+
     public void testRelocationDuringCommitAcquisition() throws Exception {
         final var settings = Settings.builder()
             .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "enabled")
@@ -569,6 +754,83 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
             assertBusy(() -> assertFalse(commitService.hasTrackingForShard(indices.shardIdA())));
             assertBusy(() -> assertFalse(commitService.hasTrackingForShard(indices.shardIdB())));
+        }
+    }
+
+    public void testRelocationDuringConcurrentFileSnapshotsReleasesCommitCleanly() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "enabled")
+            .put(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            // Allow at least two FileSnapshotTask instances to run concurrently so multiple fileReader performs inc-ref
+            .put("thread_pool.snapshot.max", 2)
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+        // Create large segments so that we can differentiate them from the smaller .si and segments_N files and block their reading
+        for (int i = 0; i < 4; i++) {
+            indexDocs(
+                indexName,
+                between(50, 100),
+                UnaryOperator.identity(),
+                null,
+                () -> Map.of("field", randomUnicodeOfCodepointLength(500))
+            );
+            refresh(indexName);
+        }
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        final long inlineHashFileSizeThreshold = 1024L; // size hint to allow read for .si and segments_N to pass
+        final var readIntercepted = new CountDownLatch(2);
+        final var unblockRead = new CountDownLatch(1);
+        setNodeRepositoryStrategy(node0, new AssertNoMissingBlobStrategy() {
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (purpose == OperationPurpose.SNAPSHOT_DATA && length > inlineHashFileSizeThreshold) {
+                    readIntercepted.countDown();
+                    safeAwait(unblockRead);
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+        });
+
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomSnapshotName())
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        // Wait until two FileSnapshotTasks are blocked on reading, which happens after they each inc-ref the commit
+        safeAwait(readIntercepted);
+
+        // Relocate the shard which releases the commit tracked by SnapshotsCommitService. It should not trigger any AssertionError
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node1)));
+
+        // Unblock the FileSnapshotTasks and snapshot should complete successfully
+        unblockRead.countDown();
+
+        final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.totalShards(), equalTo(1));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+
+        for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
+            assertBusy(() -> assertFalse(commitService.hasTrackingForShard(shardId)));
         }
     }
 
@@ -924,6 +1186,65 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testRelocationBetweenInitialCommitAcquisitionAndRegistration() throws Exception {
+        final var settings = Settings.builder()
+            .put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "enabled")
+            .put(RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING.getKey(), true)
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put("thread_pool.snapshot.max", 1)
+            .build();
+        final var node0 = startMasterAndIndexNode(settings);
+        final var node1 = startMasterAndIndexNode(settings);
+        ensureStableCluster(2);
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "fs");
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", node1).build());
+        ensureGreen(indexName);
+        indexAndMaybeFlush(indexName);
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+
+        setNodeRepositoryStrategy(node0, new AssertNoMissingBlobStrategy());
+
+        // Block inside getLastSyncedGlobalCheckpoint after it returns a value — this is the point where
+        // SnapshotShardContextHelper.acquireSnapshotIndexCommit has progressed far enough so that its caller
+        // SnapshotsCommmitService.acquireAndMaybeRegisterCommitForSnapshot will be able to call
+        // withSnapshotIndexCommitRef, which should detect and handle the relocated shard and see no error.
+        final var checkpointCalled = new CountDownLatch(1);
+        final var unblockAfterCheckpoint = new CountDownLatch(1);
+        final var interceptPlugin = findPlugin(node0, SnapshotCommitInterceptPlugin.class);
+        interceptPlugin.afterGetLastSyncedGlobalCheckpoint.put(shardId, () -> {
+            checkpointCalled.countDown();
+            safeAwait(unblockAfterCheckpoint);
+        });
+
+        final var snapshotFuture = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, randomSnapshotName())
+            .setIndices(indexName)
+            .setWaitForCompletion(true)
+            .execute();
+
+        safeAwait(checkpointCalled);
+        interceptPlugin.afterGetLastSyncedGlobalCheckpoint.remove(shardId);
+
+        // Relocate the shard before SnapshotsCommmitService can invoke withSnapshotIndexCommitRef
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0));
+        ensureGreen(indexName);
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node1)));
+
+        // Resume the snapshot and it should succeed
+        unblockAfterCheckpoint.countDown();
+
+        final var snapshotInfo = safeGet(snapshotFuture).getSnapshotInfo();
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
+        assertThat(snapshotInfo.successfulShards(), equalTo(1));
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+
+        for (SnapshotsCommitService commitService : internalCluster().getInstances(SnapshotsCommitService.class)) {
+            assertBusy(() -> assertFalse(commitService.hasTrackingForShard(shardId)));
+        }
+    }
+
     private SubscribableListener<Void> observeShardSnapshotAborted(String node, String repoName, ShardId shardId) {
         return ClusterServiceUtils.addTemporaryStateListener(internalCluster().getInstance(ClusterService.class, node), state -> {
             final var shardStatus = SnapshotsInProgress.get(state)
@@ -1122,11 +1443,13 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
      * Stateless plugin that wraps the engine's {@link IndexStorePlugin.SnapshotCommitSupplier} so tests can inject a runnable that
-     * executes after the underlying {@code acquireIndexCommitForSnapshot} returns. Used to reliably reproduce races between commit
-     * acquisition and shard relocation.
+     * executes after the underlying {@code acquireIndexCommitForSnapshot} returns, and also overrides {@code newIndexEngine} to allow
+     * injection of a runnable that executes after {@code getLastSyncedGlobalCheckpoint} returns. Used to reliably reproduce races
+     * between commit acquisition and shard relocation.
      */
     public static class SnapshotCommitInterceptPlugin extends TestUtils.StatelessPluginWithTrialLicense {
         final Map<ShardId, Runnable> afterAcquireForSnapshot = new ConcurrentHashMap<>();
+        final Map<ShardId, Runnable> afterGetLastSyncedGlobalCheckpoint = new ConcurrentHashMap<>();
 
         public SnapshotCommitInterceptPlugin(Settings settings) {
             super(settings);
@@ -1145,41 +1468,49 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
                     }
                     return commitRef;
                 };
-                final var wrappedConfig = new EngineConfig(
-                    engineConfig.getShardId(),
-                    engineConfig.getThreadPool(),
-                    engineConfig.getThreadPoolMergeExecutorService(),
-                    engineConfig.getIndexSettings(),
-                    engineConfig.getWarmer(),
-                    engineConfig.getStore(),
-                    engineConfig.getMergePolicy(),
-                    engineConfig.getAnalyzer(),
-                    engineConfig.getSimilarity(),
-                    engineConfig.getCodecProvider(),
-                    engineConfig.getEventListener(),
-                    engineConfig.getQueryCache(),
-                    engineConfig.getQueryCachingPolicy(),
-                    engineConfig.getTranslogConfig(),
-                    engineConfig.getFlushMergesAfter(),
-                    engineConfig.getExternalRefreshListener(),
-                    engineConfig.getInternalRefreshListener(),
-                    engineConfig.getIndexSort(),
-                    engineConfig.getCircuitBreakerService(),
-                    engineConfig.getGlobalCheckpointSupplier(),
-                    engineConfig.retentionLeasesSupplier(),
-                    engineConfig.getPrimaryTermSupplier(),
-                    wrappedCommitSupplier,
-                    engineConfig.getLeafSorter(),
-                    engineConfig.getRelativeTimeInNanosSupplier(),
-                    engineConfig.getIndexCommitListener(),
-                    engineConfig.isPromotableToPrimary(),
-                    engineConfig.getMapperService(),
-                    engineConfig.getEngineResetLock(),
-                    engineConfig.getMergeMetrics(),
-                    engineConfig.getIndexDeletionPolicyWrapper()
-                );
+                final var wrappedConfig = EngineConfig.builder(engineConfig).snapshotCommitSupplier(wrappedCommitSupplier).build();
                 return factory.newReadWriteEngine(wrappedConfig);
             });
+        }
+
+        @Override
+        protected IndexEngine newIndexEngine(
+            EngineConfig engineConfig,
+            TranslogReplicator translogReplicator,
+            Function<String, BlobContainer> translogBlobContainer,
+            StatelessCommitService statelessCommitService,
+            HollowShardsService hollowShardsService,
+            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
+            RefreshManagerService refreshManagerService,
+            ReshardIndexService reshardIndexService,
+            DocumentParsingProvider documentParsingProvider,
+            IndexEngine.EngineMetrics engineMetrics
+        ) {
+            final var shardId = engineConfig.getShardId();
+            return new IndexEngine(
+                engineConfig,
+                translogReplicator,
+                translogBlobContainer,
+                statelessCommitService,
+                hollowShardsService,
+                sharedBlobCacheWarmingService,
+                refreshManagerService,
+                reshardIndexService,
+                statelessCommitService.getCommitBCCResolverForShard(shardId),
+                documentParsingProvider,
+                engineMetrics,
+                statelessCommitService.getShardLocalCommitsTracker(shardId).shardLocalReadersTracker()
+            ) {
+                @Override
+                public long getLastSyncedGlobalCheckpoint() {
+                    final long result = super.getLastSyncedGlobalCheckpoint();
+                    final var hook = afterGetLastSyncedGlobalCheckpoint.get(shardId);
+                    if (hook != null) {
+                        hook.run();
+                    }
+                    return result;
+                }
+            };
         }
     }
 }

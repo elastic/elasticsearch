@@ -16,10 +16,16 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
+## 9.4.2 [elasticsearch-9.4.2-deprecations]
+
+ES|QL:
+* Add deprecation message for ES|QL query log [#149013](https://github.com/elastic/elasticsearch/pull/149013)
+
+## 9.3.5 [elasticsearch-9.3.5-deprecations]
+
+There are no deprecations associated with this release.
+
 ## 9.4.1 [elasticsearch-9.4.1-deprecations]
-```{applies_to}
-stack: ga 9.4.1
-```
 
 There are no deprecations associated with this release.
 

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -40,9 +40,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
@@ -65,9 +63,9 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
      * Perform the actual substitution with {@code SearchStats} and predicates in the query.
      */
     private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
-        Expression roundTo = null;
+        RoundTo roundTo = null;
         if (e instanceof DateTrunc dateTrunc) {
-            roundTo = maybeSubstituteWithRoundTo(
+            roundTo = maybeToRoundTo(
                 dateTrunc.source(),
                 dateTrunc.field(),
                 dateTrunc.interval(),
@@ -76,7 +74,11 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                 (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
-            roundTo = maybeSubstituteWithRoundTo(
+            // TODO(sidosera): https://github.com/elastic/elasticsearch/issues/148306
+            if (bucket.roundingConfiguration() == Rounding.RoundingConvention.UP) {
+                return e;
+            }
+            roundTo = maybeToRoundTo(
                 bucket.source(),
                 bucket.field(),
                 bucket.buckets(),
@@ -88,7 +90,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         return roundTo != null ? roundTo : e;
     }
 
-    private RoundTo maybeSubstituteWithRoundTo(
+    private RoundTo maybeToRoundTo(
         Source source,
         Expression field,
         Expression foldableTimeExpression,
@@ -96,7 +98,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         Eval eval,
         TriFunction<Object, Long, Long, Rounding.Prepared> roundingFunction
     ) {
-        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
+        if (field instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField == false && isDateTime(fa.dataType())) {
             DataType fieldType = fa.dataType();
             FieldAttribute.FieldName fieldName = fa.fieldName();
             // Extract min/max from SearchStats
@@ -131,11 +133,12 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                     );
                     return null;
                 }
-                // Convert to round_to function with the roundings
-                List<Expression> points = Arrays.stream(roundingPoints)
-                    .mapToObj(l -> new Literal(Source.EMPTY, l, fieldType))
-                    .collect(Collectors.toList());
-                return new RoundTo(source, field, points);
+
+                List<Expression> expressions = new ArrayList<>(roundingPoints.length);
+                for (long p : roundingPoints) {
+                    expressions.add(new Literal(Source.EMPTY, p, fieldType));
+                }
+                return new RoundTo(source, field, expressions);
             }
         }
         return null;

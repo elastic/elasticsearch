@@ -144,7 +144,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         };
     }
 
-    public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() {
+    public void testGetIndexForForceMergeReturnsCloneIndexWhenNoExistingClone() throws InterruptedException {
         createProjectState(2);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             indexName,
@@ -158,7 +158,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(indexForForceMerge, is(convert.getDLMCloneIndexName()));
     }
 
-    public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() {
+    public void testGetIndexForForceMergeReturnsCloneWhenCloneExists() throws InterruptedException {
         createProjectStateWithClone(true);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             indexName,
@@ -173,7 +173,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(indexForForceMerge, equalTo(convert.getDLMCloneIndexName()));
     }
 
-    public void testGetIndexForForceMergeWaitsForCloneWhenShardsInactive() {
+    public void testGetIndexForForceMergeWaitsForCloneWhenShardsInactive() throws InterruptedException {
         createProjectStateWithClone(false);
         // Mock a successful non-timed-out health response so waitForCloneToBeActive succeeds
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
@@ -216,7 +216,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("timed out waiting for clone index"));
     }
 
-    public void testGetIndexForForceMergeReturnsOriginalIndexWhenZeroReplicas() {
+    public void testGetIndexForForceMergeReturnsOriginalIndexWhenZeroReplicas() throws InterruptedException {
         createProjectState(0);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             indexName,
@@ -233,11 +233,8 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
 
     public void testMaybeCloneIndexThrowsWhenYellowStatusTimeoutBreached() {
         createProjectState(2); // replicas > 0 to trigger cloning
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
 
-        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+        DLMConvertToFrozen convert = new DLMConvertToFrozenSnapshotTests.TestDLMConvertToFrozenWithTimeout(
             indexName,
             projectId,
             client,
@@ -296,7 +293,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(capturedDeleteRequest.get().indices()[0], equalTo(cloneIndexName));
     }
 
-    public void testDeleteCloneSuccessfully() {
+    public void testDeleteCloneSuccessfully() throws InterruptedException {
         createProjectState(1);
         mockDeleteResponse.set(AcknowledgedResponse.of(true));
 
@@ -355,7 +352,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("unable to delete index"));
     }
 
-    public void testWaitForCloneToBeActiveSucceeds() {
+    public void testWaitForCloneToBeActiveSucceeds() throws InterruptedException {
         createProjectState(1);
         // Mock a successful non-timed-out health response
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
@@ -417,7 +414,7 @@ public class DLMConvertToFrozenCloneIndexTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("DLM failed waiting for clone index"));
     }
 
-    public void testWaitForCloneToBeActiveRequestsGreenStatus() {
+    public void testWaitForCloneToBeActiveRequestsGreenStatus() throws InterruptedException {
         createProjectState(1);
         ClusterHealthResponse healthResponse = new ClusterHealthResponse();
         mockHealthResponse.set(healthResponse);

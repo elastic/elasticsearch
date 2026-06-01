@@ -24,7 +24,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiUtils.createOrgHeader;
 
 public class OpenAiUnifiedChatCompletionRequest implements OutboundUnifiedCompletionRequest {
@@ -47,7 +46,6 @@ public class OpenAiUnifiedChatCompletionRequest implements OutboundUnifiedComple
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
 
         var org = model.rateLimitServiceSettings().organizationId();
         if (org != null) {
@@ -60,7 +58,8 @@ public class OpenAiUnifiedChatCompletionRequest implements OutboundUnifiedComple
             }
         }
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+        model.secretsApplier()
+            .applyTo(httpPost, listener.delegateFailureAndWrap((l, req) -> l.onResponse(new HttpRequest(req, getInferenceEntityId()))));
     }
 
     @Override

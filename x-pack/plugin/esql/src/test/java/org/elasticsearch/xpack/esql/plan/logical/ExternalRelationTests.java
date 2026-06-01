@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
@@ -45,7 +47,14 @@ public class ExternalRelationTests extends ESTestCase {
         SourceMetadata metadata = createMetadata();
         List<Attribute> output = createAttributes();
 
-        ExternalRelation relation = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output);
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            metadata,
+            output,
+            FileList.UNRESOLVED,
+            Map.of()
+        );
 
         assertSame(FileList.UNRESOLVED, relation.fileList());
         assertFalse(relation.fileList().isResolved());
@@ -85,9 +94,9 @@ public class ExternalRelationTests extends ESTestCase {
         SourceMetadata metadata = createMetadata();
         List<Attribute> output = createAttributes();
 
-        ExternalRelation relation1 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1);
-        ExternalRelation relation2 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1);
-        ExternalRelation relation3 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList2);
+        ExternalRelation relation1 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1, Map.of());
+        ExternalRelation relation2 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList1, Map.of());
+        ExternalRelation relation3 = new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", metadata, output, fileList2, Map.of());
 
         assertEquals(relation1, relation2);
         assertEquals(relation1.hashCode(), relation2.hashCode());
@@ -214,6 +223,153 @@ public class ExternalRelationTests extends ESTestCase {
         assertNotEquals(exec1, exec3);
     }
 
+    // ===== Secret redaction in nodeProperties() / toString() =====
+
+    public void testNodePropertiesOmitsSecretsSecureStringPath() {
+        // Dataset path: SecureString values in config.
+        var config = Map.<String, Object>of(
+            "access_key",
+            "AKID",
+            "secret_key",
+            new SecureString("S3CR3T_DO_NOT_LEAK_SecureString".toCharArray())
+        );
+        SimpleSourceMetadata secretMetadata = new SimpleSourceMetadata(
+            createAttributes(),
+            "parquet",
+            "s3://bucket/data.parquet",
+            null,
+            null,
+            null,
+            config
+        );
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            secretMetadata,
+            createAttributes(),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        assertFalse("nodeProperties() must not contain the metadata object", relation.nodeProperties().contains(secretMetadata));
+        String rendered = relation.nodeString() + " " + relation.toString();
+        assertFalse("EXPLAIN output must not contain the secret value", rendered.contains("S3CR3T_DO_NOT_LEAK_SecureString"));
+    }
+
+    public void testNodePropertiesOmitsSecretsPlainStringPath() {
+        // Inline EXTERNAL path: plain String values in config (foldOptionLiterals produces plain strings).
+        var config = Map.<String, Object>of("secret_key", "PLAINTEXT_DO_NOT_LEAK_String");
+        SimpleSourceMetadata secretMetadata = new SimpleSourceMetadata(
+            createAttributes(),
+            "parquet",
+            "s3://bucket/data.parquet",
+            null,
+            null,
+            null,
+            config
+        );
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/data.parquet",
+            secretMetadata,
+            createAttributes(),
+            FileList.UNRESOLVED,
+            Map.of()
+        );
+
+        assertFalse("nodeProperties() must not contain the metadata object", relation.nodeProperties().contains(secretMetadata));
+        String rendered = relation.nodeString() + " " + relation.toString();
+        assertFalse("EXPLAIN output must not contain the secret value", rendered.contains("PLAINTEXT_DO_NOT_LEAK_String"));
+    }
+
+    // ===== Partition-column strip in toPhysicalExec → withUnifiedSchema =====
+
+    public void testToPhysicalExecSeedsUnifiedFromDataOnlyWhenNoPartitions() {
+        // No partitions → unifiedSchema seeded from metadata.schema() unchanged (by name).
+        FileList fileList = createFileList();
+        ExternalRelation relation = createRelation(fileList);
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        assertNotNull("unifiedSchema is seeded", exec.unifiedSchema());
+        assertEquals(
+            "no partition stripping; matches metadata.schema() column count",
+            relation.metadata().schema().size(),
+            exec.unifiedSchema().size()
+        );
+        assertEquals(
+            "no partition stripping; column names match",
+            relation.metadata().schema().stream().map(a -> a.name()).toList(),
+            exec.unifiedSchema().attributes().stream().map(a -> a.name()).toList()
+        );
+    }
+
+    public void testToPhysicalExecStripsPartitionAttributesFromUnified() {
+        // Partitioned dataset: metadata.schema() carries appended partition attrs, but
+        // ColumnMapping.index was sized against the data-only unified. toPhysicalExec must seed
+        // unifiedSchema from the data-only view.
+        Attribute id = attr("id", DataType.LONG);
+        Attribute name = attr("name", DataType.KEYWORD);
+        Attribute year = attr("year", DataType.INTEGER); // partition column
+
+        SourceMetadata partitionedMetadata = createMetadataWithSchema(List.of(id, name, year));
+        FileList partitionedFiles = createPartitionedFileList(Map.of("year", DataType.INTEGER));
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/year=*/*.parquet",
+            partitionedMetadata,
+            List.of(id, name, year),
+            partitionedFiles,
+            Map.of()
+        );
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        assertNotNull("unifiedSchema is seeded", exec.unifiedSchema());
+        assertEquals("partition attr stripped", 2, exec.unifiedSchema().size());
+        assertFalse("partition column not present in seeded unified", exec.unifiedSchema().names().contains("year"));
+        assertTrue("data columns preserved", exec.unifiedSchema().names().contains("id"));
+        assertTrue("data columns preserved", exec.unifiedSchema().names().contains("name"));
+    }
+
+    private static SourceMetadata createMetadataWithSchema(List<Attribute> schema) {
+        return new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof SourceMetadata;
+            }
+
+            @Override
+            public int hashCode() {
+                return 1;
+            }
+        };
+    }
+
+    private static FileList createPartitionedFileList(Map<String, DataType> partitionColumns) {
+        StoragePath path = StoragePath.of("s3://bucket/year=2024/data.parquet");
+        return GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/year=*/*.parquet",
+            new org.elasticsearch.xpack.esql.datasources.PartitionMetadata(partitionColumns, Map.of(path, Map.of("year", 2024)))
+        );
+    }
+
     // ===== Helpers =====
 
     private static Attribute attr(String name, DataType type) {
@@ -264,7 +420,7 @@ public class ExternalRelationTests extends ESTestCase {
     }
 
     private static ExternalRelation createRelation(FileList fileList) {
-        return new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", createMetadata(), createAttributes(), fileList);
+        return new ExternalRelation(Source.EMPTY, "s3://bucket/data.parquet", createMetadata(), createAttributes(), fileList, Map.of());
     }
 
     private static ExternalSourceExec createExec(FileList fileList) {

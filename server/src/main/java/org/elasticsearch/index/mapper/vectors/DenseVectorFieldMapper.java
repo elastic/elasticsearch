@@ -1250,7 +1250,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (byteBuffer.remaining() == dims * Float.BYTES) {
                 byteBuffer.asFloatBuffer().get(decodedVector);
             } else if (byteBuffer.remaining() == dims * BFloat16.BYTES) {
-                BFloat16.bFloat16ToFloat(byteBuffer.asShortBuffer(), decodedVector);
+                BFloat16.bFloat16ToFloat(byteBuffer, decodedVector);
             } else {
                 throw new ParsingException(
                     context.parser().getTokenLocation(),
@@ -1316,7 +1316,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public void writeValues(ByteBuffer byteBuffer, float[] values) {
-            BFloat16.floatToBFloat16(values, byteBuffer.asShortBuffer());
+            // ByteBuffer created by FloatElement.createByteBuffer, so will always wrap an array
+            BFloat16.floatToBFloat16(values, 0, byteBuffer.array(), byteBuffer.position(), values.length, byteBuffer.order());
             byteBuffer.position(byteBuffer.position() + (values.length * BFloat16.BYTES));
         }
 
@@ -3302,6 +3303,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                float overSampleFactor = rescore ? oversample : 1.0f;
                 if (sliceEnabled && parentFilter != null) {
                     throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
                 }
@@ -3316,7 +3318,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         visitRatio,
                         bbqIndexOptions.doPrecondition(),
                         RoutingFieldMapper.NAME,
-                        new BytesRef(singleSliceRouting)
+                        new BytesRef(singleSliceRouting),
+                        overSampleFactor
                     );
                 } else {
                     knnQuery = parentFilter != null
@@ -3328,7 +3331,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition()
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor
                         )
                         : new IVFKnnFloatVectorQuery(
                             name(),
@@ -3337,7 +3341,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             numCands,
                             filter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition()
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor
                         );
                 }
             } else {

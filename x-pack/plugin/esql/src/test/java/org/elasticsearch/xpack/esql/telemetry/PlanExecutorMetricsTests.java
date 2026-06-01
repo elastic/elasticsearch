@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -658,6 +659,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
+            PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
             null
         );

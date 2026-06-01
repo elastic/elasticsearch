@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -62,7 +62,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -612,7 +611,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
         return callMasterOperationWithRequestBody("""
             {
                 "task_type": "text_embedding",
@@ -628,8 +627,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             """);
     }
 
-    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(String requestBody) {
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(String requestBody) {
+        var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(
             mock(Task.class),
@@ -664,8 +663,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
-        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+        Strings.format(
+            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+            UNKNOWN_SETTING_KEY,
+            UNKNOWN_SETTING_VALUE,
+            SERVICE_NAME_VALUE
+        );
     }
 
     /**
@@ -691,8 +694,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        assertThat(exception.getMessage(), containsString(SERVICE_NAME_VALUE));
-        assertThat(exception.getMessage(), containsString(UNKNOWN_SETTING_KEY));
+        Strings.format(
+            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+            UNKNOWN_SETTING_KEY,
+            UNKNOWN_SETTING_VALUE,
+            SERVICE_NAME_VALUE
+        );
     }
 
     /**

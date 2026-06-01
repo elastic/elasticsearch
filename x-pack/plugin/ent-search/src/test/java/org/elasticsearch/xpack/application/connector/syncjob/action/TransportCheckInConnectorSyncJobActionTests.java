@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -49,9 +50,8 @@ public class TransportCheckInConnectorSyncJobActionTests extends ESSingleNodeTes
         action = new TransportCheckInConnectorSyncJobAction(transportService, mock(ActionFilters.class), client());
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
+    @After
+    public void cleanupThreadPool() throws Exception {
         ThreadPool.terminate(threadPool, TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 

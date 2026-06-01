@@ -34,8 +34,10 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -54,6 +56,13 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
 
     private static final int MERGE_SCHEDULER_MAX_CONCURRENCY = 3;
+
+    @Override
+    protected List<String> filteredWarnings() {
+        var warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add("[indices.merge.scheduler.use_thread_pool] setting was deprecated");
+        return warnings;
+    }
 
     @Override
     protected Settings nodeSettings() {

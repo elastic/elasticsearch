@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -352,6 +352,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
+                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );

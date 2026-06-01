@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
@@ -59,7 +60,10 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
     }
 
     private TransientStorageException wrap(Exception e) {
-        return new TransientStorageException("transient read failure for " + path, e);
+        // A mid-body read fault is a transport fault (the request already succeeded), so it is always transient;
+        // flag throttling for the rare 503/429 surfaced during the body read so it shares the throttle budget.
+        boolean throttling = e instanceof S3Exception s3e && (s3e.statusCode() == 503 || s3e.statusCode() == 429);
+        return new TransientStorageException("transient read failure for " + path, e, throttling);
     }
 
     @Override

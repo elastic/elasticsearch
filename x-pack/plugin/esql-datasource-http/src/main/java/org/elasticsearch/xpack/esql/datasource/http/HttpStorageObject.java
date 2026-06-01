@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -95,7 +96,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
             return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
                 if (statusCode != HttpStatus.SC_OK) {
-                    throw new IOException("Failed to read object from " + path + ", HTTP status: " + statusCode);
+                    throw httpStatusException(statusCode, "Failed to read object from");
                 }
                 OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
                 if (contentLength.isPresent()) {
@@ -143,7 +144,7 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
                     return toEnd ? stream : new BoundedInputStream(stream, length);
                 } else {
-                    throw new IOException("Range request failed for " + path + ", HTTP status: " + statusCode);
+                    throw httpStatusException(statusCode, "Range request failed for");
                 }
             });
         } finally {
@@ -260,6 +261,23 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest.Builder builder = HttpRequest.newBuilder().uri(uri).GET().timeout(config.requestTimeout());
         addCustomHeaders(builder);
         return builder.build();
+    }
+
+    /**
+     * Types transient/throttle HTTP responses so the provider-agnostic retry layer classifies them like S3/GCS.
+     * 4xx (and a missing object) surface as a plain IOException and are not retried.
+     */
+    private IOException httpStatusException(int statusCode, String operation) {
+        if (statusCode == HttpStatus.SC_NOT_FOUND) {
+            return new IOException("Object not found: " + path);
+        }
+        if (statusCode == 503 || statusCode == 429) {
+            return new TransientStorageException(operation + " " + path + ", HTTP status: " + statusCode, null, true);
+        }
+        if (statusCode >= 500) {
+            return new TransientStorageException(operation + " " + path + ", HTTP status: " + statusCode, null, false);
+        }
+        return new IOException(operation + " " + path + ", HTTP status: " + statusCode);
     }
 
     /**

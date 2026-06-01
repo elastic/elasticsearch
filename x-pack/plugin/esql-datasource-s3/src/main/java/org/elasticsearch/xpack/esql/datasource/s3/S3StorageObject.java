@@ -122,10 +122,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             return new TransientTypingInputStream(response, path);
-        } catch (NoSuchKeyException e) {
-            throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {
-            throw new IOException("Failed to read object from " + path, e);
+            throw S3Faults.classify(e, path, "Failed to read object");
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
@@ -164,17 +162,13 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 requestedBytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             }
             return new TransientTypingInputStream(response, path);
-        } catch (NoSuchKeyException e) {
-            throw new IOException("Object not found: " + path, e);
-        } catch (S3Exception e) {
-            if (toEnd && e.statusCode() == 416) {
+        } catch (Exception e) {
+            if (toEnd && e instanceof S3Exception s3e && s3e.statusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
                 // contract for an open-ended read past the end is an empty stream.
                 return InputStream.nullInputStream();
             }
-            throw new IOException("Range request failed for " + path, e);
-        } catch (Exception e) {
-            throw new IOException("Range request failed for " + path, e);
+            throw S3Faults.classify(e, path, "Range request failed");
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, requestedBytes);
         }
@@ -363,11 +357,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                if (cause instanceof NoSuchKeyException) {
-                    listener.onFailure(new IOException("Object not found: " + path, cause));
-                } else {
-                    listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
-                }
+                // Type the async failure so the provider-agnostic retry layer classifies it (throttle/transient)
+                // identically to the sync paths — otherwise a raw S3Exception surfaces unclassified.
+                listener.onFailure(S3Faults.classify(cause, path, "Async read failed"));
                 return;
             }
 

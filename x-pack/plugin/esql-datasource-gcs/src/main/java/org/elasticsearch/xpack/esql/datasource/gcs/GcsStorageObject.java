@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -243,8 +244,18 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
     }
 
     private IOException wrapException(StorageException e, String operation) {
-        String message = e.getCode() == 404 ? "Object not found: " + path : operation + " " + path;
-        return new IOException(message, e);
+        int code = e.getCode();
+        if (code == 404) {
+            return new IOException("Object not found: " + path, e);
+        }
+        // Type transient/throttle failures so the provider-agnostic retry layer classifies GCS like S3.
+        if (code == 503 || code == 429) {
+            return new TransientStorageException(operation + " " + path, e, true);
+        }
+        if (code >= 500 || e.isRetryable()) {
+            return new TransientStorageException(operation + " " + path, e, false);
+        }
+        return new IOException(operation + " " + path, e);
     }
 
     private void fetchMetadata() throws IOException {

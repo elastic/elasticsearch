@@ -16,6 +16,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.ByteArrayOutputStream;
@@ -115,7 +116,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             return stream;
         } catch (Exception e) {
-            throw new IOException("Failed to read object from " + path, e);
+            throw classify(e, "Failed to read object from");
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
@@ -137,10 +138,30 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
             return blobClient.openInputStream(range, new BlobRequestConditions());
         } catch (Exception e) {
-            throw new IOException("Range request failed for " + path, e);
+            throw classify(e, "Range request failed for");
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
         }
+    }
+
+    /**
+     * Types transient/throttle Azure failures so the provider-agnostic retry layer classifies them like S3/GCS;
+     * 4xx and other failures surface as a plain IOException and are not retried.
+     */
+    private IOException classify(Exception e, String operation) {
+        if (e instanceof BlobStorageException bse) {
+            int status = bse.getStatusCode();
+            if (status == 404) {
+                return new IOException("Object not found: " + path, e);
+            }
+            if (status == 503 || status == 429) {
+                return new TransientStorageException(operation + " " + path, e, true);
+            }
+            if (status >= 500) {
+                return new TransientStorageException(operation + " " + path, e, false);
+            }
+        }
+        return new IOException(operation + " " + path, e);
     }
 
     @Override

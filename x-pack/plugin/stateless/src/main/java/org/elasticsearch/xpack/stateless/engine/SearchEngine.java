@@ -149,7 +149,7 @@ public class SearchEngine extends Engine {
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
 
-        relocatedPITReaderTracker = new RelocatedPITReaderTracker(
+        this.relocatedPITReaderTracker = new RelocatedPITReaderTracker(
             relocatedPITReader -> acquireSearcherSupplier(
                 relocatedPITReader.wrapper,
                 SearcherScope.EXTERNAL,

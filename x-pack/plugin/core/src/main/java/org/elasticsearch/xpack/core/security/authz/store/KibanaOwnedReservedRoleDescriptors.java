@@ -569,7 +569,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-tenable_io.vulnerability-*",
                         "logs-rapid7_insightvm.vulnerability-*",
                         "logs-rapid7_insightvm.asset_vulnerability-*",
-                        "logs-carbon_black_cloud.asset_vulnerability_summary-*"
+                        "logs-carbon_black_cloud.asset_vulnerability_summary-*",
+                        "logs-eset_protect.device_vulnerability-*"
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),

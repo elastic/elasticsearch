@@ -243,9 +243,9 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
         runAndAssert(String.format(Locale.ROOT, """
             FROM test
-            | WHERE field_extract(%s, "%s") > "m"
+            | WHERE %s
             | KEEP id
-            """, FLATTENED_ROOT, SUBKEY), equalTo(expectedLowerOnlyRangeQuery("m", false)), ComputeSignature.FILTER_IN_QUERY, 1);
+            """, randomizedComparison(">", "m")), equalTo(expectedLowerOnlyRangeQuery("m", false)), ComputeSignature.FILTER_IN_QUERY, 1);
     }
 
     /**
@@ -260,9 +260,9 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
         runAndAssert(String.format(Locale.ROOT, """
             FROM test
-            | WHERE field_extract(%s, "%s") >= "m"
+            | WHERE %s
             | KEEP id
-            """, FLATTENED_ROOT, SUBKEY), equalTo(expectedLowerOnlyRangeQuery("m", true)), ComputeSignature.FILTER_IN_QUERY, 1);
+            """, randomizedComparison(">=", "m")), equalTo(expectedLowerOnlyRangeQuery("m", true)), ComputeSignature.FILTER_IN_QUERY, 1);
     }
 
     /**
@@ -279,9 +279,9 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
         runAndAssert(String.format(Locale.ROOT, """
             FROM test
-            | WHERE field_extract(%s, "%s") < "m"
+            | WHERE %s
             | KEEP id
-            """, FLATTENED_ROOT, SUBKEY), equalTo(expectedUpperOnlyRangeQuery("m", false)), ComputeSignature.FILTER_IN_QUERY, 1);
+            """, randomizedComparison("<", "m")), equalTo(expectedUpperOnlyRangeQuery("m", false)), ComputeSignature.FILTER_IN_QUERY, 1);
     }
 
     /**
@@ -296,9 +296,9 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
         runAndAssert(String.format(Locale.ROOT, """
             FROM test
-            | WHERE field_extract(%s, "%s") <= "m"
+            | WHERE %s
             | KEEP id
-            """, FLATTENED_ROOT, SUBKEY), equalTo(expectedUpperOnlyRangeQuery("m", true)), ComputeSignature.FILTER_IN_QUERY, 1);
+            """, randomizedComparison("<=", "m")), equalTo(expectedUpperOnlyRangeQuery("m", true)), ComputeSignature.FILTER_IN_QUERY, 1);
     }
 
     /**
@@ -318,9 +318,9 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
         runAndAssert(
             String.format(Locale.ROOT, """
                 FROM test
-                | WHERE field_extract(%s, "%s") >= "b" AND field_extract(%s, "%s") <= "y"
+                | WHERE %s AND %s
                 | KEEP id
-                """, FLATTENED_ROOT, SUBKEY, FLATTENED_ROOT, SUBKEY),
+                """, randomizedComparison(">=", "b"), randomizedComparison("<=", "y")),
             equalTo(expectedRangeQuery("b", true, "y", true)),
             ComputeSignature.FILTER_IN_QUERY,
             1
@@ -478,6 +478,35 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
             assertMap(sig, dataNodeSignature.matcher);
         }
         assertTrue("expected the data driver profile in result", assertedDataDriver);
+    }
+
+    /**
+     * Returns a randomized comparison fragment between {@code field_extract(<root>, "<key>")} and
+     * {@code "<literal>"} that is semantically equivalent to {@code field_extract(...) op literal}
+     * but with a 50/50 chance of being printed as {@code "literal" flipped(op) field_extract(...)}.
+     * The {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight} optimizer
+     * rule rotates the literal back to the right, and {@code BinaryComparison#swapLeftAndRight}
+     * flips the operator on the way (so {@code 5 < x} becomes {@code x > 5}). The pushed Lucene
+     * query is therefore identical regardless of which side the literal started on. Randomizing
+     * here guards against a regression where the rotation rule is skipped for {@code field_extract}
+     * call sites and an otherwise-pushed comparison silently falls back to a per-row filter.
+     */
+    private String randomizedComparison(String op, String literal) {
+        boolean literalOnRight = randomBoolean();
+        String fieldExtract = String.format(Locale.ROOT, "field_extract(%s, \"%s\")", FLATTENED_ROOT, SUBKEY);
+        return literalOnRight
+            ? String.format(Locale.ROOT, "%s %s \"%s\"", fieldExtract, op, literal)
+            : String.format(Locale.ROOT, "\"%s\" %s %s", literal, flippedComparator(op), fieldExtract);
+    }
+
+    private static String flippedComparator(String op) {
+        return switch (op) {
+            case ">" -> "<";
+            case ">=" -> "<=";
+            case "<" -> ">";
+            case "<=" -> ">=";
+            default -> throw new IllegalArgumentException("unsupported operator for flip [" + op + "]");
+        };
     }
 
     private void indexDocs(List<String> hostNameValues) throws IOException {

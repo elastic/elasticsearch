@@ -490,7 +490,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         try {
             var input = List.of(
                 new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + randomAlphaOfLength(4)),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
+                InferenceString.ofText(randomAlphaOfLength(15))
             );
             var resultMap = embedding(modelId, input);
             assertThat(resultMap.values(), hasSize(1));

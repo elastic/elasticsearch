@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
@@ -36,11 +35,13 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Google Cloud Storage.
  * <p>
- * Supports the {@code gs://} URI scheme. Authentication can be provided via:
+ * Supports the {@code gs://} URI scheme. Authentication must be provided explicitly via:
  * <ul>
  *   <li>Explicit service account JSON credentials</li>
- *   <li>Application Default Credentials (ADC) — environment variable, metadata server, etc.</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
  * </ul>
+ * The node's ambient credentials (Application Default Credentials) are never used: a data source must
+ * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -114,7 +115,11 @@ public final class GcsStorageProvider implements StorageProvider {
                 }
                 builder.setCredentials(credentials);
             } else {
-                builder.setCredentials(GoogleCredentials.getApplicationDefault());
+                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+                throw new IllegalArgumentException(
+                    "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
+                        + "or WITH (auth = 'none') for public buckets"
+                );
             }
 
             if (config != null && config.projectId() != null) {

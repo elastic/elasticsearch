@@ -30,7 +30,6 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -414,7 +413,7 @@ final class PageColumnReader implements Releasable {
                 currentEncoding = v2.getDataEncoding();
                 splitV2Page(v2);
             } else {
-                throw new QlIllegalArgumentException("Unexpected page type: " + page.getClass().getName());
+                throw new IllegalArgumentException("Unexpected page type: " + page.getClass().getName());
             }
 
             initDecoders();
@@ -439,7 +438,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes = pageBytes;
             }
         } catch (IOException e) {
-            throw new QlIllegalArgumentException("Failed to read V1 page bytes: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to read V1 page bytes: " + e.getMessage(), e);
         }
     }
 
@@ -453,7 +452,7 @@ final class PageColumnReader implements Releasable {
             }
             currentValueBytes = v2.getData().toByteBuffer();
         } catch (IOException e) {
-            throw new QlIllegalArgumentException("Failed to read V2 page bytes: " + e.getMessage(), e);
+            throw new IllegalArgumentException("Failed to read V2 page bytes: " + e.getMessage(), e);
         }
     }
 
@@ -478,7 +477,7 @@ final class PageColumnReader implements Releasable {
                 currentValueBytes.duplicate().get(bytes);
                 fallbackReader.initFromPage(currentPageValueCount, bytes, 0);
             } catch (IOException e) {
-                throw new QlIllegalArgumentException(
+                throw new IllegalArgumentException(
                     "Failed to init fallback decoder for encoding " + currentEncoding + ": " + e.getMessage(),
                     e
                 );
@@ -532,7 +531,7 @@ final class PageColumnReader implements Releasable {
             case BINARY -> plainDecoder.skipBinaries(count);
             case FIXED_LEN_BYTE_ARRAY -> plainDecoder.skipFixedBinaries(count, descriptor.getPrimitiveType().getTypeLength());
             case INT96 -> plainDecoder.skipFixedBinaries(count, 12);
-            default -> throw new QlIllegalArgumentException("Unsupported Parquet type for skip: " + info.parquetType());
+            default -> throw new IllegalArgumentException("Unsupported Parquet type for skip: " + info.parquetType());
         }
     }
 
@@ -1029,7 +1028,7 @@ final class PageColumnReader implements Releasable {
                     readBinariesDispatch(binScratch, 0, 1);
                     yield new BigInteger(binScratch[0].bytes, binScratch[0].offset, binScratch[0].length);
                 }
-                default -> throw new QlIllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
+                default -> throw new IllegalArgumentException("Unexpected DECIMAL backing type: " + info.parquetType());
             };
             values[offset + i] = new BigDecimal(unscaled, scale).doubleValue();
         }

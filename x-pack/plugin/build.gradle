@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
@@ -63,7 +63,7 @@ if (buildParams.snapshotBuild == false) {
   restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+restTests.tasks.configureEach {
   usesDefaultDistribution("to be triaged")
 }
 

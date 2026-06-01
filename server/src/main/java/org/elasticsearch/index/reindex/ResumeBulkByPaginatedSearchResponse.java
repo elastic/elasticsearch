@@ -17,15 +17,15 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ResumeBulkByScrollResponse extends ActionResponse {
+public class ResumeBulkByPaginatedSearchResponse extends ActionResponse {
 
     private final TaskId taskId;
 
-    public ResumeBulkByScrollResponse(TaskId taskId) {
+    public ResumeBulkByPaginatedSearchResponse(TaskId taskId) {
         this.taskId = Objects.requireNonNull(taskId, "taskId");
     }
 
-    public ResumeBulkByScrollResponse(StreamInput in) throws IOException {
+    public ResumeBulkByPaginatedSearchResponse(StreamInput in) throws IOException {
         this.taskId = TaskId.readFromStream(in);
     }
 

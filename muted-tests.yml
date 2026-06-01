@@ -355,9 +355,6 @@ tests:
 - class: org.elasticsearch.index.mapper.DateRangeDocValuesLoaderTests
   method: testEmptyRangesAppendsNull
   issue: https://github.com/elastic/elasticsearch/issues/148378
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionIT
-  method: testEndToEndFrozenTransition
-  issue: https://github.com/elastic/elasticsearch/issues/148467
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testCommitPrefetching
   issue: https://github.com/elastic/elasticsearch/issues/148476
@@ -487,9 +484,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
-  method: testCanTransitionIndex
-  issue: https://github.com/elastic/elasticsearch/issues/149770
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:BASELINE}
   issue: https://github.com/elastic/elasticsearch/issues/149746
@@ -571,9 +565,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedDuringMerge
   issue: https://github.com/elastic/elasticsearch/issues/150158
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
-  method: merge conflicts in latest files can be regenerated
-  issue: https://github.com/elastic/elasticsearch/issues/150174
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
   issue: https://github.com/elastic/elasticsearch/issues/150187
@@ -596,9 +587,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotsServiceIT
   method: testDeleteSnapshotWhenNotWaitingForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/150257
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testLatestCommitDependenciesUsesTheRightGenerations
-  issue: https://github.com/elastic/elasticsearch/issues/150287
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288
@@ -626,18 +614,16 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/150302
-- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
-  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=NONE, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150308
-- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
-  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150309
-- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
-  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
-  issue: https://github.com/elastic/elasticsearch/issues/150310
 - class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
   method: testRenameBucketColumnHasNoMetadata
   issue: https://github.com/elastic/elasticsearch/issues/150311
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testOutageBuffersToDiskAndDrainsOnRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150387
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
+    extractedAssemble, #2]"
+  issue: https://github.com/elastic/elasticsearch/issues/150410

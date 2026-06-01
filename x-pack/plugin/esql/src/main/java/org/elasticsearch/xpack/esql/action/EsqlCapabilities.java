@@ -1343,7 +1343,7 @@ public class EsqlCapabilities {
         SUBQUERY_WITH_TS(Build.current().isSnapshot()),
 
         /**
-         * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with
+         * Fixed {@code TranslateTimeSeriesWithout} and {@code TranslateTimeSeriesAggregate} to associate time-series attributes with the
          * correct time-series index when a join presents.
          */
         WHERE_IN_SUBQUERY_WITH_TS(Build.current().isSnapshot()),

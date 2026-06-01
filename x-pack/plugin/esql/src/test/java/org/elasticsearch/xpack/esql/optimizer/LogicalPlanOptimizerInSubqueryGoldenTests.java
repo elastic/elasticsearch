@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.junit.Before;
 
 import java.util.EnumSet;
@@ -98,8 +99,6 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
     // DIMENSIONVALUES (when the negotiated cluster version supports `dimension_values`) or VALUES (when it does not).
     // The default golden-test builder randomizes the minimum transport version, which would make the captured plan
     // flap between the two forms. Pin a version that supports `dimension_values` so the snapshot stays deterministic.
-    private static final TransportVersion DIMENSION_VALUES_VERSION = TransportVersion.fromName("dimension_values");
-
     public void testTsRateWithInSubquery() {
         assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
         assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
@@ -109,7 +108,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DIMENSION_VALUES_VERSION));
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
     }
 
     public void testTsRateWithNotInSubquery() {
@@ -121,7 +120,7 @@ public class LogicalPlanOptimizerInSubqueryGoldenTests extends GoldenTestCase {
                                    | STATS m = max(rate(network.total_bytes_in)) BY cluster
                                    | KEEP cluster)
             | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
-            """, STAGES, TransportVersionUtils.randomVersionSupporting(DIMENSION_VALUES_VERSION));
+            """, STAGES, TransportVersionUtils.randomVersionSupporting(DimensionValues.DIMENSION_VALUES_VERSION));
     }
 
     // The outer TS pipeline groups BY WITHOUT(...), so the WITHOUT-bearing TimeSeriesAggregate sits directly

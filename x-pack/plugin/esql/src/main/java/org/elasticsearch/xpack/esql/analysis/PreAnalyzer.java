@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -47,7 +48,7 @@ public class PreAnalyzer {
      * @param functionRegistry the function registry to use for inference function resolution
      */
     public PreAnalyzer(EsqlFunctionRegistry functionRegistry) {
-        this.functionRegistry = functionRegistry;
+        this.functionRegistry = Objects.requireNonNull(functionRegistry, "functionRegistry");
     }
 
     public record PreAnalysis(
@@ -149,7 +150,7 @@ public class PreAnalyzer {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });
-        EsqlFunctionRegistry snapshotRegistry = functionRegistry == null ? null : functionRegistry.snapshotRegistry();
+        EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
             String inferenceId = inferenceId(fn, snapshotRegistry);
             if (inferenceId != null) {
@@ -195,10 +196,6 @@ public class PreAnalyzer {
     }
 
     private static String inferenceId(UnresolvedFunction f, EsqlFunctionRegistry snapshotRegistry) {
-        if (snapshotRegistry == null) {
-            return null;
-        }
-
         String functionName = snapshotRegistry.resolveAlias(f.name());
         if (snapshotRegistry.functionExists(functionName) == false) {
             return null;

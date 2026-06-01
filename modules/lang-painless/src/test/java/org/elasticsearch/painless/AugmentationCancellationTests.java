@@ -349,4 +349,118 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         );
         assertFalse(lookup.hasCancellationAwareMethod("each", 1));
     }
+
+    /**
+     * Builds a source whose script body fills a 1500-element list via a no-loop helper, then runs
+     * {@code body} (an expression that iterates that list inside a lambda). The script's own
+     * {@code $cancelPoll} counter never ticks during construction, so the only thing that can fire
+     * the runnable is the nested augmentation's per-iteration poll — proving the script receiver
+     * was correctly threaded into the augmentation call emitted inside the lambda body.
+     */
+    private String buildFillThen(String body) {
+        StringBuilder source = new StringBuilder("void fill(List m) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" m.add(").append(i).append(");");
+        }
+        source.append("} List big = new ArrayList(); fill(big); ").append(body).append(";");
+        return source.toString();
+    }
+
+    /**
+     * A cancellation-aware {@code each} nested inside a lambda body still polls the script's cancel
+     * runnable.  A lambda that needs the script is compiled as an instance method capturing the
+     * script as {@code this}, so the call-site {@code loadThis()} push resolves to the script.
+     * Static-typed receiver -> static invoke path inside the lambda.
+     */
+    public void testStaticEachNestedInLambdaFiresCancelRunnable() {
+        // Outer each iterates a single element; its consumer iterates the 1500-element `big` list,
+        // whose augmentation poll fires the runnable from inside the lambda.
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            buildFillThen("List l = new ArrayList(); l.add(1); l.each(x -> big.each(q -> q.toString()))")
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-nested-static");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-nested-static", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from the each() nested in the lambda", callCount.get() >= 1);
+    }
+
+    /**
+     * Same as {@link #testStaticEachNestedInLambdaFiresCancelRunnable} but the nested receiver is
+     * {@code def}-typed, so the inner call dispatches through {@code Def.lookupMethod} from inside
+     * the lambda.  Verifies the def call-site script-this push works in a lambda body.
+     */
+    public void testDefEachNestedInLambdaFiresCancelRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            buildFillThen("List l = new ArrayList(); l.add(1); l.each(x -> { def d = big; d.each(q -> q.toString()); })")
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-nested-def");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-nested-def", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from the def each() nested in the lambda", callCount.get() >= 1);
+    }
+
+    /**
+     * The adversarial intersection: a typed static lambda (which gets {@link
+     * org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck} for its own
+     * loop) that <em>also</em> contains a cancellation-aware {@code each} call (which pushes the
+     * script receiver). Both rely on the script being reachable; the lambda is realized as an
+     * instance method capturing the script as {@code this}, so the loop's {@code _getCancellationCheck}
+     * and the each call's {@code loadThis()} both resolve to it.  Verifies the runnable fires from
+     * the nested each.
+     */
+    public void testEachInsideStaticLoopLambdaFiresCancelRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            buildFillThen(
+                "List l = new ArrayList(); l.add(1);"
+                    + " l.removeIf(x -> { int i = 0; while (i < 5) { i++; } big.each(q -> q.toString()); return false; })"
+            )
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-loop-and-each");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-loop-and-each", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * The outer lambda here is <em>def-encoded</em> (it is passed into a {@code def}-dispatched
+     * {@code each}, so it has no static functional-interface target), and it contains a
+     * cancellation-aware {@code each} call.  A def-encoded lambda takes the {@code targetType == null}
+     * path in semantic analysis, but {@code needsScriptCapture} is still forced true in a
+     * cancellation-aware context, so it too is realized as an instance method capturing the script
+     * as {@code this} — meaning the nested call-site {@code loadThis()} push resolves to the script.
+     * Verifies the runnable fires from inside the def-encoded lambda.
+     */
+    public void testEachNestedInDefEncodedLambdaFiresCancelRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            buildFillThen("def l = new ArrayList(); l.add(1); l.each(x -> big.each(q -> q.toString()))")
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-encoded-lambda");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-encoded-lambda", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from the each() nested in the def-encoded lambda", callCount.get() >= 1);
+    }
 }

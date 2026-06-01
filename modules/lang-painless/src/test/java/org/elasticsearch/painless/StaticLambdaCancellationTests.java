@@ -120,4 +120,35 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
         // Cancel runnable may have been called from the enclosing execute() entry point
         // but the lambda body itself has no loop, so we just verify the script ran cleanly.
     }
+
+    /**
+     * Cancellation is accounted at lambda <em>entry</em>, not only at loop back-edges: each
+     * invocation of a cancellation-aware lambda decrements the script's persistent {@code $cancelPoll}
+     * counter and runs the cancel runnable when it reaches zero. This is why every lambda in a
+     * cancellation-aware script captures the script receiver even when it contains no loop. Here a
+     * loopless predicate lambda with no cancellation-aware call of its own is driven enough times
+     * (via {@code removeIf} over a 1500-element list) that the per-entry decrement trips the
+     * runnable.
+     */
+    public void testLooplessStaticLambdaEntryPollFiresCancelRunnable() {
+        StringBuilder source = new StringBuilder("void fill(List m) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" m.add(").append(i).append(");");
+        }
+        // removeIf is not cancellation-aware and does not poll itself, so the only thing that can
+        // fire the runnable is the loopless predicate lambda's own per-entry counter decrement.
+        source.append("} List l = new ArrayList(); fill(l); l.removeIf(x -> x > 100000);");
+
+        ScriptedMetricAggContexts.InitScript script = compileInit(source.toString());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-entry-poll");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-entry-poll", ex.getCause().getMessage());
+        assertTrue("entry-time poll should fire from the loopless lambda after enough invocations", callCount.get() >= 1);
+    }
 }

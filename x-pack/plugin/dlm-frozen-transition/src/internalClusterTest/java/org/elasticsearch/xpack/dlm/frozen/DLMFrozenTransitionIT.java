@@ -139,13 +139,13 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         // Clear the default repository setting before teardown so that the repository can be deleted
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
-        } catch (Exception | AssertionError e) {
+        } catch (Exception e) {
             logger.warn("Failed to clear default repository setting during cleanup", e);
         }
         try {
             client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, DATA_STREAM_NAME))
                 .actionGet();
-        } catch (Exception | AssertionError e) {
+        } catch (Exception e) {
             logger.warn("Failed to delete data stream during cleanup", e);
         }
         try {
@@ -153,12 +153,12 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
                 TransportDeleteComposableIndexTemplateAction.TYPE,
                 new TransportDeleteComposableIndexTemplateAction.Request(TEMPLATE_NAME)
             ).actionGet();
-        } catch (Exception | AssertionError e) {
+        } catch (Exception e) {
             logger.warn("Failed to delete composable index template during cleanup", e);
         }
         try {
             client().admin().cluster().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, REPO_NAME).get();
-        } catch (Exception | AssertionError e) {
+        } catch (Exception e) {
             logger.warn("Failed to delete repository during cleanup", e);
         }
     }

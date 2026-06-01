@@ -11,20 +11,20 @@ package org.elasticsearch.painless.spi.annotation;
 
 import java.util.Map;
 
-public class CancellationAwareAnnotationParser implements WhitelistAnnotationParser {
+public class ScriptAwareAnnotationParser implements WhitelistAnnotationParser {
 
-    public static final CancellationAwareAnnotationParser INSTANCE = new CancellationAwareAnnotationParser();
+    public static final ScriptAwareAnnotationParser INSTANCE = new ScriptAwareAnnotationParser();
 
-    private CancellationAwareAnnotationParser() {}
+    private ScriptAwareAnnotationParser() {}
 
     @Override
     public Object parse(Map<String, String> arguments) {
         if (arguments.isEmpty() == false) {
             throw new IllegalArgumentException(
-                "unexpected parameters for [@" + CancellationAwareAnnotation.NAME + "] annotation, found " + arguments
+                "unexpected parameters for [@" + ScriptAwareAnnotation.NAME + "] annotation, found " + arguments
             );
         }
 
-        return CancellationAwareAnnotation.INSTANCE;
+        return ScriptAwareAnnotation.INSTANCE;
     }
 }

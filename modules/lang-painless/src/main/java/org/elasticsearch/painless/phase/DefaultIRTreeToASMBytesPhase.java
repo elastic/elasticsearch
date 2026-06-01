@@ -97,7 +97,7 @@ import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
-import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck;
@@ -105,7 +105,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCMaybeNeedsScriptThis;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
@@ -250,7 +250,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
             // Generate `void _pollCancellation()`, which performs one persistent-counter decrement and
             // cancellation check against $cancelPoll — the same operation the compiler emits inline at
-            // loop back-edges. @cancellation_aware augmentations (which run in a separate class and
+            // loop back-edges. @script_aware augmentations (which run in a separate class and
             // cannot touch the private field) call it once per iteration so their polling decrements
             // the SAME counter as the rest of the script rather than a private copy. No-op when no
             // cancellation runnable is bound, matching the runtime behavior of the inline loop guards.
@@ -1856,15 +1856,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         // add an Object class as a placeholder type for the receiver
         typeParameters.add(Object.class);
 
-        // If the method name might resolve to a @cancellation_aware augmentation (decided
-        // during IR construction) and the enclosing function is cancellation-aware (caches
-        // #cancelRunnable at entry), push the script receiver ahead of user args and prefix
-        // the recipe with 'S'. Def.lookupMethod peels the prefix at link time and either
-        // passes the slot through (cancellation-aware overload) or drops it via
-        // MethodHandles.dropArguments (non-cancellation-aware resolution, e.g. a user class
+        // If the method name/arity might resolve to a @script_aware augmentation (decided during IR
+        // construction), push the script receiver ahead of user args and prefix the recipe with 'S'.
+        // The script-aware overload always takes the leading PainlessScript, so the push is
+        // unconditional here; loadThis() yields the script because any function that can reach a
+        // script-aware call has it as `this` (an instance method, or a lambda that captured it).
+        // Def.lookupMethod peels the prefix at link time and either passes the slot through (the
+        // resolved method is script-aware) or drops it via MethodHandles.dropArguments (a user class
         // shadowing the method name).
-        boolean pushScriptThis = irInvokeCallDefNode.hasCondition(IRCMaybeNeedsScriptThis.class)
-            && writeScope.getInternalVariable("cancelRunnable") != null;
+        boolean pushScriptThis = irInvokeCallDefNode.hasCondition(IRCScriptAware.class);
         if (pushScriptThis) {
             methodWriter.loadThis();
             defCallRecipe.append('S');
@@ -1937,14 +1937,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(MethodWriter.getType(irInvokeCallNode.getBox()));
         }
 
-        // @cancellation_aware augmentations resolved to the cancellation-aware overload have
+        // @script_aware augmentations resolved to the cancellation-aware overload have
         // signature `method(PainlessScript, receiver, ...userArgs)` — script-first so method
         // refs can reuse FunctionRef.withSyntheticScriptCapture (which prepends at position 0).
         // For these, visitCall folds the prefix into argumentNodes[0] and skips the usual
         // BinaryImpl wrapping; we push the script receiver here, then the regular arg loop
         // visits the prefix and user args in order, producing
         // [scriptThis, receiver, ...userArgs] at invokeStatic.
-        if (irInvokeCallNode.getMethod().annotations().containsKey(CancellationAwareAnnotation.class)) {
+        if (irInvokeCallNode.getMethod().annotations().containsKey(ScriptAwareAnnotation.class)) {
             methodWriter.loadThis();
         }
 

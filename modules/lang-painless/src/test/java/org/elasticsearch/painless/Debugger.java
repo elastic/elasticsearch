@@ -39,7 +39,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, iface, new HashMap<>(), new HashMap<>()))
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>()))
                 .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);
@@ -65,7 +65,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, iface, new HashMap<>(), new HashMap<>()))
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(whitelists, new HashMap<>(), new HashMap<>()))
                 .compile("<debugging>", source, settings, textifier, semanticPhaseVisitor, irPhaseVisitor, asmPhaseVisitor);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);

@@ -73,9 +73,9 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
-import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
 import org.elasticsearch.painless.spi.annotation.DynamicTypeAnnotation;
 import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.Decorations;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.AnyBreak;
@@ -2449,7 +2449,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
     /**
      * Checks whether {@code symbol::methodName} (with the given functional interface type)
-     * would resolve to a {@code @cancellation_aware} augmentation in the current lookup.
+     * would resolve to a {@code @script_aware} augmentation in the current lookup.
      * Used by {@link #visitFunctionRef} to decide whether to thread the script receiver
      * into the resulting {@link FunctionRef}'s factory captures.
      */
@@ -2468,8 +2468,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         // Cheap pre-filter: bail unless some cancellation-aware overload exists for this name at
         // either the bound arity or the unbound arity (receiver as leading interface parameter),
         // mirroring the two lookups below. The precise annotation check still happens afterwards.
-        if (lookup.hasCancellationAwareMethod(methodName, arity) == false
-            && (arity == 0 || lookup.hasCancellationAwareMethod(methodName, arity - 1) == false)) {
+        if (lookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, arity) == false
+            && (arity == 0 || lookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, arity - 1) == false)) {
             return false;
         }
         Class<?> receiverClass = lookup.canonicalTypeNameToType(symbol);
@@ -2483,7 +2483,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         if (method == null && arity > 0) {
             method = lookup.lookupPainlessMethod(receiverClass, true, methodName, arity - 1);
         }
-        return method != null && method.annotations().containsKey(CancellationAwareAnnotation.class);
+        return method != null && method.annotations().containsKey(ScriptAwareAnnotation.class);
     }
 
     /**
@@ -2539,7 +2539,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     isInstanceReference
                 );
 
-                // Same @cancellation_aware augmentation handling as the bound case below: the
+                // Same @script_aware augmentation handling as the bound case below: the
                 // unbound method ref (e.g. Iterable::each) needs the script receiver threaded
                 // as a synthetic leading capture so the augmentation body can poll the cancel
                 // runnable. Mutually exclusive with isInstanceReference (which is for this::fn
@@ -2604,7 +2604,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         false
                     );
 
-                    // If the bound method ref resolves to a @cancellation_aware augmentation,
+                    // If the bound method ref resolves to a @script_aware augmentation,
                     // augment the FunctionRef with a synthetic leading PainlessScript capture
                     // and mark the user node as instance-capturing so the IR phase pushes the
                     // script receiver ahead of the bound capture at the construction site.
@@ -3384,9 +3384,25 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 : targetType.targetType();
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
+
+            // A def call whose name/arity might resolve to a @script_aware augmentation will push the
+            // script receiver, so the enclosing function/lambda must be able to supply it (i.e. have
+            // the script as `this`). Flag it like an instance-method use so any enclosing lambda
+            // captures the script.
+            if (semanticScope.getScriptScope()
+                .getPainlessLookup()
+                .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, userArgumentsSize)) {
+                semanticScope.setUsesInstanceMethod();
+            }
         } else {
             Objects.requireNonNull(method);
             semanticScope.getScriptScope().markNonDeterministic(method.annotations().containsKey(NonDeterministicAnnotation.class));
+
+            // A statically-resolved @script_aware augmentation needs the script receiver pushed, so
+            // the enclosing function/lambda must supply it as `this`; flag it like an instance-method use.
+            if (method.annotations().containsKey(ScriptAwareAnnotation.class)) {
+                semanticScope.setUsesInstanceMethod();
+            }
 
             for (int argument = 0; argument < userArgumentsSize; ++argument) {
                 AExpression userArgumentNode = userArgumentNodes.get(argument);

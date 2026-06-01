@@ -11,7 +11,7 @@ package org.elasticsearch.painless;
 
 /**
  * Test fixture whose method name {@code each} deliberately collides with the
- * {@code @cancellation_aware} {@code Iterable.each} augmentation. A {@code def}-typed call to
+ * {@code @script_aware} {@code Iterable.each} augmentation. A {@code def}-typed call to
  * {@code each} is name-gated by the compiler (the name is in the cancellation-aware set) so the
  * synthetic script-this slot is pushed, but this method is an ordinary, non-cancellation-aware
  * method. It therefore exercises {@code Def.lookupMethod}'s fallback that discards the extra

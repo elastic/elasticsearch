@@ -215,7 +215,7 @@ public final class WriterConstants {
 
     /**
      * Method generated on opted-in script classes that performs one decrement-and-check against
-     * {@link #CANCEL_POLL_FIELD}, letting {@code @cancellation_aware} augmentations poll the script's
+     * {@link #CANCEL_POLL_FIELD}, letting {@code @script_aware} augmentations poll the script's
      * persistent counter directly instead of maintaining their own — so the count is shared with the
      * compiler's inline loop/entry decrements and stays amortised across all script work.
      */

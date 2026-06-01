@@ -141,7 +141,7 @@ public interface PainlessScript {
      * counter, running the cancellation runnable and resetting the counter when it reaches zero.
      * Opted-in contexts back the counter with a generated field ({@code $cancelPoll}) that the
      * compiler also decrements inline at every loop back-edge and function entry;
-     * {@code @cancellation_aware} augmentations call this once per iteration so their polling shares
+     * {@code @script_aware} augmentations call this once per iteration so their polling shares
      * that single counter rather than a private copy, keeping the cadence amortised across all
      * script work. The default no-op is for non-opted-in contexts.
      */

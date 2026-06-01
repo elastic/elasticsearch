@@ -14,6 +14,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +39,7 @@ public final class PainlessLookup {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
-    private final Set<String> cancellationAwareMethodKeys;
+    private final Map<Class<?>, Set<String>> annotationsToMethodKeys;
 
     PainlessLookup(
         Map<String, Class<?>> javaClassNamesToClasses,
@@ -48,7 +49,7 @@ public final class PainlessLookup {
         Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
         Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
-        Set<String> cancellationAwareMethodKeys
+        Map<Class<?>, Set<String>> annotationsToMethodKeys
     ) {
         this.javaClassNamesToClasses = Map.copyOf(javaClassNamesToClasses);
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
@@ -59,23 +60,28 @@ public final class PainlessLookup {
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
 
-        this.cancellationAwareMethodKeys = Set.copyOf(cancellationAwareMethodKeys);
+        Map<Class<?>, Set<String>> copy = new HashMap<>();
+        for (Map.Entry<Class<?>, Set<String>> entry : annotationsToMethodKeys.entrySet()) {
+            copy.put(entry.getKey(), Set.copyOf(entry.getValue()));
+        }
+        this.annotationsToMethodKeys = Map.copyOf(copy);
     }
 
     /**
-     * Returns {@code true} when at least one whitelisted method registered with this lookup
-     * carries the {@code @cancellation_aware} annotation under the given user-visible method
-     * name and arity.  Consulted at every def call site in a cancellation-aware function to
-     * decide whether the script receiver ({@code aload 0}) needs to be pushed ahead of the user
-     * args.  Keying on {@code name/arity} (rather than name alone) lets a def call whose argument
-     * count can never match a cancellation-aware overload (e.g. {@code each} at any arity other
-     * than 1) skip the push at compile time; most def calls (e.g. {@code toString}, {@code get})
-     * have no cancellation-aware overload at all and skip it too.  Matching is necessarily an
-     * over-approximation for the names/arities that do collide — the runtime annotation check in
-     * {@code Def.lookupMethod} makes the final, exact decision.
+     * Returns {@code true} when at least one whitelisted method registered with this lookup carries
+     * the given annotation under the given user-visible method name and arity.  Consulted at def
+     * call sites — where the receiver type, and therefore the resolved method, is unknown at compile
+     * time — to cheaply decide whether a call could possibly resolve to an annotated method (e.g.
+     * {@code @script_aware}); the only information available there is the name and arity, which
+     * is exactly what the runtime def dispatch keys on.  Keying on {@code name/arity} (rather than
+     * name alone) lets a call whose argument count can never match an annotated overload skip the
+     * special handling.  Matching is necessarily an over-approximation for names/arities that collide
+     * across classes — once the receiver class is known, the resolved method's own annotations are
+     * the exact authority.
      */
-    public boolean hasCancellationAwareMethod(String methodName, int methodArity) {
-        return cancellationAwareMethodKeys.contains(buildPainlessMethodKey(methodName, methodArity));
+    public boolean hasAnnotationAwareMethod(Class<?> annotationType, String methodName, int methodArity) {
+        Set<String> methodKeys = annotationsToMethodKeys.get(annotationType);
+        return methodKeys != null && methodKeys.contains(buildPainlessMethodKey(methodName, methodArity));
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {

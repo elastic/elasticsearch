@@ -36,7 +36,6 @@ public class AliasTests extends ScriptTestCase {
             IllegalArgumentException.class,
             () -> PainlessLookupBuilder.buildFromWhitelists(
                 List.of(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.alias-shadow")),
-                Object.class,
                 new HashMap<>(),
                 new HashMap<>()
             )

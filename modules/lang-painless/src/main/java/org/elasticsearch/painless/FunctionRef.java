@@ -14,7 +14,7 @@ import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.objectweb.asm.Type;
@@ -222,13 +222,13 @@ public class FunctionRef {
                 delegateMethodName = painlessMethod.javaMethod().getName();
                 delegateMethodType = painlessMethod.methodType();
 
-                // @cancellation_aware augmentations carry a leading PainlessScript parameter
+                // @script_aware augmentations carry a leading PainlessScript parameter
                 // in methodType (and the underlying Java method) so the body can poll the
                 // cancel runnable. At a method-reference call site the script receiver is
                 // threaded in via withSyntheticScriptCapture below; strip the leading
                 // PainlessScript here so the factory/delegate split sees the same shape it
                 // would for a non-cancellation augmentation.
-                if (painlessMethod.annotations().containsKey(CancellationAwareAnnotation.class)) {
+                if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
                     delegateMethodType = delegateMethodType.dropParameterTypes(0, 1);
                 }
 

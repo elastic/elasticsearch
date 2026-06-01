@@ -347,17 +347,18 @@ public class IRDecorations {
     }
 
     /**
-     * Marker on a def call node when the user-visible method name matches at least one
-     * {@code @cancellation_aware} augmentation in the lookup.  At bytecode emission the
-     * compiler pushes {@code aload 0} (the script receiver) ahead of user args and prefixes
-     * the recipe so {@code Def.lookupMethod} routes the call through a cancellation-aware
-     * augmentation overload (or drops the extra slot if the runtime-resolved method isn't
-     * cancellation-aware).  Only emitted in cancellation-aware functions; non-cancellation
-     * contexts pay zero overhead because the lookup's name set is empty there.
+     * Marker on a def call node whose user-visible method name and arity might resolve to a
+     * {@code @script_aware} augmentation in the lookup.  At bytecode emission the compiler pushes
+     * {@code aload 0} (the script receiver) ahead of user args and prefixes the recipe with
+     * {@code 'S'} so {@code Def.lookupMethod} routes the call through the script-aware augmentation
+     * overload.  The match is necessarily an over-approximation — the receiver class, and therefore
+     * the resolved method, is unknown at compile time — so the runtime drops the extra slot via
+     * {@code MethodHandles.dropArguments} when the resolved method turns out not to be script-aware
+     * (e.g. a user class shadowing the method name).
      */
-    public static class IRCMaybeNeedsScriptThis implements IRCondition {
+    public static class IRCScriptAware implements IRCondition {
 
-        private IRCMaybeNeedsScriptThis() {
+        private IRCScriptAware() {
 
         }
     }

@@ -145,7 +145,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
-import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
@@ -202,8 +202,8 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
-import org.elasticsearch.painless.symbol.IRDecorations.IRCMaybeNeedsScriptThis;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCScriptAware;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
@@ -1917,15 +1917,19 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
             // Pre-decide at IR construction time whether this def call's method name and arity
-            // might resolve to a @cancellation_aware augmentation. The lookup's key set is built
+            // might resolve to a @script_aware augmentation. The lookup's key set is built
             // once at script-engine startup and is empty for non-cancellation-aware contexts, so
             // the condition is only attached in scripts that could benefit from it; gating on the
             // user-visible argument count additionally skips def calls whose arity can never match
             // a cancellation-aware overload. The bytecode phase further gates on the enclosing
             // function having a cached #cancelRunnable.
             if (scriptScope.getPainlessLookup()
-                .hasCancellationAwareMethod(userCallNode.getMethodName(), userCallNode.getArgumentNodes().size())) {
-                irCallSubDefNode.attachCondition(IRCMaybeNeedsScriptThis.class);
+                .hasAnnotationAwareMethod(
+                    ScriptAwareAnnotation.class,
+                    userCallNode.getMethodName(),
+                    userCallNode.getArgumentNodes().size()
+                )) {
+                irCallSubDefNode.attachCondition(IRCScriptAware.class);
             }
             irExpressionNode = irCallSubDefNode;
         } else {
@@ -1957,12 +1961,12 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irInvokeCallNode.addArgumentNode(constantNode);
             }
 
-            // For @cancellation_aware augmentations, fold the prefix into the call's leading
+            // For @script_aware augmentations, fold the prefix into the call's leading
             // arg position instead of letting BinaryImpl evaluate it before the InvokeCallNode.
             // visitInvokeCall pushes scriptThis first, then iterates argumentNodes — with the
             // prefix at args[0] the resulting stack is [scriptThis, receiver, ...userArgs],
             // matching the script-first augmentation signature without needing a swap.
-            boolean cancellationAware = method.annotations().containsKey(CancellationAwareAnnotation.class);
+            boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
             if (cancellationAware) {
                 irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
             }

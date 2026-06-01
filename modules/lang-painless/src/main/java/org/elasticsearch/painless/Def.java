@@ -14,7 +14,7 @@ import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
+import org.elasticsearch.painless.spi.annotation.ScriptAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.lang.invoke.CallSite;
@@ -157,7 +157,7 @@ public final class Def {
 
     /**
      * Reorders a {@code MethodHandle} so its first two arguments are swapped.  Used by
-     * {@link #lookupMethod} to bridge between {@code @cancellation_aware} augmentation handles
+     * {@link #lookupMethod} to bridge between {@code @script_aware} augmentation handles
      * (script-first: {@code (PainlessScript, receiver, ...userArgs)}) and the call-site
      * descriptor used by def dispatch (receiver-first, so PIC class-keyed caching works).
      */
@@ -216,7 +216,7 @@ public final class Def {
         int numArguments = callSiteType.parameterCount();
 
         // The compiler prefixes the recipe with 'S' at def call sites in cancellation-aware
-        // functions when the method name might resolve to a @cancellation_aware augmentation;
+        // functions when the method name might resolve to a @script_aware augmentation;
         // the call site pushed the script receiver as a synthetic slot after the receiver.
         // Peel it here so the rest of the parsing sees the same recipe shape as before.
         boolean scriptThisPushed = recipeString.isEmpty() == false && recipeString.charAt(0) == 'S';
@@ -253,13 +253,13 @@ public final class Def {
 
             // The call-site descriptor has (receiver, scriptThis, ...userArgs) — receiver-first
             // so the PIC's class dispatch (args[0]) keys on the actual receiver. The resolved
-            // @cancellation_aware handle is script-first: (scriptThis, receiver, ...userArgs).
+            // @script_aware handle is script-first: (scriptThis, receiver, ...userArgs).
             // Swap the handle's first two parameters so its signature matches the call site.
-            // When the resolved method doesn't carry @cancellation_aware (e.g. a user class
+            // When the resolved method doesn't carry @script_aware (e.g. a user class
             // shadowing the augmentation name) drop the call site's extra scriptThis slot
             // instead so the call still proceeds.
             if (scriptThisPushed) {
-                if (painlessMethod.annotations().containsKey(CancellationAwareAnnotation.class)) {
+                if (painlessMethod.annotations().containsKey(ScriptAwareAnnotation.class)) {
                     handle = swapFirstTwoArguments(handle);
                 } else {
                     handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
@@ -316,8 +316,8 @@ public final class Def {
         }
 
         // Same script-first → receiver-first swap as the simple case above when the resolved
-        // method carries @cancellation_aware; drop the extra slot when it doesn't.
-        boolean methodTakesScriptThis = method.annotations().containsKey(CancellationAwareAnnotation.class);
+        // method carries @script_aware; drop the extra slot when it doesn't.
+        boolean methodTakesScriptThis = method.annotations().containsKey(ScriptAwareAnnotation.class);
         if (scriptThisPushed) {
             if (methodTakesScriptThis) {
                 handle = swapFirstTwoArguments(handle);

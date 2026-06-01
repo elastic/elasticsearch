@@ -156,7 +156,12 @@ public record UnassignedInfo(
          */
         FORCED_EMPTY_PRIMARY(true),
         /**
-         * Forced manually to allocate
+         * Manual allocation via the cluster reroute API, to force allocation of a shard and/or to reset the
+         * allocation failure counter.
+         *
+         * <p>Note: This reason is also assigned when the allocation failure counter is automatically reset due to
+         * cluster topology changes (e.g., new node joining).
+         * See https://github.com/elastic/elasticsearch-team/issues/4064 for more details
          */
         MANUAL_ALLOCATION(true),
         /**

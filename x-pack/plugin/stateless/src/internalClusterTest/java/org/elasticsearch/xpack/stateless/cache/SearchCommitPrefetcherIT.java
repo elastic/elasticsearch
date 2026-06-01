@@ -192,6 +192,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             // TODO fix this test to work with this randomized
             // TODO this does more reading & caching because it reads all referenced CCs
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            // Foreground prefetch so the prefetcher populates the cache before the engine opens new segments,
+            // avoiding a race where segment-opening blob store reads are not counted as prefetched bytes.
+            .put(SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING.getKey(), false)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();

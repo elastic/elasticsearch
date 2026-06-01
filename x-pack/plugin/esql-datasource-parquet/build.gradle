@@ -35,6 +35,10 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
+  // Shared Panama FFI zstd helper (PanamaZstd) and bundled compression libraries. Provided
+  // at runtime via the esql-datasource-compression-libs parent plugin classloader chain
+  // declared by extendedPlugins.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
@@ -53,13 +57,18 @@ dependencies {
 
   // Compression libraries — inherited at runtime via extendedPlugins from
   // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
-  // can reference their classes at compile time.
+  // can reference their classes at compile time. zstd-jni was removed in Phase 2: the codec
+  // factory now routes zstd through PanamaZstd (Panama FFI binding) on both code paths.
   compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
-  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
   compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 tasks.named("dependencyLicenses").configure {

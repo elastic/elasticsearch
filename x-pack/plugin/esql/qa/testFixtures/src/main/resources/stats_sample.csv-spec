@@ -7,17 +7,17 @@ documentation
 required_capability: agg_sample
 
 // tag::doc[]
-FROM employees
-| STATS sample = SAMPLE(gender, 5)
+FROM sample_data
+| STATS sample_messages = SAMPLE(message, 3)
 // end::doc[]
-// Hardcode the sample values to work around the limitations of the CSV tests in the 
+// Hardcode the sample values to work around the limitations of the CSV tests in the
 // presence of randomness, and be able to specify an expected result for the docs.
-| EVAL sample = ["F", "M", "M", "F", "M"]
+| EVAL sample_messages = ["Connected to 10.1.0.1", "Connection error", "Disconnected"]
 ;
 
 // tag::doc-result[]
-sample:keyword
-[F, M, M, F, M]
+sample_messages:keyword
+[Connected to 10.1.0.1, Connection error, Disconnected]
 // end::doc-result[]
 ;
 
@@ -257,4 +257,32 @@ FROM apps | STATS sample = SAMPLE(version,999) | EVAL sample = MV_SORT(sample)
 
 sample:version
 [1, 1.2.3.4, 1.2.3.4, 1.11.0, 2.1, 2.3.4, 2.12.0, 5.2.9-SNAPSHOT, 5.2.9, 5.2.9, 5.2.9, bad]
+;
+
+
+documentation by group
+required_capability: agg_sample
+
+// tag::docsSampleByGroup[]
+FROM sample_data
+| STATS sample_messages = SAMPLE(message, 2) BY client_ip
+| SORT client_ip
+// end::docsSampleByGroup[]
+// Hardcode the sample values per group to work around the limitations of the CSV
+// tests in the presence of randomness.
+| EVAL sample_messages = CASE(
+    client_ip == TO_IP("172.21.0.5"),   ["Disconnected"],
+    client_ip == TO_IP("172.21.2.113"), ["Connected to 10.1.0.2"],
+    client_ip == TO_IP("172.21.2.162"), ["Connected to 10.1.0.3"],
+    client_ip == TO_IP("172.21.3.15"),  ["Connection error", "Connected to 10.1.0.1"]
+  )
+;
+
+// tag::docsSampleByGroup-result[]
+client_ip:ip | sample_messages:keyword
+172.21.0.5   | Disconnected
+172.21.2.113 | Connected to 10.1.0.2
+172.21.2.162 | Connected to 10.1.0.3
+172.21.3.15  | [Connection error, Connected to 10.1.0.1]
+// end::docsSampleByGroup-result[]
 ;

@@ -2,15 +2,16 @@
 
 addition_scalar_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h sum=(1+1);
 
 sum:double | step:datetime
-2.0        | 2024-05-10T00:00:00.000Z
+2.0        | 2024-05-10T01:00:00.000Z
 ;
 
 addition_scalar_scalar_promql_expanded
 required_capability: promql_command_v0
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" sum=(1+1)
 | SORT step;
@@ -23,7 +24,7 @@ sum:double | step:datetime
 addition_scalar_scalar_promql_collapsed
 required_capability: promql_command_v0
 required_capability: ts_collapse
-required_capability: fix_promql_time_bucket
+required_capability: fix_promql_time_bucket_v2
 required_capability: fix_tstep_bucket_rounding
 PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" sum=(1+1)
 | TS_COLLAPSE;
@@ -59,19 +60,20 @@ network_in_bits:long | _timeseries:keyword                                      
 
 multiplication_metric_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h network_in_bits=(network.total_bytes_in * 8)
 | SORT network_in_bits DESC;
 
 network_in_bits:double | step:datetime            | _timeseries:keyword
-86376.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
-82216.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-79752.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-68544.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
-59224.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-58288.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
-53096.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-41496.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-7576.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+86376.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+82216.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+79752.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+68544.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+59224.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+58288.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+53096.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+41496.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+7576.0                 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
 multiplication_within_series_scalar_ts
@@ -97,19 +99,20 @@ network_in_bits:long | _timeseries:keyword                                      
 
 multiplication_within_series_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h network_in_bits=(last_over_time(network.total_bytes_in[1h]) * 8)
 | SORT network_in_bits DESC;
 
 network_in_bits:double | step:datetime            | _timeseries:keyword
-86376.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
-82216.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-79752.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-68544.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
-59224.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-58288.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
-53096.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
-41496.0                | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-7576.0                 | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+86376.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+82216.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+79752.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+68544.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+59224.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+58288.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+53096.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
+41496.0                | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+7576.0                 | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
 ;
 
 across_series_multiplication_metric_scalar_ts
@@ -125,12 +128,13 @@ max_bits:long | step:datetime
 
 across_series_multiplication_metric_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max_bits=(
   max(network.total_bytes_in * 8)
 ) | SORT max_bits DESC;
 
 max_bits:double | step:datetime
-86376.0         | 2024-05-10T00:00:00.000Z
+86376.0         | 2024-05-10T01:00:00.000Z
 ;
 
 multiplication_across_series_scalar_ts
@@ -146,12 +150,13 @@ max_bits:long | step:datetime
 
 multiplication_across_series_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max_bits=(
   max(network.total_bytes_in) * 8
 ) | SORT max_bits DESC;
 
 max_bits:double | step:datetime
-86376.0         | 2024-05-10T00:00:00.000Z
+86376.0         | 2024-05-10T01:00:00.000Z
 ;
 
 across_series_grouping_multiplication_within_series_scalar_ts
@@ -169,14 +174,15 @@ max_bits:long | TBUCKET(1h):datetime     | cluster:keyword
 
 across_series_grouping_multiplication_within_series_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (last_over_time(network.total_bytes_in[1h]) * 8)
 ) | SORT max_bits DESC;
 
 max_bits:double | step:datetime            | cluster:keyword
-86376.0         | 2024-05-10T00:00:00.000Z | qa
-82216.0         | 2024-05-10T00:00:00.000Z | prod
-59224.0         | 2024-05-10T00:00:00.000Z | staging
+86376.0         | 2024-05-10T01:00:00.000Z | qa
+82216.0         | 2024-05-10T01:00:00.000Z | prod
+59224.0         | 2024-05-10T01:00:00.000Z | staging
 ;
 
 across_series_grouping_multiplication_metric_scalar_ts
@@ -194,14 +200,15 @@ max_bits:long | TBUCKET(1h):date         | cluster:keyword
 
 across_series_grouping_multiplication_metric_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (network.total_bytes_in * 8)
 ) | SORT max_bits DESC;
 
 max_bits:double | step:datetime            | cluster:keyword
-86376.0         | 2024-05-10T00:00:00.000Z | qa
-82216.0         | 2024-05-10T00:00:00.000Z | prod
-59224.0         | 2024-05-10T00:00:00.000Z | staging
+86376.0         | 2024-05-10T01:00:00.000Z | qa
+82216.0         | 2024-05-10T01:00:00.000Z | prod
+59224.0         | 2024-05-10T01:00:00.000Z | staging
 ;
 
 multiplication_across_series_grouping_scalar_ts
@@ -219,14 +226,15 @@ max_bits:long | step:datetime            | cluster:keyword
 
 multiplication_across_series_grouping_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (network.total_bytes_in) * 8
 ) | SORT max_bits DESC;
 
 max_bits:double | step:datetime            | cluster:keyword
-86376.0         | 2024-05-10T00:00:00.000Z | qa
-82216.0         | 2024-05-10T00:00:00.000Z | prod
-59224.0         | 2024-05-10T00:00:00.000Z | staging
+86376.0         | 2024-05-10T01:00:00.000Z | qa
+82216.0         | 2024-05-10T01:00:00.000Z | prod
+59224.0         | 2024-05-10T01:00:00.000Z | staging
 ;
 
 multiplication_across_series_grouping_within_series_scalar_ts
@@ -244,15 +252,16 @@ max_bits:long | step:datetime            | cluster:keyword
 
 multiplication_across_series_grouping_within_series_scalar_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max_bits=(
   max by (cluster) (last_over_time(network.total_bytes_in[1h])) * 8
 )
 | SORT max_bits DESC;
 
 max_bits:double | step:datetime            | cluster:keyword
-86376.0         | 2024-05-10T00:00:00.000Z | qa
-82216.0         | 2024-05-10T00:00:00.000Z | prod
-59224.0         | 2024-05-10T00:00:00.000Z | staging
+86376.0         | 2024-05-10T01:00:00.000Z | qa
+82216.0         | 2024-05-10T01:00:00.000Z | prod
+59224.0         | 2024-05-10T01:00:00.000Z | staging
 ;
 
 addition_scalar_inner_and_outer_ts
@@ -266,6 +275,7 @@ max:long
 
 addition_scalar_inner_and_outer_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h max=(10 + max(10 + network.total_bytes_in))
 | KEEP max;
 
@@ -299,19 +309,20 @@ in_n_out:long | _timeseries:keyword                                             
 
 addition_metric_metric_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h in_n_out=(network.eth0.rx + network.eth0.tx)
 | SORT in_n_out DESC;
 
 in_n_out:double | step:datetime            | _timeseries:keyword
-2857.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
-2778.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
-2345.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
-2331.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
-2237.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
-1971.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
-1730.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
-1702.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
-1251.0          | 2024-05-10T00:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"   
+2857.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""two""}"
+2778.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""one""}"
+2345.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""qa"",""pod"":""three""}"
+2331.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""three"",""region"":""us""}"
+2237.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""one"",""region"":[""eu"",""us""]}"
+1971.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""two"",""region"":""us""}"
+1730.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""three"",""region"":[""eu"",""us""]}"
+1702.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""prod"",""pod"":""two"",""region"":[""eu"",""us""]}"
+1251.0          | 2024-05-10T01:00:00.000Z | "{""cluster"":""staging"",""pod"":""one"",""region"":""us""}"
 ;
 
 division_metric_metric_grouping_ts
@@ -330,15 +341,16 @@ div:long | step:datetime            | cluster:keyword
 
 division_metric_metric_grouping_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h div=(
   max by (cluster) (network.total_bytes_in / network.total_bytes_in)
 )
 | SORT cluster;
 
 div:double | step:datetime            | cluster:keyword
-1.0        | 2024-05-10T00:00:00.000Z | prod
-1.0        | 2024-05-10T00:00:00.000Z | qa
-1.0        | 2024-05-10T00:00:00.000Z | staging
+1.0        | 2024-05-10T01:00:00.000Z | prod
+1.0        | 2024-05-10T01:00:00.000Z | qa
+1.0        | 2024-05-10T01:00:00.000Z | staging
 ;
 
 division_metric_metric_grouping_filtering_ts
@@ -355,12 +367,13 @@ div:long | step:datetime            | cluster:keyword
 
 division_metric_metric_grouping_filtering_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h div=(
   max by (cluster) (network.total_bytes_in{cluster!="prod"} / network.total_bytes_in{cluster!="staging"})
 ) | SORT cluster;
 
 div:double | step:datetime            | cluster:keyword
-1.0        | 2024-05-10T00:00:00.000Z | qa
+1.0        | 2024-05-10T01:00:00.000Z | qa
 ;
 
 division_within_series_grouping_ts
@@ -382,14 +395,15 @@ div:double | step:datetime            | cluster:keyword
 
 division_within_series_grouping_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h div=(
   max by (cluster) (rate(network.total_bytes_in[1h]) / rate(network.total_bytes_in[1h]))
 ) | SORT cluster;
 
 div:double | step:datetime            | cluster:keyword
-1.0        | 2024-05-10T00:00:00.000Z | prod
-1.0        | 2024-05-10T00:00:00.000Z | qa
-1.0        | 2024-05-10T00:00:00.000Z | staging
+1.0        | 2024-05-10T01:00:00.000Z | prod
+1.0        | 2024-05-10T01:00:00.000Z | qa
+1.0        | 2024-05-10T01:00:00.000Z | staging
 ;
 
 tx_ratio_ts
@@ -412,6 +426,7 @@ ratio:double | step:datetime            | cluster:keyword
 
 tx_ratio_promql
 required_capability: promql_command_v0
+required_capability: fix_promql_time_bucket_v2
 PROMQL index=k8s step=1h ratio=(
   max by (cluster) (
     network.eth0.tx /
@@ -422,7 +437,7 @@ PROMQL index=k8s step=1h ratio=(
 | SORT ratio DESC;
 
 ratio:double | step:datetime            | cluster:keyword
-0.60063      | 2024-05-10T00:00:00.000Z | qa
-0.568155     | 2024-05-10T00:00:00.000Z | prod
-0.518662     | 2024-05-10T00:00:00.000Z | staging
+0.60063      | 2024-05-10T01:00:00.000Z | qa
+0.568155     | 2024-05-10T01:00:00.000Z | prod
+0.518662     | 2024-05-10T01:00:00.000Z | staging
 ;

@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 public interface TokenFilterFactory {
@@ -87,15 +88,12 @@ public interface TokenFilterFactory {
     }
 
     /**
-     * Get the name of the resource that this filter is based on.
-     * Used to reload analyzers on this resource changes.
-     *
-     * For an example, see @SynonymGraphTokenFilterFactory#getResourceName()
-     *
-     * @return the name of the resource that this filter was loaded from if any
+     * Returns the set of resource names this filter depends on.
+     * Used by {@link ReloadableCustomAnalyzer} to determine which synonym sets
+     * trigger a reload for this filter.
      */
-    default String getResourceName() {
-        return null;
+    default Set<String> getResourceNames() {
+        return Set.of();
     }
 
     /**

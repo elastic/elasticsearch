@@ -15,6 +15,8 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -169,13 +171,26 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException
+        // (which the external source operator maps to 400).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::newStream);
         assertTrue(e.getMessage().contains("Failed to read object from"));
+    }
+
+    public void testNewStreamMapsRetryableStorageExceptionToUnavailable() {
+        // A retryable transport status (here 503) becomes ExternalUnavailableException (mapped to 503).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {
@@ -335,7 +350,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
@@ -343,6 +359,17 @@ public class GcsStorageObjectTests extends ESTestCase {
         ByteBuffer target = ByteBuffer.allocate(10);
         IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
         assertTrue(e.getMessage().contains("Failed to read bytes from"));
+    }
+
+    public void testReadBytesMapsRetryableStorageExceptionToUnavailable() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     // === readBytesAsync tests ===
@@ -375,6 +402,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertNotNull(result.get());
+        assertTrue("readBytesAsync must return a direct ByteBuffer", result.get().isDirect());
         assertEquals(5, result.get().remaining());
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);
@@ -440,5 +468,51 @@ public class GcsStorageObjectTests extends ESTestCase {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
         assertTrue(obj.supportsNativeAsync());
+    }
+
+    /**
+     * newStream(pos, length) increments {@link StorageObjectMetrics} request counters and records
+     * the requested byte count. GCS ReadChannel does not expose content length on open, so the
+     * implementation records the requested range length as bytesRead.
+     */
+    public void testRangeNewStreamIncrementsMetrics() throws IOException {
+        long rangeBytes = 1024L;
+        ReadChannel mockReader = mock(ReadChannel.class);
+        when(mockStorage.reader(any(BlobId.class))).thenReturn(mockReader);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path, 100_000L);
+
+        assertEquals(0L, obj.metrics().requestCount());
+        obj.newStream(0, rangeBytes).close();
+
+        StorageObjectMetrics metrics = obj.metrics();
+        assertEquals(1L, metrics.requestCount());
+        assertTrue("bytesRead should be >= 0", metrics.bytesRead() >= 0);
+        assertEquals(rangeBytes, metrics.bytesRead());
+        assertTrue("requestNanos should be > 0", metrics.requestNanos() > 0);
+        assertEquals(0L, metrics.retryCount());
+    }
+
+    /**
+     * Metadata-probe paths (length(), exists(), lastModified()) are intentionally NOT counted
+     * in metrics() — they're not data reads.
+     */
+    public void testMetadataProbesDoNotCountAsRequests() throws IOException {
+        Blob mockBlob = mock(Blob.class);
+        when(mockBlob.getSize()).thenReturn(100L);
+        OffsetDateTime odt = OffsetDateTime.of(2025, 6, 15, 10, 30, 0, 0, ZoneOffset.UTC);
+        when(mockBlob.getUpdateTimeOffsetDateTime()).thenReturn(odt);
+        when(mockStorage.get(any(BlobId.class))).thenReturn(mockBlob);
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        obj.length();
+        obj.exists();
+        obj.lastModified();
+
+        assertEquals(0L, obj.metrics().requestCount());
+        assertEquals(0L, obj.metrics().bytesRead());
     }
 }

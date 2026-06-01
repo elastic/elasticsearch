@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -28,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Test case with method to handle the starting and stopping the stores for native users and roles
@@ -37,6 +40,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Before
     public void ensureNativeStoresStarted() throws Exception {
         createSecurityIndexWithWaitForActiveShards();
+        awaitSecurityIndexAvailableOnAllNodes();
         if (shouldSetReservedUserPasswords()) {
             setupReservedPasswords();
         }
@@ -50,6 +54,28 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster
             getSecurityClient(SECURITY_REQUEST_OPTIONS).clearRealmCache("*");
         }
+    }
+
+    /**
+     * Wait until every node observes the security index as available for primary shards.
+     *
+     * {@link #createSecurityIndexWithWaitForActiveShards()} only waits for shards to be active in the cluster state on the
+     * master; non-master nodes update their per-node {@link SecurityIndexManager} state asynchronously via a cluster state
+     * listener. Authenticating reserved users (e.g. via {@link #setupReservedPasswords()}) routes through whichever node
+     * receives the request, and {@code NativeUsersStore#getReservedUserInfo} fails with {@code UnavailableShardsException}
+     * if that node has not yet applied the cluster state — which surfaces as a 503 from {@code ReservedRealm}.
+     */
+    private void awaitSecurityIndexAvailableOnAllNodes() throws Exception {
+        assertBusy(() -> {
+            for (NativePrivilegeStore privilegeStore : internalCluster().getInstances(NativePrivilegeStore.class)) {
+                assertThat(
+                    privilegeStore.getSecurityIndexManager()
+                        .forCurrentProject()
+                        .isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS),
+                    is(true)
+                );
+            }
+        });
     }
 
     @Override

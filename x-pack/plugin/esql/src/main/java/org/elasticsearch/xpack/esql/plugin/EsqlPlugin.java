@@ -65,7 +65,6 @@ import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -118,6 +117,7 @@ import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -368,6 +368,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider(),
                 dataSourceModule,
                 functionRegistry,
+                PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService
             ),
@@ -462,7 +463,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                new ActionHandler(EsqlHasOriginProjectTargetAction.TYPE, EsqlHasOriginProjectTargetAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );
@@ -519,6 +519,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(ExchangeSinkOperator.Status.ENTRY);
         entries.add(ExchangeSourceOperator.Status.ENTRY);
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
+        entries.add(org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(GroupedLimitOperator.Status.ENTRY);

@@ -1407,7 +1407,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         // empty output directly so the no-fields marker doesn't leak into the fork branch output.
                         logicalPlan = new Project(logicalPlan.source(), logicalPlan, List.of());
                     } else {
-                        logicalPlan = resolveKeep(new Keep(logicalPlan.source(), logicalPlan, newOutput), UnmappedResolution.DEFAULT);
+                        // FORK alignment is structural, not user-named: emit a Project directly rather than
+                        // routing through resolveKeep. A Keep on this path would falsely register every
+                        // virtual attribute in the alignment projection (e.g. EXTERNAL's shim-injected
+                        // _file.* family) as "the user explicitly KEEP'd it", which planWithoutSyntheticAttributes
+                        // then refuses to strip — leaking the columns to the output. The projections here are
+                        // already pre-resolved Attributes drawn from Fork.outputUnion, so keepResolver would
+                        // be a no-op anyway (no wildcards, no UnresolvedNamePattern). A user-named KEEP _file.path
+                        // upstream of the FORK still survives via its own Keep node in the branch's plan tree.
+                        logicalPlan = new Project(logicalPlan.source(), logicalPlan, new ArrayList<>(newOutput));
                     }
                 }
 

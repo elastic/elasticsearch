@@ -91,7 +91,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (TransformMetadata.isUpgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(state))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot delete any Transform while the Transform feature is upgrading.",

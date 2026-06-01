@@ -192,6 +192,57 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         }
     }
 
+    /**
+     * End-to-end regression for the idle/connection reset that motivated esql #862. Unlike
+     * {@link #testMultiSegmentNdjsonReadRecoversFromConnectionReset} (which resets at stream-open, where the
+     * object-store layer retries), this drops the connection <b>mid-body</b> on a segment read — a reset on an
+     * already-open stream, which propagates to {@code ParallelParsingCoordinator}'s mid-read recovery
+     * ({@code readSegmentWithResetRetries}: re-open the byte range, skip delivered rows, resume). The threshold
+     * is set above the small schema/record-boundary probes so only the large segment read is faulted. Before the
+     * fix this failed the query with "Parallel parsing failed" caused by a {@link java.net.SocketException};
+     * the full count coming back proves exactly-once reconnect-and-resume through the real stack.
+     */
+    public void testMultiSegmentNdjsonReadRecoversFromMidReadReset() throws Exception {
+        int rows = 500_000;
+        // ~42 MiB so parsing_parallelism=4 yields ~10 MiB segments — each segment read streams far more than
+        // the 1 MiB reset threshold, while record-boundary probes (a few KiB) stay under it.
+        byte[] ndjson = generateNdjson(rows);
+        String key = WAREHOUSE + "/reset-midbody/big.ndjson";
+        s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
+
+        // Reference a column (salary) so the read does NOT take the empty-projection schema-bind, which streams
+        // the whole file as one object read during setup (that read is not segment-scoped and is out of the
+        // coordinator's per-segment retry). With a projected column the fault lands on a segment byte-range read,
+        // which is exactly the path readSegmentWithResetRetries re-opens and resumes.
+        // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 500k rows is 89999.
+        String query = externalS3Query(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
+        for (String mode : DISTRIBUTION_MODES) {
+            faultHandler().setMidBodyResetFault(1, 1024 * 1024, path -> path.endsWith("big.ndjson"));
+
+            Map<String, Object> result = runQueryWithMode(query, mode, 4);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) result.get("values");
+            assertNotNull(Strings.format("Expected values after mid-read reset recovery for mode %s", mode), values);
+            assertEquals(Strings.format("Expected a single result row for mode %s", mode), 1, values.size());
+            assertEquals(
+                Strings.format("Expected exactly-once full count after mid-read reset recovery for mode %s", mode),
+                (long) rows,
+                ((Number) values.get(0).get(0)).longValue()
+            );
+            assertEquals(
+                Strings.format("Expected the full salary range to survive reset recovery for mode %s", mode),
+                89999L,
+                ((Number) values.get(0).get(1)).longValue()
+            );
+            assertTrue(
+                Strings.format("Expected the injected mid-read reset to fire for mode %s", mode),
+                faultHandler().remainingFaults() <= 0
+            );
+
+            faultHandler().clearFault();
+        }
+    }
+
     private static byte[] generateNdjson(int rows) {
         StringBuilder sb = new StringBuilder(rows * 90);
         for (int i = 0; i < rows; i++) {

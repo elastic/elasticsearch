@@ -718,11 +718,15 @@ public final class ParallelParsingCoordinator {
          * above. (The esql plugin does not depend on the AWS SDK, so those concrete types cannot be referenced
          * here by class; they are matched through their JDK transport cause.)
          * <p>
-         * <b>Message fallback is narrow and documented.</b> Some HTTP clients surface a reset as a bare
-         * {@link IOException} with no transport-typed cause; only for that case do we fall back to a tight
-         * substring check on the message. A throwable that cannot be type-identified as transport and does not
-         * match that narrow phrase is treated as a real error and is <em>not</em> retried — a genuine
-         * data/parse error never gets retried as transient.
+         * <b>Message fallback is narrow and documented.</b> Some HTTP clients surface a connection drop as an
+         * {@link IOException} with no transport-typed cause — either an outright reset/close, or a mid-read
+         * truncation where fewer body bytes arrived than the Content-Length promised (Apache HttpClient's
+         * {@code ConnectionClosedException} "Premature end of Content-Length delimited message body", or
+         * "unexpected end of stream" elsewhere). Only for those cases do we fall back to a tight substring
+         * check on the message. A throwable that cannot be type-identified as transport and does not match
+         * those narrow phrases is treated as a real error and is <em>not</em> retried — a genuine data/parse
+         * error never gets retried as transient, and a genuinely truncated object simply re-trips and fails
+         * cleanly within the bounded retry budget.
          */
         static boolean isConnectionReset(Throwable t) {
             for (Throwable c = t; c != null; c = c.getCause()) {
@@ -730,14 +734,23 @@ public final class ParallelParsingCoordinator {
                 if (c instanceof SocketException || c instanceof SocketTimeoutException || c instanceof InterruptedIOException) {
                     return true;
                 }
-                // Narrow, documented message fallback: only a bare IOException whose message is exactly a
-                // connection-reset/closed phrase. Deliberately does NOT match arbitrary throwables — a data or
-                // parse error that merely mentions the phrase must not be retried.
+                // Narrow, documented message fallback: only an IOException whose message is a connection-drop
+                // phrase. Covers two shapes of the same transport failure — an outright reset/close, and a
+                // mid-read truncation where the HTTP client received fewer body bytes than the Content-Length
+                // promised (an idle/connection drop on an already-open object stream surfaces from Apache
+                // HttpClient as ConnectionClosedException "Premature end of Content-Length delimited message
+                // body", and from other clients as "unexpected end of stream"). Deliberately does NOT match
+                // arbitrary throwables — a data or parse error that merely mentions the phrase must not be
+                // retried; a re-read of a genuinely truncated object simply re-trips and fails cleanly within
+                // the bounded retry budget.
                 if (c instanceof IOException) {
                     String msg = c.getMessage();
                     if (msg != null) {
                         String lower = msg.toLowerCase(Locale.ROOT);
-                        if (lower.contains("connection reset") || lower.contains("connection closed")) {
+                        if (lower.contains("connection reset")
+                            || lower.contains("connection closed")
+                            || lower.contains("premature end of")
+                            || lower.contains("unexpected end of stream")) {
                             return true;
                         }
                     }

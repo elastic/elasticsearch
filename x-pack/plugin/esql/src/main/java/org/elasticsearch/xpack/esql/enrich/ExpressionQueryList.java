@@ -242,7 +242,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                         // special handle Equals operator on keyword fields
                         // we can apply as a BulkKeywordLookup for better performance
                         if (binaryComparison instanceof Equals) {
-                            bulkKeywordLookup = new BulkKeywordLookup(rightFieldType, matchChannelOffset, extractChannelOffset, warnings);
+                            bulkKeywordLookup = new BulkKeywordLookup(
+                                rightFieldType.name(),
+                                matchChannelOffset,
+                                extractChannelOffset,
+                                warnings
+                            );
                             return true;
                         }
                     }

@@ -415,4 +415,18 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
     }
+
+    public void testColumnarBooleanArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "boolean").endObject()))
+            .documentMapper();
+        // Mixed order — sorted doc-values order would group all false before all true regardless of input order.
+        boolean v1 = randomBoolean();
+        boolean v2 = randomBoolean();
+        boolean v3 = randomBoolean();
+        boolean v4 = randomBoolean();
+        String src = syntheticSource(mapper, b -> b.array("field", v1, v2, v3, v4));
+        assertThat(src, containsString("\"field\":[" + v1 + "," + v2 + "," + v3 + "," + v4 + "]"));
+    }
 }

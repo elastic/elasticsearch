@@ -111,6 +111,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -4682,6 +4683,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(DataStreamsPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(EsqlPlugin.class);
+        plugins.add(EncryptionPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }

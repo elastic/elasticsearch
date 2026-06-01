@@ -617,9 +617,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
   method: testParquetFile {bad_ARROW-GH-41321}
   issue: https://github.com/elastic/elasticsearch/issues/150300
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testSnapshotShardsWhileHollowing
-  issue: https://github.com/elastic/elasticsearch/issues/150301
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/150302

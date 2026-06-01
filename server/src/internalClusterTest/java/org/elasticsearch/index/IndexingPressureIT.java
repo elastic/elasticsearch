@@ -52,6 +52,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -104,6 +105,10 @@ public class IndexingPressureIT extends ESIntegTestCase {
         return 1;
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.action.bulk.TransportShardBulkAction:DEBUG",
+        reason = "capture cancellation diagnostics in MockLog"
+    )
     public void testCancellableTransportWriteAction() throws Exception {
         assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);

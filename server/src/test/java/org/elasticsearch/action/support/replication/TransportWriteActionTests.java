@@ -58,6 +58,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -414,6 +415,10 @@ public class TransportWriteActionTests extends ESTestCase {
         }
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.action.support.replication.TransportWriteActionTests.TestCancellableAction:DEBUG",
+        reason = "capture cancellation diagnostics in MockLog"
+    )
     public void testCancelTransportWriteAction() {
         AtomicInteger taskSubmitted = new AtomicInteger(0);
         AtomicInteger taskExecuted = new AtomicInteger(0);
@@ -642,7 +647,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
     }
 
-    private class TestCancellableAction extends TestAction {
+    public class TestCancellableAction extends TestAction {
         private AtomicInteger taskExecuted;
 
         protected TestCancellableAction(

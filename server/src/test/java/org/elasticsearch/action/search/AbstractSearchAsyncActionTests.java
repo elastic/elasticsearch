@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.Transport;
@@ -473,17 +474,51 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger retryCount = new AtomicInteger();
         AtomicBoolean groupFailureFired = new AtomicBoolean();
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
-            new SearchRequest().allowPartialSearchResults(true),
-            new ArraySearchPhaseResults<>(1),
-            retryCount,
-            groupFailureFired
-        );
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
 
-        action.onShardFailure(0, primaryTarget, shardIt, new QueryShardException(shardId.getIndex(), "unsupported query", null));
+            action.onShardFailure(0, primaryTarget, shardIt, new QueryShardException(shardId.getIndex(), "unsupported query", null));
+        }
 
         assertEquals("non-retriable error should not trigger a retry", 0, retryCount.get());
         assertTrue("onShardGroupFailure must fire when copies remain but exception is non-retriable", groupFailureFired.get());
+    }
+
+    public void testSearchTimeoutExceptionSkipsReplicaRetry() {
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            shardId,
+            List.of("node1", "node2"),
+            null,
+            null,
+            null,
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget primaryTarget = shardIt.nextOrNull();
+
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(false),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+
+            action.onShardFailure(0, primaryTarget, shardIt, new SearchTimeoutException(primaryTarget, "Time exceeded"));
+        }
+
+        assertEquals("SearchTimeoutException must not trigger a replica retry even when a copy is available", 0, retryCount.get());
+        assertTrue("onShardGroupFailure must fire so the timeout is surfaced to the caller", groupFailureFired.get());
     }
 
     public void testRetriableExceptionTriesNextCopy() {

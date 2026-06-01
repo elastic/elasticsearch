@@ -755,7 +755,8 @@ public final class ConstantMethodResultSpecializer {
         // verified opcode-by-opcode and structurally; defineHiddenClass cannot see a class
         // shape the validator hasn't already approved.
         try {
-            // Note on entitlements: ESQL needs the create_class_loader entitlement for this.
+            // defineHiddenClass is gated by the create_class_loader entitlement, which is
+            // granted to ALL-UNNAMED in the ESQL plugin's entitlement-policy.yaml.
             MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(base, MethodHandles.lookup());
             if (classData == null) {
                 return lookup.defineHiddenClass(bytecode, /* initialize */ true).lookupClass();

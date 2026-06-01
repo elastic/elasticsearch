@@ -58,6 +58,8 @@ def nativeImageLinuxAarch64 = tasks.register('nativeImageLinuxAarch64', NativeIm
   imageTag = nativeImageImage
   platform = 'linux/arm64'
   mainClass = launcherMainClass
+  // Use the ARMv8.0-A baseline so the binary runs on any aarch64 CPU; GraalVM 25's default requires LSE atomics (ARMv8.1).
+  extraArgs = ['-march=compatibility']
   outputFile = layout.buildDirectory.file('native/linux-aarch64/server-launcher')
 }
 

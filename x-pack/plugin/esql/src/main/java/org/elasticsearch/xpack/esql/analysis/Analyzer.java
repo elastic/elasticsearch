@@ -2893,19 +2893,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     continue;
                 }
                 // Strip by type OR by well-known virtual name. The name fallback is a defense layer:
-                // downstream rules — candidates include FORK's output re-derivation through
-                // toReferenceAttributesPreservingIds and later project/aggregate transforms — can drop
-                // the VirtualAttribute marker even when they preserve the attribute. The fallback set
-                // covers both virtual namespaces: _file.* (FileMetadataColumns.NAMES) and the standard
-                // ES metadata names (MetadataAttribute.ATTRIBUTES_MAP keys: _id, _index, _version,
-                // _source, _score, _ignored, _index_mode, _tsid, _size, _data_tier). KEEP-provenance
-                // still overrides — naming a virtual column in KEEP _file.path resurfaces it.
+                // downstream rules — notably FORK's output re-derivation through
+                // toReferenceAttributesPreservingIds — can drop the VirtualAttribute marker. The fallback
+                // is namespaced to the _file.* family: it is the only virtual-attribute namespace whose
+                // names are guaranteed not to collide with real metadata attributes on regular indices
+                // (_index, _version etc. on a non-external relation are real MetadataAttributes, not
+                // virtual). KEEP-provenance still overrides — naming a virtual column in KEEP _file.path
+                // resurfaces it.
                 // TODO: identify which downstream rule drops the marker and fix it at the source, then
                 // remove the name fallback.
                 boolean isVirtualByType = attr instanceof VirtualAttribute;
                 boolean isVirtualByName = isVirtualByType == false
-                    && (org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(attr.name())
-                        || MetadataAttribute.ATTRIBUTES_MAP.containsKey(attr.name()));
+                    && org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(attr.name());
                 if ((isVirtualByType || isVirtualByName) && explicitlyKept.contains(attr.name()) == false) {
                     continue;
                 }
@@ -2931,12 +2930,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Set<String> names = new HashSet<>();
             plan.forEachDown(Keep.class, keep -> {
                 for (NamedExpression projection : keep.projections()) {
-                    // Pair with the strip: type-marker OR well-known virtual name. KEEP _file.path
-                    // or KEEP _index on a projection whose VirtualAttribute marker was dropped
-                    // downstream still counts as an explicit keep.
+                    // Pair with the strip: type-marker OR well-known _file.* name. KEEP _file.path on a
+                    // projection whose VirtualAttribute marker was dropped downstream still counts as
+                    // an explicit keep.
                     if (projection instanceof VirtualAttribute
-                        || org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(projection.name())
-                        || MetadataAttribute.ATTRIBUTES_MAP.containsKey(projection.name())) {
+                        || org.elasticsearch.xpack.esql.datasources.FileMetadataColumns.NAMES.contains(projection.name())) {
                         names.add(projection.name());
                     }
                 }

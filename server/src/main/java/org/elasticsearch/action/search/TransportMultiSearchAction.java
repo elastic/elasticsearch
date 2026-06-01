@@ -270,24 +270,28 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
         ShardSearchFailure[] failures = response.getShardFailures();
         if (failures.length > 0) {
-            bytes += tryCountSerializedBytes(counter, out -> out.writeArray(failures), "shard failures");
+            bytes += tryCountSerializedBytes(
+                counter,
+                out -> out.writeArray(failures),
+                "msearch circuit breaker: failed to estimate shard failure bytes"
+            );
         }
 
         Suggest suggest = response.getSuggest();
         if (suggest != null) {
-            bytes += tryCountSerializedBytes(counter, suggest, "suggest");
+            bytes += tryCountSerializedBytes(counter, suggest, "msearch circuit breaker: failed to estimate suggest bytes");
         }
 
         SearchProfileResults profileResults = response.getSearchProfileResults();
         if (profileResults != null) {
-            bytes += tryCountSerializedBytes(counter, profileResults, "profile results");
+            bytes += tryCountSerializedBytes(counter, profileResults, "msearch circuit breaker: failed to estimate profile bytes");
         }
 
         // CCS only: for non-CCS responses the Clusters object holds just three integers, already
         // absorbed by BASE_RESPONSE_OVERHEAD. Only serialize when per-cluster tracking is active.
         SearchResponse.Clusters clusters = response.getClusters();
         if (clusters.hasClusterObjects()) {
-            bytes += tryCountSerializedBytes(counter, clusters, "clusters");
+            bytes += tryCountSerializedBytes(counter, clusters, "msearch circuit breaker: failed to estimate cluster bytes");
         }
 
         return bytes;
@@ -299,14 +303,14 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * Returns {@code 0} and logs a warning if serialisation raises an unexpected exception;
      * in that case {@code counter} is reset so the next call starts from a clean state.
      */
-    private static long tryCountSerializedBytes(CountingStreamOutput counter, Writeable writeable, String label) {
+    private static long tryCountSerializedBytes(CountingStreamOutput counter, Writeable writeable, String logMessage) {
         try {
             counter.reset();
             writeable.writeTo(counter);
             return counter.position();
         } catch (Exception e) {
             counter.reset();
-            logger.warn("msearch circuit breaker: failed to estimate [{}] bytes: {}", label, e);
+            logger.warn(logMessage, e);
             return 0L;
         }
     }
@@ -334,10 +338,18 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         }
         Map<String, HighlightField> highlights = hit.getHighlightFields();
         if (highlights.isEmpty() == false) {
-            bytes += tryCountSerializedBytes(counter, out -> out.writeCollection(highlights.values()), "highlights");
+            bytes += tryCountSerializedBytes(
+                counter,
+                out -> out.writeCollection(highlights.values()),
+                "msearch circuit breaker: failed to estimate highlight bytes"
+            );
         }
         if (hit.getExplanation() != null) {
-            bytes += tryCountSerializedBytes(counter, out -> writeExplanation(out, hit.getExplanation()), "explanation");
+            bytes += tryCountSerializedBytes(
+                counter,
+                out -> writeExplanation(out, hit.getExplanation()),
+                "msearch circuit breaker: failed to estimate explanation bytes"
+            );
         }
         Map<String, SearchHits> innerHits = hit.getInnerHits();
         if (innerHits != null) {
@@ -426,19 +438,26 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         // responseCounter. CircuitBreakingException is caught below and returned as a failure item without throwing.
         client.search(request.request, subscribeListener.map(searchResponse -> {
             long queryPhaseAggHandoff = searchResponse.getQueryPhaseAggregationBreakerBytes();
-            long bytes = estimateActualBytes(searchResponse);
             try {
-                circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
-            } catch (CircuitBreakingException e) {
+                long bytes = estimateActualBytes(searchResponse);
+                try {
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
+                } catch (CircuitBreakingException e) {
+                    if (queryPhaseAggHandoff > 0) {
+                        circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
+                    }
+                    // No mustIncRef() yet — respondAndRelease on the search path will decRef the response.
+                    return new MultiSearchResponse.Item(null, e);
+                }
+                breakerAccounting.add(bytes, queryPhaseAggHandoff);
+                searchResponse.mustIncRef();
+                return new MultiSearchResponse.Item(searchResponse, null);
+            } catch (Exception unexpected) {
                 if (queryPhaseAggHandoff > 0) {
                     circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
                 }
-                // No mustIncRef() yet — respondAndRelease on the search path will decRef the response.
-                return new MultiSearchResponse.Item(null, e);
+                throw unexpected;
             }
-            breakerAccounting.add(bytes, queryPhaseAggHandoff);
-            searchResponse.mustIncRef();
-            return new MultiSearchResponse.Item(searchResponse, null);
         }));
         final ActionListener<MultiSearchResponse.Item> responseListener = new ActionListener<>() {
             @Override

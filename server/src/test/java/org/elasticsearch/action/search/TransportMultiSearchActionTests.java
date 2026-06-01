@@ -674,10 +674,31 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testBreakerReleasesHandoffOnUnexpectedException() throws Exception {
+        long handoffBytes = 1024L;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1, new IllegalStateException("simulated reservation failure"));
+        breaker.addWithoutBreaking(handoffBytes);
+
+        MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[1];
+        runMsearchWithBreaker(breaker, 1, () -> {
+            SearchResponse r = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
+            r.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+            return r;
+        }, null, captured -> items[0] = captured[0]);
+
+        // map() routes the exception to onFailure; msearch still completes with a failure item.
+        assertTrue(items[0].isFailure());
+        assertThat(items[0].getFailure(), instanceOf(IllegalStateException.class));
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testBreakerTripDuringExecution() throws Exception {
         int tripOn = 2;
         int numRequests = 3;
         TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(tripOn);
+        // The mock client completes searches synchronously, so all three sub-searches run sequentially
+        // via the recursive executeSearch chain (not the outer concurrent for-loop). Reservation call 1
+        // succeeds (slot 0), call 2 trips (slot 1), call 3 succeeds (slot 2).
         boolean[] failures = new boolean[numRequests];
         Exception[] failureExceptions = new Exception[numRequests];
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numRequests];
@@ -806,8 +827,15 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         private final AtomicInteger reservationCalls = new AtomicInteger();
         private final int tripOnCall;
 
+        private final RuntimeException reservationRuntimeException;
+
         TrackingCircuitBreaker(int tripOnCall) {
+            this(tripOnCall, null);
+        }
+
+        TrackingCircuitBreaker(int tripOnCall, RuntimeException reservationRuntimeException) {
             this.tripOnCall = tripOnCall;
+            this.reservationRuntimeException = reservationRuntimeException;
         }
 
         @Override
@@ -815,6 +843,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            if (reservationRuntimeException != null) {
+                throw reservationRuntimeException;
+            }
             if (tripOnCall >= 0 && reservationCalls.incrementAndGet() == tripOnCall) {
                 throw new CircuitBreakingException("tripped", getDurability());
             }

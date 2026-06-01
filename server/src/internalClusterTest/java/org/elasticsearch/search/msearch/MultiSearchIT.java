@@ -122,6 +122,9 @@ public class MultiSearchIT extends ESIntegTestCase {
         );
         long baseline = requestBreakerEstimated(coordinatorNode);
 
+        // Polls every 1 ms; with maxConcurrentSearchRequests(1) and many sub-searches the reservation
+        // stays elevated long enough to observe. A sub-millisecond msearch could theoretically complete
+        // between polls and leave peakUsage at baseline.
         AtomicLong peakUsage = new AtomicLong(baseline);
         ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "msearch-breaker-monitor");

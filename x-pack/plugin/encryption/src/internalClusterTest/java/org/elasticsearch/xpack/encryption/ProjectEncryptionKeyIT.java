@@ -81,10 +81,15 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
             assertEquals(PASSWORD_ID, pek.getPasswordId());
             EncryptedData encryptedActive = pek.getEncryptedKey(pek.getActiveKeyId());
             assertThat(encryptedActive, notNullValue());
-            // Canonical wrap layout: [salt | version | iv | ciphertext+tag] over a 32-byte PEK.
+            // Canonical wrap layout: [kdf_version(1) | salt(16) | AesGcm output(version+iv+ciphertext+tag)] over a 32-byte PEK.
             assertThat(
                 encryptedActive.payload().length,
-                equalTo(PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES + PasswordBasedEncryption.PEK_LENGTH_BYTES)
+                equalTo(
+                    PasswordBasedEncryption.SALT_OFFSET
+                        + PasswordBasedEncryption.SALT_LENGTH_BYTES
+                        + AesGcm.OVERHEAD_BYTES
+                        + PasswordBasedEncryption.PEK_LENGTH_BYTES
+                )
             );
             assertThat(encryptedActive.keyId(), equalTo(PASSWORD_ID));
         });

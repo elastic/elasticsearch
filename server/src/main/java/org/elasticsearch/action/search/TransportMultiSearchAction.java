@@ -302,7 +302,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             return counter.position();
         } catch (Exception e) {
             counter.reset();
-            logger.warn("msearch circuit breaker: failed to estimate {} bytes", label, e);
+            logger.warn("msearch circuit breaker: failed to estimate [{}] bytes: {}", label, e);
             return 0L;
         }
     }

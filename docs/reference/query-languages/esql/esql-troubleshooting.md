@@ -13,3 +13,18 @@ This section provides some useful resource for troubleshooting {{esql}} issues:
 - [Legacy {{esql}} query log](esql-query-log.md): Log {{esql}} queries using the older `esql.querylog` settings
 - [Task management API](esql-task-management.md): Learn how to diagnose issues like long-running queries.
 - [Circuit breaker settings](/reference/elasticsearch/configuration-reference/circuit-breaker-settings.md#circuit-breakers-page-esql): Learn how {{esql}} uses the circuit breaker and how to configure it. For circuit breaker errors, see [Circuit breaker errors](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
+
+For tips on writing efficient queries, refer to [Optimize {{esql}} query performance](/reference/query-languages/esql/esql-query-performance.md).
+
+## Filing a support case
+
+When filing a support case for a slow or failing {{esql}} query, include the following information so the support team can investigate quickly:
+
+- The full {{esql}} query text
+- The cluster version, available from `GET /`
+- The index pattern and approximate document count
+- The time range covered by the query
+- The number of fields in the matching indices, available from `GET /<index>/_mapping`
+- The `took` value from the response
+- Any error messages
+- A query log entry, if [query logging](/reference/query-languages/esql/esql-query-log.md) is enabled

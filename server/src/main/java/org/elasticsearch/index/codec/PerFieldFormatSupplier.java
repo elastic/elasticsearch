@@ -25,6 +25,7 @@ import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatSelector;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -214,6 +215,12 @@ public class PerFieldFormatSupplier {
             return TSDBDocValuesFormatSelector.select(mapperService.getIndexSettings());
         }
 
+        if (useBinaryDocValuesFormat(field)) {
+            var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            boolean useLargeBinaryBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBinaryBlockSize();
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, false, useLargeBinaryBlockSize);
+        }
+
         return docValuesFormat;
     }
 
@@ -229,6 +236,26 @@ public class PerFieldFormatSupplier {
         return mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
+    }
+
+    boolean useBinaryDocValuesFormat(final String field) {
+        if (excludeFields(field)) {
+            return false;
+        }
+
+        if (excludeMapperTypes(field)) {
+            return false;
+        }
+
+        if (mapperService == null) {
+            return false;
+        }
+
+        Mapper mapper = mapperService.mappingLookup().getMapper(field);
+        if (mapper instanceof FieldMapper fm) {
+            return fm.fieldType().usesBinaryDocValues();
+        }
+        return false;
     }
 
     private boolean excludeFields(String fieldName) {

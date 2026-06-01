@@ -568,6 +568,11 @@ public final class FlattenedFieldMapper extends FieldMapper implements PassThrou
             return ignoreAbove;
         }
 
+        @Override
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
+        }
+
         protected BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(
             MappedFieldType.BlockLoaderContext blContext,
             String fieldName

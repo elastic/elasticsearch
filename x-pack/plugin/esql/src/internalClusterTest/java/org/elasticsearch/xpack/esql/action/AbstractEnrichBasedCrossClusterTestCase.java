@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.junit.After;
 import org.junit.Before;
@@ -80,6 +81,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
         plugins.add(CrossClusterEnrichIT.LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
+        plugins.add(TestEncryptionServicePlugin.class);
         return plugins;
     }
 

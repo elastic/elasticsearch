@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BreakingExponentialHistogramHolder;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
@@ -30,7 +29,9 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogramHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 
 import java.util.List;
@@ -90,6 +91,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
     private final IntervalBuffer intervalBuffer;
     private final Warnings warnings;
     private final ExponentialHistogramMerger.Factory mergerFactory;
+    private final ExponentialHistogramCircuitBreaker histoBreaker;
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
 
@@ -98,13 +100,14 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
         this.warnings = warnings;
+        this.histoBreaker = new ExponentialHistogramStates.HistoBreaker(driverContext.breaker());
         ExponentialHistogramRawBuffer rawBuffer = null;
         IntervalBuffer intervalBuffer = null;
         ExponentialHistogramMerger.Factory mergerFactory = null;
         try {
             rawBuffer = new ExponentialHistogramRawBuffer(driverContext.blockFactory());
             intervalBuffer = new IntervalBuffer(driverContext.blockFactory());
-            mergerFactory = ExponentialHistogramMerger.createFactory(new ExponentialHistogramStates.HistoBreaker(driverContext.breaker()));
+            mergerFactory = ExponentialHistogramMerger.createFactory(histoBreaker);
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
@@ -788,7 +791,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
         // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
         // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
         long deltaFirstTs = Long.MAX_VALUE;
-        BreakingExponentialHistogramHolder deltaFirstValue;
+        CompressedExponentialHistogramHolder deltaFirstValue;
         long deltaLastTs = Long.MIN_VALUE;
 
         boolean hasDelta() {
@@ -846,7 +849,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             if (timestamp < deltaFirstTs) {
                 deltaFirstTs = timestamp;
                 if (deltaFirstValue == null) {
-                    deltaFirstValue = BreakingExponentialHistogramHolder.create(driverContext.breaker());
+                    deltaFirstValue = CompressedExponentialHistogramHolder.create(histoBreaker);
                 }
                 deltaFirstValue.set(value);
             }
@@ -873,7 +876,7 @@ public final class IncreaseExponentialHistogramGroupingAggregatorFunction extend
             if (minTs < deltaFirstTs) {
                 deltaFirstTs = minTs;
                 if (deltaFirstValue == null) {
-                    deltaFirstValue = BreakingExponentialHistogramHolder.create(driverContext.breaker());
+                    deltaFirstValue = CompressedExponentialHistogramHolder.create(histoBreaker);
                 }
                 deltaFirstValue.set(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(minTsPos), scratch));
             }

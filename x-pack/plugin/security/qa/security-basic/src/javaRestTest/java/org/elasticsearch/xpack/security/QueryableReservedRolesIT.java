@@ -289,7 +289,7 @@ public class QueryableReservedRolesIT extends ESRestTestCase {
     private void closeSecurityIndex() throws Exception {
         // Wait for green: closing while shards are still recovering races with TransportVerifyShardBeforeCloseAction
         // and silently no-ops — the API returns HTTP 200 with acknowledged=false and state stays OPEN.
-        ensureGreen(adminClient(), INTERNAL_SECURITY_MAIN_INDEX_7);
+        ensureGreen(INTERNAL_SECURITY_MAIN_INDEX_7);
 
         Request request = new Request("POST", "/" + TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7 + "/_close");
         request.setOptions(

@@ -10,7 +10,6 @@
     "vitest": "^4.1.7"
   },
   "dependencies": {
-    "cli-table3": "^0.6.5",
     "yaml": "^2.3.2",
     "fast-xml-parser": "^5.8.0"
   }

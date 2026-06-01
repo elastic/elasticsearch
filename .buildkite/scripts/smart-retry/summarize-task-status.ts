@@ -11,7 +11,6 @@
  *   Interrupted Tasks — INTERRUPTED in the current run
  */
 import { readFileSync } from "node:fs";
-import Table from "cli-table3";
 
 import { normalizeTaskStatus } from "./smart-retry.ts";
 import type { MultiRunTaskStatus, TaskStatusReport } from "./types.ts";
@@ -169,36 +168,21 @@ export function printSummary(summary: TaskStatusSummary): void {
     console.log(`${emoji} ${title} (${items.length}):`);
     console.log(`${"-".repeat(60)}`);
 
-    const table = new Table({
-      head: ["Task", "Build Scan"],
-      style: {
-        head: [],
-      },
-    });
-
     for (const item of items) {
-      table.push([item.path, scanLink(item.buildScanUrl), item.buildScanUrl]);
+      console.log(` - ${process.env.CI ? `[${scanLink(item.buildScanUrl)}]` : `${item.buildScanUrl} -`} ${item.path}`);
     }
-    console.log(table.toString());
-    console.log();
+    console.log("\n");
   }
 
   function printTestSection(title: string, items: TestRef[], emoji: string) {
     if (items.length === 0) return;
     console.log(`${emoji} ${title} (${items.length}):`);
     console.log(`${"-".repeat(60)}`);
-    const table = new Table({
-      head: ["Task", "Test", "Build Scan"],
-      style: {
-        head: [],
-      },
-    });
 
     for (const item of items) {
-      table.push([item.task, item.test, scanLink(item.buildScanUrl)]);
+      console.log(` - ${process.env.CI ? `[${scanLink(item.buildScanUrl)}]` : `${item.buildScanUrl} -`} ${item.test}`);
     }
-    console.log(table.toString());
-    console.log();
+    console.log("\n");
   }
 
   printTaskSection("Failed Tasks", summary.failedTasks, "❌");

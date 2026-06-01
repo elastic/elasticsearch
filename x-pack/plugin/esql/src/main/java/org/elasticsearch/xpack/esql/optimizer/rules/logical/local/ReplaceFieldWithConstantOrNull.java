@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.MissingEsField;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
@@ -99,7 +99,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
 
     private static boolean isPotentiallyUnmapped(FieldAttribute f) {
         return f.field() instanceof PotentiallyUnmappedKeywordEsField
-            || (f.field() instanceof MultiTypeEsField mtf && mtf.getPotentiallyUnmappedExpression() != null);
+            || (f.field() instanceof UnionTypeEsField utf && utf.getUnmappedConversionExpression() != null);
     }
 
     private LogicalPlan replaceWithNullOrConstant(

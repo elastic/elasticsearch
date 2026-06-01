@@ -1853,7 +1853,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 // ordinary index/alias/data-stream/view operations. The specific duplicate strings above already mention
                 // "dataset" when a dataset is actually involved in a collision, but that can only happen after datasets
                 // exist in cluster state, which requires the feature flag to be on.
-                String preamble = DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                String preamble = DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
                     ? "index, alias, data stream, view, and dataset names need to be unique, but the following duplicates were found ["
                     : "index, alias, data stream, and view names need to be unique, but the following duplicates were found [";
                 throw new IllegalStateException(preamble + Strings.collectionToCommaDelimitedString(duplicates) + "]");

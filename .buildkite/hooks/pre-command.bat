@@ -28,6 +28,8 @@ for /f "delims=" %%i in ('vault read -field^=token secret/ci/elastic-elasticsear
 
 bash.exe -c "nohup bash .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &"
 
+bash.exe -c "bash .buildkite/scripts/setup_node.sh"
+
 REM =============================================================================
 REM PART 1: Test seed retrieval for ANY retry
 REM =============================================================================
@@ -103,7 +105,7 @@ REM SMART_RETRY_STATUS, FILTERED_WORK_UNITS, etc. back in this scope.
 REM =============================================================================
 if defined BUILDKITE_RETRY_COUNT (
   if %BUILDKITE_RETRY_COUNT% GTR 0 (
-    call .buildkite\scripts\smart-retry.bat
+    bash.exe -c "bash .buildkite/scripts/smart-retry.sh"
   )
 )
 

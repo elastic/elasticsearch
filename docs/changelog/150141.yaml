@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150141
+summary: Hot-reload workload-identity client SSL
+type: enhancement

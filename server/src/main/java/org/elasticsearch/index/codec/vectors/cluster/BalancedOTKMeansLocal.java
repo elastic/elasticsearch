@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
-import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,8 +20,10 @@ import java.util.Arrays;
  * Implementation suited to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
  * with finalizing nearby pre-established clusters and generate
  * <a href="https://research.google/blog/soar-new-algorithms-for-even-faster-vector-search-with-scann/">SOAR</a> assignments
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-abstract class BalancedOTKMeansLocal extends KMeansLocal {
+abstract class BalancedOTKMeansLocal<V> extends KMeansLocal<V> {
 
     private final int sampleSize; // the number of training vectors to sample
     private final int maxIterations; // number of iterations, each covering sampleSize vectors divided in minibatches
@@ -34,7 +35,8 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
     private final float forgettingFactor; // multiplicative factor in (0, 1], that allows forgetting the old soft assignments
     private final int miniBatchSize; // the mini-batch size
 
-    BalancedOTKMeansLocal(int sampleSize, int maxIterations) {
+    BalancedOTKMeansLocal(CentroidOps<V> ops, int sampleSize, int maxIterations) {
+        super(ops);
         this.sampleSize = sampleSize;
         this.maxIterations = maxIterations;
         // These defaults seem stable enough so that we do not need to expose them externally.
@@ -48,35 +50,37 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
         this.miniBatchSize = -2;
     }
 
-    /** Number of workers to use for parallelism **/
+    /** Number of workers to use for parallelism */
     protected abstract int numWorkers();
 
-    /** compute the distance from every vector to every centroid **/
-    private void computeDistances(ClusteringFloatVectorValues vectors, float[][] centroids, float[][] distances) throws IOException {
-        vectors.computeSquaredDistances(0, vectors.size(), centroids, distances);
+    /** compute the distance from every vector to every centroid */
+    private void computeDistances(ClusteringVectorValues<V> vectors, V[] centroids, float[][] distances) throws IOException {
+        CentroidAssignment.computeSquaredDistances(vectors, ops, 0, vectors.size(), centroids, distances);
     }
 
-    /** update the centroids using stochastic gradient descent **/
+    /** update the centroids using stochastic gradient descent */
     protected void updateCentroids(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         float[] cumulativeClusterWeights,
         float[][] softAssignments,
-        float[][] centroids
+        V[] centroids
     ) throws IOException {
         int k = centroids.length;
         int dim = vectors.dimension();
 
-        float[][] batchCentroidSums = new float[k][dim];
+        // Float path
+        CentroidOps.FloatOps floatOps = (CentroidOps.FloatOps) ops;
+        V[] batchCentroidSums = ops.newCentroidArray(k, dim);
         float[] batchWeights = new float[k];
 
         // Accumulate the raw Sinkhorn weights via fast FMA loop
         for (int idx = 0; idx < vectors.size(); idx++) {
-            float[] vec = vectors.vectorValue(idx);
+            V vec = vectors.vectorValue(idx);
             for (int c = 0; c < k; c++) {
                 float weight = softAssignments[idx][c];
                 if (weight > 1e-7f) {
                     batchWeights[c] += weight;
-                    ESVectorUtil.linearCombination(weight, vec, batchCentroidSums[c]);
+                    floatOps.linearCombination(weight, (float[]) vec, (float[]) batchCentroidSums[c]);
                 }
             }
         }
@@ -93,46 +97,32 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
 
                 // In the first argument, we divide the learning rate by batchWeights[c],
                 // which is equivalent to normalizing batchCentroidSums[c] from a sum to a mean
-                ESVectorUtil.linearCombination(learningRate / batchWeights[c], batchCentroidSums[c], 1.0f - learningRate, centroids[c]);
+                floatOps.linearCombination(
+                    learningRate / batchWeights[c],
+                    (float[]) batchCentroidSums[c],
+                    1.0f - learningRate,
+                    (float[]) centroids[c]
+                );
             }
         }
     }
 
-    /** assign to each vector the closest centroid **/
+    /** assign to each vector the closest centroid */
     protected abstract void assign(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         IntToIntFunction ordTranslator,
-        float[][] centroids,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
     ) throws IOException;
 
-    /** Assign vectors from {@code startOrd} to {@code endOrd} to the SOAR centroid. */
-    protected static void assignSpilledSlice(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
-        NeighborHood[] neighborhoods,
-        float soarLambda,
-        int startOrd,
-        int endOrd
-    ) throws IOException {
-        int[] assignments = kmeansIntermediate.assignments();
-        assert assignments != null;
-        assert assignments.length == vectors.size();
-        int[] spilledAssignments = kmeansIntermediate.soarAssignments();
-        assert spilledAssignments != null;
-        assert spilledAssignments.length == vectors.size();
-        float[][] centroids = kmeansIntermediate.centroids();
-        vectors.assignSpilled(startOrd, endOrd, centroids, neighborhoods, soarLambda, assignments, spilledAssignments);
-    }
-
     @Override
-    protected void innerCluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
+    protected void innerCluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate, NeighborHood[] neighborhoods)
         throws IOException {
         assert neighborhoods == null;
 
-        float[][] centroids = kMeansIntermediate.centroids();
+        V[] centroids = kMeansIntermediate.centroids();
         int k = centroids.length;
         int n = vectors.size();
 
@@ -161,8 +151,8 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
         SinkhornIterations sinkhorn = new SinkhornIterations(miniBatchSizeLocal, k);
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
-        float[][] oldCentroids = new float[k][vectors.dimension()];
-        deepCopy(centroids, oldCentroids);
+        V[] oldCentroids = ops.newCentroidArray(k, vectors.dimension());
+        ops.deepCopy(centroids, oldCentroids);
 
         int t = 0;
         for (int epoch = 0; epoch < maxIterations; epoch++) {
@@ -170,7 +160,7 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
                 // This simple version performs sampling with replacement (that is, two batches can share vectors but within a batch
                 // the vectors are unique) for simplicity. To be more precise, we could sample without replacement but the current
                 // approach seems good enough.
-                ClusteringFloatVectorValues sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(
+                ClusteringVectorValues<V> sampledVectors = ClusteringVectorValuesSlice.createRandomSlice(
                     vectors,
                     miniBatchSizeLocal,
                     t++,
@@ -208,10 +198,10 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
                 cumulativeClusterWeights[kk] *= forgettingFactor;
             }
 
-            if (normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
+            if (ops.normalizedFrobeniusNorm(centroids, oldCentroids) < convergenceRelativeTolerance) {
                 break;
             } else {
-                deepCopy(centroids, oldCentroids);
+                ops.deepCopy(centroids, oldCentroids);
             }
         }
 
@@ -223,22 +213,23 @@ abstract class BalancedOTKMeansLocal extends KMeansLocal {
 
         assign(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods);
         int[] centroidCounts = new int[centroids.length];
-        vectors.updateCentroids(centroids, i -> i, centroidChangedSlices, centroidCounts, assignments);
+        CentroidAssignment.updateCentroids(vectors, ops, centroids, i -> i, centroidChangedSlices, centroidCounts, assignments);
     }
 
     /**
-     * helper that calls {@link BalancedOTKMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized
+     * helper that calls {@link BalancedOTKMeansLocal#cluster(ClusteringVectorValues, KMeansIntermediate)} given a set of initialized
      * centroids, this call is not neighbor aware
      *
      * @param vectors the vectors to cluster
+     * @param ops the type of vectors such as float and associated operations
      * @param centroids the initialized centroids to be shifted using k-means
      * @param sampleSize the subset of vectors to use when shifting centroids
      * @param maxIterations the max iterations to shift centroids
      */
-    public static void cluster(ClusteringFloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations)
+    public static <V> void cluster(ClusteringVectorValues<V> vectors, CentroidOps<V> ops, V[] centroids, int sampleSize, int maxIterations)
         throws IOException {
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, new int[vectors.size()], vectors::ordToDoc);
-        BalancedOTKMeansLocal kMeans = new BalancedOTKMeansLocalSerial(sampleSize, maxIterations);
+        KMeansIntermediate<V> kMeansIntermediate = new KMeansIntermediate<>(centroids, new int[vectors.size()], vectors::ordToDoc);
+        BalancedOTKMeansLocal<V> kMeans = new BalancedOTKMeansLocalSerial<>(ops, sampleSize, maxIterations);
         kMeans.cluster(vectors, kMeansIntermediate);
     }
 }

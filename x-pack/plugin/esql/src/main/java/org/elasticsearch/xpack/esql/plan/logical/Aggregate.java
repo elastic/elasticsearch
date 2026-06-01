@@ -44,9 +44,13 @@ import java.util.function.Consumer;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -239,9 +243,13 @@ public class Aggregate extends UnaryPlan
         // don't allow the group by itself to avoid duplicates in the output
         // and since the groups are copied, only look at the declared aggregates
         // List<? extends NamedExpression> aggs = agg.aggregates();
+        Holder<Boolean> containsTimeSeries = new Holder<>(false);
+        forEachDown(TimeSeriesAggregate.class, ts -> containsTimeSeries.set(true));
         aggregates.subList(0, aggregates.size() - groupings.size()).forEach(e -> {
             var exp = Alias.unwrap(e);
-            if (exp.foldable()) {
+            if (containsTimeSeries.get()) {
+                // TODO add additional checks when TS translation rules moved to Analyzer
+            } else if (exp.foldable()) {
                 failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
             }
             // traverse the tree to find invalid matches
@@ -255,8 +263,12 @@ public class Aggregate extends UnaryPlan
     static void checkUnsupportedGroupingType(Expression e, Failures failures) {
         if ((e instanceof FieldAttribute f && f.dataType().isCounter())
             || e.dataType() == AGGREGATE_METRIC_DOUBLE
+            || e.dataType() == DATE_PERIOD
             || e.dataType() == DATE_RANGE
-            || e.dataType() == EXPONENTIAL_HISTOGRAM) {
+            || e.dataType() == EXPONENTIAL_HISTOGRAM
+            || e.dataType() == PARTIAL_AGG
+            || e.dataType() == TDIGEST
+            || e.dataType() == TIME_DURATION) {
             failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
         }
     }
@@ -439,7 +451,10 @@ public class Aggregate extends UnaryPlan
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {
             if (level == 0) {
-                addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
+                // TODO: remove this if statement once TS translation is moved to analyzer
+                if ((this instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) == false) {
+                    addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
+                }
             }
         }
         // if a reference is found, mark it as an error

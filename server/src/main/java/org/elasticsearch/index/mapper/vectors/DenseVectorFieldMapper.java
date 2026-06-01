@@ -3328,6 +3328,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
                 float defaultVisitRatio = (float) (bbqIndexOptions.defaultVisitPercentage / 100d);
                 float visitRatio = visitPercentage == null ? defaultVisitRatio : (float) (visitPercentage / 100d);
+                float overSampleFactor = rescore ? oversample : 1.0f;
                 if (sliceEnabled && parentFilter != null) {
                     throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
                 }
@@ -3342,7 +3343,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         visitRatio,
                         bbqIndexOptions.doPrecondition(),
                         RoutingFieldMapper.NAME,
-                        new BytesRef(singleSliceRouting)
+                        new BytesRef(singleSliceRouting),
+                        overSampleFactor
                     );
                 } else {
                     knnQuery = parentFilter != null
@@ -3354,7 +3356,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition()
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor
                         )
                         : new IVFKnnFloatVectorQuery(
                             name(),
@@ -3363,7 +3366,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             numCands,
                             filter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition()
+                            bbqIndexOptions.doPrecondition(),
+                            overSampleFactor
                         );
                 }
             } else {

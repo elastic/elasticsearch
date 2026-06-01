@@ -252,18 +252,8 @@ public abstract class GoldenTestCase extends ESTestCase {
 
         public void run() {
             String testName = RANDOMIZED_RUNNER_SEED_SUFFIX_AT_END.matcher(getTestName()).replaceFirst("");
-            new Test(
-                baseFile,
-                testName,
-                nestedPath,
-                esqlQuery,
-                stages,
-                searchStats,
-                transportVersion,
-                optimizerFactory,
-                aliasFilter,
-                views
-            ).doTest();
+            new Test(baseFile, testName, nestedPath, esqlQuery, stages, searchStats, transportVersion, optimizerFactory, aliasFilter, views)
+                .doTest();
         }
 
         public Optional<Throwable> tryRun() {

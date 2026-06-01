@@ -1,56 +1,66 @@
 ---
-create logs index without doc values sparse index:
+create logs data stream without doc values sparse index:
   - requires:
       cluster_features: [ "mapper.doc_values_skipper" ]
       reason: requires setting 'index.mapping.use_doc_values_skipper' to enable the doc values sparse index
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      indices.create:
-        index: test
+      indices.put_index_template:
+        name: logs-dvs-disabled-template
         body:
-          settings:
-            index:
-              mapping:
-                use_doc_values_skipper: false
-              mode: logsdb
-              number_of_shards: 2
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
-              agent_id:
-                type: keyword
-              process_id:
-                type: integer
-              http_method:
-                type: keyword
-              message:
-                type: text
+          index_patterns: [ "logs-dvs-disabled-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mapping:
+                  use_doc_values_skipper: false
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                http_method:
+                  type: keyword
+                message:
+                  type: text
+      allowed_warnings:
+        - "index template [logs-dvs-disabled-template] has index patterns [logs-dvs-disabled-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-dvs-disabled-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-dvs-disabled-test
 
   - do:
       bulk:
-        index: test
+        index: logs-dvs-disabled-test
         refresh: true
         body:
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:30:00Z", ignored_field_stats: "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
-
 
   - do:
       search:
-        index: test
+        index: logs-dvs-disabled-test
         body:
           query:
             match_all: {}
@@ -59,7 +69,7 @@ create logs index without doc values sparse index:
 
   - do:
       search:
-        index: test
+        index: logs-dvs-disabled-test
         body:
           query:
             range:
@@ -69,75 +79,89 @@ create logs index without doc values sparse index:
 
   - match: { hits.total.value: 6 }
 
+  - do:
+      indices.get_data_stream:
+        name: logs-dvs-disabled-test
+  - set: { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
       indices.get_settings:
-        index: test
+        index: $backing_index
 
-  - is_true: test
-  - match: { test.settings.index.mode: "logsdb" }
+  - is_true: .$backing_index
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
 
   - do:
       indices.disk_usage:
-        index: test
+        index: $backing_index
         run_expensive_tasks: true
 
-  - gt: { test.fields.@timestamp.points_in_bytes: 0 }
-  - gt: { test.fields.@timestamp.doc_values_in_bytes: 0 }
+  - gt: { .$backing_index.fields.@timestamp.points_in_bytes: 0 }
+  - gt: { .$backing_index.fields.@timestamp.doc_values_in_bytes: 0 }
 
 ---
-create logs index with doc values sparse index:
+create logs data stream with doc values sparse index:
   - requires:
       cluster_features: [ "mapper.doc_values_skipper" ]
       reason: requires setting 'index.mapping.use_doc_values_skipper' to enable the doc values sparse index
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      indices.create:
-        index: test
+      indices.put_index_template:
+        name: logs-dvs-enabled-template
         body:
-          settings:
-            index:
-              mapping:
-                use_doc_values_skipper: true
-              mode: logsdb
-              number_of_shards: 2
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
-              agent_id:
-                type: keyword
-              process_id:
-                type: integer
-              http_method:
-                type: keyword
-              message:
-                type: text
+          index_patterns: [ "logs-dvs-enabled-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mapping:
+                  use_doc_values_skipper: true
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                host.name:
+                  type: keyword
+                agent_id:
+                  type: keyword
+                process_id:
+                  type: integer
+                http_method:
+                  type: keyword
+                message:
+                  type: text
+      allowed_warnings:
+        - "index template [logs-dvs-enabled-template] has index patterns [logs-dvs-enabled-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-dvs-enabled-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-dvs-enabled-test
 
   - do:
       bulk:
-        index: test
+        index: logs-dvs-enabled-test
         refresh: true
         body:
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:30:00Z", ignored_field_stats: "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
-          - { "index": { } }
+          - { "create": { } }
           - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
-
 
   - do:
       search:
-        index: test
+        index: logs-dvs-enabled-test
         body:
           query:
             match_all: {}
@@ -146,7 +170,7 @@ create logs index with doc values sparse index:
 
   - do:
       search:
-        index: test
+        index: logs-dvs-enabled-test
         body:
           query:
             range:
@@ -156,18 +180,22 @@ create logs index with doc values sparse index:
 
   - match: { hits.total.value: 6 }
 
+  - do:
+      indices.get_data_stream:
+        name: logs-dvs-enabled-test
+  - set: { data_streams.0.indices.0.index_name: backing_index }
 
   - do:
       indices.get_settings:
-        index: test
+        index: $backing_index
 
-  - is_true: test
-  - match: { test.settings.index.mode: "logsdb" }
+  - is_true: .$backing_index
+  - match: { .$backing_index.settings.index.mode: '/^logsdb(_columnar)?$/' }
 
   - do:
       indices.disk_usage:
-        index: test
+        index: $backing_index
         run_expensive_tasks: true
 
-  - match: { test.fields.@timestamp.points_in_bytes: 0 }
-  - gt: { test.fields.@timestamp.doc_values_in_bytes: 0 }
+  - match: { .$backing_index.fields.@timestamp.points_in_bytes: 0 }
+  - gt: { .$backing_index.fields.@timestamp.doc_values_in_bytes: 0 }

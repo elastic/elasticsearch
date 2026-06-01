@@ -2,44 +2,66 @@ setup:
   - requires:
       cluster_features: [ "mapper.patterned_text" ]
       reason: "pattern_text mappings are used in this test"
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
-      indices.create:
-        index:  test
+      indices.put_index_template:
+        name: logs-pattern-text-template
         body:
-          settings:
-            number_of_shards: 1
-            index.mapping.use_doc_values_skipper: true
-            index.mode: logsdb
-            sort.field: [ "foo.template_id" ]
-            sort.order: [ desc ]
-          mappings:
-            properties:
-              foo:
-                type: pattern_text
+          index_patterns: [ "logs-pattern-text-*" ]
+          priority: 1000
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              index.mapping.use_doc_values_skipper: true
+              sort.field: [ "foo.template_id" ]
+              sort.order: [ desc ]
+            mappings:
+              properties:
+                foo:
+                  type: pattern_text
+      allowed_warnings:
+        - "index template [logs-pattern-text-template] has index patterns [logs-pattern-text-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-pattern-text-template] will take precedence during new index creation"
+
+  - do:
+      indices.create_data_stream:
+        name: logs-pattern-text-test
 
   - do:
       bulk:
-        index: test
+        index: logs-pattern-text-test
         refresh: true
         body:
-          - { "index": { "_id": "1" } }
+          - { "create": { "_id": "1" } }
           - { "@timestamp": "2025-07-17T00:00:00Z" }
-          - { "index": { "_id": "2" } }
+          - { "create": { "_id": "2" } }
           - { "@timestamp": "2025-07-17T00:00:01Z", "foo": "Found 5 errors for service [cheddar1]" }
-          - { "index": { "_id": "3" } }
+          - { "create": { "_id": "3" } }
           - { "@timestamp": "2025-07-17T00:00:02Z", "foo": "[2020-08-18T00:58:56] Found 123 errors for service [cheddar1]" }
-          - { "index": { "_id": "4" } }
+          - { "create": { "_id": "4" } }
           - { "@timestamp": "2025-07-17T00:00:03Z", "foo": "Found some errors for cheddar data service" }
-          - { "index": { "_id": "5" } }
+          - { "create": { "_id": "5" } }
           - { "@timestamp": "2025-07-17T00:00:04Z", "foo": "Found 123 errors for service [gorgonzola-24]" }
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: logs-pattern-text-*
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: logs-pattern-text-template
+        ignore: 404
 
 ---
 Field caps:
 
   - do:
       field_caps:
-        index: test
+        index: logs-pattern-text-test
         fields: [ foo.template_id ]
   - match: { fields: {"foo.template_id": {"keyword": {"type": "keyword", "metadata_field": false, "searchable": true, "aggregatable": true}}}}
 
@@ -48,7 +70,7 @@ Get template_id field:
 
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           docvalue_fields: [ "foo.template_id" ]
           query:
@@ -62,7 +84,7 @@ Get template_id field:
 Sort by template_id descending from index config setting:
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           docvalue_fields: [ "foo.template_id" ]
           query: { match_all: {} }
@@ -84,7 +106,7 @@ Sort by template_id ascending from request:
 
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           docvalue_fields: [ "foo.template_id" ]
           sort: "foo.template_id"
@@ -107,7 +129,7 @@ Exist query:
 
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           query:
             exists:
@@ -121,7 +143,7 @@ Match query:
 
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           query:
             match:
@@ -135,7 +157,7 @@ Range query:
 
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           query:
             range:
@@ -150,7 +172,7 @@ Range query:
 Term aggregation:
   - do:
       search:
-        index: test
+        index: logs-pattern-text-test
         body:
           size: 0
           aggs:
@@ -167,5 +189,3 @@ Term aggregation:
   - match: { aggregations.template_id_agg.buckets.1.doc_count: 1 }
   - match: { aggregations.template_id_agg.buckets.2.key: "mOVsnxlxdac" }
   - match: { aggregations.template_id_agg.buckets.2.doc_count: 2 }
-
-

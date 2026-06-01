@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 
 import java.util.Collection;
 import java.util.List;
@@ -19,7 +20,7 @@ public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(LocalStateView.class);
+        return List.of(LocalStateView.class, TestEncryptionServicePlugin.class);
     }
 
     protected static class TestResponseCapture<T> implements ActionListener<T> {

@@ -35,7 +35,7 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
      * @param query the query vector
-     * @param k the number of nearest neighbors to return
+     * @param k the number of nearest neighbors to return (possibly oversampled)
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy

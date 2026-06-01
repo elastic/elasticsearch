@@ -106,6 +106,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
     static final NodeFeature STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE = new NodeFeature("mapper.columnar.store_not_allowed");
+    static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -179,7 +180,8 @@ public class MapperFeatures implements FeatureSpecification {
             ANALYZER_WRAPPER_RELOADABLE_SEARCH_ANALYZER,
             ROUTING_AS_DOC_VALUES,
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
-            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE
+            STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
+            COLUMNAR_MAINTAIN_ARRAY_ORDER
         );
     }
 }

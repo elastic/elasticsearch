@@ -646,6 +646,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     /**
      * Replaces the raw vector temp spill with preconditioned vectors (sequential rewrite; docs file unchanged).
      */
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     private String rewriteTempVectorsWithPrecondition(
         FieldInfo fieldInfo,
         MergeState mergeState,

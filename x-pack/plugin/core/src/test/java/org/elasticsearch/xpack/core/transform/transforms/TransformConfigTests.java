@@ -345,7 +345,9 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             SourceConfigTests.mutateForVersion(instance.getSource(), version),
             instance.getDestination(),
             instance.getFrequency(),
-            instance.getSyncConfig(),
+            instance.getSyncConfig() instanceof TimeSyncConfig timeSyncConfig
+                ? TimeSyncConfigTests.mutateForVersion(timeSyncConfig, version)
+                : instance.getSyncConfig(),
             instance.getHeaders(),
             instance.getPivotConfig(),
             instance.getLatestConfig(),

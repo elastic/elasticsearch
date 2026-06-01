@@ -45,8 +45,10 @@ class ClientTransformIndexerBuilder {
     }
 
     ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
+        // initialStats is the live stats the indexer accumulates into, so this tracks runtime progress: keep applying
+        // initial_delay until the transform has processed its first document.
         CheckpointProvider checkpointProvider = transformServices.checkpointService()
-            .getCheckpointProvider(parentTaskClient, transformConfig);
+            .getCheckpointProvider(parentTaskClient, transformConfig, () -> initialStats.getNumDocuments() > 0);
 
         return new ClientTransformIndexer(
             threadPool,

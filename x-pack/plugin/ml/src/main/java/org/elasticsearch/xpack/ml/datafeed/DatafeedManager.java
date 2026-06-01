@@ -125,8 +125,12 @@ public final class DatafeedManager {
         );
     }
 
+    public static boolean crossProjectMlEnabled(Settings settings) {
+        return new CrossProjectModeDecider(settings).crossProjectEnabled() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled();
+    }
+
     private boolean crossProjectMlEnabled() {
-        return crossProjectModeDecider.crossProjectEnabled() && CloudCredentialsExtension.ML_CROSS_PROJECT.isEnabled();
+        return crossProjectMlEnabled(settings);
     }
 
     /**

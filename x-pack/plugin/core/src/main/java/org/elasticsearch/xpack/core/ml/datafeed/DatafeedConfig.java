@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
@@ -176,6 +177,15 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     public static final ParseField INDICES_OPTIONS = new ParseField("indices_options");
     public static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
     public static final ParseField CLOUD_INTERNAL_CREDENTIAL = new ParseField("cloud_internal_credential");
+    public static final ParseField AUTH_TYPE = new ParseField("auth_type");
+
+    /**
+     * When {@code true} on public GET, {@link #toXContent} may emit {@link #AUTH_TYPE} for operator visibility during UIAM switchover.
+     */
+    public static final String CPS_AUTH_VISIBILITY_PARAM = "ml_cps_auth_visibility";
+
+    public static final String AUTH_TYPE_UIAM = "uiam";
+    public static final String AUTH_TYPE_LEGACY = "legacy";
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -672,6 +682,21 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     /**
+     * Returns {@link #AUTH_TYPE_UIAM} when a UIAM internal credential is stored, {@link #AUTH_TYPE_LEGACY} when serialized auth
+     * headers are present, or {@code null} when neither applies. Used for public GET operator visibility only.
+     */
+    @Nullable
+    public String resolveAuthType() {
+        if (cloudInternalCredential != null) {
+            return AUTH_TYPE_UIAM;
+        }
+        if (headers.isEmpty() == false && headers.containsKey(AuthenticationField.AUTHENTICATION_KEY)) {
+            return AUTH_TYPE_LEGACY;
+        }
+        return null;
+    }
+
+    /**
      * Releases the underlying {@link PersistedCloudCredential} and its {@link org.elasticsearch.common.settings.SecureString}, if present.
      * Idempotent: safe to call more than once.
      */
@@ -737,6 +762,12 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
                     builder.field(HEADERS.getPreferredName(), headers);
                 } else {
                     XContentUtils.addAuthorizationInfo(builder, headers);
+                }
+            }
+            if (forInternalStorage == false && params.paramAsBoolean(CPS_AUTH_VISIBILITY_PARAM, false)) {
+                String authType = resolveAuthType();
+                if (authType != null) {
+                    builder.field(AUTH_TYPE.getPreferredName(), authType);
                 }
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());

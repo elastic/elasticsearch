@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.cloud.PersistedCloudCredential;
 
 import java.io.IOException;
@@ -1535,6 +1536,47 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         builder.setIndices(List.of("logs-*"));
         DatafeedConfig config = builder.build();
         assertThat(config.getCloudInternalCredential(), nullValue());
+    }
+
+    public void testAuthTypeVisibleOnPublicGetWhenCpsAuthVisibilityEnabled() throws IOException {
+        ToXContent.MapParams visibilityParams = new ToXContent.MapParams(Map.of(DatafeedConfig.CPS_AUTH_VISIBILITY_PARAM, "true"));
+
+        PersistedCloudCredential cred = new PersistedCloudCredential("key-id", new SecureString("secret-value".toCharArray()));
+        DatafeedConfig uiamConfig = new DatafeedConfig.Builder("uiam-datafeed", "test-job").setIndices(List.of("logs-*"))
+            .setCloudInternalCredential(cred)
+            .build();
+        Map<String, Object> uiamSerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(uiamConfig, XContentType.JSON, visibilityParams, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        assertThat(uiamSerialized.get(DatafeedConfig.AUTH_TYPE.getPreferredName()), equalTo(DatafeedConfig.AUTH_TYPE_UIAM));
+
+        Map<String, String> headers = Map.of(AuthenticationField.AUTHENTICATION_KEY, "encoded-auth");
+        DatafeedConfig legacyConfig = new DatafeedConfig.Builder("legacy-datafeed", "test-job").setIndices(List.of("logs-*"))
+            .setHeaders(headers)
+            .build();
+        Map<String, Object> legacySerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(legacyConfig, XContentType.JSON, visibilityParams, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        assertThat(legacySerialized.get(DatafeedConfig.AUTH_TYPE.getPreferredName()), equalTo(DatafeedConfig.AUTH_TYPE_LEGACY));
+
+        DatafeedConfig neitherConfig = new DatafeedConfig.Builder("neither-datafeed", "test-job").setIndices(List.of("logs-*")).build();
+        Map<String, Object> neitherSerialized = XContentHelper.convertToMap(
+            XContentHelper.toXContent(neitherConfig, XContentType.JSON, visibilityParams, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        assertThat(neitherSerialized.containsKey(DatafeedConfig.AUTH_TYPE.getPreferredName()), is(false));
+
+        Map<String, Object> withoutVisibilityParam = XContentHelper.convertToMap(
+            XContentHelper.toXContent(uiamConfig, XContentType.JSON, ToXContent.EMPTY_PARAMS, false),
+            false,
+            XContentType.JSON
+        ).v2();
+        assertThat(withoutVisibilityParam.containsKey(DatafeedConfig.AUTH_TYPE.getPreferredName()), is(false));
     }
 
     public void testCloudInternalApiKeyCopyConstructor() {

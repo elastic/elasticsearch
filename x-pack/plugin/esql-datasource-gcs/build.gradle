@@ -67,6 +67,7 @@ dependencies {
   runtimeOnly 'io.grpc:grpc-api:1.70.0'
 
   testImplementation project(':test:framework')
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

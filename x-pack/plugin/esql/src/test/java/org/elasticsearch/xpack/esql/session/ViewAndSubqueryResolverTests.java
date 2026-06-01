@@ -66,7 +66,7 @@ public class ViewAndSubqueryResolverTests extends AbstractStatementParserTests {
 
     @Before
     public void setup() {
-        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
+        assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_VIEW.isEnabled());
         viewService = InMemoryViewService.makeViewService();
         viewResolver = viewService.getViewResolver();
         for (String index : List.of("employees", "departments")) {

@@ -311,20 +311,40 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         setHistogramFieldTypeClusterSetting("histogram");
 
         long now = Clock.getDefault().now();
-        export(List.of(createHistogram(now, "cumulative_histogram", CUMULATIVE, Attributes.empty())));
+        // gauge is included to force a partial success (otherwise all items are rejected and the exporter treats it as failure)
+        export(
+            List.of(
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "gauge", 1.0, "By", now),
+                createHistogram(now, "cumulative_histogram", CUMULATIVE, Attributes.empty())
+            )
+        );
 
         ObjectPath search = search("metrics-generic.otel-default");
-        assertThat(search.evaluate("hits.total.value"), equalTo(0));
+        assertThat(search.evaluate("hits.total.value"), equalTo(1));
+        var source = search.evaluate("hits.hits.0._source");
+        Map<String, Object> metrics = evaluate(source, "metrics");
+        assertThat(metrics.containsKey("gauge"), equalTo(true));
+        assertThat(metrics.containsKey("cumulative_histogram"), equalTo(false));
     }
 
     public void testCumulativeExponentialHistogramDroppedAsTDigest() throws Exception {
         setHistogramFieldTypeClusterSetting("histogram");
 
         long now = Clock.getDefault().now();
-        export(List.of(createExponentialHistogram(now, "cumulative_exp_histogram", CUMULATIVE, Attributes.empty())));
+        // gauge is included to force a partial success (otherwise all items are rejected and the exporter treats it as failure)
+        export(
+            List.of(
+                createDoubleGauge(TEST_RESOURCE, Attributes.empty(), "gauge", 1.0, "By", now),
+                createExponentialHistogram(now, "cumulative_exp_histogram", CUMULATIVE, Attributes.empty())
+            )
+        );
 
         ObjectPath search = search("metrics-generic.otel-default");
-        assertThat(search.evaluate("hits.total.value"), equalTo(0));
+        assertThat(search.evaluate("hits.total.value"), equalTo(1));
+        var source = search.evaluate("hits.hits.0._source");
+        Map<String, Object> metrics = evaluate(source, "metrics");
+        assertThat(metrics.containsKey("gauge"), equalTo(true));
+        assertThat(metrics.containsKey("cumulative_exp_histogram"), equalTo(false));
     }
 
     public void testDeltaExponentialHistogramsAsTDigest() throws Exception {

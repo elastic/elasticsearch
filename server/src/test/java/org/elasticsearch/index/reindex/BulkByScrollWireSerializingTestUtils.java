@@ -49,7 +49,7 @@ public final class BulkByScrollWireSerializingTestUtils {
 
     /**
      * Registry sufficient for {@link ReindexRequest}, {@link UpdateByQueryRequest}, {@link DeleteByQueryRequest},
-     * and {@link ResumeBulkByScrollRequest} when the delegate carries {@link ResumeInfo}.
+     * and {@link ResumeBulkByPaginatedSearchRequest} when the delegate carries {@link ResumeInfo}.
      */
     public static NamedWriteableRegistry bulkScrollRequestNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();

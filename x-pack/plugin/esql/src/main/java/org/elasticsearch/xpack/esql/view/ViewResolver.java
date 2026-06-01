@@ -28,6 +28,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
@@ -319,7 +320,11 @@ public class ViewResolver {
 
         doEsqlResolveViewsRequest(req, listener.delegateFailureAndWrap((l1, response) -> {
             if (response.views().length == 0) {
-                listener.onResponse(stripValidConcreteViewExclusions(unresolvedRelation, patterns));
+                listener.onResponse(
+                    crossProjectModeDecider.crossProjectEnabled()
+                        ? unresolvedRelation
+                        : stripValidConcreteViewExclusions(unresolvedRelation, patterns)
+                );
                 return;
             }
 
@@ -338,19 +343,38 @@ public class ViewResolver {
                         assert patternPosition >= 0 : "Pattern must be found";
                         // cluster alias : index pattern
                         var clusterAndPattern = RemoteClusterAware.splitIndexName(urPatterns[patternPosition]);
-                        // marks if the expression targets current project (either by using flat or by matching using *:something)
-                        // this condition will change once we properly support `*:foo` resources
-                        var isCurrentProject = clusterAndPattern[0] == null || clusterAndPattern[0].contains("*");
                         var isConcreteExpression = clusterAndPattern[1].contains("*") == false;
-                        if (isCurrentProject && isConcreteExpression) {
-                            viewShadows.putIfAbsent(
-                                view.name(),
-                                new ViewShadowRelation(
-                                    unresolvedRelation.source(),
+                        if (isConcreteExpression) {
+                            var isFlat = clusterAndPattern[0] == null;
+                            var isRequiredOnEveryProject = clusterAndPattern[0] != null && clusterAndPattern[0].contains("*");
+                            if (isFlat) {
+                                var pattern = new ArrayList<String>();
+                                pattern.add(view.name());
+                                pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
+                                viewShadows.putIfAbsent(
                                     view.name(),
-                                    collectExclusionsAfterPosition(patternPosition, urPatterns)
-                                )
-                            );
+                                    new ViewShadowRelation(
+                                        unresolvedRelation.source(),
+                                        view.name(),
+                                        LinkedIndexPattern.Kind.OPTIONAL,
+                                        String.join(",", pattern)
+                                    )
+                                );
+                            } else if (isRequiredOnEveryProject) {
+                                var pattern = new ArrayList<String>();
+                                pattern.add(urPatterns[patternPosition]);
+                                pattern.add("-_origin:*");
+                                pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
+                                viewShadows.putIfAbsent(
+                                    view.name(),
+                                    new ViewShadowRelation(
+                                        unresolvedRelation.source(),
+                                        view.name(),
+                                        LinkedIndexPattern.Kind.REQUIRED,
+                                        String.join(",", pattern)
+                                    )
+                                );
+                            }
                         }
                     }
                     replaceViews(
@@ -476,8 +500,9 @@ public class ViewResolver {
             });
             result.addAll(exprViews);
 
-            // Non-view indices or CPS wildcards pass through as unresolved
-            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(expr.original()))) {
+            // Non-view indices or CPS index expression wildcards pass through as unresolved
+            var localIndexExpression = RemoteClusterAware.splitIndexName(expr.original())[1];
+            if (hasNonView || (crossProjectModeDecider.crossProjectEnabled() && Regex.isSimpleMatchPattern(localIndexExpression))) {
                 if (unresolvedInsertPos < 0) {
                     unresolvedInsertPos = result.size();
                 }

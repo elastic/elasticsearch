@@ -479,29 +479,11 @@ public class DynamicTemplate implements ToXContentObject {
         if (templateName != null) {
             return templateName.equals(name);
         }
-        if (pathMatch.isEmpty() == false) {
-            boolean matched = false;
-            for (String pm : pathMatch) {
-                if (matchType.matches(pm, path)) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (matched == false) {
-                return false;
-            }
+        if (pathMatch.isEmpty() == false && matchesAny(matchType, pathMatch, path) == false) {
+            return false;
         }
-        if (match.isEmpty() == false) {
-            boolean matched = false;
-            for (String m : match) {
-                if (matchType.matches(m, fieldName)) {
-                    matched = true;
-                    break;
-                }
-            }
-            if (matched == false) {
-                return false;
-            }
+        if (match.isEmpty() == false && matchesAny(matchType, match, fieldName) == false) {
+            return false;
         }
         for (String um : pathUnmatch) {
             if (matchType.matches(um, path)) {
@@ -527,6 +509,15 @@ public class DynamicTemplate implements ToXContentObject {
             return false;
         }
         return true;
+    }
+
+    private static boolean matchesAny(MatchType matchType, List<String> patterns, String value) {
+        for (String pattern : patterns) {
+            if (matchType.matches(pattern, value)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public String mappingType(String dynamicType) {

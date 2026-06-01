@@ -48,6 +48,15 @@ public class PrometheusQueryRestActionTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testInstantQueryMissingQueryParamThrows() {
+        var request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of()).build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PrometheusInstantQueryRestAction().prepareRequest(request, null)
+        );
+        assertThat(e.getMessage(), equalTo("required parameter \"query\" is missing"));
+    }
+
     public void testInstantQueryDefaultsToMetricsIndexPattern() throws Exception {
         var request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
             Map.of("query", "up", "time", "2026-01-01T00:00:00Z")

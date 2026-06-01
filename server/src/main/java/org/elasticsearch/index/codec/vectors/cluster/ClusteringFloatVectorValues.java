@@ -18,7 +18,7 @@ import java.io.IOException;
  * so that the same instance can be used with the generic k-means infrastructure.
  */
 public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues implements ClusteringVectorValues<float[]> permits
-    KMeansFloatVectorValues, ClusteringFloatVectorValuesSlice {
+    KMeansFloatVectorValues, ClusteringFloatVectorValuesSlice, ConcatenatedClusteringFloatVectorValues {
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;

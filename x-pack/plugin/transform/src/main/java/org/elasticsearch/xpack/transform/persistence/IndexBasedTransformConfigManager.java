@@ -84,6 +84,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
@@ -983,6 +984,84 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
             l.onResponse(response.getDeleted() > 0);
         }));
+    }
+
+    @Override
+    public void forEachTransformCloudCredential(
+        String transformId,
+        Consumer<PersistedCloudCredential> action,
+        ActionListener<Void> listener
+    ) {
+        forEachCredentialPage(transformId, action, null, listener);
+    }
+
+    private void forEachCredentialPage(
+        String transformId,
+        Consumer<PersistedCloudCredential> action,
+        Object[] searchAfter,
+        ActionListener<Void> listener
+    ) {
+        QueryBuilder queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), CLOUD_CREDENTIAL_DOC_TYPE))
+            .filter(QueryBuilders.termQuery(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD, transformId));
+
+        var requestBuilder = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .setQuery(queryBuilder)
+            .setFetchSource(new String[] { "persisted_credential" }, null)
+            .addSort("_id", SortOrder.ASC)
+            .setSize(1_000)
+            .setAllowPartialSearchResults(false);
+
+        if (searchAfter != null) {
+            requestBuilder.searchAfter(searchAfter);
+        }
+
+        executeAsyncWithOrigin(
+            TransportSearchAction.TYPE,
+            requestBuilder.request(),
+            listener.delegateFailureAndWrap((l, searchResponse) -> {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                for (SearchHit hit : hits) {
+                    BytesReference source = hit.getSourceRef();
+                    try (
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG.withRegistry(xContentRegistry),
+                            source,
+                            XContentType.JSON
+                        )
+                    ) {
+                        assert parser.nextToken() == XContentParser.Token.START_OBJECT;
+                        PersistedCloudCredential credential = null;
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                            if (parser.currentToken() == XContentParser.Token.FIELD_NAME
+                                && "persisted_credential".equals(parser.currentName())) {
+                                parser.nextToken();
+                                credential = PersistedCloudCredential.fromXContent(parser);
+                            } else {
+                                parser.nextToken();
+                                parser.skipChildren();
+                            }
+                        }
+                        if (credential != null) {
+                            action.accept(credential);
+                        } else {
+                            logger.warn("cloud credential document [{}] missing persisted_credential field", hit.getId());
+                        }
+                    } catch (IOException e) {
+                        logger.warn("failed to parse cloud credential document [{}]", hit.getId(), e);
+                    }
+                }
+
+                if (hits.length == 1_000) {
+                    forEachCredentialPage(transformId, action, hits[hits.length - 1].getSortValues(), l);
+                } else {
+                    l.onResponse(null);
+                }
+            })
+        );
     }
 
     private <Request, Response> void executeAsyncWithOrigin(

@@ -558,13 +558,52 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             String credentialId = indexerBuilder.getTransformConfig() == null
                 ? null
                 : indexerBuilder.getTransformConfig().getCredentialId();
-            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && credentialId != null) {
-                loadCloudCredentialWithRetry(buildTask, params, credentialId, doStart);
+
+            // Best-effort startup sweep: revoke + delete any credential docs for this transform whose
+            // tokenId is not the currently-active credentialId. This closes the gap for batch transforms
+            // (which don't reload config mid-run) and cleans up any dangling credentials from prior
+            // interrupted rotations. Failures are logged but do not block the transform from starting.
+            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()) {
+                sweepDanglingCredentials(params.getId(), credentialId, () -> {
+                    if (credentialId != null) {
+                        loadCloudCredentialWithRetry(buildTask, params, credentialId, doStart);
+                    } else {
+                        // Feature off, or this transform has no associated UIAM credential — nothing to load.
+                        doStart.run();
+                    }
+                });
             } else {
-                // Feature off, or this transform has no associated UIAM credential — nothing to load.
                 doStart.run();
             }
         });
+    }
+
+    /**
+     * Best-effort startup sweep: lists all credential storage docs owned by {@code transformId}
+     * and revokes + deletes any whose tokenId is not the currently-active {@code activeCredentialId}.
+     * Designed to clean up dangling tokens left by interrupted rotations (e.g. a batch transform
+     * that was updated while INDEXING) and by the {@code _update} stopped-task revoke path.
+     * Failures at any stage are logged but never propagate — startup is not blocked.
+     *
+     * @param transformId        the transform whose credentials to sweep
+     * @param activeCredentialId the tokenId of the currently-active credential (excluded from sweep);
+     *                           may be null (no active credential → all found tokens are dangling)
+     * @param next               called once all per-token cleanup attempts have completed
+     */
+    private void sweepDanglingCredentials(String transformId, @Nullable String activeCredentialId, Runnable next) {
+        transformServices.configManager().forEachTransformCloudCredential(transformId, credential -> {
+            if (credential.id().equals(activeCredentialId) == false) {
+                transformServices.cloudCredentialManager().revokeCloseAndDelete(transformId, credential);
+            }
+        },
+            ActionListener.runAfter(
+                ActionListener.wrap(
+                    ignored -> {},
+                    e -> logger.warn(() -> "[" + transformId + "] failed to list credentials for startup sweep; proceeding", e)
+                ),
+                next
+            )
+        );
     }
 
     /**

@@ -397,6 +397,104 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         assertThat(capturedTokenId.get(), equalTo("new-id"));
     }
 
+    public void testMintAndPersistRevokesAtUiamWhenPersistFails() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var apiKeyService = mock(InternalCloudApiKeyService.class);
+        var configManager = mock(TransformConfigManager.class);
+        var auditor = mock(TransformAuditor.class);
+        var threadPool = mock(ThreadPool.class);
+        var credentialManager = mock(CloudCredentialManager.class);
+        var threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(threadContext)).thenReturn(callerCredential);
+
+        // grant succeeds and returns a freshly-minted credential
+        var mintedCredential = new PersistedCloudCredential("minted-id", new SecureString("minted-key".toCharArray()));
+        doAnswer(invocation -> {
+            ActionListener<CloudGrantApiKeyResult> l = invocation.getArgument(2);
+            l.onResponse(new CloudGrantApiKeyResult(mintedCredential, null));
+            return null;
+        }).when(apiKeyService).grantCloudAuthentication(eq(callerCredential), eq("transform:" + TRANSFORM_ID), any());
+
+        // persist fails
+        var persistFailure = new RuntimeException("index-unavailable");
+        doAnswer(invocation -> {
+            ActionListener<Boolean> l = invocation.getArgument(2);
+            l.onFailure(persistFailure);
+            return null;
+        }).when(configManager).putTransformCloudCredential(eq(TRANSFORM_ID), eq(mintedCredential), any());
+
+        // revoke is wired to succeed
+        doAnswer(invocation -> {
+            ActionListener<Void> l = invocation.getArgument(1);
+            l.onResponse(null);
+            return null;
+        }).when(apiKeyService).revokeCloudAuthentication(eq(mintedCredential), any());
+
+        var manager = new TransformCloudCredentialManager(threadPool, null, credentialManager, apiKeyService, configManager, auditor);
+
+        var capturedFailure = new AtomicReference<Exception>();
+        manager.mintAndPersist(TRANSFORM_ID, ActionTestUtils.assertNoSuccessListener(capturedFailure::set));
+
+        // the persist failure must propagate to the caller
+        assertThat(capturedFailure.get(), sameInstance(persistFailure));
+        // revoke must be invoked at UIAM so the orphaned token doesn't persist forever
+        verify(apiKeyService).revokeCloudAuthentication(eq(mintedCredential), any());
+        // the minted credential's SecureString must be closed
+        expectThrows(IllegalStateException.class, () -> mintedCredential.internalApiKey().length());
+    }
+
+    public void testRevokeCloseAndDeleteRevokesAndDeletesStorageDoc() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var apiKeyService = mock(InternalCloudApiKeyService.class);
+        var configManager = mock(TransformConfigManager.class);
+        var auditor = mock(TransformAuditor.class);
+        var credential = newCredential();
+
+        doAnswer(invocation -> {
+            ActionListener<Void> l = invocation.getArgument(1);
+            l.onResponse(null);
+            return null;
+        }).when(apiKeyService).revokeCloudAuthentication(eq(credential), any());
+        doAnswer(invocation -> {
+            ActionListener<Boolean> l = invocation.getArgument(1);
+            l.onResponse(true);
+            return null;
+        }).when(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
+
+        newManager(apiKeyService, configManager, auditor).revokeCloseAndDelete(TRANSFORM_ID, credential);
+
+        verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
+        verify(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
+        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
+    }
+
+    public void testRevokeCloseAndDeleteLeavesStorageDocOnRevokeFailure() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+
+        var apiKeyService = mock(InternalCloudApiKeyService.class);
+        var configManager = mock(TransformConfigManager.class);
+        var auditor = mock(TransformAuditor.class);
+        var credential = newCredential();
+
+        doAnswer(invocation -> {
+            ActionListener<Void> l = invocation.getArgument(1);
+            l.onFailure(new RuntimeException("revoke-failed"));
+            return null;
+        }).when(apiKeyService).revokeCloudAuthentication(eq(credential), any());
+
+        newManager(apiKeyService, configManager, auditor).revokeCloseAndDelete(TRANSFORM_ID, credential);
+
+        verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
+        // storage doc left in place so the startup sweep or delete API can retry
+        verify(configManager, never()).deleteCloudCredentialByTokenId(any(), any());
+        expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
+    }
+
     private static TransformCloudCredentialManager newManager(
         InternalCloudApiKeyService apiKeyService,
         TransformConfigManager configManager,

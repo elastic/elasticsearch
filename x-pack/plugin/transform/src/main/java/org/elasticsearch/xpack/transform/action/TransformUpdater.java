@@ -145,32 +145,31 @@ public class TransformUpdater {
         final TransformConfig updatedConfig = update != null ? update.apply(rewrittenConfig) : rewrittenConfig;
         final SetOnce<AuthorizationState> authStateHolder = new SetOnce<>();
 
-        // <5> Update checkpoints
-        ActionListener<Long> updateStateListener = ActionListener.wrap(lastCheckpoint -> {
-            // config was updated, but the transform has no state or checkpoint
-            if (lastCheckpoint == null || lastCheckpoint == -1) {
-                listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.UPDATED));
-                return;
-            }
-
-            updateTransformCheckpoint(
+        // <5> Update state document + checkpoints, then emit result.
+        // Receives the config that was actually written so the UpdateResult carries the new credentialId.
+        ActionListener<TransformConfig> updateTransformListener = listener.delegateFailureAndWrap(
+            (l, persistedConfig) -> updateTransformStateAndGetLastCheckpoint(
                 config.getId(),
-                lastCheckpoint,
                 transformConfigManager,
-                ActionListener.wrap(
-                    r -> listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.UPDATED)),
-                    listener::onFailure
-                )
-            );
-        }, listener::onFailure);
-
-        // <4> Update State document
-        ActionListener<Void> updateTransformListener = ActionListener.wrap(
-            r -> updateTransformStateAndGetLastCheckpoint(config.getId(), transformConfigManager, updateStateListener),
-            listener::onFailure
+                l.delegateFailureAndWrap((ll, lastCheckpoint) -> {
+                    // config was updated, but the transform has no state or checkpoint
+                    if (lastCheckpoint == null || lastCheckpoint == -1) {
+                        ll.onResponse(new UpdateResult(persistedConfig, authStateHolder.get(), UpdateResult.Status.UPDATED));
+                        return;
+                    }
+                    updateTransformCheckpoint(
+                        config.getId(),
+                        lastCheckpoint,
+                        transformConfigManager,
+                        ll.delegateFailureIgnoreResponseAndWrap(
+                            lll -> lll.onResponse(new UpdateResult(persistedConfig, authStateHolder.get(), UpdateResult.Status.UPDATED))
+                        )
+                    );
+                })
+            )
         );
 
-        // <5> Write the (possibly credential-stamped) config; on failure, roll back the just-minted
+        // <4> Write the (possibly credential-stamped) config; on failure, roll back the just-minted
         // credential so we don't leak it at UIAM.
         ActionListener<Tuple<Map<String, String>, String>> writeConfigListener = listener.delegateFailureAndWrap((l, tuple) -> {
             var destIndexMappings = tuple.v1();
@@ -187,7 +186,7 @@ public class TransformUpdater {
                 seqNoPrimaryTermAndIndex,
                 clusterState,
                 destIndexSettings,
-                ActionListener.wrap(r -> updateTransformListener.onResponse(null), configWriteFailure -> {
+                ActionListener.wrap(r -> updateTransformListener.onResponse(configToWrite), configWriteFailure -> {
                     if (newTokenId == null || mintCloudCredential == false) {
                         // No fresh mint to roll back (Reset / Upgrade, or mint was skipped).
                         l.onFailure(configWriteFailure);

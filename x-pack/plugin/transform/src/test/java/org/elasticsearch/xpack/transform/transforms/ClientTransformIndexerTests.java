@@ -394,7 +394,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
             this.<Void>assertAsync(listener -> indexer.doMaybeRefreshCloudToken(prior, next, listener), v -> {
                 verify(context).replacePersistedCredential(eq(freshlyLoaded));
-                verify(cloudCredentialManager).revokeAndClose(eq(prior.getId()), eq(displaced));
+                verify(cloudCredentialManager).revokeCloseAndDelete(eq(prior.getId()), eq(displaced));
             });
         }
     }

@@ -486,10 +486,10 @@ class ClientTransformIndexer extends TransformIndexer {
         }
 
         if (newId == null) {
-            // Config no longer carries a credentialId: drop the in-memory token and revoke the prior.
+            // Config no longer carries a credentialId: drop the in-memory token and revoke + delete the prior.
             PersistedCloudCredential displaced = context.replacePersistedCredential(null);
             if (displaced != null) {
-                transformCloudCredentialManager.revokeAndClose(getJobId(), displaced);
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
             }
             listener.onResponse(null);
             return;
@@ -498,9 +498,9 @@ class ClientTransformIndexer extends TransformIndexer {
         transformsConfigManager.getTransformCloudCredentialByTokenId(newId, false, listener.delegateFailureAndWrap((l, next) -> {
             PersistedCloudCredential displaced = context.replacePersistedCredential(next);
             if (displaced != null) {
-                // revokeAndClose closes the displaced credential; it is safe to fire-and-forget
-                // since we have already promoted the new credential onto the context.
-                transformCloudCredentialManager.revokeAndClose(getJobId(), displaced);
+                // revokeCloseAndDelete revokes at UIAM, removes the storage doc, and closes the
+                // SecureString. Fire-and-forget: the new credential is already on the context.
+                transformCloudCredentialManager.revokeCloseAndDelete(getJobId(), displaced);
             }
             l.onResponse(null);
         }));

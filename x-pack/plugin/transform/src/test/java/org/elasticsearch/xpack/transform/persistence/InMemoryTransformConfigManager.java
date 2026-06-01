@@ -25,7 +25,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -356,6 +358,23 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         boolean removed = cloudCredentialsByTokenId.remove(tokenId) != null;
         credentialTokenIdToTransformId.remove(tokenId);
         listener.onResponse(removed);
+    }
+
+    @Override
+    public void forEachTransformCloudCredential(
+        String transformId,
+        Consumer<PersistedCloudCredential> action,
+        ActionListener<Void> listener
+    ) {
+        // Snapshot before iterating so that the consumer (which may delete entries) does not cause ConcurrentModificationException.
+        var snapshot = credentialTokenIdToTransformId.entrySet()
+            .stream()
+            .filter(e -> transformId.equals(e.getValue()))
+            .map(e -> cloudCredentialsByTokenId.get(e.getKey()))
+            .filter(Objects::nonNull)
+            .toList();
+        snapshot.forEach(action);
+        listener.onResponse(null);
     }
 
     public void putOrUpdateOldTransformStoredDoc(

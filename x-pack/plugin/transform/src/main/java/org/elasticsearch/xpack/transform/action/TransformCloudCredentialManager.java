@@ -174,14 +174,25 @@ public class TransformCloudCredentialManager {
                 var persisted = grantResult.persistedCredential();
                 logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
 
-                configManager.putTransformCloudCredential(
-                    transformId,
-                    persisted,
-                    ActionListener.releaseAfter(l.delegateFailureAndWrap((ll, success) -> {
+                configManager.putTransformCloudCredential(transformId, persisted, ActionListener.wrap(success -> {
+                    // Close the SecureString now that the id has been persisted.
+                    try (persisted) {
                         auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
-                        ll.onResponse(persisted.id());
-                    }), persisted)
-                );
+                        l.onResponse(persisted.id());
+                    }
+                }, persistFailure -> {
+                    // The UIAM grant succeeded but the storage write failed. Revoke at UIAM so
+                    // the token doesn't exist with no config reference and no storage doc.
+                    // revokeAndClose owns the close of persisted; callers are still notified of
+                    // the original failure and may also attempt their own compensating cleanup,
+                    // which is fine because UIAM revoke is idempotent.
+                    logger.warn(
+                        () -> "[" + transformId + "] persist of cloud credential [" + persisted.id() + "] failed; revoking at UIAM",
+                        persistFailure
+                    );
+                    revokeAndClose(transformId, persisted);
+                    l.onFailure(persistFailure);
+                }));
             }), callerCredential)
         );
     }
@@ -211,6 +222,45 @@ public class TransformCloudCredentialManager {
         }, e -> {
             logger.warn(() -> "[" + transformId + "] failed to revoke cloud credential [" + credId + "]", e);
             auditor.warning(transformId, "failed to revoke cloud credential [" + credId + "]: " + e.getMessage());
+        }), credential));
+    }
+
+    /**
+     * Revokes the given in-memory persisted credential at UIAM, deletes its storage doc, and closes
+     * its {@code SecureString}. Fire-and-forget: failures are logged but not propagated. Use this
+     * in the indexer's credential-swap path where the caller already holds the displaced
+     * {@link PersistedCloudCredential} object (so no redundant storage read is needed). No-op for
+     * null credentials and when the {@code TRANSFORM_CROSS_PROJECT} feature flag is off.
+     *
+     * @param transformId the owning transform id (audit attribution only)
+     * @param credential  the displaced credential to revoke + delete; null is silently ignored
+     */
+    public void revokeCloseAndDelete(String transformId, @Nullable PersistedCloudCredential credential) {
+        if (credential == null) {
+            return;
+        }
+        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+            credential.close();
+            return;
+        }
+        String credId = credential.id();
+        apiKeyService.revokeCloudAuthentication(credential, ActionListener.releaseAfter(ActionListener.wrap(unused -> {
+            logger.debug("[{}] revoked cloud credential [{}]", transformId, credId);
+            auditor.info(transformId, "revoked cloud credential [" + credId + "]");
+            configManager.deleteCloudCredentialByTokenId(
+                credId,
+                ActionListener.wrap(
+                    deleted -> logger.trace("[{}] storage cleanup of credential [{}]: deleted={}", transformId, credId, deleted),
+                    deleteFailure -> logger.warn(
+                        () -> "[" + transformId + "] storage cleanup of credential [" + credId + "] failed",
+                        deleteFailure
+                    )
+                )
+            );
+        }, e -> {
+            logger.warn(() -> "[" + transformId + "] failed to revoke cloud credential [" + credId + "]", e);
+            auditor.warning(transformId, "failed to revoke cloud credential [" + credId + "]: " + e.getMessage());
+            // Leave the storage doc in place so the startup sweep or delete API can retry.
         }), credential));
     }
 

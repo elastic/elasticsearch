@@ -125,27 +125,27 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             listener::onFailure
         );
 
-        // <3> Revoke the persisted cloud credential at UIAM before removing the storage doc. The big
-        // DBQ in step <4> (deleteTransform) catches the credential storage doc itself by transform_id,
-        // so we only need to invoke UIAM revocation here. The credentialId lives on the TransformConfig
-        // so we load that first. Best-effort: load and revoke failures are logged but delete still
-        // proceeds, and the serverless revoke API is idempotent so a future retry can clean up any
-        // dangling UIAM key.
+        // <3> Revoke ALL persisted cloud credentials for this transform at UIAM before removing the
+        // storage docs. The big DBQ in step <4> (deleteTransform) catches every credential doc by
+        // transform_id, so we only need to invoke UIAM revocation here. Querying by transform_id
+        // (rather than loading the config) ensures dangling tokens left by interrupted rotations are
+        // also revoked. Best-effort: list or per-token revoke failures are logged but delete still
+        // proceeds.
         ActionListener<AcknowledgedResponse> deleteDestIndexListener = listener.delegateFailureIgnoreResponseAndWrap(
-            l -> transformConfigManager.getTransformConfiguration(request.getId(), ActionListener.wrap(config -> {
-                cloudCredentialManager.loadAndRevokeByTokenId(
-                    request.getId(),
-                    config.getCredentialId(),
-                    ActionListener.running(() -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE))
-                );
-            }, configLoadFailure -> {
-                // Config load failure shouldn't block delete (transform may be partially-installed)
-                logger.warn(
-                    () -> "[" + request.getId() + "] config load failed before credential revoke, proceeding with delete",
-                    configLoadFailure
-                );
-                deleteTransformListener.onResponse(AcknowledgedResponse.TRUE);
-            }))
+            l -> transformConfigManager.forEachTransformCloudCredential(
+                request.getId(),
+                credential -> cloudCredentialManager.revokeAndClose(request.getId(), credential),
+                ActionListener.runAfter(
+                    ActionListener.wrap(
+                        ignored -> {},
+                        listFailure -> logger.warn(
+                            () -> "[" + request.getId() + "] failed to list credentials before delete, proceeding",
+                            listFailure
+                        )
+                    ),
+                    () -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE)
+                )
+            )
         );
 
         // <2> Delete destination index if requested

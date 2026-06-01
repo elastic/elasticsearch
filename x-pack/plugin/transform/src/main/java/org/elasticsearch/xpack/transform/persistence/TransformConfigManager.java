@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public interface TransformConfigManager {
 
@@ -252,6 +253,19 @@ public interface TransformConfigManager {
      * @param listener listener to call after request (true if deleted, false if not found)
      */
     void deleteCloudCredentialByTokenId(String tokenId, ActionListener<Boolean> listener);
+
+    /**
+     * Calls {@code action} for every cloud credential stored for the given {@code transformId},
+     * including both the currently-active credential and any dangling credentials left by
+     * interrupted rotations. Paginates internally so all credentials are visited regardless of
+     * count. Calls {@code listener} with {@code null} once all credentials have been processed,
+     * or on failure if a page fetch fails.
+     *
+     * @param transformId the transform id whose credentials should be visited
+     * @param action      called once per credential; must not throw
+     * @param listener    called when iteration is complete or on page-fetch failure
+     */
+    void forEachTransformCloudCredential(String transformId, Consumer<PersistedCloudCredential> action, ActionListener<Void> listener);
 
     default boolean isLatestTransformIndex(String indexName) {
         return TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName);

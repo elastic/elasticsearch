@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
@@ -1375,7 +1376,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // FIRST(col, NULL), as "any value"
                 Expression agg = attr.name().equals(discriminator.name())
                     ? new Values(source, attr, aggFilter, AggregateFunction.NO_WINDOW)
-                    : new First(source, attr, Literal.NULL);
+                    : new First(source, attr, Literal.NULL).withFilter(new IsNotNull(source, attr));
                 if (agg.resolved()) {
                     aggregates.add(new Alias(source, attr.name(), agg));
                 }

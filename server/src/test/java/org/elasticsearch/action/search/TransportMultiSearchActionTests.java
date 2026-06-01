@@ -71,10 +71,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -402,6 +404,25 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testEstimateAggregationsSkippedWhenQueryPhaseHandoffPresent() throws Exception {
+        InternalAggregations aggs = InternalAggregations.from(List.of(new Max("max", 42.0, DocValueFormat.RAW, Map.of())));
+        SearchResponse withAggs = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).build();
+        try {
+            long aggBytes = DelayableWriteable.getUncompressedSerializedSize(aggs);
+            assertThat(
+                TransportMultiSearchAction.estimateActualBytes(withAggs),
+                equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD + aggBytes)
+            );
+            withAggs.setQueryPhaseAggregationBreakerBytes(aggBytes);
+            assertThat(
+                TransportMultiSearchAction.estimateActualBytes(withAggs),
+                equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD)
+            );
+        } finally {
+            withAggs.decRef();
+        }
+    }
+
     public void testEstimateShardFailures() throws Exception {
         ShardSearchFailure failure = new ShardSearchFailure(new RuntimeException("shard failure message"));
         SearchResponse withFailure = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).shardFailures(failure).build();
@@ -411,7 +432,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutFailure);
 
             // The failure estimate must be strictly larger.
-            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+            assertThat(withBytes, greaterThan(withoutBytes));
 
             // The exact delta matches what CountingStreamOutput reports for the failure array.
             long expectedFailureBytes;
@@ -437,7 +458,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long withBytes = TransportMultiSearchAction.estimateActualBytes(withSuggest);
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutSuggest);
 
-            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+            assertThat(withBytes, greaterThan(withoutBytes));
 
             long expectedSuggestBytes;
             try (CountingStreamOutput out = new CountingStreamOutput()) {
@@ -460,7 +481,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long withBytes = TransportMultiSearchAction.estimateActualBytes(withProfile);
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutProfile);
 
-            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+            assertThat(withBytes, greaterThan(withoutBytes));
 
             long expectedProfileBytes;
             try (CountingStreamOutput out = new CountingStreamOutput()) {
@@ -489,7 +510,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
 
-            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+            assertThat(withBytes, greaterThan(withoutBytes));
 
             long expectedValueBytes = TransportMultiSearchAction.estimateValueBytes("a long keyword value stored in doc values");
             assertThat(withBytes - withoutBytes, equalTo(expectedValueBytes));
@@ -521,7 +542,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
 
-            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+            assertThat(withBytes, greaterThan(withoutBytes));
 
             long expectedHighlightBytes;
             try (CountingStreamOutput out = new CountingStreamOutput()) {
@@ -547,7 +568,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
 
-            assertThat(withBytes, org.hamcrest.Matchers.greaterThan(withoutBytes));
+            assertThat(withBytes, greaterThan(withoutBytes));
 
             long expectedExplanationBytes;
             try (CountingStreamOutput out = new CountingStreamOutput()) {
@@ -611,6 +632,48 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         }
     }
 
+    public void testBreakerAccountsForQueryPhaseAggHandoff() throws Exception {
+        long handoffBytes = 1024L;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(-1);
+        // Simulate query-phase agg bytes already reserved on the breaker before the response arrives.
+        breaker.addWithoutBreaking(handoffBytes);
+
+        SearchResponse emptyBase = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
+        long incrementalBytes;
+        try {
+            incrementalBytes = TransportMultiSearchAction.estimateActualBytes(emptyBase);
+        } finally {
+            emptyBase.decRef();
+        }
+
+        runMsearchWithBreaker(breaker, 1, () -> {
+            SearchResponse r = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
+            r.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+            return r;
+        });
+
+        // All bytes (incremental estimate + query-phase handoff) must be released on completion.
+        assertThat(breaker.getUsed(), equalTo(0L));
+        // addEstimateBytesAndMaybeBreak is only called for incremental bytes; handoff is never re-reserved.
+        assertThat(breaker.totalReserved(), equalTo(incrementalBytes));
+    }
+
+    public void testBreakerReleasesHandoffOnCircuitBreak() throws Exception {
+        long handoffBytes = 1024L;
+        TrackingCircuitBreaker breaker = new TrackingCircuitBreaker(1); // CBE on the first reservation call
+        // Simulate query-phase agg bytes already on the breaker before the response arrives.
+        breaker.addWithoutBreaking(handoffBytes);
+
+        runMsearchWithBreaker(breaker, 1, () -> {
+            SearchResponse r = SearchResponse.emptyResponseBuilder().tookInMillis(1L).build();
+            r.setQueryPhaseAggregationBreakerBytes(handoffBytes);
+            return r;
+        });
+
+        // The CBE path must release the pre-reserved handoff bytes; releaseAll() is a no-op (nothing accumulated).
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testBreakerTripDuringExecution() throws Exception {
         int tripOn = 2;
         int numRequests = 3;
@@ -667,7 +730,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int numRequests,
         Supplier<SearchResponse> responseSupplier,
         AtomicInteger failFirstSearch,
-        java.util.function.Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
+        Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
     ) throws Exception {
         Settings settings = Settings.builder().put("node.name", "msearch-breaker-test").build();
         ActionFilters actionFilters = mock(ActionFilters.class);

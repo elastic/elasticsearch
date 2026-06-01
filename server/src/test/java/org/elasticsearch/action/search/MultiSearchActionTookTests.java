@@ -185,10 +185,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     final AtomicInteger responseCounter,
                     final ActionListener<MultiSearchResponse> listener,
                     long startTimeInNanos,
-                    AtomicLong totalReservedBytes
+                    TransportMultiSearchAction.MultiSearchBreakerAccounting breakerAccounting
                 ) {
                     expected.set(1000000);
-                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos, totalReservedBytes);
+                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos, breakerAccounting);
                 }
             };
         } else {
@@ -209,11 +209,11 @@ public class MultiSearchActionTookTests extends ESTestCase {
                     final AtomicInteger responseCounter,
                     final ActionListener<MultiSearchResponse> listener,
                     long startTimeInNanos,
-                    AtomicLong totalReservedBytes
+                    TransportMultiSearchAction.MultiSearchBreakerAccounting breakerAccounting
                 ) {
                     long elapsed = spinForAtLeastNMilliseconds(randomIntBetween(0, 10));
                     expected.set(elapsed);
-                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos, totalReservedBytes);
+                    super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos, breakerAccounting);
                 }
             };
         }

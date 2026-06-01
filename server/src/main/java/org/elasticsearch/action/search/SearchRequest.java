@@ -126,6 +126,12 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      */
     private boolean forceSyntheticSource = false;
 
+    /**
+     * When set, query-phase aggregation bytes remain on the {@link org.elasticsearch.common.breaker.CircuitBreaker#REQUEST}
+     * breaker through response delivery so {@link TransportMultiSearchAction} can release them when buffering ends.
+     */
+    private boolean bufferSubSearchResponseForMultiSearch;
+
     @Nullable
     private String projectRouting;
 
@@ -270,6 +276,19 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
         this.routingFromSlice = searchRequest.routingFromSlice;
         this.resolvedIndexExpressions = searchRequest.resolvedIndexExpressions;
         this.resolvedTargetProjects = searchRequest.resolvedTargetProjects;
+        this.bufferSubSearchResponseForMultiSearch = searchRequest.bufferSubSearchResponseForMultiSearch;
+    }
+
+    /**
+     * Marks this sub-search as buffered by a multi-search on the coordinating node. Query-phase aggregation
+     * breaker bytes are handed off to the {@link SearchResponse} instead of being released when the search completes.
+     */
+    public void setBufferSubSearchResponseForMultiSearch(boolean bufferSubSearchResponseForMultiSearch) {
+        this.bufferSubSearchResponseForMultiSearch = bufferSubSearchResponseForMultiSearch;
+    }
+
+    boolean bufferSubSearchResponseForMultiSearch() {
+        return bufferSubSearchResponseForMultiSearch;
     }
 
     /**

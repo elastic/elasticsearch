@@ -181,23 +181,24 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         for (int i = 0; i < request.requests().size(); i++) {
             SearchRequest searchRequest = request.requests().get(i);
             searchRequest.setParentTask(client.getLocalNodeId(), task.getId());
+            searchRequest.setBufferSubSearchResponseForMultiSearch(true);
             searchRequestSlots.add(new SearchRequestSlot(searchRequest, i));
         }
 
         int numRequests = request.requests().size();
         final AtomicArray<MultiSearchResponse.Item> responses = new AtomicArray<>(numRequests);
         final AtomicInteger responseCounter = new AtomicInteger(numRequests);
-        // Each completed sub-search stays in {@code responses} until the last one finishes. By then the coordinator-side
-        // aggregation reduce breaker has already released, so we accumulate REQUEST breaker bytes per response and
-        // release the sum when the combined {@link MultiSearchResponse} is delivered (success or failure).
-        final AtomicLong totalReservedBytes = new AtomicLong(0);
+        // Each completed sub-search stays in {@code responses} until the last one finishes. Incremental bytes (hits,
+        // suggest, etc.) are reserved here; query-phase aggregation bytes are handed off from {@link QueryPhaseResultConsumer}
+        // and released together when the combined {@link MultiSearchResponse} is delivered.
+        final MultiSearchBreakerAccounting breakerAccounting = new MultiSearchBreakerAccounting();
         final ActionListener<MultiSearchResponse> breakerReleasingListener = ActionListener.runAfter(
             listener,
-            () -> circuitBreaker.addWithoutBreaking(-totalReservedBytes.get())
+            breakerAccounting::releaseAll
         );
         int numConcurrentSearches = Math.min(numRequests, maxConcurrentSearches);
         for (int i = 0; i < numConcurrentSearches; i++) {
-            executeSearch(searchRequestSlots, responses, responseCounter, breakerReleasingListener, relativeStartTime, totalReservedBytes);
+            executeSearch(searchRequestSlots, responses, responseCounter, breakerReleasingListener, relativeStartTime, breakerAccounting);
         }
     }
 
@@ -222,8 +223,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * <ul>
      *   <li>Response shell ({@link #BASE_RESPONSE_OVERHEAD}).</li>
      *   <li>Top-level and nested hits ({@link #estimateHitBytes}).</li>
-     *   <li>Merged aggregations via {@link DelayableWriteable#getUncompressedSerializedSize} (same counting
-     *       approach as {@code QueryPhaseResultConsumer}, without materialising a serialised buffer).
+     *   <li>Merged aggregations when {@link SearchResponse#getQueryPhaseAggregationBreakerBytes()} is zero
+     *       (no handoff from {@link QueryPhaseResultConsumer}), via
+     *       {@link DelayableWriteable#getUncompressedSerializedSize}. When handoff bytes are non-zero, aggregations
+     *       are already on the request breaker from query-phase reduce and are not counted again here.
      *       A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be
      *       counted both there and in top-level hits — a known over-estimate.</li>
      *   <li>Shard failures (serialised via {@link CountingStreamOutput}; stack-trace strings are counted,
@@ -257,7 +260,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             bytes += estimateHitBytes(hit, counter);
         }
 
-        if (response.hasAggregations()) {
+        if (response.hasAggregations() && response.getQueryPhaseAggregationBreakerBytes() == 0) {
             try {
                 bytes += DelayableWriteable.getUncompressedSerializedSize(response.getAggregations());
             } catch (UncheckedIOException e) {
@@ -390,7 +393,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         final AtomicInteger responseCounter,
         final ActionListener<MultiSearchResponse> listener,
         final long relativeStartTime,
-        final AtomicLong totalReservedBytes
+        final MultiSearchBreakerAccounting breakerAccounting
     ) {
         /*
          * The number of times that we poll an item from the queue here is the minimum of the number of requests and the maximum number
@@ -404,7 +407,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         // recursively call this method again eventually. If it did not fork and was able to execute the search right away #doExecuteSearch
         // will return true, in which case we continue and run the next search request here.
         while (request != null
-            && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener, totalReservedBytes)) {
+            && doExecuteSearch(requests, responses, responseCounter, relativeStartTime, request, listener, breakerAccounting)) {
             request = requests.poll();
         }
     }
@@ -416,20 +419,24 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         long relativeStartTime,
         SearchRequestSlot request,
         ActionListener<MultiSearchResponse> listener,
-        AtomicLong totalReservedBytes
+        MultiSearchBreakerAccounting breakerAccounting
     ) {
         final SubscribableListener<MultiSearchResponse.Item> subscribeListener = new SubscribableListener<>();
         // Use map (not safeMap) so unexpected exceptions from estimation route to onFailure and still decrement
         // responseCounter. CircuitBreakingException is caught below and returned as a failure item without throwing.
         client.search(request.request, subscribeListener.map(searchResponse -> {
+            long queryPhaseAggHandoff = searchResponse.getQueryPhaseAggregationBreakerBytes();
             long bytes = estimateActualBytes(searchResponse);
             try {
                 circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
             } catch (CircuitBreakingException e) {
+                if (queryPhaseAggHandoff > 0) {
+                    circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
+                }
                 // No mustIncRef() yet — respondAndRelease on the search path will decRef the response.
                 return new MultiSearchResponse.Item(null, e);
             }
-            totalReservedBytes.addAndGet(bytes);
+            breakerAccounting.add(bytes, queryPhaseAggHandoff);
             searchResponse.mustIncRef();
             return new MultiSearchResponse.Item(searchResponse, null);
         }));
@@ -477,7 +484,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         subscribeListener.addListener(
             ActionListener.runAfter(
                 responseListener,
-                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime, totalReservedBytes)
+                () -> executeSearch(requests, responses, responseCounter, listener, relativeStartTime, breakerAccounting)
             )
         );
         return false;
@@ -485,5 +492,26 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     record SearchRequestSlot(SearchRequest request, int responseSlot) {
 
+    }
+
+    /**
+     * Tracks REQUEST breaker bytes reserved while sub-search responses are buffered: incremental estimates from
+     * {@link #estimateActualBytes} plus query-phase aggregation bytes handed off from {@link QueryPhaseResultConsumer}.
+     */
+    final class MultiSearchBreakerAccounting {
+        private final AtomicLong incrementalBytes = new AtomicLong();
+        private final AtomicLong queryPhaseAggregationHandoffBytes = new AtomicLong();
+
+        void add(long incremental, long queryPhaseAggregationHandoff) {
+            incrementalBytes.addAndGet(incremental);
+            queryPhaseAggregationHandoffBytes.addAndGet(queryPhaseAggregationHandoff);
+        }
+
+        void releaseAll() {
+            long release = incrementalBytes.get() + queryPhaseAggregationHandoffBytes.get();
+            if (release > 0) {
+                circuitBreaker.addWithoutBreaking(-release);
+            }
+        }
     }
 }

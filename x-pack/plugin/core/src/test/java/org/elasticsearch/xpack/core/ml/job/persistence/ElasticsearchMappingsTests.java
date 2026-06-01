@@ -194,7 +194,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
@@ -202,7 +205,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             // Serverless versions may be build hashes
@@ -211,7 +217,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
@@ -254,7 +263,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "mappings_version_only" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(

@@ -205,7 +205,14 @@ public final class MlIndexAndAlias {
         String firstConcreteIndex = indexPatternPrefix + indexNumber;
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
         Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().getProject(projectId).hasAlias(alias)
-            ? clusterState.getMetadata().getProject(projectId).getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
+            ? clusterState.getMetadata()
+                .getProject(projectId)
+                .getIndicesLookup()
+                .get(alias)
+                .getIndices()
+                .stream()
+                .map(Index::getName)
+                .findFirst()
             : Optional.empty();
 
         if (concreteIndexNames.length == 0) {
@@ -975,7 +982,13 @@ public final class MlIndexAndAlias {
         ClusterState clusterState,
         List<String> currentJobResultsIndices
     ) {
-        return addResultsIndexRolloverAliasActions(aliasRequestBuilder, newIndex, clusterState, ProjectId.DEFAULT, currentJobResultsIndices);
+        return addResultsIndexRolloverAliasActions(
+            aliasRequestBuilder,
+            newIndex,
+            clusterState,
+            ProjectId.DEFAULT,
+            currentJobResultsIndices
+        );
     }
 
     private static void moveWriteAlias(

@@ -187,14 +187,7 @@ public final class AnomalyDetectorsIndex {
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
     ) {
-        createStateIndexAndAliasIfNecessaryAndWaitForYellow(
-            client,
-            state,
-            resolver,
-            ProjectId.DEFAULT,
-            masterNodeTimeout,
-            finalListener
-        );
+        createStateIndexAndAliasIfNecessaryAndWaitForYellow(client, state, resolver, ProjectId.DEFAULT, masterNodeTimeout, finalListener);
     }
 
     public static String wrappedResultsMapping() {

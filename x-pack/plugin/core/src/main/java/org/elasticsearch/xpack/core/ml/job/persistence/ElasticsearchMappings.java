@@ -186,7 +186,15 @@ public class ElasticsearchMappings {
         ActionListener<Boolean> listener,
         int minVersion
     ) {
-        doAddDocMappingIfMissing(alias, mappingSupplier, client, state.metadata().getProject(projectId), masterNodeTimeout, listener, minVersion);
+        doAddDocMappingIfMissing(
+            alias,
+            mappingSupplier,
+            client,
+            state.metadata().getProject(projectId),
+            masterNodeTimeout,
+            listener,
+            minVersion
+        );
     }
 
     private static void doAddDocMappingIfMissing(

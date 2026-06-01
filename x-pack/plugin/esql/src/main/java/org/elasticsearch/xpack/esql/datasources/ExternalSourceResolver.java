@@ -115,12 +115,12 @@ public class ExternalSourceResolver {
     }
 
     /**
-     * Returns a config suitable for embedding in plan nodes: removes the {@link #DATASOURCE_CONFIG_KEY}
-     * sub-map so that credential values (e.g. {@link org.elasticsearch.common.settings.SecureString})
-     * are not serialized with the plan sent to data nodes. The credentials are only needed
-     * at resolution time (handled by {@link #storageConfig}), not at execution time for local sources.
+     * Returns a config with the {@link #DATASOURCE_CONFIG_KEY} sub-map removed. Used as the fallback
+     * when serializing a plan to a data node whose transport version predates the encrypted-secret
+     * carrier (see {@code ExternalSourceExec.writeTo}): such a node cannot deserialize the carrier, so
+     * the credentials are stripped and it reverts to pre-credential-forwarding behavior.
      */
-    static Map<String, Object> planConfig(Map<String, Object> config) {
+    public static Map<String, Object> planConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty() || config.containsKey(DATASOURCE_CONFIG_KEY) == false) {
             return config;
         }
@@ -489,9 +489,8 @@ public class ExternalSourceResolver {
             if (queryConfig != null) {
                 mergedConfig.putAll(queryConfig);
             }
-            mergedConfig.remove(DATASOURCE_CONFIG_KEY);
         } else {
-            mergedConfig = queryConfig != null ? planConfig(queryConfig) : Map.of();
+            mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
         return new ExternalSourceMetadata() {
@@ -761,14 +760,13 @@ public class ExternalSourceResolver {
         @Nullable Map<String, Object> queryConfig
     ) {
         if (metadataConfig == null || metadataConfig.isEmpty()) {
-            return queryConfig != null ? planConfig(queryConfig) : Map.of();
+            return queryConfig != null ? queryConfig : Map.of();
         }
         if (queryConfig == null || queryConfig.isEmpty()) {
             return metadataConfig;
         }
         Map<String, Object> merged = new HashMap<>(metadataConfig);
         merged.putAll(queryConfig);
-        merged.remove(DATASOURCE_CONFIG_KEY);
         return merged;
     }
 
@@ -991,8 +989,9 @@ public class ExternalSourceResolver {
         }
 
         // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params (WITH clause).
-        // Query-level params take precedence so users can override connector-resolved values.
-        // Strip _datasource from the stored config so credentials are not serialized with the plan.
+        // Query-level params take precedence so users can override connector-resolved values. _datasource is
+        // retained (carrying encrypted secrets) so it can travel to data nodes; ExternalSourceExec.writeTo
+        // gates it on the transport version and strips it for older targets.
         Map<String, Object> mergedConfig;
         Map<String, Object> metadataConfig = metadata.config();
         if (metadataConfig != null && metadataConfig.isEmpty() == false) {
@@ -1000,9 +999,8 @@ public class ExternalSourceResolver {
             if (queryConfig != null) {
                 mergedConfig.putAll(queryConfig);
             }
-            mergedConfig.remove(DATASOURCE_CONFIG_KEY);
         } else {
-            mergedConfig = planConfig(queryConfig);
+            mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
         Map<String, Object> enrichedSourceMetadata = metadata.statistics()

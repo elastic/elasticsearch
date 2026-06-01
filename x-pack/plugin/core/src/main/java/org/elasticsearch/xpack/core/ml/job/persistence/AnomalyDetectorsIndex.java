@@ -13,6 +13,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -104,6 +106,7 @@ public final class AnomalyDetectorsIndex {
         Client client,
         ClusterState state,
         IndexNameExpressionResolver resolver,
+        ProjectId projectId,
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
     ) {
@@ -111,6 +114,7 @@ public final class AnomalyDetectorsIndex {
             client,
             state,
             resolver,
+            projectId,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
@@ -122,10 +126,24 @@ public final class AnomalyDetectorsIndex {
         );
     }
 
+    /** @deprecated Use {@link #createStateIndexAndAliasIfNecessary(Client, ClusterState, IndexNameExpressionResolver, ProjectId, TimeValue, ActionListener)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectId overload and remove this one.")
+    public static void createStateIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        createStateIndexAndAliasIfNecessary(client, state, resolver, ProjectId.DEFAULT, masterNodeTimeout, finalListener);
+    }
+
     public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
         Client client,
         ClusterState state,
         IndexNameExpressionResolver resolver,
+        ProjectId projectId,
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
     ) {
@@ -147,6 +165,7 @@ public final class AnomalyDetectorsIndex {
             client,
             state,
             resolver,
+            projectId,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
@@ -155,6 +174,26 @@ public final class AnomalyDetectorsIndex {
             // better option
             ActiveShardCount.DEFAULT,
             stateIndexAndAliasCreated
+        );
+    }
+
+    /** @deprecated Use {@link #createStateIndexAndAliasIfNecessaryAndWaitForYellow(Client, ClusterState, IndexNameExpressionResolver, ProjectId, TimeValue, ActionListener)} */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectId overload and remove this one.")
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+            client,
+            state,
+            resolver,
+            ProjectId.DEFAULT,
+            masterNodeTimeout,
+            finalListener
         );
     }
 

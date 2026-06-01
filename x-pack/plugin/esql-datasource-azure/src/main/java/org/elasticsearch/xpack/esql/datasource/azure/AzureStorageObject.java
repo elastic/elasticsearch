@@ -138,6 +138,11 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
             return blobClient.openInputStream(range, new BlobRequestConditions());
         } catch (Exception e) {
+            if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
+                // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                // contract for an open-ended read past the end is an empty stream.
+                return InputStream.nullInputStream();
+            }
             throw classify(e, "Range request failed for");
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);

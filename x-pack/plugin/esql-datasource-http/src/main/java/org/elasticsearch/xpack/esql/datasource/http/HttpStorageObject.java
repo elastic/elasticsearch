@@ -143,6 +143,10 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                     }
                     // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
                     return toEnd ? stream : new BoundedInputStream(stream, length);
+                } else if (toEnd && statusCode == HttpStatus.SC_REQUESTED_RANGE_NOT_SATISFIABLE) {
+                    // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI
+                    // contract for an open-ended read past the end is an empty stream.
+                    return InputStream.nullInputStream();
                 } else {
                     throw httpStatusException(statusCode, "Range request failed for");
                 }

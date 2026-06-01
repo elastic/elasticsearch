@@ -315,10 +315,6 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
     }
 
     private static TestAnalyzer prometheusPassthroughAnalyzer() {
-        return analyzerWithEnrichPolicies().addIndex(
-            "prometheus",
-            "mapping-promql-passthrough-labels.json",
-            IndexMode.TIME_SERIES
-        );
+        return analyzerWithEnrichPolicies().addIndex("prometheus", "mapping-promql-passthrough-labels.json", IndexMode.TIME_SERIES);
     }
 }

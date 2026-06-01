@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147179
+pr: 150275
+summary: Collect inference IDs during ES|QL pre-analysis
+type: bug

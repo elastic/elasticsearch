@@ -149,14 +149,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private final boolean idColumnRequested;
     /**
-     * Dataset name passed through from the planner for {@code _index} resolution. {@code null}
-     * for bare-glob {@code FROM} queries (no dataset identity); the resulting {@code _index}
-     * column is rendered as SQL {@code NULL} by {@link VirtualColumnIterator}.
-     * <p>
-     * TODO: populated by the planner in a follow-up commit once
-     * {@code UnresolvedExternalRelation} / {@code ExternalRelation} / {@code ExternalSourceExec}
-     * carry the dataset name through to
-     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext}.
+     * Dataset name threaded from the planner ({@code DatasetRewriter} attaches it to
+     * {@code UnresolvedExternalRelation}; {@code ExternalRelation} / {@code ExternalSourceExec} round-
+     * trip it on the wire under {@code ESQL_EXTERNAL_DATASET_NAME}; {@code LocalExecutionPlanner}
+     * sets it on the {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext}).
+     * Used for {@code _index} resolution: a bare-glob {@code FROM} query has no dataset identity, so
+     * the value is {@code null} and {@link VirtualColumnIterator} renders {@code _index} as
+     * SQL {@code NULL}.
      */
     @Nullable
     private final String datasetName;
@@ -1791,6 +1790,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             .batchSize(batchSize)
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
+            .maxRecordBytes(maxRecordBytes)
             .build();
         FormatReader reader = readerWithDynamicThreshold(formatReader);
         reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {

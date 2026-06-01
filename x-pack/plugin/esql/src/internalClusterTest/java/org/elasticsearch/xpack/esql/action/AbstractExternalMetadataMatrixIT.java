@@ -48,9 +48,11 @@ import static org.hamcrest.Matchers.startsWith;
  *
  * <p>The wiring that surfaces {@code _id} / {@code _source} / {@code _version} / {@code _index}
  * (and the always-null set {@code _score / _ignored / _index_mode / _tsid / _size}) reaches into
- * the per-format <em>reader</em>: {@code _id}'s row position is emitted reader-side by the only
- * {@code ColumnExtractorAware} reader (Parquet) and synthesized by {@code VirtualColumnIterator}'s
- * per-file counter for the rest; {@code _source} is composed from the reader's data blocks by
+ * the per-format <em>reader</em>: every format reader emits a per-record token on the
+ * {@code _rowPosition} channel (columnar formats — Parquet/ORC — a file-global row index; text
+ * formats — CSV/NDJSON — a file-global byte offset or per-record counter), and
+ * {@code VirtualColumnIterator} composes {@code _id} as {@code <location>:<token>} via
+ * {@code ExternalRowIdentity}. {@code _source} is composed from the reader's data blocks by
  * {@code SynthesizeExternalSource}, rendering every {@code BytesRefBlock} via {@code utf8ToString}.
  * A format-specific reader regression in any of those paths would otherwise pass with only the
  * CSV coverage in {@link FromDatasetIT}.

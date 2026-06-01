@@ -31,6 +31,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -347,7 +349,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         int batchSize = context.batchSize();
         int rowLimit = context.rowLimit();
 
-        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] columns = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long limit = rowLimit == FormatReader.NO_LIMIT ? -1 : rowLimit;
 
         // Native FilterExpr ownership is bounded by this method: build it here, hand it to
@@ -364,7 +368,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             // Ownership of readerHandle has transferred to the iterator's close(); zero our copy
             // so the finally below doesn't double-free it.
             readerHandle = 0;
-            return iterator;
+            return maybeWrapForRowPosition(iterator, rowPosSlot);
         } finally {
             if (filterHandle != 0) {
                 ParquetRsBridge.freeExpr(filterHandle);
@@ -373,6 +377,50 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
                 ParquetRsBridge.closeReader(readerHandle);
             }
         }
+    }
+
+    /**
+     * Returns the index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns},
+     * or {@code -1} when absent. The optimizer injects this synthetic column whenever {@code _id} or
+     * {@code _file.record_ref} is requested, but the native reader has no such column to materialise;
+     * see {@link #stripRowPosition} and {@link #maybeWrapForRowPosition} for the strip + null-emit
+     * compensation.
+     */
+    private static int rowPositionSlot(List<String> projectedColumns) {
+        return projectedColumns == null ? -1 : projectedColumns.indexOf(ColumnExtractor.ROW_POSITION_COLUMN);
+    }
+
+    /**
+     * Returns {@code projectedColumns} with {@link ColumnExtractor#ROW_POSITION_COLUMN} removed if
+     * present, otherwise the original list. The native bridge errors on unknown column names, so we
+     * never pass {@code _rowPosition} through; the wrapping iterator restores it as a null
+     * {@link LongBlock} at the correct output position.
+     */
+    private static List<String> stripRowPosition(List<String> projectedColumns, int rowPosSlot) {
+        if (rowPosSlot < 0) {
+            return projectedColumns;
+        }
+        List<String> filtered = new ArrayList<>(projectedColumns.size() - 1);
+        for (int i = 0; i < projectedColumns.size(); i++) {
+            if (i != rowPosSlot) {
+                filtered.add(projectedColumns.get(i));
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * Wraps {@code inner} to inject a null {@link LongBlock} at {@code rowPosSlot} on every page,
+     * matching the user-facing column shape the optimizer injected. When {@code rowPosSlot < 0} the
+     * inner iterator is returned unchanged. The result is that {@code _file.record_ref} surfaces as
+     * NULL on parquet-rs and {@code _id} composes to {@code <location>:null}-shaped values whose
+     * record-ref field is null; the production parquet reader (parquet-mr) carries real positions.
+     */
+    private CloseableIterator<Page> maybeWrapForRowPosition(CloseableIterator<Page> inner, int rowPosSlot) {
+        if (rowPosSlot < 0) {
+            return inner;
+        }
+        return new RowPositionNullInjector(inner, rowPosSlot, blockFactory);
     }
 
     // --- RangeAwareFormatReader ---
@@ -450,7 +498,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         List<String> projectedColumns = context.projectedColumns();
         int batchSize = context.batchSize();
         String path = resolveReadPath(object);
-        String[] columns = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] columns = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long metaHandle = metadataHandleCache.computeIfAbsent(path, p -> ParquetRsBridge.loadArrowMetadata(p, configJson));
         long filterHandle = 0;
         long readerHandle = 0;
@@ -471,7 +521,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             );
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
-            return iterator;
+            return maybeWrapForRowPosition(iterator, rowPosSlot);
         } finally {
             if (filterHandle != 0) {
                 ParquetRsBridge.freeExpr(filterHandle);
@@ -609,7 +659,9 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             offsets[i] = ref.offset();
             lengths[i] = ref.length();
         }
-        String[] cols = projectedColumns != null && projectedColumns.isEmpty() == false ? projectedColumns.toArray(new String[0]) : null;
+        int rowPosSlot = rowPositionSlot(projectedColumns);
+        List<String> nativeProjected = stripRowPosition(projectedColumns, rowPosSlot);
+        String[] cols = nativeProjected != null && nativeProjected.isEmpty() == false ? nativeProjected.toArray(new String[0]) : null;
         long filterHandle = 0;
         long readerHandle = 0;
         try {
@@ -619,7 +671,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             readerHandle = ParquetRsBridge.openReaderMulti(paths, offsets, lengths, cols, batchSize, -1, filterHandle, configJson);
             ParquetRsBatchIterator iterator = new ParquetRsBatchIterator(readerHandle, blockFactory);
             readerHandle = 0;
-            return iterator;
+            return maybeWrapForRowPosition(iterator, rowPosSlot);
         } finally {
             if (filterHandle != 0) {
                 ParquetRsBridge.freeExpr(filterHandle);
@@ -830,6 +882,78 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
             if (closed.compareAndSet(false, true)) {
                 ParquetRsBridge.closeReader(handle);
             }
+        }
+    }
+
+    /**
+     * Wraps a parquet-rs page iterator to splice an all-null {@link LongBlock} into every page at the
+     * {@code _rowPosition} output slot. parquet-rs has no row-position channel of its own (a Rust-bridge
+     * change would be needed to expose one); the production parquet reader is parquet-mr and carries
+     * real positions, so this wrapper exists only to keep the snapshot-only parquet-rs path from
+     * failing when {@code _id} or {@code _file.record_ref} is projected. The downstream
+     * {@code VirtualColumnIterator} composes {@code _id} from the masked physical position; the
+     * all-null block yields null record-refs and null {@code _id} components, matching the documented
+     * "returns null" semantics for the unsupported reader.
+     */
+    private static final class RowPositionNullInjector implements CloseableIterator<Page>, Describable {
+        private final CloseableIterator<Page> inner;
+        private final int rowPosSlot;
+        private final BlockFactory blockFactory;
+
+        RowPositionNullInjector(CloseableIterator<Page> inner, int rowPosSlot, BlockFactory blockFactory) {
+            this.inner = inner;
+            this.rowPosSlot = rowPosSlot;
+            this.blockFactory = blockFactory;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return inner.hasNext();
+        }
+
+        @Override
+        public Page next() {
+            Page innerPage = inner.next();
+            int positions = innerPage.getPositionCount();
+            int innerBlockCount = innerPage.getBlockCount();
+            Block[] blocks = new Block[innerBlockCount + 1];
+            boolean success = false;
+            Block nullBlock = null;
+            try {
+                try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(positions)) {
+                    for (int i = 0; i < positions; i++) {
+                        builder.appendNull();
+                    }
+                    nullBlock = builder.build();
+                }
+                for (int i = 0; i < rowPosSlot; i++) {
+                    blocks[i] = innerPage.getBlock(i);
+                }
+                blocks[rowPosSlot] = nullBlock;
+                for (int i = rowPosSlot; i < innerBlockCount; i++) {
+                    blocks[i + 1] = innerPage.getBlock(i);
+                }
+                Page out = new Page(positions, blocks);
+                success = true;
+                return out;
+            } finally {
+                if (success == false) {
+                    if (nullBlock != null) {
+                        nullBlock.close();
+                    }
+                    innerPage.releaseBlocks();
+                }
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            inner.close();
+        }
+
+        @Override
+        public String describe() {
+            return inner instanceof Describable d ? d.describe() : "parquet-rs(+rowPositionNullInjector)";
         }
     }
 }

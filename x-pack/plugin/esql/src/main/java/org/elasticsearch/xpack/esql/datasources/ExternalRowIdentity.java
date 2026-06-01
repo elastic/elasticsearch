@@ -147,49 +147,6 @@ public final class ExternalRowIdentity {
     }
 
     /**
-     * Compose an {@code _id} block for one page from a contiguous, file-local row range
-     * {@code [startOffset, startOffset + positions)}. This is the path for readers that do NOT
-     * emit a {@code _rowPosition} column — every format except the deferred-extraction-capable
-     * (Parquet-class, {@code ColumnExtractorAware}) readers. {@link VirtualColumnIterator} owns a
-     * per-file running counter and passes the starting offset of each page here, advancing by
-     * {@code positions} afterward. All positions are present (never null), so this always takes
-     * the dense path. Renders {@code <prefix><startOffset + i>} per row.
-     * <p>
-     * Values are bare file-local offsets (no packed extractor id), so unlike the
-     * {@link #composePage(BytesRef, LongBlock, BlockFactory)} block path there is nothing to mask.
-     */
-    public static BytesRefBlock composePage(BytesRef prefix, long startOffset, int positions, BlockFactory factory) {
-        if (positions == 0) {
-            return (BytesRefBlock) factory.newConstantNullBlock(0);
-        }
-        int prefixLen = prefix.length;
-        int worstCase = positions * (prefixLen + MAX_LONG_DIGITS);
-        byte[] backing = new byte[worstCase];
-        int[] offsets = new int[positions + 1];
-        byte[] digits = new byte[MAX_LONG_DIGITS];
-        int cursor = 0;
-        for (int i = 0; i < positions; i++) {
-            offsets[i] = cursor;
-            System.arraycopy(prefix.bytes, prefix.offset, backing, cursor, prefixLen);
-            cursor += prefixLen;
-            int digitCount = encodeDecimal(startOffset + i, digits);
-            System.arraycopy(digits, MAX_LONG_DIGITS - digitCount, backing, cursor, digitCount);
-            cursor += digitCount;
-        }
-        offsets[positions] = cursor;
-        try (BytesRefVector.Builder vectorBuilder = factory.newBytesRefVectorBuilder(positions)) {
-            BytesRef scratch = new BytesRef();
-            scratch.bytes = backing;
-            for (int i = 0; i < positions; i++) {
-                scratch.offset = offsets[i];
-                scratch.length = offsets[i + 1] - offsets[i];
-                vectorBuilder.appendBytesRef(scratch);
-            }
-            return vectorBuilder.build().asBlock();
-        }
-    }
-
-    /**
      * Decimal-encode {@code value} into {@code out} right-aligned. {@code out} must have at least
      * {@link #MAX_LONG_DIGITS} bytes. Returns the number of digits written.
      * <p>

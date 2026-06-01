@@ -15,7 +15,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
@@ -84,11 +83,14 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
         }
         this.rowLimit = rowLimit;
-        // When _rowPosition is projected, force the byte[] path: it maintains parserSliceStart across
-        // parse-error recovery, so record offsets stay exact, whereas the streaming path resets the
-        // parser's byte baseline on recovery. All split/segment/chunk reads already slurp.
-        boolean needsRowPosition = projectedColumns != null && projectedColumns.contains(ColumnExtractor.ROW_POSITION_COLUMN);
-        if (needsRowPosition || canUseByteArrayFastPath(object)) {
+        // When _rowPosition is projected the byte[] path is preferred: it maintains parserSliceStart
+        // across parse-error recovery so record offsets stay exact, whereas the streaming path resets
+        // the parser's byte baseline on recovery. All split/segment/chunk reads already slurp at
+        // bounded sizes. For a whole-file read of a large unsplit NDJSON file we still honour the
+        // BYTE_ARRAY_FAST_PATH_MAX_SIZE cap to avoid an unbounded allocation: above the cap we fall
+        // back to streaming and accept that parse-error recovery may shift the offset baseline (a
+        // rare lenient-mode event); the alternative would be unbounded memory on multi-GB files.
+        if (canUseByteArrayFastPath(object)) {
             byte[] data;
             try (InputStream toClose = inputStream) {
                 data = toClose.readAllBytes();

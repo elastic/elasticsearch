@@ -404,9 +404,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     public void testFromDatasetIdMetadataRendersLocationAndRowPosition() throws Exception {
         // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
-        // is not ColumnExtractorAware, so _rowPosition is synthesized by VirtualColumnIterator's
-        // per-file counter and _id renders as <location>:<file-local offset>. The three fixture rows
-        // sit at file-local offsets 0, 1, 2 — independent of any other file's row count.
+        // emits _rowPosition directly into a projected slot from its in-reader per-record counter;
+        // VirtualColumnIterator composes _id as <location>:<token> via ExternalRowIdentity. For the
+        // three fixture rows in this single-split read the counter yields tokens 0, 1, 2.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(

@@ -479,13 +479,27 @@ public class DynamicTemplate implements ToXContentObject {
         if (templateName != null) {
             return templateName.equals(name);
         }
-        for (String match : pathMatch) {
-            if (matchType.matches(match, path) == false) {
+        if (pathMatch.isEmpty() == false) {
+            boolean matched = false;
+            for (String pm : pathMatch) {
+                if (matchType.matches(pm, path)) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched == false) {
                 return false;
             }
         }
-        for (String match : this.match) {
-            if (matchType.matches(match, fieldName) == false) {
+        if (match.isEmpty() == false) {
+            boolean matched = false;
+            for (String m : match) {
+                if (matchType.matches(m, fieldName)) {
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched == false) {
                 return false;
             }
         }

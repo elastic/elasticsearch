@@ -152,7 +152,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
             if (query == null) {
                 query = zeroTermsQuery.asQuery();
-                query.visit(queryVisitor);
+                if (query != null) {
+                    query.visit(queryVisitor);
+                }
             }
 
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);

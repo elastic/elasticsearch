@@ -15,6 +15,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -170,13 +171,26 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException
+        // (which the external source operator maps to 400).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::newStream);
         assertTrue(e.getMessage().contains("Failed to read object from"));
+    }
+
+    public void testNewStreamMapsRetryableStorageExceptionToUnavailable() {
+        // A retryable transport status (here 503) becomes ExternalUnavailableException (mapped to 503).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {
@@ -336,7 +350,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
@@ -344,6 +359,17 @@ public class GcsStorageObjectTests extends ESTestCase {
         ByteBuffer target = ByteBuffer.allocate(10);
         IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
         assertTrue(e.getMessage().contains("Failed to read bytes from"));
+    }
+
+    public void testReadBytesMapsRetryableStorageExceptionToUnavailable() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     // === readBytesAsync tests ===

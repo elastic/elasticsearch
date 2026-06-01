@@ -427,21 +427,23 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         );
         ensureGreen(indexName);
 
+        long docs = randomIntBetween(50, 100);
         LocalDate baseDate = LocalDate.of(2024, 11, 1);
-        for (int i = 1; i <= num_primaries * 2; i++) {
+        var builder = client().prepareBulk(indexName);
+        for (int i = 1; i <= docs; i++) {
             LocalDate docDate = baseDate.plusMonths(i - 1);
-            prepareIndex(indexName).setId(Integer.toString(i))
-                .setSource("body", "doc" + i, "@timestamp", docDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
-                .setRefreshPolicy(IMMEDIATE)
-                .get();
-
+            builder.add(
+                prepareIndex(indexName).setId(Integer.toString(i))
+                    .setSource("body", "doc" + i, "@timestamp", docDate.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            );
         }
+        builder.setRefreshPolicy(IMMEDIATE).get();
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-10-01"));
         assertResponse(client().prepareSearch(indexName).setPreFilterShardSize(1).setQuery(boolQueryBuilder), searchResponse -> {
             assertNoFailures(searchResponse);
-            assertHitCount(searchResponse, num_primaries * 2L);
+            assertHitCount(searchResponse, docs);
         });
         final List<Measurement> canMatchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_METRIC);
         assertEquals(num_primaries, canMatchMeasurements.size());

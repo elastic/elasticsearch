@@ -51,16 +51,7 @@ public class ModelValidatorBuilder {
                 );
             }
             case RERANK -> {
-                if (service.supportsNewRerankCodePath()) {
-                    return new SimpleModelValidator(
-                        Objects.requireNonNullElse(validatorFromService, new RerankServiceIntegrationValidator())
-                    );
-                } else {
-                    // TODO: once all services support the new rerank code path, remove this branch
-                    return new SimpleModelValidator(
-                        Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
-                    );
-                }
+                return new SimpleModelValidator(Objects.requireNonNullElse(validatorFromService, new RerankServiceIntegrationValidator()));
             }
             case SPARSE_EMBEDDING, ANY -> {
                 return new SimpleModelValidator(Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator()));

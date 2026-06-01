@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.LeaderBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
@@ -65,8 +65,8 @@ class BulkByPaginatedSearchParallelizationHelper {
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void startSlicedAction(
         Request request,
         BulkByPaginatedSearchTask task,
-        ActionType<BulkByScrollResponse> action,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionType<BulkByPaginatedSearchResponse> action,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
         Runnable workerAction
@@ -97,8 +97,8 @@ class BulkByPaginatedSearchParallelizationHelper {
     static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void executeSlicedAction(
         BulkByPaginatedSearchTask task,
         Request request,
-        ActionType<BulkByScrollResponse> action,
-        ActionListener<BulkByScrollResponse> listener,
+        ActionType<BulkByPaginatedSearchResponse> action,
+        ActionListener<BulkByPaginatedSearchResponse> listener,
         Client client,
         DiscoveryNode node,
         @Nullable Version remoteVersion,
@@ -172,11 +172,11 @@ class BulkByPaginatedSearchParallelizationHelper {
 
     private static <Request extends AbstractBulkByPaginatedSearchRequest<Request>> void sendSubRequests(
         Client client,
-        ActionType<BulkByScrollResponse> action,
+        ActionType<BulkByPaginatedSearchResponse> action,
         String localNodeId,
         BulkByPaginatedSearchTask task,
         Request request,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         LeaderBulkByPaginatedSearchTaskState leader = task.getLeaderState();
         int totalSlices = leader.getSlices();
@@ -208,7 +208,7 @@ class BulkByPaginatedSearchParallelizationHelper {
             TaskId parentTaskId = new TaskId(localNodeId, task.getId());
             SearchRequest searchRequest = searchRequests[sliceId];
             Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices, activeSlices);
-            ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
+            ActionListener<BulkByPaginatedSearchResponse> sliceListener = ActionListener.wrap(
                 r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
                 e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)
             );

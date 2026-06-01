@@ -26,6 +26,8 @@ public class ExternalDistributedClusters {
     static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return Clusters.testCluster(spec -> {
             spec.feature(FeatureFlag.ESQL_EXTERNAL_DATASOURCES);
+            // Data sources require the project encryption key feature, or EsqlPlugin fails fast at startup.
+            spec.systemProperty("es.project_encryption_key_feature_flag_enabled", "true");
             spec.plugin("inference-service-test");
             spec.module("repository-s3");
             spec.module("repository-gcs");

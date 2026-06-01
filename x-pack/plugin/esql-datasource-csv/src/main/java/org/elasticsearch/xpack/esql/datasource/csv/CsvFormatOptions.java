@@ -23,7 +23,8 @@ import java.time.format.DateTimeFormatter;
  * @param datetimeFormatter  custom datetime format pattern, or null for ISO-8601/epoch
  * @param maxFieldSize       maximum size in bytes for a single field value; 0 means no limit
  *                           (default: 10MB). Provides OOM protection against malformed files.
- * @param multiValueSyntax   syntax for multi-value fields: BRACKETS (default, [a,b,c]) or NONE
+ * @param multiValueSyntax   syntax for multi-value fields: NONE (default — standard CSV, no array
+ *                           parsing) or BRACKETS ([a,b,c] read as a multi-value)
  * @param headerRow          when {@code true} (default), the first non-comment line is read as the
  *                           schema header; when {@code false}, no header is read and column names
  *                           are synthesized from {@link #columnPrefix}.
@@ -67,7 +68,7 @@ public record CsvFormatOptions(
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
-        MultiValueSyntax.BRACKETS,
+        MultiValueSyntax.NONE,
         true,
         DEFAULT_COLUMN_PREFIX
     );
@@ -81,7 +82,7 @@ public record CsvFormatOptions(
         StandardCharsets.UTF_8,
         null,
         DEFAULT_MAX_FIELD_SIZE,
-        MultiValueSyntax.BRACKETS,
+        MultiValueSyntax.NONE,
         true,
         DEFAULT_COLUMN_PREFIX
     );

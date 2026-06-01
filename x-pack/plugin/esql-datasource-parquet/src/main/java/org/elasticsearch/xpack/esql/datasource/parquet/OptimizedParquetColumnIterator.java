@@ -1231,7 +1231,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (info == null) {
                     predicateBlocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                 } else {
-                    predicateBlocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, predicateBlocks);
+                    predicateBlocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 }
                 predicateBlockMap.put(attributes.get(col).name(), predicateBlocks[col]);
             }
@@ -1675,8 +1675,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Ownership invariant for the rest of this method: every predicate Block lives in EXACTLY
         // one of {predicateBlocks[col], blocks[col]} at any moment. We enforce this by nulling
         // predicateBlocks[col] the instant we hand the reference off to blocks[col], so the catch
-        // below never double-closes a transferred Block — even when a downstream call (e.g.
-        // readColumnBlockWithAttribution) closes blocks itself before re-throwing.
+        // below never double-closes a transferred Block. readColumnBlockNoCleanup leaves cleanup
+        // entirely to the outer catch (the sole owner of both arrays).
         //
         // The earlier implementation copied the reference into blocks[col] and only nulled
         // predicateBlocks[col] after the loop completed successfully. A mid-loop exception (e.g.
@@ -1957,7 +1957,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else {
-                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                        blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                     }
                     predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                 }
@@ -2014,11 +2014,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 } else if (positions == null) {
-                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
-                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
                     blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
                 }
             }
@@ -2048,18 +2048,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + e.getMessage(),
                 e
             );
-        }
-    }
-
-    private Block readColumnBlockWithAttribution(int colIndex, ColumnInfo info, int rowsToRead, Block[] blocks) {
-        try {
-            return readColumnBlock(colIndex, info, rowsToRead);
-        } catch (CircuitBreakingException e) {
-            Releasables.closeExpectNoException(blocks);
-            throw e;
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw wrapColumnReadException(colIndex, e);
         }
     }
 
@@ -2099,13 +2087,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Variant of {@link #readColumnBlockWithAttribution} for callers that own their own
-     * cleanup loop and must not have {@code blocks} double-closed: the only failure-time work
-     * done here is exception attribution. Used by {@link #nextTwoPhaseBatch(int)} where the outer
-     * catch is the sole owner of {@code blocks[]} and {@code predicateBlocks[]} — letting the
-     * helper close {@code blocks} would double-close every slot already populated by previous
-     * loop iterations (including transferred predicate slots), which is exactly the production
-     * crash this method exists to avoid.
+     * Reads one column block with exception attribution but without any cleanup of sibling blocks.
+     * Every call site that builds a {@code blocks[]} (or {@code predicateBlocks[]}) array in a
+     * loop must use this helper rather than closing the array on failure itself, because the outer
+     * {@code catch} is the sole owner of that array: a helper that also closes it would
+     * double-close every slot populated by previous loop iterations (including transferred predicate
+     * slots), triggering {@code IllegalStateException: can't release already released object} that
+     * masks the original circuit-breaker exception and leaks block memory.
      */
     private Block readColumnBlockNoCleanup(int colIndex, ColumnInfo info, int rowsToRead) {
         try {

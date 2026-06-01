@@ -155,18 +155,22 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Resolves the {@link ColumnInfo} for a top-level column by name within a parquet
-     * {@link MessageType}, applying the same primitive-type mapping that the iterator uses
-     * (see {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent
-     * or maps to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor
-     * carries {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * Resolves the {@link ColumnInfo} for a column by name within a parquet {@link MessageType},
+     * applying the same primitive-type mapping that the iterator uses (see
+     * {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent or maps
+     * to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor carries
+     * {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * <p>
+     * {@code columnName} may be a dotted struct-leaf path (e.g. {@code "event.action"}) — the
+     * same D2 resolution rule as {@link #resolveFieldType} applies: literal top-level match wins
+     * over dotted-path traversal.
      * <p>
      * Package-private because {@link ParquetColumnExtractor} is the only collaborator and we
      * deliberately keep this primitive-type mapping single-sourced — duplicating it in the
      * extractor risks subtle type drift the next time a logical type is added.
      */
     static ColumnInfo resolveColumnInfo(MessageType schema, String columnName) {
-        Type field = schema.containsField(columnName) ? schema.getType(columnName) : null;
+        Type field = resolveFieldType(schema, columnName);
         if (field == null) {
             return null;
         }
@@ -174,13 +178,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         if (esqlType == DataType.UNSUPPORTED || esqlType == DataType.NULL) {
             return null;
         }
-        // For flat columns the descriptor lives directly under the schema; for LIST<primitive>
-        // the descriptor is the inner repeated element. Iterate columns once and pick the
-        // descriptor whose top-level path segment matches the requested column name.
+        // For top-level columns (flat scalars, literal-dot names, LIST<primitive>) match the
+        // descriptor by first path segment. For dotted struct-leaf columns (e.g. "event.action")
+        // the first segment is the struct name, not the full dotted attribute name, so match by
+        // the full joined path instead.
+        boolean isTopLevel = schema.containsField(columnName);
         ColumnDescriptor descriptor = null;
         for (ColumnDescriptor desc : schema.getColumns()) {
             String[] path = desc.getPath();
-            if (path.length > 0 && path[0].equals(columnName)) {
+            if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : String.join(".", path).equals(columnName)) {
                 descriptor = desc;
                 break;
             }

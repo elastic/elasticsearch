@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -536,6 +537,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
     protected void setNodeRepositoryStrategy(String nodeName, StatelessMockRepositoryStrategy strategy) {
         ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
+    }
+
+    protected void setProjectRepositoryStrategy(String nodeName, ProjectId projectId, StatelessMockRepositoryStrategy strategy) {
+        ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
+        ObjectStoreTestUtils.getProjectObjectStoreStatelessMockRepository(projectId, objectStoreService).setStrategy(strategy);
     }
 
     protected void setNodeRepositoryFailureStrategy(

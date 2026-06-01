@@ -11,8 +11,10 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -40,7 +42,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testConstantFoldingArithmeticOperators() {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=5m 1 + 1");
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
         var eval = plan.collect(Eval.class).getFirst();
         var literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(literal.value(), equalTo(2.0));
@@ -126,6 +128,44 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
             .findFirst()
             .get();
         assertThat(add.children().stream().map(Expression::sourceText).toList(), containsInAnyOrder("network.eth0.rx", "network.eth0.tx"));
+    }
+
+    public void testBinaryWithDifferentSelectorsPreserveDistinctAggregates() {
+        // for mixed selectors, optimizer must not merge both sides into one selector.
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(avg_over_time(network.cost[1m]) + avg_over_time(network.cost[10m])))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        // Both aggregate components should survive with their original windows (1m and 10m).
+        var sumWindows = tsAgg.aggregates()
+            .stream()
+            .map(Alias::unwrap)
+            .flatMap(agg -> agg.collect(Sum.class).stream())
+            .map(agg -> agg.window().fold(FoldContext.small()))
+            .toList();
+        var countWindows = tsAgg.aggregates()
+            .stream()
+            .map(Alias::unwrap)
+            .flatMap(agg -> agg.collect(Count.class).stream())
+            .map(agg -> agg.window().fold(FoldContext.small()))
+            .toList();
+        assertThat(sumWindows, hasSize(2));
+        assertThat(countWindows, hasSize(2));
+        assertThat(sumWindows, containsInAnyOrder(Duration.ofMinutes(1), Duration.ofMinutes(10)));
+        assertThat(countWindows, containsInAnyOrder(Duration.ofMinutes(1), Duration.ofMinutes(10)));
+
+        // The binary add must reference two distinct aggregate outputs, not the same ref twice (x + x).
+        Add add = plan.collect(Eval.class)
+            .stream()
+            .flatMap(e -> e.fields().stream())
+            .map(Alias::unwrap)
+            .filter(Add.class::isInstance)
+            .map(Add.class::cast)
+            .findFirst()
+            .orElseThrow();
+        ReferenceAttribute leftRef = as(as(add.left(), ToDouble.class).field(), ReferenceAttribute.class);
+        ReferenceAttribute rightRef = as(as(add.right(), ToDouble.class).field(), ReferenceAttribute.class);
+        assertFalse(leftRef.semanticEquals(rightRef));
     }
 
     public void testBinaryAcrossSeriesAndLiteral() {

@@ -43,6 +43,8 @@ import java.util.List;
  *                         {@link FormatReader#withSchema}, which carries the projection. Empty
  *                         list and {@code null} both mean "no schema"; the compact constructor
  *                         collapses empty to {@code null} so readers do one check.
+ * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
+ *                         scans for a record boundary.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -52,12 +54,16 @@ public record FormatReadContext(
     boolean firstSplit,
     boolean lastSplit,
     boolean recordAligned,
-    @Nullable List<Attribute> readSchema
+    @Nullable List<Attribute> readSchema,
+    int maxRecordBytes
 ) {
 
     public FormatReadContext {
         if (readSchema != null && readSchema.isEmpty()) {
             readSchema = null;
+        }
+        if (maxRecordBytes <= 0) {
+            throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
         }
     }
 
@@ -76,21 +82,51 @@ public record FormatReadContext(
      * Returns a copy with a different row limit.
      */
     public FormatReadContext withRowLimit(int limit) {
-        return new FormatReadContext(projectedColumns, batchSize, limit, errorPolicy, firstSplit, lastSplit, recordAligned, readSchema);
+        return new FormatReadContext(
+            projectedColumns,
+            batchSize,
+            limit,
+            errorPolicy,
+            firstSplit,
+            lastSplit,
+            recordAligned,
+            readSchema,
+            maxRecordBytes
+        );
     }
 
     /**
      * Returns a copy with a different error policy.
      */
     public FormatReadContext withErrorPolicy(ErrorPolicy policy) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, policy, firstSplit, lastSplit, recordAligned, readSchema);
+        return new FormatReadContext(
+            projectedColumns,
+            batchSize,
+            rowLimit,
+            policy,
+            firstSplit,
+            lastSplit,
+            recordAligned,
+            readSchema,
+            maxRecordBytes
+        );
     }
 
     /**
      * Returns a copy configured for a split-based read.
      */
     public FormatReadContext withSplit(boolean first, boolean last) {
-        return new FormatReadContext(projectedColumns, batchSize, rowLimit, errorPolicy, first, last, recordAligned, readSchema);
+        return new FormatReadContext(
+            projectedColumns,
+            batchSize,
+            rowLimit,
+            errorPolicy,
+            first,
+            last,
+            recordAligned,
+            readSchema,
+            maxRecordBytes
+        );
     }
 
     public static Builder builder() {
@@ -110,6 +146,7 @@ public record FormatReadContext(
         private boolean recordAligned = false;
         @Nullable
         private List<Attribute> readSchema = null;
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
 
         private Builder() {}
 
@@ -158,6 +195,11 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -170,7 +212,8 @@ public record FormatReadContext(
                 firstSplit,
                 lastSplit,
                 recordAligned,
-                readSchema
+                readSchema,
+                maxRecordBytes
             );
         }
     }

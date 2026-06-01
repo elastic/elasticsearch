@@ -49,7 +49,11 @@ public class TransportResumeReindexAction extends AbstractResumeBulkByScrollActi
     }
 
     @Override
-    protected void doExecute(Task task, ResumeBulkByPaginatedSearchRequest request, ActionListener<ResumeBulkByPaginatedSearchResponse> listener) {
+    protected void doExecute(
+        Task task,
+        ResumeBulkByPaginatedSearchRequest request,
+        ActionListener<ResumeBulkByPaginatedSearchResponse> listener
+    ) {
         final ReindexRequest reindexRequest = (ReindexRequest) request.getDelegate();
         reindexMetrics.recordRelocation(reindexRequest.getRemoteInfo() != null, ReindexMetrics.resolveSlicingMode(reindexRequest));
         super.doExecute(task, request, listener);

@@ -58,7 +58,11 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
     }
 
     @Override
-    protected void doExecute(Task task, ResumeBulkByPaginatedSearchRequest request, ActionListener<ResumeBulkByPaginatedSearchResponse> listener) {
+    protected void doExecute(
+        Task task,
+        ResumeBulkByPaginatedSearchRequest request,
+        ActionListener<ResumeBulkByPaginatedSearchResponse> listener
+    ) {
         // ResumeBulkByPaginatedSearchRequest.validate() rejects requests with no ResumeInfo
         assert request.getDelegate().getResumeInfo().isPresent();
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();

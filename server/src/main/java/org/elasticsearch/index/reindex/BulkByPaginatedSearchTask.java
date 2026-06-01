@@ -308,7 +308,9 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
      */
     public void wakeUpAndFail(Exception failure) {
         this.taskFailure = failure;
-        this.workerState.rethrottle(Float.POSITIVE_INFINITY);
+        if (isWorker()) {
+            this.workerState.rethrottle(Float.POSITIVE_INFINITY);
+        }
     }
 
     /**

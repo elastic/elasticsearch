@@ -464,16 +464,6 @@ public class DynamicTemplate implements ToXContentObject {
         return false;
     }
 
-    public boolean isSimplePathMatch() {
-        return pathMatch.isEmpty() == false
-            && pathUnmatch.isEmpty()
-            && match.isEmpty()
-            && unmatch.isEmpty()
-            && matchMappingType.isEmpty()
-            && unmatchMappingType.isEmpty()
-            && matchType != MatchType.REGEX;
-    }
-
     public boolean match(String templateName, String path, String fieldName, XContentFieldType xcontentFieldType) {
         // If the template name parameter is specified, then we will check only the name of the template and ignore other matches.
         if (templateName != null) {

@@ -1299,6 +1299,35 @@ public class DatafeedManagerTests extends ESTestCase {
         verify(credentialManager, never()).injectCloudManagedCredential(any(), any());
     }
 
+    public void testCurrentCallerCredentialWithSecondaryAuthShouldStillExtractCloudToken() {
+        Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        MachineLearningExtension mlExtension = mockMlExtension(credentialManager, mock(InternalCloudApiKeyService.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        threadContext.putTransient("test_cloud_token", "present");
+
+        CloudCredential extractedCredential = new CloudCredential(new SecureString("caller-uiam-token".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(any())).thenAnswer(invocation -> {
+            ThreadContext ctx = invocation.getArgument(0);
+            return ctx.getTransient("test_cloud_token") != null;
+        });
+        when(credentialManager.extractCloudManagedCredential(any())).thenReturn(extractedCredential);
+
+        DatafeedManager manager = newDatafeedManager(
+            mock(DatafeedConfigProvider.class),
+            mock(JobConfigProvider.class),
+            settings,
+            mock(Client.class),
+            mlExtension,
+            mockAuditor()
+        );
+
+        assertThat(manager.currentCallerCredential(threadPool), equalTo(extractedCredential));
+    }
+
     /**
      * Creates a mock ClusterState suitable for both task checks and ElasticsearchMappings.addDocMappingIfMissing.
      */

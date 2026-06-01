@@ -80,7 +80,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     @Override
     protected void doExecute(Task task, UpdateDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
-        CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
+        CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool);
         if (callerCredential != null) {
             request.setCloudCredential(callerCredential);
         }

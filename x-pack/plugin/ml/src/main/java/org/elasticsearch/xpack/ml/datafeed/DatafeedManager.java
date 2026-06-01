@@ -66,7 +66,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -134,19 +133,16 @@ public final class DatafeedManager {
      * disabled or the caller is not cloud-managed. Used on the coordinating node before forwarding a master request.
      */
     @Nullable
-    public CloudCredential currentCallerCredential(ThreadPool threadPool, @Nullable SecurityContext securityContext) {
+    public CloudCredential currentCallerCredential(ThreadPool threadPool) {
         if (crossProjectMlEnabled() == false) {
             return null;
         }
-        AtomicReference<CloudCredential> callerCredential = new AtomicReference<>();
-        useSecondaryAuthIfAvailable(securityContext, () -> {
-            CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-            var threadContext = threadPool.getThreadContext();
-            if (credentialManager.hasCloudManagedCredential(threadContext)) {
-                callerCredential.set(credentialManager.extractCloudManagedCredential(threadContext));
-            }
-        });
-        return callerCredential.get();
+        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+        var threadContext = threadPool.getThreadContext();
+        if (credentialManager.hasCloudManagedCredential(threadContext)) {
+            return credentialManager.extractCloudManagedCredential(threadContext);
+        }
+        return null;
     }
 
     private void injectRequestCloudCredentialIfAbsent(@Nullable CloudCredential cloudCredential, ThreadPool threadPool) {

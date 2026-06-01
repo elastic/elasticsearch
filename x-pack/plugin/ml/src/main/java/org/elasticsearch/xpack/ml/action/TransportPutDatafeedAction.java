@@ -85,7 +85,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
         final ActionListener<PutDatafeedAction.Response> releasingListener = ActionListener.releaseAfter(listener, request);
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
-            CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool, securityContext);
+            CloudCredential callerCredential = datafeedManager.currentCallerCredential(threadPool);
             if (callerCredential != null) {
                 request.setCloudCredential(callerCredential);
             }

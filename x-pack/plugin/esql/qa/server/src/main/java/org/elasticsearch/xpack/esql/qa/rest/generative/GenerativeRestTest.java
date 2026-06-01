@@ -452,6 +452,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isLimitByMvExpandBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsMvExpandOrderByBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isChangePointLimitByBug(ctx.normalizedErrorMessage, ctx.query),
+        ctx -> isChangePointLongRangeTopNConnectionBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isAggregateAbsentToStringSubqueryLookupJoinBug(ctx.normalizedErrorMessage, ctx.query),
         ctx -> isInlineStatsSubqueryAggregateExecBug(ctx.normalizedErrorMessage, ctx.query), };
 
@@ -1076,6 +1077,27 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
+    }
+
+    private static final Pattern CONNECTION_CLOSED_OR_RESET_PATTERN = Pattern.compile(
+        ".*(?:Connection is closed|Connection reset).*",
+        Pattern.DOTALL
+    );
+    private static final Pattern EVENT_DATES_FIELD_PATTERN = Pattern.compile("(?i)\\bevent_dates\\b");
+
+    /**
+     * {@code CHANGE_POINT} over {@code event_dates} can crash while decoding long-range values out of
+     * {@code TopNOperator} / {@code GroupedTopNOperator}. The REST test observes the resulting closed connection,
+     * so this must match the transport symptom and the query shape rather than the underlying assertion.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>.
+     */
+    static boolean isChangePointLongRangeTopNConnectionBug(String errorMessage, String query) {
+        if (errorMessage == null || query == null) {
+            return false;
+        }
+        return CONNECTION_CLOSED_OR_RESET_PATTERN.matcher(errorMessage).matches()
+            && CHANGE_POINT_COMMAND_PATTERN.matcher(query).find()
+            && EVENT_DATES_FIELD_PATTERN.matcher(query).find();
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");

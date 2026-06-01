@@ -219,7 +219,8 @@ public class JavaDateMathParser implements DateMathParser {
             if (zoneId != null) {
                 timeZone = zoneId;
             } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(ChronoField.YEAR) == false) {
-                // epoch_millis/epoch_second are UTC by definition; time_zone must not shift them.
+                // epoch_millis/epoch_second inputs are bare numbers with no zone info, so zoneId
+                // is always null here. They are UTC by definition; time_zone must not shift them.
                 return DateFormatters.from(accessor).toInstant();
             }
             return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();

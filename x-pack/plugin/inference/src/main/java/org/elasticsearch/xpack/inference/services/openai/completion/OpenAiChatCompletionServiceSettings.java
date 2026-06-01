@@ -194,7 +194,6 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject
     }
 
     @Override
-    @Nullable
     public OpenAiOAuth2Settings oAuth2Settings() {
         return oAuth2Settings;
     }

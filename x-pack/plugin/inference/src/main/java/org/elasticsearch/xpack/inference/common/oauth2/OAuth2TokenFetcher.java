@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.net.URI;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +36,8 @@ import java.util.Objects;
  * {@link InferencePlugin#UTILITY_THREAD_POOL_NAME}; the result is delivered
  * asynchronously via {@link ActionListener}.
  *
- * <p>Hardcodes {@code client_secret_basic} per RFC 6749 §2.3.1 default.
+ * <p>Hardcodes {@code client_secret_basic} per
+ * <a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1">RFC 6749 §2.3.1 default</a>.
  */
 public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
 
@@ -45,6 +47,7 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
     private final Scope scope;
     private final ThreadPool threadPool;
     private final String inferenceId;
+    private final Clock clock;
 
     public OAuth2TokenFetcher(
         String inferenceId,
@@ -54,12 +57,25 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
         List<String> scopes,
         ThreadPool threadPool
     ) {
+        this(inferenceId, tokenUri, clientId, clientSecret, scopes, threadPool, Clock.systemUTC());
+    }
+
+    OAuth2TokenFetcher(
+        String inferenceId,
+        URI tokenUri,
+        String clientId,
+        String clientSecret,
+        List<String> scopes,
+        ThreadPool threadPool,
+        Clock clock
+    ) {
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.tokenUri = Objects.requireNonNull(tokenUri);
         this.clientId = new ClientID(Objects.requireNonNull(clientId));
         this.clientSecret = new Secret(Objects.requireNonNull(clientSecret));
         this.scope = new Scope(Objects.requireNonNull(scopes).toArray(String[]::new));
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     @Override
@@ -74,7 +90,7 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
                     listener.onFailure(
                         new ElasticsearchException(
                             Strings.format(
-                                "Failed to retrieve access token for OpenAI request for inference id [%s]: [%s] %s",
+                                "Failed to retrieve access token for request for inference id [%s]: [%s] %s",
                                 inferenceId,
                                 errorObject.getCode(),
                                 errorObject.getDescription()
@@ -85,12 +101,12 @@ public class OAuth2TokenFetcher implements OAuth2TokenSupplier {
                 }
 
                 var accessToken = response.toSuccessResponse().getTokens().getAccessToken();
-                var expiresAt = Instant.now().plusSeconds(accessToken.getLifetime());
+                var expiresAt = Instant.now(clock).plusSeconds(accessToken.getLifetime());
                 listener.onResponse(new CachedToken(accessToken.getValue(), expiresAt));
             } catch (Exception e) {
                 listener.onFailure(
                     new ElasticsearchException(
-                        Strings.format("Failed to retrieve access token for OpenAI request for inference id [%s]", inferenceId),
+                        Strings.format("Failed to retrieve access token for request for inference id [%s]", inferenceId),
                         e
                     )
                 );

@@ -23,7 +23,7 @@ public interface TokenCache {
 
     /**
      * Removes any cached entry for the given key. With a real cache implementation,
-     * this broadcasts to all nodes; with the noop it is a no-op.
+     * this should broadcast to all nodes.
      */
     void invalidate(InferenceIdAndProject key, ActionListener<Void> listener);
 }

@@ -58,18 +58,19 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         internalCluster().startNode();
         ensureGreen();
 
+        createSecurityIndexWithWaitForActiveShards();
+
         final var roles = createRoles();
-        waitForMigrationCompletion();
         final var nativeRoleStore = internalCluster().getInstance(NativeRolesStore.class);
 
-        final int concurrentWriters = scaledRandomIntBetween(2, 4);
+        final int concurrentWriters = scaledRandomIntBetween(6, 10);
         final int updatesPerWriter = scaledRandomIntBetween(20, 50);
-
-        resetMigration();
 
         startInParallel(concurrentWriters + 1, taskIndex -> {
             if (taskIndex == 0) {
                 try {
+                    // reset migration version in parallel to updates, to ensure migration and updates run concurrently
+                    resetMigration();
                     waitForMigrationCompletion();
                 } catch (Exception e) {
                     throw new AssertionError(e);

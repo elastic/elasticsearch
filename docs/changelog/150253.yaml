@@ -1,0 +1,6 @@
+area: Vector Search
+issues: []
+pr: 150253
+summary: "DiskBBQ - automatically calibrate per segment quantization, preconditioning,\
+  \ oversampling during merge"
+type: enhancement

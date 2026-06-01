@@ -52,6 +52,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
@@ -131,7 +132,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY,
             Mockito.mock(SearchResponseMetrics.class),
             Map.of(),
-            false
+            false,
+            Optional.empty()
         ) {
             @Override
             protected SearchPhase getNextPhase() {

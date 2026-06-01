@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 150020
+summary: Ensure cluster details are properly filled in for MRT=false
+type: bug

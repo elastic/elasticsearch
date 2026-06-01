@@ -19,6 +19,8 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
+import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -561,7 +563,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 listener,
                 (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                 service,
-                null
+                null,
+                Optional.empty()
             );
             if (localIndices == null) {
                 assertNull(setOnce.get());
@@ -638,7 +641,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -696,7 +700,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -786,7 +791,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -891,7 +897,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -944,7 +951,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1019,7 +1027,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     listener,
                     (r, l) -> setOnce.set(Tuple.tuple(r, l)),
                     service,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 if (localIndices == null) {
                     assertNull(setOnce.get());
@@ -1075,6 +1084,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponse.Clusters.EMPTY,
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -1124,7 +1134,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -1160,7 +1171,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
@@ -1219,7 +1231,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(numDisconnectedClusters, clusters.getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
@@ -1256,7 +1269,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertNotNull(response.get());
@@ -1309,7 +1323,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     false,
                     null,
-                    null
+                    null,
+                    Optional.empty()
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
                 assertEquals(0, clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
@@ -1342,7 +1357,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    Optional.empty()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1359,7 +1375,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     null,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    Optional.empty()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1380,7 +1397,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     source,
                     timeProvider,
                     emptyReduceContextBuilder(),
-                    SearchCoordinatorContext.none()
+                    SearchCoordinatorContext.none(),
+                    Optional.empty()
                 )
             ) {
                 assertEquals(0, source.from());
@@ -2284,6 +2302,107 @@ public class TransportSearchActionTests extends ESTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("[point in time] is not supported when [index.slice.enabled] is true"));
+    }
+
+    /**
+     * Verifies that {@link TransportSearchAction#reconcileProjects} excludes a cluster whose
+     * {@link SearchShardsResponse} has no groups (i.e. the searched alias/index does not exist on
+     * that cluster). This is a precondition for the {@code numSkippedShards} pruning fix.
+     */
+    public void testReconcileProjectsExcludesClusterWithEmptyGroups() {
+        String indexExpr = "my-alias";
+        SearchShardsGroup group = new SearchShardsGroup(
+            new ShardId("my-index", "my-index-uuid", 0),
+            List.of("node1"),
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        // project-a has a shard; project-b has no groups (alias not present on that cluster)
+        Map<String, SearchShardsResponse> shardResponses = Map.of(
+            "project-a",
+            new SearchShardsResponse(List.of(group), 0, List.of(), Map.of()),
+            "project-b",
+            new SearchShardsResponse(List.of(), 0, List.of(), Map.of())
+        );
+
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put("project-a", new SearchResponse.Cluster("project-a", indexExpr, false, null));
+        clusterMap.put("project-b", new SearchResponse.Cluster("project-b", indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        // origin resolved with SUCCESS so the origin-cluster check inside reconcileProjects triggers
+        ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
+        builder.addExpressions(
+            indexExpr,
+            new HashSet<>(Set.of("my-index")),
+            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+            Set.of("project-a:" + indexExpr, "project-b:" + indexExpr)
+        );
+        ResolvedIndexExpressions originExpressions = builder.build();
+
+        SearchResponse.Clusters result = TransportSearchAction.reconcileProjects(originExpressions, shardResponses, projects);
+
+        assertThat(result.getClusterAliases(), containsInAnyOrder("project-a"));
+        assertFalse("project-b must be excluded because it returned empty groups", result.getClusterAliases().contains("project-b"));
+    }
+
+    /**
+     * Reproduces the root-cause scenario for the {@code _cluster/details} stuck-in-RUNNING bug:
+     * after {@link TransportSearchAction#reconcileProjects} excludes a cluster that returned an
+     * empty {@link SearchShardsResponse}, the {@code numSkippedShards} map still contains an entry
+     * for that cluster. This test verifies that calling
+     * {@code numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases())} (the
+     * fix applied in {@code TransportSearchAction}) removes the stale entry so that
+     * {@code skippedByClusterAlias} passed to the search phase is consistent with the clusters
+     * that are actually in {@code participatingProjects}.
+     */
+    public void testNumSkippedShardsIsPrunedToMatchParticipatingProjects() {
+        String indexExpr = "my-alias";
+        SearchShardsGroup group = new SearchShardsGroup(
+            new ShardId("my-index", "my-index-uuid", 0),
+            List.of("node1"),
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        // project-b has no groups: reconcileProjects will exclude it
+        Map<String, SearchShardsResponse> shardResponses = Map.of(
+            "project-a",
+            new SearchShardsResponse(List.of(group), 2, List.of(), Map.of()),
+            "project-b",
+            new SearchShardsResponse(List.of(), 0, List.of(), Map.of())
+        );
+
+        Map<String, SearchResponse.Cluster> clusterMap = new HashMap<>();
+        clusterMap.put("project-a", new SearchResponse.Cluster("project-a", indexExpr, false, null));
+        clusterMap.put("project-b", new SearchResponse.Cluster("project-b", indexExpr, false, null));
+        SearchResponse.Clusters projects = new SearchResponse.Clusters(clusterMap, false);
+
+        ResolvedIndexExpressions.Builder builder = new ResolvedIndexExpressions.Builder();
+        builder.addExpressions(
+            indexExpr,
+            new HashSet<>(Set.of("my-index")),
+            ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS,
+            Set.of("project-a:" + indexExpr, "project-b:" + indexExpr)
+        );
+        ResolvedIndexExpressions originExpressions = builder.build();
+
+        SearchResponse.Clusters participatingProjects = TransportSearchAction.reconcileProjects(
+            originExpressions,
+            shardResponses,
+            projects
+        );
+
+        // Simulate what TransportSearchAction does after reconcileProjects: build numSkippedShards
+        // from all responses, then prune to match participatingProjects.
+        Map<String, Integer> numSkippedShards = new HashMap<>();
+        shardResponses.forEach((clusterName, response) -> numSkippedShards.put(clusterName, response.getNumSkippedShards()));
+        assertThat("both clusters present before pruning", numSkippedShards.keySet(), containsInAnyOrder("project-a", "project-b"));
+
+        numSkippedShards.keySet().retainAll(participatingProjects.getClusterAliases());
+
+        assertThat("only participating cluster remains after pruning", numSkippedShards.keySet(), containsInAnyOrder("project-a"));
+        assertFalse("stale project-b entry must be removed", numSkippedShards.containsKey("project-b"));
+        assertThat(numSkippedShards.get("project-a"), equalTo(2));
     }
 
     public void testIgnoreIndicesWithIndexRefreshBlock() {

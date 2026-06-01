@@ -143,7 +143,7 @@ The connector service has the following known issues:
 
 * **Content Connectors entry in Stack Management is visible to users without the `content_connectors` capability**
 
-    Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar; navigating to it returned a 403.
+    Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar. Navigating to it returned a 403.
 
     **Affected versions**: Kibana 9.1 through 9.4.
 

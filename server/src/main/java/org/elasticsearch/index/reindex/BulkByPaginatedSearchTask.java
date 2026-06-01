@@ -71,6 +71,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     private volatile LeaderBulkByPaginatedSearchTaskState leaderState;
     private volatile WorkerBulkByPaginatedSearchTaskState workerState;
     private volatile boolean relocationRequested = false;
+    private volatile Exception taskFailure;
 
     public BulkByPaginatedSearchTask(
         TaskId taskId,
@@ -299,6 +300,24 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
      */
     public boolean isRelocationRequested() {
         return relocationRequested;
+    }
+
+    /**
+     * Set the exception that caused the failure and wake up any delayed prepare-bulk-request tasks. They should
+     * fail with the provided exception.
+     */
+    public void wakeUpAndFail(Exception failure) {
+        this.taskFailure = failure;
+        this.workerState.rethrottle(Float.POSITIVE_INFINITY);
+    }
+
+    /**
+     * Has this task failed with an exception already?
+     * @return the exception that failed the task or null if the task has not failed
+     */
+    @Nullable
+    public Exception getTaskFailure() {
+        return taskFailure;
     }
 
     /**

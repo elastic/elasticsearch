@@ -73,6 +73,7 @@ public class ShutdownPrepareService {
 
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
+    private final TransportService transportService;
     private final List<ShutdownHook> hooks = new ArrayList<>();
     private volatile boolean isShuttingDown = false;
 
@@ -85,6 +86,7 @@ public class ShutdownPrepareService {
     ) {
         this.maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(settings);
         this.terminationHandler = terminationHandler;
+        this.transportService = transportService;
 
         final var reindexTimeout = MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(settings);
         addShutdownHook("http-server-transport-stop", httpServerTransport::close);
@@ -171,7 +173,13 @@ public class ShutdownPrepareService {
         }
     }
 
-    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager, @Nullable Consumer<Task> taskNotifier) {
+    private void awaitTasksComplete(
+        TimeValue timeout,
+        String taskName,
+        TaskManager taskManager,
+        @Nullable Consumer<Task> taskNotifier,
+        @Nullable Consumer<List<Task>> onTimeout
+    ) {
         long millisWaited = 0;
         while (true) {
             List<Task> tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).toList();
@@ -191,6 +199,9 @@ public class ShutdownPrepareService {
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
                     logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
+                    if (onTimeout != null) {
+                        onTimeout.accept(tasksRemaining);
+                    }
                     return;
                 }
                 logger.debug("waiting for [{}] {} tasks to finish, next poll in [{}]", tasksRemaining.size(), taskName, pollPeriod);
@@ -205,7 +216,7 @@ public class ShutdownPrepareService {
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager, null);
+        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager, null, null);
     }
 
     private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
@@ -213,7 +224,11 @@ public class ShutdownPrepareService {
             asyncReindexTimeout,
             ReindexAction.NAME,
             taskManager,
-            ShutdownPrepareService::maybeRequestRelocationForBulkByPaginatedSearch
+            ShutdownPrepareService::maybeRequestRelocationForBulkByPaginatedSearch,
+            tasks -> {
+                final var nodeClosedException = new NodeClosedException(transportService.getLocalNode());
+                tasks.forEach(t -> ((BulkByPaginatedSearchTask) t).wakeUpAndFail(nodeClosedException));
+            }
         );
     }
 

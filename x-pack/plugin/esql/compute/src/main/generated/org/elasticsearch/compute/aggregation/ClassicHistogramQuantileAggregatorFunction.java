@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -233,10 +232,10 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
        */
       return;
     }
-    BytesRefVector buckets = ((BytesRefBlock) bucketsUncast).asVector();
+    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
     assert buckets.getPositionCount() == 1;
     BytesRef bucketsScratch = new BytesRef();
-    ClassicHistogramQuantileAggregator.combineIntermediate(state, buckets.getBytesRef(0, bucketsScratch));
+    ClassicHistogramQuantileAggregator.combineIntermediate(state, buckets);
   }
 
   @Override

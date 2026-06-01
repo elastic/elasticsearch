@@ -9,10 +9,8 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -203,32 +201,8 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
-    if (bucketsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BytesRefVector buckets = ((BytesRefBlock) bucketsUncast).asVector();
-    BytesRef bucketsScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        ClassicHistogramQuantileAggregator.combineIntermediate(state, groupId, buckets.getBytesRef(valuesPosition, bucketsScratch));
-      }
-    }
+    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    ClassicHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock countBlock,
@@ -286,32 +260,8 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
-    if (bucketsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BytesRefVector buckets = ((BytesRefBlock) bucketsUncast).asVector();
-    BytesRef bucketsScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        int valuesPosition = groupPosition + positionOffset;
-        ClassicHistogramQuantileAggregator.combineIntermediate(state, groupId, buckets.getBytesRef(valuesPosition, bucketsScratch));
-      }
-    }
+    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    ClassicHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock countBlock,
@@ -355,25 +305,8 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
-    if (bucketsUncast.areAllValuesNull()) {
-      /*
-       * All values are null so we can skip processing this block.
-       * NOTE: Microbenchmarks point to long sequences of ConstantNullBlocks
-       *       being fast without this. Likely the branch predictor is kicking
-       *       in there. But we do this anyway, just so we don't have to trust
-       *       it. It's magic. Glorious magic. But it's deep magic. And we won't
-       *       always have long sequences of ConstantNullBlock. And this code
-       *       shows readers we've thought about this.
-       */
-      return;
-    }
-    BytesRefVector buckets = ((BytesRefBlock) bucketsUncast).asVector();
-    BytesRef bucketsScratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      int valuesPosition = groupPosition + positionOffset;
-      ClassicHistogramQuantileAggregator.combineIntermediate(state, groupId, buckets.getBytesRef(valuesPosition, bucketsScratch));
-    }
+    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    ClassicHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock countBlock,

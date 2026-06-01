@@ -26,6 +26,11 @@ public interface ProjectRoutingResolver extends Closeable {
     String ORIGIN = "_origin";
 
     /**
+     * Reserved term restricting search to the local (origin) project only.
+     */
+    String LOCAL = "_local";
+
+    /**
      * Validates the provided project routing string.
      * This method is expected to throw an exception if the project routing is invalid.
      *

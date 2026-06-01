@@ -19,6 +19,7 @@ import org.elasticsearch.logging.Logger;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -134,11 +135,19 @@ public final class ThrottlingRecoveryService {
         private final RecoveryListener listener;
         private final RecoveryState recoveryState;
         private final Consumer<RecoveryListener> task;
+        private final AtomicBoolean released = new AtomicBoolean(false);
 
         private RecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
             this.recoveryState = recoveryState;
             this.task = task;
-            this.listener = RecoveryListener.runAfter(recoveryListener, () -> closeAndFillSlots(this));
+            this.listener = RecoveryListener.runAfter(recoveryListener, () -> {
+                boolean firstRelease = released.compareAndSet(false, true);
+                assert firstRelease : "already released";
+                //noinspection ConstantValue
+                if (firstRelease) {
+                    closeAndFillSlots(this);
+                }
+            });
         }
 
         @Override

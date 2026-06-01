@@ -1,5 +1,0 @@
-area: Mapping
-issues: []
-pr: 150320
-summary: Improve SortedNumericLongValues#wrap(..) in single valued case
-type: enhancement

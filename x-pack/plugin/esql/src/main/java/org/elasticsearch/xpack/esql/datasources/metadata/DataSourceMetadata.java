@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.elasticsearch.xpack.esql.datasources.metadata;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -47,20 +47,6 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
         )
     );
     public static final DataSourceMetadata EMPTY = new DataSourceMetadata(Collections.emptyMap());
-
-    /**
-     * Feature flag that gates the ES|QL external data sources feature end-to-end: metadata registration,
-     * dataset-aware error messages, collision detection preambles, and the downstream CRUD/EXTERNAL surfaces.
-     * Kept here (on the server-side foundational class) so that both {@code server} and {@code x-pack} consumers
-     * can reference a single source of truth. System property: {@code es.esql_external_datasources_feature_flag_enabled}.
-     */
-    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG = new FeatureFlag("esql_external_datasources");
-
-    /**
-     * Shared transport version for {@link DataSourceMetadata} and {@link DatasetMetadata}. Both metadata
-     * containers are introduced together and evolve together, so they share a single version gate.
-     */
-    static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
 
     private static final ParseField DATA_SOURCES = new ParseField("data_sources");
 
@@ -109,17 +95,16 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // GATEWAY only. API is excluded because the raw XContent contains plaintext secret setting values, which must
-        // not appear in GET /_cluster/state; the CRUD REST layer exposes data sources separately via a masked path
-        // (presentationValue). SNAPSHOT is excluded because snapshot restore has no mechanism to re-provision secrets,
-        // so restoring a cluster state containing data sources would produce unusable configurations. Snapshot support
-        // is tracked as a future milestone and will require a key-availability story for restore.
+        // GATEWAY only. Excluded from API so secret values (even encrypted) don't surface in
+        // GET /_cluster/state — the CRUD REST layer exposes data sources via a masked path instead.
+        // Excluded from SNAPSHOT because restore can't re-provision keys, so restored data sources would
+        // be undecryptable; snapshot support is a future milestone needing a key-availability story.
         return EnumSet.of(Metadata.XContentContext.GATEWAY);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ESQL_DATASOURCES;
+        return DatasetMetadata.ESQL_DATASOURCES;
     }
 
     @Override

@@ -32,7 +32,7 @@ import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -311,7 +311,7 @@ public final class IndexPrivilege extends Privilege {
                     entry("delete_view", DELETE_VIEW),
                     entry("read_view_metadata", READ_VIEW_METADATA)
                 ),
-                DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+                DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
                     ? Stream.of(
                         entry("manage_dataset", MANAGE_DATASET),
                         entry("create_dataset", CREATE_DATASET),

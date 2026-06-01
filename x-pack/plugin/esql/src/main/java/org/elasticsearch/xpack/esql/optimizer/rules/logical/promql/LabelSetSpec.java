@@ -289,14 +289,6 @@ public final class LabelSetSpec {
      * - excludedGroupings: concrete dimension exclusions for TimeSeriesWithout
      */
     public LabelSet apply() {
-        return apply(List.of());
-    }
-
-    /**
-     * Finalize the deferred spec into concrete aggregate shape, using {@code indexAttributes} only
-     * to resolve excluded PromQL labels to concrete dimension fields.
-     */
-    public LabelSet apply(List<Attribute> indexAttributes) {
         List<Attribute> available = availableLabels.isEmpty() ? declaredLabels : availableLabels;
 
         Attribute ts = findAttributeByFieldName(available, MetadataAttribute.TIMESERIES);
@@ -304,7 +296,7 @@ public final class LabelSetSpec {
         List<Attribute> missing = difference(byDeclaredLabels, resolved);
         List<Attribute> excludedDimensions = resolveExcludedDimensions(
             unionByFieldName(excludedLabels, inheritedExcludedLabels),
-            unionByFieldName(available, indexAttributes)
+            available
         );
 
         if (ts != null) {

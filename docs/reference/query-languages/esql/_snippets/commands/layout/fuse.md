@@ -156,4 +156,5 @@ These limitations can be present either when:
   1. `FUSE` assumes that `key_columns` are single valued. When `key_columns` are multivalued, `FUSE` can produce unreliable relevance scores.
   1. `FUSE` automatically assigns a score value of `NULL` if the `<score_column>` or `<group_column>` are multivalued.
   1. `FUSE` assumes that the combination of `key_columns` and `group_column` is unique. If not, `FUSE` can produce unreliable relevance scores.
+- `FUSE` cannot pass through columns with with field types `aggregate_metric_double`, or `date_range`. Queries that include these columns fail with a validation error. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) to remove these columns before `FUSE`.
 

@@ -803,7 +803,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     assertThat(
                         "parallel rewrite must report at least as many bytes as sequential against the same index",
                         parallelBytes,
-                        greaterThanOrEqualTo(totalBytesSequential)
+                        equalTo(totalBytesSequential)
                     );
                 });
             }
@@ -862,7 +862,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     assertThat(
                         "parallel search must report at least as many bytes as sequential against the same index",
                         parallelBytes,
-                        greaterThanOrEqualTo(sequentialBytes)
+                        equalTo(sequentialBytes)
                     );
                 });
             }

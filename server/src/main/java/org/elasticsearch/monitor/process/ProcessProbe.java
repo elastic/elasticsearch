@@ -82,7 +82,15 @@ public class ProcessProbe {
      * Returns the process CPU usage in percent
      */
     public static short getProcessCpuPercent() {
-        return Probes.getLoadAndScaleToPercent(getProcessCpuLoad, osMxBean);
+        return Probes.scaleToPercent(Probes.getLoad(getProcessCpuLoad, osMxBean));
+    }
+
+    /**
+     * Returns the process CPU usage as a value in range [0.0, 1.0]. May return a negative value if the CPU load information is not
+     * available.
+     */
+    public static double getProcessCpuLoad() {
+        return Probes.getLoad(getProcessCpuLoad, osMxBean);
     }
 
     /**

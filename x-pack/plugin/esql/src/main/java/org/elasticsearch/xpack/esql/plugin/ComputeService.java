@@ -1134,7 +1134,9 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
-        LongSupplier directoryBytesRead = searchService.getIndicesService()::currentStoreBytesRead;
+        LongSupplier directoryBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+            ? searchService.getIndicesService()::currentStoreBytesRead
+            : () -> 0L;
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.

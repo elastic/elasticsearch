@@ -22,6 +22,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Types;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -41,9 +42,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -83,12 +86,17 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
     public static Iterable<Object[]> parameters() {
         List<Object[]> params = new ArrayList<>();
 
+        // CompressionCodecName.LZ4 is the deprecated Hadoop-framed codec, supported on the read
+        // path only — see Lz4HadoopFramedBytesDecompressor. The writer side is provided by
+        // LegacyLz4HadoopFramedCodecFactory in tests so the existing in-memory codec sweep covers
+        // legacy-LZ4 fixtures without checking in binary files.
         CompressionCodecName[] codecs = {
             CompressionCodecName.UNCOMPRESSED,
             CompressionCodecName.SNAPPY,
             CompressionCodecName.GZIP,
             CompressionCodecName.ZSTD,
-            CompressionCodecName.LZ4_RAW };
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4 };
 
         // V1 retains the original RG/page-size matrix so all prior coverage stays intact.
         for (CompressionCodecName codec : codecs) {
@@ -180,7 +188,7 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
                 .withType(schema)
                 .withCompressionCodec(codec)
                 .withWriterVersion(writerVersion)
@@ -309,6 +317,22 @@ public class OptimizedReaderFileVariantTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return StoragePath.of("memory://variant-test.parquet");
+            }
+
+            @Override
+            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+                executor.execute(() -> {
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, data.length - pos);
+                    ByteBuffer direct = ByteBuffer.allocateDirect(len);
+                    direct.put(data, pos, len).flip();
+                    listener.onResponse(direct);
+                });
+            }
+
+            @Override
+            public boolean supportsNativeAsync() {
+                return true;
             }
         };
     }

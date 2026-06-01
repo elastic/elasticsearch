@@ -77,7 +77,6 @@ import java.util.Set;
  * A registry for PromQL functions that maps function names to their respective definitions.
  */
 public class PromqlFunctionRegistry {
-
     private static final PromqlFunctionDefinition[] FUNCTION_DEFINITIONS = new PromqlFunctionDefinition[] {
         //
         Delta.PROMQL_DEFINITION,

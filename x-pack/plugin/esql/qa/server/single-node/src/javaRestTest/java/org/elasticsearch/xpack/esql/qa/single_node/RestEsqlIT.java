@@ -352,6 +352,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     sig,
                     matchesList().item("LuceneSourceOperator")
                         .item("ValuesSourceReaderOperator")
+                        .item("EvalOperator")
                         .item("AggregationOperator")
                         .item("ExchangeSinkOperator")
                 );
@@ -1261,7 +1262,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
-            .entry("values_loaded", greaterThanOrEqualTo(0));
+            .entry("values_loaded", greaterThanOrEqualTo(0))
+            .entry("rows_emitted", greaterThanOrEqualTo(0L))
+            .entry("bytes_read", greaterThanOrEqualTo(0L))
+            .entry("read_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1417,6 +1421,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
+        profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
+        profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
+        profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
     }
 
     static String signature(Map<String, Object> o) {

@@ -14,7 +14,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -22,9 +26,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.SliceIndexing;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -48,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.reindex.BulkByPaginatedSearchParallelizationHelper.executeSlicedAction;
+import static org.elasticsearch.reindex.BulkByPaginatedSearchParallelizationHelper.initTaskState;
 import static org.elasticsearch.reindex.BulkByPaginatedSearchParallelizationHelper.sliceIntoSubRequests;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
@@ -81,10 +87,9 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             searchRequest.source().slice(null);
         }
         int times = between(2, 100);
-        String field = randomBoolean() ? IdFieldMapper.NAME : randomAlphaOfLength(5);
         int currentSliceId = 0;
-        for (SearchRequest slice : sliceIntoSubRequests(searchRequest, field, times)) {
-            assertEquals(field, slice.source().slice().getField());
+        for (SearchRequest slice : sliceIntoSubRequests(searchRequest, times)) {
+            assertNull(slice.source().slice().getField());
             assertEquals(currentSliceId, slice.source().slice().getId());
             assertEquals(times, slice.source().slice().getMax());
 
@@ -109,7 +114,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         int times = randomIntBetween(2, 8);
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive)));
-        SearchRequest[] slices = sliceIntoSubRequests(request, IdFieldMapper.NAME, times);
+        SearchRequest[] slices = sliceIntoSubRequests(request, times);
         assertThat(slices.length, equalTo(times));
         for (int i = 0; i < times; i++) {
             PointInTimeBuilder pit = slices[i].source().pointInTimeBuilder();
@@ -117,10 +122,51 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             assertThat(pit.getEncodedId(), equalTo(pitId));
             assertThat(pit.getKeepAlive(), equalTo(keepAlive));
             SliceBuilder slice = slices[i].source().slice();
-            assertThat(slice.getField(), equalTo(IdFieldMapper.NAME));
+            assertThat(slice.getField(), nullValue());
             assertThat(slice.getId(), equalTo(i));
             assertThat(slice.getMax(), equalTo(times));
         }
+    }
+
+    public void testAutoSlicesInitTaskStateForwardsSliceRoutingProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        ReindexRequest request = new ReindexRequest();
+        request.getSearchRequest().indices("source-index");
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
+        request.getSearchRequest().routing("slice-a,slice-b");
+        request.getSearchRequest().searchSlice("slice-a,slice-b");
+
+        BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
+        AtomicReference<ClusterSearchShardsRequest> capturedSearchShardsRequest = new AtomicReference<>();
+        Client client = new NoOpClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request actionRequest,
+                ActionListener<Response> listener
+            ) {
+                assertThat(action, sameInstance(TransportClusterSearchShardsAction.TYPE));
+                capturedSearchShardsRequest.set((ClusterSearchShardsRequest) actionRequest);
+                listener.onResponse(
+                    (Response) new ClusterSearchShardsResponse(
+                        new org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup[0],
+                        new DiscoveryNode[0],
+                        Map.of()
+                    )
+                );
+            }
+        };
+
+        PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        initTaskState(task, request, client, listener);
+        listener.actionGet();
+
+        ClusterSearchShardsRequest forwarded = capturedSearchShardsRequest.get();
+        assertNotNull(forwarded);
+        assertThat(forwarded.routing(), equalTo("slice-a,slice-b"));
+        assertThat(forwarded.searchSlice(), equalTo("slice-a,slice-b"));
+        assertTrue(forwarded.isRoutingFromSlice());
     }
 
     /**
@@ -133,7 +179,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
 
         Version version = Version.CURRENT;
         AtomicReference<Version> capturedVersion = new AtomicReference<>();
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
@@ -151,7 +197,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         task.setWorker(request.getRequestsPerSecond(), null);
 
         AtomicReference<Version> capturedVersion = new AtomicReference<>(Version.CURRENT);
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
@@ -168,7 +214,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
         // Do not call setWorker or setWorkerCount
 
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
@@ -208,7 +254,13 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
                 null,
                 TimeValue.ZERO
             );
-            BulkByScrollResponse sliceResponse = new BulkByScrollResponse(TimeValue.ZERO, status, List.of(), List.of(), false);
+            BulkByPaginatedSearchResponse sliceResponse = new BulkByPaginatedSearchResponse(
+                TimeValue.ZERO,
+                status,
+                List.of(),
+                List.of(),
+                false
+            );
             slices.put(i, new ResumeInfo.SliceStatus(i, null, new ResumeInfo.WorkerResult(sliceResponse, null)));
         }
         for (int i = completedSliceCount; i < totalSlices; i++) {

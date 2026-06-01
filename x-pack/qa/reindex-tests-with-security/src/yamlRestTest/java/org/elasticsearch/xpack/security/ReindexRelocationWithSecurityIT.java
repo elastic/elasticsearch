@@ -7,8 +7,12 @@
 package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -33,6 +39,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
+
+    private static final Logger logger = LogManager.getLogger(ReindexRelocationWithSecurityIT.class);
 
     private static final String ADMIN_USER = "test_admin";
     private static final String REINDEX_USER = "test_reindex_user";
@@ -97,12 +105,15 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
     }
 
     public void testReindexRelocatesWhenCoordinatorShutsDown() throws Exception {
-        // Skip if reindex resilience features aren't enabled in this build (e.g. release distro without the feature flag);
-        // the dedicated GET /_reindex/{task_id} endpoint is registered iff REINDEX_RESILIENCE_ENABLED is true.
+        // Skip if reindex resilience endpoints aren't registered in this build (e.g. older mixed-version clusters).
         assumeTrue(
             "reindex resilience endpoints must be available",
             clusterHasCapability("GET", "/_reindex/{task_id}", List.of(), List.of("reindex_management_api")).orElse(false)
         );
+        // The test cluster framework's Process.destroy() maps to TerminateProcess on Windows, which kills the JVM without running
+        // shutdown hooks. As a result ShutdownPrepareService.prepareForShutdown() never fires, the reindex-stop hook never marks the
+        // task for relocation, and the assertions below cannot be satisfied.
+        assumeFalse("graceful JVM shutdown is not deliverable on Windows by the test cluster framework", Constants.WINDOWS);
 
         final int numDocs = 30;
         createSourceIndexAndPopulate(numDocs);
@@ -135,7 +146,7 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             // Stage 3: assert that the list API works
             assertListViaSurvivingNode(dataNodeAddress, taskId);
 
-            // Stage 4: rethrottle to unlimited via a *non-coordinator* node, since the coordinator's HTTP transport is being torn down.
+            // Stage 4: rethrottle to unlimited via a non-coordinator node, since the coordinator's HTTP transport is being torn down.
             unthrottleViaSurvivingNode(dataNodeAddress, taskId);
 
             // Stage 5: wait for the relocation chain in .tasks to show the original task was relocated and the relocated task completed
@@ -244,6 +255,10 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
             Request list = new Request("GET", "/_reindex");
             Response response = dataClient.performRequest(list);
             ObjectPath body = ObjectPath.createFromResponse(response);
+            // Surface fan-out failures up front so that an unexpectedly empty `reindex` array points at the real cause (e.g. the
+            // coordinator going unreachable mid-list) rather than a bare hasSize(1) mismatch.
+            assertThat(body.<List<?>>evaluate("node_failures"), anyOf(nullValue(), empty()));
+            assertThat(body.<List<?>>evaluate("task_failures"), anyOf(nullValue(), empty()));
             assertThat(body.<List<?>>evaluate("reindex"), hasSize(1));
             assertThat(body.evaluate("reindex.0.id"), equalTo(taskId));
         }
@@ -262,7 +277,14 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                 // Forces the reindexing task to still take 2 seconds, giving enough time for the node to shut down
                 rethrottle.addParameter("requests_per_second", String.valueOf(Float.POSITIVE_INFINITY));
                 try {
-                    dataClient.performRequest(rethrottle);
+                    final Response response = dataClient.performRequest(rethrottle);
+                    final ObjectPath body = ObjectPath.createFromResponse(response);
+                    // The rethrottle API returns 200 OK even when it encounters task failures (by design).
+                    // We need to check for task_failures in the response and retry if the task is relocating.
+                    final List<?> taskFailures = body.evaluate("task_failures");
+                    if (taskFailures != null && taskFailures.isEmpty() == false) {
+                        throw new AssertionError("rethrottle encountered task failures (task may be relocating): " + taskFailures);
+                    }
                 } catch (Exception e) {
                     // Translate transient server errors to AssertionError so assertBusy will retry
                     throw new AssertionError("rethrottle failed", e);
@@ -280,16 +302,24 @@ public class ReindexRelocationWithSecurityIT extends ESRestTestCase {
                 // it follows the relocated_task_id chain server-side and returns the final task once completed.
                 final Request get = new Request("GET", "/_reindex/" + originalTaskId);
                 get.addParameter("wait_for_completion", "true");
-                get.addParameter("timeout", "30s");
-                final ObjectPath body = ObjectPath.createFromResponse(dataClient.performRequest(get));
-                assertThat("original reindex task should complete (after relocation)", body.evaluate("completed"), equalTo(true));
-                // No security_exception should be surfaced anywhere in the chain.
-                assertThat("relocation hand-off should not have produced a exception", body.evaluate("error"), nullValue());
-                final Object created = body.evaluate("response.created");
-                assertThat("relocated reindex should have created destination docs", ((Number) created).intValue(), greaterThan(0));
-                final Object total = body.evaluate("response.total");
-                assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
-            }, 90, TimeUnit.SECONDS);
+                get.addParameter("timeout", "10s");
+
+                try {
+                    final ObjectPath body = ObjectPath.createFromResponse(dataClient.performRequest(get));
+
+                    assertThat("original reindex task should complete (after relocation)", body.evaluate("completed"), equalTo(true));
+                    // No security_exception should be surfaced anywhere in the chain.
+                    assertThat("relocation hand-off should not have produced a exception", body.evaluate("error"), nullValue());
+                    final Object created = body.evaluate("response.created");
+                    assertThat("relocated reindex should have created destination docs", ((Number) created).intValue(), greaterThan(0));
+                    final Object total = body.evaluate("response.total");
+                    assertThat("relocated reindex should report the full source size", ((Number) total).intValue(), equalTo(numDocs));
+                } catch (ResponseException e) {
+                    // Translate ResponseException (e.g. timeouts, node_closed_exception) to AssertionError so assertBusy will retry
+                    logger.info("Get reindex task failed (will retry): {}", e.getMessage());
+                    throw new AssertionError("get reindex task failed: " + e.getMessage(), e);
+                }
+            }, 30, TimeUnit.SECONDS);
         }
     }
 

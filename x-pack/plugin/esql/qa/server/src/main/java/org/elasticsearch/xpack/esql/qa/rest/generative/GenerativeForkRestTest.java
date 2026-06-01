@@ -23,6 +23,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.OPTIONAL_
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -54,7 +55,10 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        shouldSkipForkTest(testCase);
+    }
 
+    static void shouldSkipForkTest(CsvSpecReader.CsvTestCase testCase) {
         assumeFalse(
             "Tests using FORK are skipped since we don't support multiple FORKs",
             testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
@@ -77,6 +81,11 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
+            "Tests using subqueries are skipped since we don't support nested disjunctive IN subqueries inside fork",
+            testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())
+        );
+
+        assumeFalse(
             "Tests using PROMQL are not supported for now",
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
         );
@@ -92,8 +101,9 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
-            "Tests using query approximation are skipped since query approximation is not supported with FORK",
+            "Tests using query approximation are skipped since they contain FORKs",
             testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
+                || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

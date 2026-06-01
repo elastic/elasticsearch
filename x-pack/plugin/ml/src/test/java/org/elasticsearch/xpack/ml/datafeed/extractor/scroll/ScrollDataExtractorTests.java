@@ -73,6 +73,7 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -488,7 +489,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             2000,
             Collections.emptyMap(),
             SearchRequest.DEFAULT_INDICES_OPTIONS,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            null
         );
 
         TestDataExtractor extractor = new TestDataExtractor(context);
@@ -564,6 +566,36 @@ public class ScrollDataExtractorTests extends ESTestCase {
         );
         assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
+    }
+
+    public void testGetSummarySetsProjectRouting() {
+        String projectRouting = "_alias:prod-*";
+        ScrollDataExtractorContext context = createContext(1000L, 2300L, projectRouting);
+        TestDataExtractor extractor = new TestDataExtractor(context);
+        extractor.setNextResponse(createSummaryResponse(1001L, 2299L, 10L));
+
+        DataSummary summary = extractor.getSummary();
+        assertThat(summary.earliestTime(), equalTo(1001L));
+        assertThat(summary.latestTime(), equalTo(2299L));
+        assertThat(summary.totalHits(), equalTo(10L));
+
+        assertThat(capturedSearchRequests.size(), equalTo(1));
+        SearchRequest request = (SearchRequest) capturedSearchRequests.get(0).request();
+        assertThat(request.getProjectRouting(), equalTo(projectRouting));
+    }
+
+    public void testExtractionSetsProjectRouting() throws IOException {
+        String projectRouting = "_project._region:us-*";
+        ScrollDataExtractorContext context = createContext(1000L, 2000L, projectRouting);
+        TestDataExtractor extractor = new TestDataExtractor(context);
+        extractor.setNextResponse(createSearchResponse(Arrays.asList(1100L), Arrays.asList("a1"), Arrays.asList("b1")));
+
+        assertThat(extractor.hasNext(), is(true));
+        extractor.next();
+
+        assertThat(capturedSearchRequests.size(), greaterThanOrEqualTo(1));
+        SearchRequest request = (SearchRequest) capturedSearchRequests.get(0).request();
+        assertThat(request.getProjectRouting(), equalTo(projectRouting));
     }
 
     @SuppressWarnings("unchecked")
@@ -757,6 +789,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
+        return createContext(start, end, null);
+    }
+
+    private ScrollDataExtractorContext createContext(long start, long end, String projectRouting) {
         return new ScrollDataExtractorContext(
             jobId,
             extractedFields,
@@ -768,7 +804,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             end,
             Collections.emptyMap(),
             SearchRequest.DEFAULT_INDICES_OPTIONS,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            projectRouting
         );
     }
 

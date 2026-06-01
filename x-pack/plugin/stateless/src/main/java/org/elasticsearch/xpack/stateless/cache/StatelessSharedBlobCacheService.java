@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
@@ -32,6 +33,13 @@ import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
 
+    // Overall setting to disable/enable the cache boost preference feature.
+    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_boost_preference.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.
     private static final Executor IO_EXECUTOR = EsExecutors.DIRECT_EXECUTOR_SERVICE;
@@ -39,6 +47,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
+    // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -68,7 +77,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     /**
      * Fetches and writes in cache a blob byte range, given the {@link CacheBlobReader} and the blob's associated {@link FileCacheKey}.
      */
-    void fetchRange(
+    private void fetchRange(
         FileCacheKey cacheKey,
         ByteRange byteRange,
         CacheBlobReader cacheBlobReader,
@@ -77,7 +86,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        String... threadPools
     ) {
         var startRegion = getRegion(byteRange.start());
         var endRegion = getEndingRegion(byteRange.end());
@@ -104,8 +114,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                             cacheBlobReader,
                             () -> writeBufferSupplier.get().clear(),
                             bytesCopiedConsumer,
-                            StatelessPlugin.PREWARM_THREAD_POOL,
-                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                            threadPools
                         )
                     ),
                     fetchExecutor,
@@ -114,6 +123,32 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                 );
             }
         }
+    }
+
+    void fetchRange(
+        FileCacheKey cacheKey,
+        ByteRange byteRange,
+        CacheBlobReader cacheBlobReader,
+        Object initiator,
+        Supplier<ByteBuffer> writeBufferSupplier,
+        IntConsumer bytesCopiedConsumer,
+        Executor fetchExecutor,
+        boolean force,
+        ActionListener<Void> listener
+    ) {
+        fetchRange(
+            cacheKey,
+            byteRange,
+            cacheBlobReader,
+            initiator,
+            writeBufferSupplier,
+            bytesCopiedConsumer,
+            fetchExecutor,
+            force,
+            listener,
+            StatelessPlugin.PREWARM_THREAD_POOL,
+            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        );
     }
 
     public void assertInvariants() {

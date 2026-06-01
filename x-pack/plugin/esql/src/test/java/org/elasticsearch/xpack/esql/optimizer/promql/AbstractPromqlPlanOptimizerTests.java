@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
 import org.elasticsearch.xpack.esql.TestAnalyzer;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests {
 
     protected static TestAnalyzer tsAnalyzer() {
-        return analyzerWithEnrichPolicies().addK8s();
+        return analyzerWithEnrichPolicies().addK8s().unmappedResolution(UnmappedResolution.NULLIFY);
     }
 
     protected LogicalPlan planPromql(String query) {
@@ -40,10 +41,6 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
 
     protected LogicalPlan planPromql(String query, boolean optimize) {
         return planPromql(query, false, optimize);
-    }
-
-    protected LogicalPlan planPromqlExpectNoReferences(String query) {
-        return planPromql(query, true, true);
     }
 
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences, boolean optimize) {
@@ -68,7 +65,7 @@ public abstract class AbstractPromqlPlanOptimizerTests extends AbstractLogicalPl
     }
 
     protected void assertConstantResult(String query, Matcher<Double> matcher) {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=1m " + query);
+        var plan = planPromql("PROMQL index=k8s step=1m " + query, true);
         Eval eval = plan.collect(Eval.class).getFirst();
         Literal literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(as(literal.value(), Double.class), matcher);

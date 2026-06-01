@@ -217,7 +217,7 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() && currentThreadStoreMetrics != null;
+                boolean trackExecutorBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled();
                 if (trackExecutorBytesRead) {
                     this.metricsAwareExecutor = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
                     executor = this.metricsAwareExecutor;

@@ -187,6 +187,8 @@ import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
+    public static final Supplier<DirectoryMetrics> EMPTY_SUPPLIER = () -> DirectoryMetrics.EMPTY;
+
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(
         "search.default_keep_alive",
@@ -772,7 +774,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
-        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
         ReaderContext readerContext = createOrGetReaderContext(request, task);
         try (@SuppressWarnings("unused") // withScope call is necessary to instrument search execution
         Releasable scope = tracer.withScope(task);
@@ -1031,7 +1033,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     private SearchPhaseResult executeQueryPhase(ShardSearchRequest request, CancellableTask task, ReaderContext readerContext)
         throws Exception {
-        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+        final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
         try (
             Releasable scope = tracer.withScope(task);
             SearchContext context = createContext(readerContext, request, task, ResultsType.QUERY, true)
@@ -1095,22 +1097,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private Supplier<DirectoryMetrics> directoryMetricsDeltaOrNull() {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            return indicesService.directoryMetricsDelta();
-        }
-        return null;
+    private Supplier<DirectoryMetrics> directoryMetricsDelta() {
+        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.directoryMetricsDelta() : EMPTY_SUPPLIER;
     }
 
-    private Supplier<DirectoryMetrics> captureDirectoryMetricsOrNull() {
-        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
-            return indicesService.captureDirectoryMetrics();
-        }
-        return null;
+    private Supplier<DirectoryMetrics> captureDirectoryMetrics() {
+        return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.captureDirectoryMetrics() : EMPTY_SUPPLIER;
     }
 
     private static DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta, long workerBytesRead) {
-        DirectoryMetrics delta = metricsDelta == null ? DirectoryMetrics.EMPTY : metricsDelta.get();
+        DirectoryMetrics delta = metricsDelta.get();
         if (workerBytesRead == 0L) {
             return delta;
         }
@@ -1133,7 +1129,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
-            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.RANK_FEATURE, false)) {
                 int[] docIds = request.getDocIds();
                 if (docIds == null || docIds.length == 0) {
@@ -1239,7 +1235,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() throws Exception {
                 final long startTime;
                 final SearchOperationListener opsListener;
-                final Supplier<DirectoryMetrics> metricsDelta = captureDirectoryMetricsOrNull();
+                final Supplier<DirectoryMetrics> metricsDelta = captureDirectoryMetrics();
 
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
                 startTime = System.nanoTime();
@@ -1346,7 +1342,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
         Executor executor = getExecutor(readerContext.indexShard());
         runAsync(executor, () -> {
-            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, false);) {
                 var opsListener = searchContext.indexShard().getSearchOperationListener();
@@ -1407,7 +1403,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             // fork the execution in the search thread pool
             Executor executor = getExecutor(readerContext.indexShard());
             runAsync(executor, () -> {
-                final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+                final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
                 readerContext.setAggregatedDfs(request.dfs());
                 try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.QUERY, true);) {
                     final QuerySearchResult queryResult;
@@ -1480,7 +1476,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         runAsync(getExecutor(readerContext.indexShard()), () -> {
-            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDeltaOrNull();
+            final Supplier<DirectoryMetrics> metricsDelta = directoryMetricsDelta();
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, ResultsType.FETCH, false);) {
                 var opsListener = readerContext.indexShard().getSearchOperationListener();

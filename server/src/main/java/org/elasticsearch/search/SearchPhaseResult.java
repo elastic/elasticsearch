@@ -40,7 +40,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
     protected ShardSearchContextId contextId;
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
-    private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
+    private DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
     protected SearchPhaseResult() {}
 

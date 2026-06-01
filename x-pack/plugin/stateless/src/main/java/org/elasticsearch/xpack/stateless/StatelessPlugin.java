@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettings;
+import org.elasticsearch.cluster.routing.allocation.IndexBalanceMetricsTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
@@ -675,6 +676,7 @@ public class StatelessPlugin extends Plugin
             /* Start reactive-balancing settings */
             .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0)
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
+            .put(IndexBalanceMetricsTaskExecutor.INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey(), true)
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
@@ -1193,6 +1195,7 @@ public class StatelessPlugin extends Plugin
             ObjectStoreService.OBJECT_STORE_SHUTDOWN_TIMEOUT,
             ObjectStoreService.OBJECT_STORE_CONCURRENT_MULTIPART_UPLOADS,
             ObjectStoreService.CACHE_SEARCH_RECOVERY_BCC_ENABLED_SETTING,
+            ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL,
             TranslogReplicator.FLUSH_RETRY_INITIAL_DELAY_SETTING,
             TranslogReplicator.FLUSH_INTERVAL_SETTING,
             TranslogReplicator.FLUSH_SIZE_SETTING,
@@ -1208,6 +1211,7 @@ public class StatelessPlugin extends Plugin
             StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS,
             StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE,
             StatelessCommitService.STATELESS_UPLOAD_MAX_IO_ERROR_RETRIES,
+            StatelessCommitService.STATELESS_UPLOAD_SLOW_LOG_THRESHOLD,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,

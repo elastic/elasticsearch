@@ -98,11 +98,6 @@
                     "profile": {
                       "dynamic": true,
                       "type": "object"
-                    },
-                    "filter": {
-                      "type": "keyword",
-                      "index": false,
-                      "ignore_above": 32765
                     }
                   }
                 },
@@ -135,6 +130,11 @@
                   "index": false
                 },
                 "query": {
+                  "type": "keyword",
+                  "index": false,
+                  "ignore_above": 32765
+                },
+                "filter": {
                   "type": "keyword",
                   "index": false,
                   "ignore_above": 32765

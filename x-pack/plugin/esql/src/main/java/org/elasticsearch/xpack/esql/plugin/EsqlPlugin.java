@@ -289,7 +289,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        PromqlFunctionRegistry promqlFunctionRegistry = new PromqlFunctionRegistry();
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
@@ -369,7 +368,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider(),
                 dataSourceModule,
                 functionRegistry,
-                promqlFunctionRegistry,
+                PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService
             ),

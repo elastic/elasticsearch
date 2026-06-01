@@ -107,6 +107,14 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return new UnresolvedAttribute(source(), qualifier(), name(), id, unresolvedMessage());
     }
 
+    // Cannot just use the super method because that requires a data type. This is reachable when an
+    // intermediate analysis state produces an unresolved alias output (e.g. {@link Alias#toAttribute()}
+    // returning an UnresolvedAttribute) that is then matched in {@code AnalyzerRules.maybeResolveAgainstList}.
+    @Override
+    public UnresolvedAttribute withLocation(Source source) {
+        return Objects.equals(source(), source) ? this : new UnresolvedAttribute(source, qualifier(), name(), id(), unresolvedMessage());
+    }
+
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
         return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage);
     }

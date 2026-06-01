@@ -3943,6 +3943,14 @@ public class VerifierTests extends ESTestCase {
         );
 
         defaultAnalyzer().error(
+            randomFrom(sourceCommands) + "LIMIT 5 BY gender | INLINE STATS max(salary) BY gender",
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5 BY gender] [@"
+            )
+        );
+
+        defaultAnalyzer().error(
             randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender",
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "

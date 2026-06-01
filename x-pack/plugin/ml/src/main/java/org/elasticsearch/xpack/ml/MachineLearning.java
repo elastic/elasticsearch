@@ -1128,7 +1128,9 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            client,
+            machineLearningExtension.get(),
+            anomalyDetectionAuditor
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1230,7 +1232,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             jobResultsPersister,
             settings,
-            clusterService
+            clusterService,
+            () -> machineLearningExtension.get().getCloudCredentialManager()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1454,7 +1457,6 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),

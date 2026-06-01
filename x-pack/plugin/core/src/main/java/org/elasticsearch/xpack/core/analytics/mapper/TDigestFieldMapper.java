@@ -14,6 +14,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -295,6 +296,11 @@ public class TDigestFieldMapper extends FieldMapper {
                                     public HistogramValue histogram() throws IOException {
                                         value.reset(values.binaryValue());
                                         return value;
+                                    }
+
+                                    @Override
+                                    public DocIdSetIterator docIdSetIterator() {
+                                        return values;
                                     }
                                 };
                             } catch (IOException e) {

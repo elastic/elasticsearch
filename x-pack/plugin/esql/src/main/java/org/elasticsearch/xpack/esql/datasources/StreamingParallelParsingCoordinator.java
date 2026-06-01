@@ -140,6 +140,7 @@ public final class StreamingParallelParsingCoordinator {
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
+                .maxRecordBytes(maxRecordBytes)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -558,6 +559,7 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                     while (pages.hasNext()) {

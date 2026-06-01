@@ -11,6 +11,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.column.Dictionary;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.xpack.esql.core.util.Check;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -224,9 +225,11 @@ final class DictionaryValueDecoder {
     }
 
     BytesRef[] getDictionaryBytesRefs(Dictionary dict) {
-        if (dict == null) {
-            throw new IllegalArgumentException("dictionary must not be null");
-        }
+        // Unlike the byte-content guards below, a null dictionary here is not a corrupt-file symptom: a
+        // dictionary-encoded page always has its dictionary loaded by the reader before indices are
+        // decoded (a file missing its dictionary page fails earlier, at dictionary-page read). So a null
+        // here means our reader failed to wire the dictionary — an internal invariant, kept server-class.
+        Check.notNull(dict, "dictionary");
         assert cachedDict == null || cachedDict == dict;
         if (cachedDictBytesRefs == null) {
             int size = dict.getMaxId() + 1;

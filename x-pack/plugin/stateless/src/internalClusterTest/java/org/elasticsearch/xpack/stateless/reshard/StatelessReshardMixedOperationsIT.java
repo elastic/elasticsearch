@@ -725,7 +725,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
                 bulkRequest.add(indexRequest);
             }
             bulkRequest.get();
-            logger.info("--> Node translog flush complete complete");
+            logger.info("--> Node translog flush complete");
         }
     }
 

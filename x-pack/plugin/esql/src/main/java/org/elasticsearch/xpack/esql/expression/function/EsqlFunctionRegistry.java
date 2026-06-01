@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -555,6 +556,7 @@ public class EsqlFunctionRegistry {
                 ToDenseVector.DEFINITION,
                 ToDouble.DEFINITION,
                 ToExponentialHistogram.DEFINITION,
+                ToGauge.DEFINITION,
                 ToGeohash.DEFINITION,
                 ToGeotile.DEFINITION,
                 ToGeohex.DEFINITION,

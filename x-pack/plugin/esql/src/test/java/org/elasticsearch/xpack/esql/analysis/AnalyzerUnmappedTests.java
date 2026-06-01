@@ -1126,25 +1126,25 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         assertUnmappedLoadError(
             analyzer,
             "PROMQL index=test step=5m avg(network.bytes_in)",
-            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+            allOf(containsString("Found 1 problem"), containsString("line 1:55: PROMQL is not supported with unmapped_fields=\"load\""))
         );
 
         assertUnmappedLoadError(
             analyzer,
             "PROMQL index=test step=5m rate(network.bytes_in[5m])",
-            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+            allOf(containsString("Found 1 problem"), containsString("line 1:55: PROMQL is not supported with unmapped_fields=\"load\""))
         );
 
         assertUnmappedLoadError(
             analyzer,
             "PROMQL index=test step=5m avg(network.bytes_in) + avg(network.bytes_out)",
-            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+            allOf(containsString("Found 1 problem"), containsString("line 1:55: PROMQL is not supported with unmapped_fields=\"load\""))
         );
 
         assertUnmappedLoadError(
             analyzer,
             "PROMQL index=test start=\"2025-01-01T00:00:00Z\" end=\"2025-01-01T01:00:00Z\" buckets=10 avg(network.bytes_in)",
-            allOf(containsString("Found 1 problem"), containsString("line 1:29: PROMQL is not supported with unmapped_fields=\"load\""))
+            allOf(containsString("Found 1 problem"), containsString("line 1:114: PROMQL is not supported with unmapped_fields=\"load\""))
         );
     }
 

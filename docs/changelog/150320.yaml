@@ -3,4 +3,4 @@ issues: []
 pr: 150320
 summary: Improve `SortedNumericLongValues#asLongValues()` when wrapping numeric doc
   values directly
-type: enhancement
+type: bug

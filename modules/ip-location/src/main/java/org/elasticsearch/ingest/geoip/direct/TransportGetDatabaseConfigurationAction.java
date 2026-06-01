@@ -140,7 +140,7 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
 
     private static String getDatabaseNameForFileName(String databaseFileName) {
         return databaseFileName.endsWith(".mmdb")
-            ? databaseFileName.substring(0, databaseFileName.length() + 1 - ".mmmdb".length())
+            ? databaseFileName.substring(0, databaseFileName.length() - ".mmdb".length())
             : databaseFileName;
     }
 

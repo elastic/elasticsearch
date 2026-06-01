@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
@@ -89,7 +89,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Start a request that will never finish unless we rethrottle it
         request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
-        ActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
+        ActionFuture<? extends BulkByPaginatedSearchResponse> responseListener = request.execute();
 
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, numSlices);
         TaskId taskToRethrottle = taskGroupToRethrottle.taskInfo().taskId();
@@ -174,7 +174,7 @@ public class RethrottleTests extends ReindexTestCase {
         }
 
         // Now the response should come back quickly because we've rethrottled the request
-        BulkByScrollResponse response = responseListener.get();
+        BulkByPaginatedSearchResponse response = responseListener.get();
 
         // It'd be bad if the entire require completed in a single batch. The test wouldn't be testing anything.
         assertThat(

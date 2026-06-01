@@ -39,6 +39,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(CountDistinctOverTime.class)
         .binary(CountDistinctOverTime::new)
+        .capabilities("flattened")
         .name("count_distinct_over_time");
 
     private final Expression precision;
@@ -56,7 +57,7 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            type = { "boolean", "date", "date_nanos", "double", "flattened", "integer", "ip", "keyword", "long", "text", "version" },
             description = "the metric field to calculate the value for"
         ) Expression field,
         @Param(

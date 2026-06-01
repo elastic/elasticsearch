@@ -855,3 +855,148 @@ FROM flattened_many
 id:integer | union:flattened
 3          | "[{""k"":""v1""}, {""k"":""v2""}, {""k"":""v3""}]"
 ;
+
+// MV_DIFFERENCE returns values from the first field absent in the second; null first field returns null.
+mvDifference
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_difference_flattened
+
+FROM flattened_many
+| EVAL diff = MV_DIFFERENCE(flat_a, flat_c)
+| KEEP id, diff
+| SORT id
+;
+
+id:integer | diff:flattened
+1          | null
+2          | "{""k"":""v1""}"
+3          | "{""k"":""v1""}"
+4          | null
+5          | null
+;
+
+// Row 3 (v1, v2, v3 all distinct): MV_DIFFERENCE([v1,v2], [v2,v3]) = [v1], showing only v2 is removed.
+mvDifferenceMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_difference_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL diff = MV_DIFFERENCE(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, diff
+;
+
+id:integer | diff:flattened
+3          | "{""k"":""v1""}"
+;
+
+present
+required_capability: flattened_datatype
+required_capability: fn_present_flattened
+
+FROM flattened_many
+| STATS p = PRESENT(flat_a) BY id
+| SORT id
+;
+
+p:boolean | id:integer
+true      | 1
+true      | 2
+true      | 3
+false     | 4
+true      | 5
+;
+
+absent
+required_capability: flattened_datatype
+required_capability: fn_absent_flattened
+
+FROM flattened_many
+| STATS a = ABSENT(flat_a) BY id
+| SORT id
+;
+
+a:boolean | id:integer
+false     | 1
+false     | 2
+false     | 3
+true      | 4
+false     | 5
+;
+
+sample
+required_capability: flattened_datatype
+required_capability: fn_sample_flattened
+
+FROM flattened_many
+| STATS s = SAMPLE(flat_a, 1) BY id
+| SORT id
+;
+
+s:flattened          | id:integer
+"{""k"":""v1""}"     | 1
+"{""k"":""v1""}"     | 2
+"{""k"":""v1""}"     | 3
+null                 | 4
+"{""k"":""same""}"   | 5
+;
+
+countDistinctTimeSeries
+required_capability: flattened_datatype
+required_capability: fn_count_distinct_flattened
+
+FROM ts_flattened
+| STATS n = COUNT_DISTINCT(metadata) BY host
+| SORT host
+;
+
+n:long | host:keyword
+2      | host-a
+3      | host-b
+;
+
+firstOverTime
+required_capability: flattened_datatype
+required_capability: fn_first_over_time_flattened
+required_capability: ts_command_v0
+
+TS ts_flattened
+| WHERE host == "host-a"
+| STATS v = FIRST_OVER_TIME(metadata)
+;
+
+v:flattened            | _timeseries:keyword
+"{""env"":""prod""}"   | "{""host"":""host-a""}"
+;
+
+lastOverTime
+required_capability: flattened_datatype
+required_capability: fn_last_over_time_flattened
+required_capability: ts_command_v0
+
+TS ts_flattened
+| WHERE host == "host-b"
+| STATS v = LAST_OVER_TIME(metadata)
+;
+
+v:flattened            | _timeseries:keyword
+"{""env"":""gamma""}"  | "{""host"":""host-b""}"
+;
+
+countDistinctOverTime
+required_capability: flattened_datatype
+required_capability: fn_count_distinct_over_time_flattened
+required_capability: ts_command_v0
+
+TS ts_flattened
+| STATS n = COUNT_DISTINCT_OVER_TIME(metadata)
+| SORT n
+;
+
+n:long | _timeseries:keyword
+2      | "{""host"":""host-a""}"
+3      | "{""host"":""host-b""}"
+;

@@ -133,7 +133,8 @@ public class TokenCountFieldMapper extends FieldMapper {
                 false,
                 null,
                 null,
-                isSyntheticSource
+                isSyntheticSource,
+                false
             );
         }
 

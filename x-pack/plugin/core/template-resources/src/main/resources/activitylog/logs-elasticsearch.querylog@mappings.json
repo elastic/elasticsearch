@@ -139,6 +139,16 @@
                   "index": false,
                   "ignore_above": 32765
                 },
+                "params": {
+                  "type": "keyword",
+                  "index": false,
+                  "ignore_above": 32765
+                },
+                "param_names": {
+                  "type": "keyword",
+                  "index": false,
+                  "ignore_above": 2048
+                },
                 "result_count": {
                   "type": "long",
                   "index": false

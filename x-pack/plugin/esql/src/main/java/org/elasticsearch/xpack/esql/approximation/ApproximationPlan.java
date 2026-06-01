@@ -294,10 +294,30 @@ public class ApproximationPlan {
      * sampling the source rows and a normal {@code STATS} (with sample corrections applied
      * to intermediate state), or pushed down to Lucene without any sampling (if possible).
      */
-    public static LogicalPlan get(LogicalPlan logicalPlan, ApproximationSettings settings) {
+    public static LogicalPlan get(
+        LogicalPlan logicalPlan,
+        ApproximationVerifier.QueryProperties queryProperties,
+        ApproximationSettings settings
+    ) {
         logger.debug("generating approximation plan");
 
         Double confidenceLevel = settings.confidenceLevel();
+
+        // Collect all plans inside FORK branches that cannot be approximated
+        // (as indicated by: queryProperties.forkBranchProperties[i] == null).
+        // When rewriting the query, don't rewrite any such plans.
+        Set<LogicalPlan> plansInNonApproximableForkBranch = new HashSet<>();
+        if (queryProperties.forkBranchProperties() != null) {
+            List<Fork> forks = logicalPlan.collect(Fork.class);
+            assert forks.size() == 1;
+            Fork fork = forks.getFirst();
+            assert fork.children().size() == queryProperties.forkBranchProperties().size();
+            for (int i = 0; i < fork.children().size(); i++) {
+                if (queryProperties.forkBranchProperties().get(i) == null) {
+                    fork.children().get(i).forEachDown(plansInNonApproximableForkBranch::add);
+                }
+            }
+        }
 
         // Logical plans that have STATS somewhere in their children.
         Set<LogicalPlan> plansThatEncounteredStats = new HashSet<>();
@@ -318,6 +338,10 @@ public class ApproximationPlan {
         Holder<Integer> sampleProbabilityId = new Holder<>(0);
 
         LogicalPlan approximationPlan = logicalPlan.transformUp(plan -> {
+            boolean inNonApproximableForkBranch = plansInNonApproximableForkBranch.contains(plan);
+            if (inNonApproximableForkBranch) {
+                return plan;
+            }
             boolean encounteredStats = plan.children().stream().anyMatch(plansThatEncounteredStats::contains);
             if (encounteredStats == false) {
                 if (plan instanceof Aggregate == false) {
@@ -333,7 +357,7 @@ public class ApproximationPlan {
                     return plan;
                 }
             } else {
-                // After the STATS function, any processing of fields that have buckets, should
+                // After the STATS command, any processing of fields that have buckets, should
                 // also process the buckets, so that confidence intervals for the dependent fields
                 // can be computed.
                 plan = planIncludingBuckets(plan, fieldBuckets, notRoundedExpressions);

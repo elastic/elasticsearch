@@ -373,9 +373,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testDeleteIndexWhileNodeStopping
-  issue: https://github.com/elastic/elasticsearch/issues/148807
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
@@ -565,9 +562,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedDuringMerge
   issue: https://github.com/elastic/elasticsearch/issues/150158
-- class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
-  method: merge conflicts in latest files can be regenerated
-  issue: https://github.com/elastic/elasticsearch/issues/150174
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
   issue: https://github.com/elastic/elasticsearch/issues/150187
@@ -590,9 +584,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotsServiceIT
   method: testDeleteSnapshotWhenNotWaitingForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/150257
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testLatestCommitDependenciesUsesTheRightGenerations
-  issue: https://github.com/elastic/elasticsearch/issues/150287
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288
@@ -629,3 +620,7 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testOutageBuffersToDiskAndDrainsOnRecovery
   issue: https://github.com/elastic/elasticsearch/issues/150387
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: major3, expectedAssembleTaskName:
+    extractedAssemble, #2]"
+  issue: https://github.com/elastic/elasticsearch/issues/150410

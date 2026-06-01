@@ -30,6 +30,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -199,7 +200,7 @@ public final class XContentTestUtils {
 
     /** Renders a length-prefixed hex preview, truncated, so failure messages don't dump multi-KB payloads. */
     private static String summarizeByteArray(byte[] bytes) {
-        String hex = java.util.HexFormat.of().formatHex(bytes);
+        String hex = HexFormat.of().formatHex(bytes);
         int previewHexChars = 32;
         return "byte[" + bytes.length + "] 0x" + Strings.cleanTruncate(hex, previewHexChars) + (hex.length() > previewHexChars ? "…" : "");
     }

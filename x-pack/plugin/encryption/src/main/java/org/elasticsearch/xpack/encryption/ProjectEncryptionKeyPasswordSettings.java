@@ -70,7 +70,7 @@ final class ProjectEncryptionKeyPasswordSettings {
             if (value == null || value.isEmpty()) {
                 return null;
             }
-            return new SecureString(value.getChars().clone());
+            return value.clone();
         }
     }
 

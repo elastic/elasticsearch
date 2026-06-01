@@ -19,7 +19,7 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
 
         EncryptedData encrypted = PasswordBasedEncryption.wrap(plaintext, "v1", PASSWORD);
         assertEquals("v1", encrypted.keyId());
-        assertTrue(encrypted.payload().length >= PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES);
+        assertTrue(encrypted.payload().length >= 1 + PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES);
 
         byte[] decrypted = PasswordBasedEncryption.unwrap(encrypted, PASSWORD);
         assertArrayEquals(plaintext, decrypted);
@@ -50,8 +50,8 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
         EncryptedData encrypted = PasswordBasedEncryption.wrap(plaintext, "v1", PASSWORD);
 
         byte[] tampered = encrypted.payload().clone();
-        // flip a byte well inside the GCM ciphertext (after salt + version + iv)
-        tampered[PasswordBasedEncryption.SALT_LENGTH_BYTES + 1 + AesGcm.IV_LENGTH_BYTES] ^= 0x01;
+        // flip a byte well inside the GCM ciphertext (after kdf_version + salt + aes_version + iv)
+        tampered[PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES + 1 + AesGcm.IV_LENGTH_BYTES] ^= 0x01;
         EncryptedData bad = new EncryptedData(encrypted.keyId(), tampered);
 
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> PasswordBasedEncryption.unwrap(bad, PASSWORD));
@@ -64,6 +64,20 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> PasswordBasedEncryption.unwrap(empty, "p".toCharArray()));
     }
 
+    public void testUnsupportedKdfVersionIsRejected() {
+        EncryptedData encrypted = PasswordBasedEncryption.wrap(
+            randomByteArrayOfLength(PasswordBasedEncryption.PEK_LENGTH_BYTES),
+            "v1",
+            PASSWORD
+        );
+        byte[] mutated = encrypted.payload().clone();
+        mutated[0] = 0x7F;
+        EncryptedData bad = new EncryptedData(encrypted.keyId(), mutated);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PasswordBasedEncryption.unwrap(bad, PASSWORD));
+        assertTrue(e.getMessage().contains("unsupported KDF version"));
+    }
+
     public void testUnsupportedInnerVersionIsRejected() {
         EncryptedData encrypted = PasswordBasedEncryption.wrap(
             randomByteArrayOfLength(PasswordBasedEncryption.PEK_LENGTH_BYTES),
@@ -72,8 +86,8 @@ public class PasswordBasedEncryptionTests extends ESTestCase {
         );
 
         byte[] mutated = encrypted.payload().clone();
-        // The AesGcm version byte sits immediately after the salt
-        mutated[PasswordBasedEncryption.SALT_LENGTH_BYTES] = 0x7F;
+        // The AesGcm version byte sits immediately after kdf_version + salt
+        mutated[PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES] = 0x7F;
         EncryptedData bad = new EncryptedData(encrypted.keyId(), mutated);
 
         // Version mismatch is a format error from AesGcm — surfaces as IAE, not as a cipher failure.

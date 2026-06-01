@@ -64,6 +64,10 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
             String clusterAlias = entry.getKey();
 
             clusters.swapCluster(clusterAlias, (k, v) -> {
+                // v may be null if reconcileProjects removed this cluster (e.g. stale alias with no matching shards)
+                if (v == null) {
+                    return null;
+                }
                 assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
                     : "total shards should not be set on a Cluster before onListShards, except skipped";
 

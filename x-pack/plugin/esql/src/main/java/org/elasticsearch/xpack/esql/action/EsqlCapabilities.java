@@ -2977,7 +2977,7 @@ public class EsqlCapabilities {
         /**
          * Support for equality (==, !=) and IN with date_range type.
          */
-        EQUALITY_DATE_RANGE(Build.current().isSnapshot()),
+        EQUALITY_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
          * Support for ESQL parameters in PromQL label matchers:

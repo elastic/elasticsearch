@@ -19,15 +19,17 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * concurrent implementation of mini-batch optimal transport k-means
+ * Concurrent implementation of mini-batch optimal transport k-means.
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
+class BalancedOTKMeansLocalConcurrent<V> extends BalancedOTKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
 
-    BalancedOTKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
+    BalancedOTKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+        super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
     }
@@ -39,9 +41,9 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
 
     @Override
     protected void assign(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         IntToIntFunction ordTranslator,
-        float[][] centroids,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
@@ -54,7 +56,17 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+                () -> stepLloydSlice(
+                    vectors.copy(),
+                    ops,
+                    ordTranslator,
+                    centroids,
+                    centroidChangedSlice,
+                    assignments,
+                    neighborHoods,
+                    start,
+                    end
+                )
             );
         }
         executor.invokeAll(runners);
@@ -62,8 +74,8 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
 
     @Override
     protected void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
+        ClusteringVectorValues<V> vectors,
+        KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
@@ -73,7 +85,7 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
             final int start = i * len;
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
+                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end);
                 return null;
             });
         }
@@ -81,7 +93,7 @@ class BalancedOTKMeansLocalConcurrent extends BalancedOTKMeansLocal {
     }
 
     @Override
-    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+    protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(executor, numWorkers, ops.toFloatCentroids(centroids), clustersPerNeighborhood);
     }
 }

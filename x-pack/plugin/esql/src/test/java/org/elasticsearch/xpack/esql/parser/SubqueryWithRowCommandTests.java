@@ -282,7 +282,7 @@ public class SubqueryWithRowCommandTests extends AbstractStatementParserTests {
 
     /**
      * If the only child of FROM is a ROW subquery without an index pattern, the {@code UnionAll}
-     * is collapsed and the {@link Row} is returned directly, mirroring the behaviour for a single
+     * is collapsed and the {@link Row} is returned directly, mirroring the behavior for a single
      * FROM subquery in {@link SubqueryTests#testSubqueryOnly()}.
      *
      * Row[[1[INTEGER] AS x]]

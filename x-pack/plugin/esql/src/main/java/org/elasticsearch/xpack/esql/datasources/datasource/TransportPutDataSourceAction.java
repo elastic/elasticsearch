@@ -20,9 +20,12 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
+    private final EncryptionService encryptionService;
 
     @Inject
     public TransportPutDataSourceAction(
@@ -31,7 +34,9 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DataSourceCredentials credentials,
+        EncryptionService encryptionService
     ) {
         super(
             PutDataSourceAction.NAME,
@@ -44,12 +49,16 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
+        this.encryptionService = encryptionService;
+        // The feature is coupled to project-encryption-key, so the service is always bound here (hard, not
+        // optional, injection). Constructed on every node at startup; hand it to the shared
+        // DataSourceCredentials for the data-node decryption path.
+        credentials.setEncryptionService(encryptionService);
     }
 
     @Override
     protected void doExecute(Task task, PutDataSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        // Coord-side pre-check: validator dispatch. Fails fast without a master round-trip
-        // on unknown type or validation failure. The task body re-validates under CAS.
+        // Coord-side pre-check: fail fast on unknown type / validation error before the master round-trip.
         try {
             dataSourceService.validatePutDataSource(request);
         } catch (Exception e) {
@@ -66,7 +75,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataSourceService.putDataSource(state.projectId(), request, listener);
+        dataSourceService.putDataSource(state.projectId(), request, encryptionService, listener);
     }
 
     @Override

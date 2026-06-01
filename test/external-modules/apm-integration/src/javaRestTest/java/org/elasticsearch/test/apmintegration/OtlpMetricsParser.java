@@ -29,9 +29,10 @@ import java.util.List;
 /**
  * Parses OTLP protobuf metrics and produces protocol-neutral {@link ReceivedTelemetry} so that
  * tests can assert in a format-independent way. Builds APM-shaped JSON per data point and
- * delegates to {@link ApmIntakeMessageParser} for the JSON to ADT step.
+ * delegates to {@link ApmIntakeMessageParser} for the JSON to ADT step. Resource-attribute
+ * decoding is inherited from {@link OtlpParser}.
  */
-public final class OtlpMetricsParser {
+public final class OtlpMetricsParser extends OtlpParser {
 
     private OtlpMetricsParser() {}
 
@@ -46,6 +47,7 @@ public final class OtlpMetricsParser {
         ExportMetricsServiceRequest request = ExportMetricsServiceRequest.parseFrom(input);
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceMetrics resourceMetrics : request.getResourceMetricsList()) {
+            result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceMetrics.getResource().getAttributesList())));
             for (ScopeMetrics scopeMetrics : resourceMetrics.getScopeMetricsList()) {
                 String scopeName = scopeMetrics.getScope().getName();
                 for (Metric metric : scopeMetrics.getMetricsList()) {

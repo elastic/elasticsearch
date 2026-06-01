@@ -25,15 +25,16 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
     private final BitSetProducer parentsFilter;
 
     /**
-     * @param field         the vector field to search
-     * @param query         the query vector
-     * @param k             the number of nearest neighbors to return
-     * @param numCands      the number of nearest neighbor candidates per shard
-     * @param childFilter   filter applied to child hits
-     * @param parentsFilter bit set of parent documents for join diversification
-     * @param visitRatio    IVF visit ratio
-     * @param sliceField    index-sort slice field (e.g. {@code _routing})
-     * @param sliceId       slice term to restrict the search doc id space
+     * @param field            the vector field to search
+     * @param query            the query vector
+     * @param k                the number of nearest neighbors to return
+     * @param numCands         the number of nearest neighbor candidates per shard
+     * @param childFilter      filter applied to child hits
+     * @param parentsFilter    bit set of parent documents for join diversification
+     * @param visitRatio       IVF visit ratio
+     * @param sliceField       index-sort slice field (e.g. {@code _routing})
+     * @param sliceId          slice term to restrict the search doc id space
+     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public DiversifyingChildrenIVFKnnFloatSlicedVectorQuery(
         String field,
@@ -45,9 +46,10 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQuery extends IVFKnnFloa
         float visitRatio,
         boolean doPrecondition,
         String sliceField,
-        BytesRef sliceId
+        BytesRef sliceId,
+        float overSampleFactor
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, sliceField, sliceId);
+        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, sliceField, sliceId, overSampleFactor);
         this.parentsFilter = Objects.requireNonNull(parentsFilter);
     }
 

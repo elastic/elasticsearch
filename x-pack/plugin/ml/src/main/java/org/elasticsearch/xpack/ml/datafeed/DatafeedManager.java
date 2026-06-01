@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -133,27 +134,27 @@ public final class DatafeedManager {
      * disabled or the caller is not cloud-managed. Used on the coordinating node before forwarding a master request.
      */
     @Nullable
-    public CloudCredential currentCallerCredential(ThreadPool threadPool) {
+    public CloudCredential currentCallerCredential(ThreadPool threadPool, @Nullable SecurityContext securityContext) {
         if (crossProjectMlEnabled() == false) {
             return null;
         }
-        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-        var threadContext = threadPool.getThreadContext();
-        if (credentialManager.hasCloudManagedCredential(threadContext)) {
-            return credentialManager.extractCloudManagedCredential(threadContext);
-        }
-        return null;
+        AtomicReference<CloudCredential> callerCredential = new AtomicReference<>();
+        useSecondaryAuthIfAvailable(securityContext, () -> {
+            CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+            var threadContext = threadPool.getThreadContext();
+            if (credentialManager.hasCloudManagedCredential(threadContext)) {
+                callerCredential.set(credentialManager.extractCloudManagedCredential(threadContext));
+            }
+        });
+        return callerCredential.get();
     }
 
-    private void injectRequestCloudCredentialIfAbsent(@Nullable CloudCredential cloudCredential, ThreadPool threadPool) {
-        if (cloudCredential == null) {
-            return;
-        }
-        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
-        var threadContext = threadPool.getThreadContext();
-        if (credentialManager.hasCloudManagedCredential(threadContext) == false) {
-            credentialManager.injectCloudManagedCredential(threadContext, cloudCredential);
-        }
+    private static boolean hasCallerCloudCredential(
+        CredentialTransitions credentialTransitions,
+        ThreadPool threadPool,
+        @Nullable CloudCredential carriedCredential
+    ) {
+        return carriedCredential != null || credentialTransitions.hasCloudManagedCredential(threadPool);
     }
 
     public void putDatafeed(
@@ -163,7 +164,6 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        injectRequestCloudCredentialIfAbsent(request.getCloudCredential(), threadPool);
         if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
@@ -260,7 +260,6 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        injectRequestCloudCredentialIfAbsent(request.getCloudCredential(), threadPool);
         // Check datafeed is stopped
         if (getDatafeedTask(state, request.getUpdate().getId()) != null) {
             listener.onFailure(
@@ -277,7 +276,7 @@ public final class DatafeedManager {
 
         Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
             final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-            final boolean hasCpsCredential = credentialTransitions.hasCloudManagedCredential(threadPool);
+            final boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
 
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                 // Validate project_routing requires CPS to be enabled in the environment
@@ -372,7 +371,7 @@ public final class DatafeedManager {
         ActionListener<PutDatafeedAction.Response> listener
     ) throws IOException {
         if (response.isCompleteMatch()) {
-            boolean hasCpsCredential = credentialTransitions.hasCloudManagedCredential(threadPool);
+            boolean hasCpsCredential = hasCallerCloudCredential(credentialTransitions, threadPool, request.getCloudCredential());
             CredentialTransitions.TransitionContext ctx = new CredentialTransitions.TransitionContext(
                 crossProjectMlEnabled(),
                 hasCpsCredential,

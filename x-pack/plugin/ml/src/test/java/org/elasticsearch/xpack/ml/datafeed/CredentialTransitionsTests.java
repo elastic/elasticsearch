@@ -227,6 +227,110 @@ public class CredentialTransitionsTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testValidateSearchBeforeMintWhenCarriedCredentialPresentShouldPreferCarriedOverThreadContext() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential carriedCredential = new CloudCredential(new SecureString("carried".toCharArray()));
+        CloudCredential threadCredential = new CloudCredential(new SecureString("thread".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(true);
+        when(credentialManager.extractCloudManagedCredential(same(threadContext))).thenReturn(threadCredential);
+        when(credentialManager.wrapClient(same(client), eq(carriedCredential))).thenReturn(client);
+
+        mockSearchProbeSucceeds(client);
+        RuntimeException grantFailure = new RuntimeException("stop after validate");
+        stubGrantFailsAfterValidate(apiKeyService, grantFailure);
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class)
+        );
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setIndices(List.of("logs-*"));
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        request.setCloudCredential(carriedCredential);
+        ClusterState clusterState = mock(ClusterState.class);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        transitions.executePut(
+            Intent.REPLACE,
+            request,
+            clusterState,
+            threadPool,
+            null,
+            (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+            ActionListener.wrap(ignored -> fail("expected mint failure"), failure::set)
+        );
+
+        assertThat(failure.get(), equalTo(grantFailure));
+        verify(credentialManager).wrapClient(same(client), eq(carriedCredential));
+        verify(credentialManager, never()).extractCloudManagedCredential(any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMintWithCarriedCredentialShouldGrantEvenWhenThreadContextLacksTransient() {
+        CloudCredentialManager credentialManager = mock(CloudCredentialManager.class);
+        InternalCloudApiKeyService apiKeyService = mock(InternalCloudApiKeyService.class);
+        Client client = mock(Client.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        CloudCredential carriedCredential = new CloudCredential(new SecureString("carried".toCharArray()));
+        when(credentialManager.hasCloudManagedCredential(same(threadContext))).thenReturn(false);
+        when(credentialManager.wrapClient(same(client), eq(carriedCredential))).thenReturn(client);
+
+        mockSearchProbeSucceeds(client);
+        doAnswer(invocation -> {
+            CloudCredential callerCredential = invocation.getArgument(0);
+            assertThat(callerCredential, equalTo(carriedCredential));
+            ActionListener<?> listener = invocation.getArgument(2);
+            listener.onFailure(new RuntimeException("stop after grant"));
+            return null;
+        }).when(apiKeyService).grantCloudAuthentication(eq(carriedCredential), anyString(), any());
+
+        CredentialTransitions transitions = new CredentialTransitions(
+            mock(AnomalyDetectionAuditor.class),
+            () -> apiKeyService,
+            () -> credentialManager,
+            client,
+            xContentRegistry(),
+            mock(DatafeedConfigProvider.class)
+        );
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
+        builder.setIndices(List.of("logs-*"));
+        PutDatafeedAction.Request request = new PutDatafeedAction.Request(builder.build());
+        request.setCloudCredential(carriedCredential);
+        ClusterState clusterState = mock(ClusterState.class);
+
+        AtomicReference<Exception> failure = new AtomicReference<>();
+        transitions.executePut(
+            Intent.REPLACE,
+            request,
+            clusterState,
+            threadPool,
+            null,
+            (req, headers, state, listener) -> listener.onFailure(new IllegalStateException("persist should not run")),
+            ActionListener.wrap(ignored -> fail("expected mint failure"), failure::set)
+        );
+
+        assertThat(failure.get().getMessage(), equalTo("stop after grant"));
+        verify(apiKeyService).grantCloudAuthentication(eq(carriedCredential), eq("datafeed:df"), any());
+    }
+
+    @SuppressWarnings("unchecked")
     private static void mockSearchProbeSucceeds(Client client) {
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = invocation.getArgument(2);

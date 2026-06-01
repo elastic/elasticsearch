@@ -161,8 +161,9 @@ public final class CredentialTransitions {
             String datafeedId = request.getDatafeed().getId();
             String jobId = request.getDatafeed().getJobId();
             Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-            validateSearchBeforeMint(request.getDatafeed(), headers, listener.delegateFailureAndWrap((l, ignored) -> {
-                mintCpsKeyForDatafeed(datafeedId, threadPool, securityContext, l, (newCredential, userHeaders) -> {
+            CloudCredential carriedCredential = request.getCloudCredential();
+            validateSearchBeforeMint(request.getDatafeed(), headers, carriedCredential, listener.delegateFailureAndWrap((l, ignored) -> {
+                mintCpsKeyForDatafeed(datafeedId, threadPool, securityContext, carriedCredential, l, (newCredential, userHeaders) -> {
                     DatafeedConfig.Builder builder = new DatafeedConfig.Builder(request.getDatafeed());
                     builder.setCloudInternalCredential(newCredential);
                     PutDatafeedAction.Request updatedRequest = new PutDatafeedAction.Request(builder.build());
@@ -297,11 +298,19 @@ public final class CredentialTransitions {
             (applied, credentialListener) -> validateSearchBeforeMint(
                 applied,
                 headers,
+                request.getCloudCredential(),
                 credentialListener.delegateFailureAndWrap(
-                    (cl, ignored) -> mintCpsKeyForDatafeed(datafeedId, threadPool, securityContext, cl, (newCred, userHeaders) -> {
-                        mintedCredRef.set(newCred);
-                        cl.onResponse(newCred);
-                    })
+                    (cl, ignored) -> mintCpsKeyForDatafeed(
+                        datafeedId,
+                        threadPool,
+                        securityContext,
+                        request.getCloudCredential(),
+                        cl,
+                        (newCred, userHeaders) -> {
+                            mintedCredRef.set(newCred);
+                            cl.onResponse(newCred);
+                        }
+                    )
                 )
             )
         );
@@ -352,7 +361,12 @@ public final class CredentialTransitions {
         }));
     }
 
-    private void validateSearchBeforeMint(DatafeedConfig config, Map<String, String> headers, ActionListener<Void> listener) {
+    private void validateSearchBeforeMint(
+        DatafeedConfig config,
+        Map<String, String> headers,
+        @Nullable CloudCredential carriedCredential,
+        ActionListener<Void> listener
+    ) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
         QueryBuilder query = config.getParsedQuery(xContentRegistry);
         if (query != null) {
@@ -369,9 +383,7 @@ public final class CredentialTransitions {
         }
         final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final CloudCredential callerCredential = credentialManager.hasCloudManagedCredential(threadContext)
-            ? credentialManager.extractCloudManagedCredential(threadContext)
-            : null;
+        final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
         final Client searchClient = credentialManager.wrapClient(client, callerCredential);
         executeWithHeadersAsync(
             headers,
@@ -413,15 +425,13 @@ public final class CredentialTransitions {
         String datafeedId,
         ThreadPool threadPool,
         @Nullable SecurityContext securityContext,
+        @Nullable CloudCredential carriedCredential,
         ActionListener<?> failurePropagator,
         BiConsumer<PersistedCloudCredential, Map<String, String>> onSuccess
     ) {
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
             final ThreadContext threadContext = threadPool.getThreadContext();
-            final CloudCredential callerCredential = credentialManager.hasCloudManagedCredential(threadContext)
-                ? credentialManager.extractCloudManagedCredential(threadContext)
-                : null;
+            final CloudCredential callerCredential = resolveCallerCredential(carriedCredential, threadContext);
             Map<String, String> userHeaders = threadPool.getThreadContext().getHeaders();
             apiKeyServiceSupplier.get()
                 .grantCloudAuthentication(
@@ -439,6 +449,18 @@ public final class CredentialTransitions {
                     )
                 );
         });
+    }
+
+    @Nullable
+    private CloudCredential resolveCallerCredential(@Nullable CloudCredential carriedCredential, ThreadContext threadContext) {
+        if (carriedCredential != null) {
+            return carriedCredential;
+        }
+        CloudCredentialManager credentialManager = credentialManagerSupplier.get();
+        if (credentialManager.hasCloudManagedCredential(threadContext)) {
+            return credentialManager.extractCloudManagedCredential(threadContext);
+        }
+        return null;
     }
 
     private <T> ActionListener<T> revokeKeyOnFailure(PersistedCloudCredential mintedCredential, String jobId, ActionListener<T> delegate) {

@@ -445,6 +445,17 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
 
         /**
+         * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
+         * keyword block for an array sub-field, a JSON-string keyword for a nested-object sub-field, and a
+         * null position for {@code VALUE_NULL}, instead of always going through {@code parser.text()} (which
+         * threw on every non-scalar value). Tests that exercise the parse path on a non-scalar sub-field
+         * must require this capability so they skip on mixed clusters where any data node still runs the
+         * pre-fix evaluator and would surface the legacy {@code Expected text at &lt;line&gt;:&lt;col&gt;
+         * but found START_ARRAY} warning instead of the new value.
+         */
+        FIELD_EXTRACT_RETURNS_MULTI_VALUE,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -1326,9 +1337,21 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support IN non-correlated subqueries in WHERE command without View. When a view is referenced by an IN subquery, or there is an
+         * IN subquery inside the view definition(especially nested views), it is out of the scope of this capability.
+         * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
+         */
+        WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+
+        /**
+         * Support TS as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2111,6 +2134,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
+         * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
+         * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
+         * https://github.com/elastic/elasticsearch-serverless/issues/6817
+         */
+        FIX_PROMQL_TIME_BUCKET_V3(false),
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -2193,6 +2223,13 @@ public class EsqlCapabilities {
          * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
          */
         PROMQL_IMPLICIT_RANGE_SELECTOR,
+
+        /**
+         * PromQL functions accept any numeric range vector. ES|QL translates mismatched counter/gauge
+         * types with implicit {@code to_counter()} or {@code to_gauge()} wraps based on each function's
+         * {@link org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition.CounterSupport}.
+         */
+        PROMQL_IMPLICIT_TYPE_COERCION,
 
         /**
          * Support for PromQL {@code without} grouping.
@@ -2961,6 +2998,12 @@ public class EsqlCapabilities {
          * https://github.com/elastic/elasticsearch/issues/149792
          */
         FIX_PROMQL_SCALAR_FLOAT_DIV,
+
+        /**
+         * Bugfix in query approximation to not rewrite non-approximable FORK branches:
+         * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
+         */
+        APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

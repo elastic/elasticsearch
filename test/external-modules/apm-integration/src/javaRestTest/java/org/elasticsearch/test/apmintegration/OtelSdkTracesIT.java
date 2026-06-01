@@ -23,10 +23,19 @@ import org.junit.rules.TestRule;
  */
 public class OtelSdkTracesIT extends AbstractTracesIT {
 
+    private static final String EXPECTED_PROJECT_ID = "integ-test-project";
+    private static final String EXPECTED_PROJECT_TYPE = "elasticsearch";
+    private static final String EXPECTED_NODE_TIER = "index";
+
     public static RecordingApmServer recordingApmServer = new RecordingApmServer();
 
     public static ElasticsearchCluster cluster = baseTracesClusterBuilder().systemProperty("telemetry.otel.traces.enabled", "true")
         .setting("telemetry.otel.traces.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/traces")
+        // Mirrors the three labels ServerlessServerCli writes via telemetry.agent.global_labels.* on the APM-agent path,
+        // bridged here to the OTel resource via the telemetry.otel.resource.* affix.
+        .setting("telemetry.otel.resource.elasticsearch.project.id", EXPECTED_PROJECT_ID)
+        .setting("telemetry.otel.resource.elasticsearch.project.type", EXPECTED_PROJECT_TYPE)
+        .setting("telemetry.otel.resource.elasticsearch.node.tier", EXPECTED_NODE_TIER)
         .build();
 
     @ClassRule
@@ -50,5 +59,9 @@ public class OtelSdkTracesIT extends AbstractTracesIT {
     @Override
     protected int telemetryTimeout() {
         return 15;
+    }
+
+    public void testResourceCarriesAffix() throws Exception {
+        assertSdkResourceAttributes(EXPECTED_PROJECT_ID, EXPECTED_PROJECT_TYPE, EXPECTED_NODE_TIER);
     }
 }

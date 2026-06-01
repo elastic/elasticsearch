@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
@@ -603,6 +604,25 @@ public class IpFieldMapperTests extends MapperTestCase {
                     + " index sort field, which requires sortable doc values"
             )
         );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "ip").endObject()))
+            .documentMapper();
+
+        // Arrival order differs from the binary-sorted order (10.0.0.1 < 172.16.5.4 < 192.168.1.10); duplicate and null must survive.
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("field");
+            b.value("192.168.1.10");
+            b.value("10.0.0.1");
+            b.nullValue();
+            b.value("172.16.5.4");
+            b.value("192.168.1.10");
+            b.endArray();
+        });
+        assertThat(result, containsString("\"field\":[\"192.168.1.10\",\"10.0.0.1\",null,\"172.16.5.4\",\"192.168.1.10\"]"));
     }
 
     @Override

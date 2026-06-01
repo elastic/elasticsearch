@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -82,6 +83,12 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
     }
 
     /**
+     * Aggs that return multiple values per group and so cannot be used as the first argument of SPARKLINE.
+     * These must produce an error when used INSIDE sparkline.
+     */
+    private static final Set<String> MULTI_VALUED_AGGS = Set.of("top", "sample", "values");
+
+    /**
      * Aggs whose invocations cannot be auto-generated from {@code NAME(val_long)}:
      * multi-arg, star syntax, or needing literal constants.
      */
@@ -111,10 +118,6 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
             if (name.equals("sparkline")) {
                 continue;
             }
-            if (name.equals("top") || name.equals("sample")) {
-                // https://github.com/elastic/elasticsearch/issues/150256
-                continue;
-            }
             String invocation = HAND_CRAFTED_INVOCATIONS.getOrDefault(name, name.toUpperCase(Locale.ROOT) + "(val_long)");
             addCases(params, info, name, invocation);
         }
@@ -138,6 +141,18 @@ public abstract class SparklineWithEveryAggTestCase extends ESRestTestCase {
         // Every agg supports running ALONGSIDE and ALONGSIDE_BY
         params.add(new AggTestCase(invocation, Mode.ALONGSIDE, null, capabilitiesRequired));
         params.add(new AggTestCase(invocation, Mode.ALONGSIDE_BY, null, capabilitiesRequired));
+
+        // Multi-valued aggs fail with a "single-valued" error when used INSIDE sparkline
+        if (MULTI_VALUED_AGGS.contains(name)) {
+            List<String> capabilitiesWithRejectMv = new ArrayList<>(capabilitiesRequired);
+            capabilitiesWithRejectMv.add("fn_sparkline_reject_mv");
+            String mvError = "single-valued aggregate function";
+            params.add(new AggTestCase(invocation, Mode.INSIDE, mvError, capabilitiesWithRejectMv));
+            params.add(new AggTestCase(invocation, Mode.INSIDE_BY, mvError, capabilitiesWithRejectMv));
+            params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE, mvError, capabilitiesWithRejectMv));
+            params.add(new AggTestCase(invocation, Mode.INSIDE_AND_ALONGSIDE_BY, mvError, capabilitiesWithRejectMv));
+            return;
+        }
 
         // Non-numeric aggs will fail when INSIDE, INSIDE_AND_ALONGSIDE, INSIDE_BY, INSIDE_AND_ALONGSIDE_BY
         boolean numericReturn = Arrays.stream(info.returnType()).anyMatch(List.of("integer", "long", "double")::contains);

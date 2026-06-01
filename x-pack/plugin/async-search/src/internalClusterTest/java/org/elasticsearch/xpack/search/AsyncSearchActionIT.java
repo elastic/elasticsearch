@@ -651,6 +651,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             assertNotNull(response.getFailure());
             ensureTaskNotRunning(response.getId());
+            ensureTaskCompletion(response.getId());
         } finally {
             response.decRef();
         }
@@ -676,6 +677,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             assertNotNull(response.getFailure());
             ensureTaskNotRunning(response.getId());
+            ensureTaskCompletion(response.getId());
         } finally {
             response.decRef();
         }

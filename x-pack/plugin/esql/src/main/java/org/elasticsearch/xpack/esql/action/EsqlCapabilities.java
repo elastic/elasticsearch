@@ -1312,6 +1312,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
+         * (from a subquery in FROM) or a {@code Fork}.
+         */
+        SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
@@ -1320,9 +1326,21 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support IN non-correlated subqueries in WHERE command without View. When a view is referenced by an IN subquery, or there is an
+         * IN subquery inside the view definition(especially nested views), it is out of the scope of this capability.
+         * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
+         */
+        WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+
+        /**
+         * Support TS as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1410,6 +1428,13 @@ public class EsqlCapabilities {
          * {@code long}, {@code integer}, and {@code double} values to their counter-typed equivalents.
          */
         TO_COUNTER,
+
+        /**
+         * Support for {@code TO_GAUGE} function and the {@code ::gauge} cast operator, which converts
+         * {@code counter_long}, {@code counter_integer}, and {@code counter_double} values to their
+         * plain numeric (gauge) equivalents.
+         */
+        TO_GAUGE,
 
         /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
@@ -2098,6 +2123,13 @@ public class EsqlCapabilities {
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
+         * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
+         * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
+         * https://github.com/elastic/elasticsearch-serverless/issues/6817
+         */
+        FIX_PROMQL_TIME_BUCKET_V3(false),
+
+        /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
          */
         LIKE_PARAMETER_SUPPORT,
@@ -2139,6 +2171,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for PromQL instant queries.
+         */
+        PROMQL_INSTANT_QUERY,
+
+        /**
          * Support for the {@code DATE_UNIT_COUNT} function.
          */
         ESQL_DATE_UNIT_COUNT_FN,
@@ -2175,6 +2212,13 @@ public class EsqlCapabilities {
          * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
          */
         PROMQL_IMPLICIT_RANGE_SELECTOR,
+
+        /**
+         * PromQL functions accept any numeric range vector. ES|QL translates mismatched counter/gauge
+         * types with implicit {@code to_counter()} or {@code to_gauge()} wraps based on each function's
+         * {@link org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition.CounterSupport}.
+         */
+        PROMQL_IMPLICIT_TYPE_COERCION,
 
         /**
          * Support for PromQL {@code without} grouping.
@@ -2271,6 +2315,13 @@ public class EsqlCapabilities {
          * Makes SUM(long) agg return null+warning instead of a 500 overflow.
          */
         FIX_SUM_AGG_LONG_OVERFLOW,
+
+        /**
+         * AVG(long) casts the field to double up-front in its surrogate, so the intermediate sum
+         * can no longer overflow.
+         * https://github.com/elastic/elasticsearch/issues/99575
+         */
+        FIX_AVG_AGG_LONG_OVERFLOW,
 
         /**
          * Support for requesting the "_tier" metadata field.
@@ -2847,6 +2898,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         */
+        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
+
+        /**
          * Fix for column pruning when FORK branches return no columns.
          */
         FORK_PROJECT_AWAY_COLUMNS_FIX,
@@ -2903,6 +2959,11 @@ public class EsqlCapabilities {
         FIRST_AGG_EXTENDED_TYPES,
 
         /**
+         * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram, tdigest.
+         */
+        FIRST_AGG_EXTENDED_TYPES_2,
+
+        /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
          * Snapshot-only.
          */
@@ -2918,6 +2979,20 @@ public class EsqlCapabilities {
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */
         PROMQL_LABEL_MATCHER_PARAMS,
+
+        /**
+         * Fix for PromQL scalar integer division losing the fractional part.
+         * Integer literals like {@code 4/6} were folded with integer division (result: 0)
+         * instead of float64 division (result: ~0.667).
+         * https://github.com/elastic/elasticsearch/issues/149792
+         */
+        FIX_PROMQL_SCALAR_FLOAT_DIV,
+
+        /**
+         * Bugfix in query approximation to not rewrite non-approximable FORK branches:
+         * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
+         */
+        APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

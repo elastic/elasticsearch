@@ -14,7 +14,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByPaginatedSearchActionTestCase;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.reindex.AbstractAsyncBulkByPaginatedSearchAction.RequestWrapper;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.ScriptService;
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
     Request extends AbstractBulkIndexByPaginatedSearchRequest<Request>,
-    Response extends BulkByScrollResponse> extends AbstractAsyncBulkByPaginatedSearchActionTestCase<Request, Response> {
+    Response extends BulkByPaginatedSearchResponse> extends AbstractAsyncBulkByPaginatedSearchActionTestCase<Request, Response> {
 
     protected ScriptService scriptService;
 

@@ -4,6 +4,7 @@ cd .buildkite
 
 if command -v choco > /dev/null; then # Windows
   choco install nodejs --version="24.16.0"
+  npm install -g corepack
 else # Linux
   if ! command -v nvm > /dev/null; then
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.4/install.sh | bash

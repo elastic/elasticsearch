@@ -95,11 +95,11 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
 
         // Now execute the reindex action...
-        ActionListener<BulkByScrollResponse> reindexListener = new ActionListener<BulkByScrollResponse>() {
+        ActionListener<BulkByPaginatedSearchResponse> reindexListener = new ActionListener<BulkByPaginatedSearchResponse>() {
             @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                assertNull(bulkByScrollResponse.getReasonCancelled());
-                logger.debug(bulkByScrollResponse.toString());
+            public void onResponse(BulkByPaginatedSearchResponse bulkByPaginatedSearchResponse) {
+                assertNull(bulkByPaginatedSearchResponse.getReasonCancelled());
+                logger.debug(bulkByPaginatedSearchResponse.toString());
             }
 
             @Override

@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 146073
-pr: 149395
-summary: Fix FROM *_logs index name validation
-type: bug

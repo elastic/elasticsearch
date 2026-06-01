@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
@@ -18,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DoubleFieldMapperTests extends NumberFieldMapperTests {
@@ -172,5 +176,19 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
             new SortShortcutSupport(this::minimalMapping, this::writeField, true),
             new SortShortcutSupport(IndexVersion.fromId(5000099), this::minimalMapping, this::writeField, false)
         );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "double").endObject()))
+            .documentMapper();
+        // randomDouble() returns [0,1) — survives double roundtrip cleanly and serializes without scientific notation.
+        double v1 = randomDouble();
+        double v2 = randomDouble();
+        double v3 = randomDouble();
+        // Out-of-order with v2 duplicated — sorted-deduped output would collapse the run.
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 }

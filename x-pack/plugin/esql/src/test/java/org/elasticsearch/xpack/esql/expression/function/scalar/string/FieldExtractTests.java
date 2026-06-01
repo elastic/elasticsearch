@@ -340,20 +340,46 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
         assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":[null,null]}"), "v"));
     }
 
-    public void testNestedObjectIsSerializedAsJsonString() {
-        // Per the function's detailedDescription: "objects and arrays as JSON strings".
-        // The serialised form re-reads through the standard XContentBuilder so insignificant
-        // whitespace from the source disappears and key order is preserved as parsed.
-        assertThat(extractFromBytes(new BytesRef("{\"v\":{\"a\":1,\"b\":\"x\"}}"), "v"), equalTo("{\"a\":1,\"b\":\"x\"}"));
+    public void testNestedObjectAtSubKeyReturnsNull() {
+        // The flattened mapper indexes leaves of a nested object under extended dotted keys
+        // (here {@code v.a} and {@code v.b}), so the pushdown path sees no value at the
+        // requested key {@code v}. The parse path is aligned to return null for the same
+        // shape so the two paths produce interchangeable results.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":{\"a\":1,\"b\":\"x\"}}"), "v"));
     }
 
-    public void testNestedObjectInsideArrayIsSerializedAsJsonString() {
-        // Nested objects appearing as elements of an outer array follow the same JSON-string
-        // serialisation rule, so a mixed array surfaces a mix of plain keywords and
-        // JSON-encoded objects in the same multi-value position.
+    public void testNestedObjectInsideArrayIsSkipped() {
+        // Object elements of a multi-value sub-field are indexed under extended dotted keys,
+        // so they are absent from the flat storage at the requested key. The parse path skips
+        // them so the returned multi-value position lists only the scalar leaves that the
+        // pushdown path would have read.
         Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[\"x\",{\"k\":1},\"y\"]}"), "v");
         assertThat(result, instanceOf(List.class));
-        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("x", "{\"k\":1}", "y")));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("x", "y")));
+    }
+
+    public void testArrayOfOnlyObjectsReturnsNull() {
+        // A multi-value sub-field whose elements are all embedded objects has no leaves at
+        // the requested key in the flat storage and the function returns null, matching how
+        // the pushdown path would see no value.
+        assertNull(extractFromBytesAsObject(new BytesRef("{\"v\":[{\"a\":1},{\"b\":2}]}"), "v"));
+    }
+
+    public void testNestedArrayInsideArrayFlattensScalars() {
+        // The flattened mapper iterates nested arrays without extending the storage key, so
+        // every scalar leaf ends up under the outer key. The parse path matches by recursing
+        // into nested arrays and surfacing their scalar leaves in document order.
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[[\"a\",\"b\"],\"c\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("a", "b", "c")));
+    }
+
+    public void testNestedArrayContainingObjectsSkipsObjectsButFlattensScalars() {
+        // Mixed structure: nested-array scalars survive (they share the outer key) but
+        // object leaves inside the nested array do not (they live at extended dotted keys).
+        Object result = extractFromBytesAsObject(new BytesRef("{\"v\":[[\"a\",{\"x\":1}],\"c\"]}"), "v");
+        assertThat(result, instanceOf(List.class));
+        assertThat(((List<?>) result).stream().map(o -> ((BytesRef) o).utf8ToString()).toList(), equalTo(List.of("a", "c")));
     }
 
     public void testMultiValueArrayPreservesOtherKeysWhenScanningPastTarget() {

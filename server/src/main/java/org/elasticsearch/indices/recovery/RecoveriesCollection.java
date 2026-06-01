@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -85,7 +86,7 @@ public class RecoveriesCollection {
      */
     public RecoveryTarget resetRecovery(final long recoveryId) {
         RecoveryTarget oldRecoveryTarget = null;
-        final RecoveryTarget newRecoveryTarget;
+        RecoveryTarget newRecoveryTarget = null;
 
         try {
             synchronized (onGoingRecoveries) {
@@ -123,8 +124,15 @@ public class RecoveriesCollection {
                 return null;
             }
         } catch (Exception e) {
-            // fail shard to be safe
-            oldRecoveryTarget.notifyListener(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
+            if (newRecoveryTarget != null) {
+                failRecovery(
+                    newRecoveryTarget.recoveryId(),
+                    new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
+                    true
+                );
+            } else {
+                oldRecoveryTarget.fail(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
+            }
             return null;
         }
     }

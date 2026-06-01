@@ -275,7 +275,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void fail(RecoveryFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
-                notifyListener(e, sendShardFailure);
+                listener.onRecoveryFailure(e, sendShardFailure);
             } finally {
                 try {
                     cancellableThreads.cancel("failed recovery [" + ExceptionsHelper.stackTrace(e) + "]");
@@ -285,10 +285,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 }
             }
         }
-    }
-
-    public void notifyListener(RecoveryFailedException e, boolean sendShardFailure) {
-        listener.onRecoveryFailure(e, sendShardFailure);
     }
 
     /** mark the current recovery as done */
@@ -304,7 +300,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("recovery failed after being marked as done", e);
-                    notifyListener(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), true);
+                    listener.onRecoveryFailure(new RecoveryFailedException(state(), "Recovery failed on post recovery step", e), true);
                 }
             }, this::decRef));
         }

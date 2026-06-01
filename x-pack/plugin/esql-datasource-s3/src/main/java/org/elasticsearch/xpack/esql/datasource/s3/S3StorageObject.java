@@ -49,8 +49,9 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
 
-    // Retries: AWS manages them via the SDK ExecutionInterceptor / RetryStrategy at the S3Client
-    // layer; intercepting them here would require wrapping the client. Not counted in this PR.
+    // Retries: the SDK RetryStrategy at the S3Client layer handles them (pinned to Standard in
+    // S3StorageProvider#configureCommon). The provider-agnostic RetryPolicy + ResumingInputStream layer that
+    // wraps this object adds cross-provider retry/resume on top.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);

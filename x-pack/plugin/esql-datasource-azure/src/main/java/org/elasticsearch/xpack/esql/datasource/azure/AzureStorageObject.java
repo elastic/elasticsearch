@@ -126,18 +126,20 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length <= 0) {
-            throw new IllegalArgumentException("length must be positive, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();
         try {
-            BlobRange range = new BlobRange(position, length);
+            // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
+            BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
             return blobClient.openInputStream(range, new BlobRequestConditions());
         } catch (Exception e) {
             throw new IOException("Range request failed for " + path, e);
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
         }
     }
 

@@ -113,13 +113,14 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length < 0) {
+            throw new IllegalArgumentException("length must be non-negative or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();
         // Bytes: response Content-Length when known, else fall back to the requested range length.
-        long[] bytesHolder = new long[] { length };
+        long[] bytesHolder = new long[] { toEnd ? 0L : length };
         try {
             return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
                 int statusCode = response.statusCode();
@@ -139,8 +140,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
                         stream.close();
                         throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
                     }
-                    // Wrap in a limited stream to ensure we only read 'length' bytes
-                    return new BoundedInputStream(stream, length);
+                    // READ_TO_END: read to the end (no bound); otherwise cap at the requested length.
+                    return toEnd ? stream : new BoundedInputStream(stream, length);
                 } else {
                     throw new IOException("Range request failed for " + path + ", HTTP status: " + statusCode);
                 }
@@ -265,9 +266,8 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      * Builds a GET request with Range header for partial content.
      */
     private HttpRequest buildRangeRequest(long position, long length) {
-        // HTTP Range uses inclusive end: "bytes=start-end"
-        long endPosition = position + length - 1;
-        String rangeValue = "bytes=" + position + "-" + endPosition;
+        // HTTP Range uses inclusive end: "bytes=start-end". READ_TO_END is the open-ended form "bytes=start-".
+        String rangeValue = length == READ_TO_END ? "bytes=" + position + "-" : "bytes=" + position + "-" + (position + length - 1);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
             .uri(uri)

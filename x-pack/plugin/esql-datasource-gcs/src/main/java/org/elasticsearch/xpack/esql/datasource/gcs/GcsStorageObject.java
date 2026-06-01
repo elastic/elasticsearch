@@ -108,8 +108,9 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         if (position < 0) {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
-        if (length < 0) {
-            throw new IllegalArgumentException("length must be non-negative, got: " + length);
+        boolean toEnd = length == READ_TO_END;
+        if (toEnd == false && length < 0) {
+            throw new IllegalArgumentException("length must be non-negative or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();
@@ -117,12 +118,15 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             BlobId blobId = BlobId.of(bucket, objectName);
             ReadChannel reader = storage.reader(blobId);
             reader.seek(position);
-            reader.limit(position + length);
+            // READ_TO_END: seek to position and read to the end of the object (no limit) — no length() lookup.
+            if (toEnd == false) {
+                reader.limit(position + length);
+            }
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
             throw wrapException(e, "Range request failed for");
         } finally {
-            counters.addRequest(System.nanoTime() - startNanos, length);
+            counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
         }
     }
 

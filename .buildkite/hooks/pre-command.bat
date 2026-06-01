@@ -28,6 +28,8 @@ for /f "delims=" %%i in ('vault read -field^=token secret/ci/elastic-elasticsear
 
 bash.exe -c "nohup bash .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &"
 
+choco install nodejs --version="24.16.0"
+call refreshenv
 bash.exe -c "bash .buildkite/scripts/setup_node.sh"
 
 REM =============================================================================

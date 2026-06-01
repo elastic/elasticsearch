@@ -115,6 +115,11 @@ public class PreAnalyzer {
             }
         });
 
+        List<String> inferenceIds = new ArrayList<>();
+        // Inference commands require a literal inference_id at parse time, unlike
+        // UnresolvedFunction calls where the ID may be dynamic.
+        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.add(inferenceId(inferencePlan)));
+
         /*
          * Enable aggregate_metric_double and dense_vector when we see certain functions
          * or the TS command. This allowed us to release these when not all nodes understand
@@ -127,10 +132,6 @@ public class PreAnalyzer {
          * nodes that don't have 9.2.1 or 9.3.0. If all nodes in the cluster have 9.2.1 or 9.3.0
          * this code doesn't do anything.
          */
-        List<String> inferenceIds = new ArrayList<>();
-        // Inference commands require a literal inference_id at parse time, unlike
-        // UnresolvedFunction calls where the ID may be dynamic.
-        plan.forEachUp(InferencePlan.class, inferencePlan -> inferenceIds.add(inferenceId(inferencePlan)));
 
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);

@@ -120,7 +120,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cachedLastModified = metadata.lastModified();
             }
             bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
-            return response;
+            return new TransientTypingInputStream(response, path);
         } catch (NoSuchKeyException e) {
             throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {
@@ -158,7 +158,7 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 cachedLastModified = metadata.lastModified();
             }
 
-            return response;
+            return new TransientTypingInputStream(response, path);
         } catch (NoSuchKeyException e) {
             throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {

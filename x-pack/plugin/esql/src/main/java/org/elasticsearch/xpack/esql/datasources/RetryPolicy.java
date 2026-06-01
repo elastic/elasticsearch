@@ -11,6 +11,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -280,6 +281,10 @@ class RetryPolicy {
     }
 
     private static boolean isThrottlingSingleCause(Throwable t) {
+        if (t instanceof TransientStorageException tse) {
+            // The provider already classified this by type/status; trust its throttling flag.
+            return tse.throttling();
+        }
         String message = t.getMessage();
         if (message == null) {
             return false;
@@ -306,6 +311,11 @@ class RetryPolicy {
     }
 
     private static boolean isTransientSingleCause(Throwable t) {
+        if (t instanceof TransientStorageException) {
+            // Typed signal from a storage provider: it classified this fault by type/status, no message
+            // sniffing needed. This is the path that will replace the string checks below.
+            return true;
+        }
         if (t instanceof SocketTimeoutException) {
             return true;
         }

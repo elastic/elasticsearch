@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.net.SocketTimeoutException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.concurrent.Executor;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -208,5 +210,220 @@ public class RetryableStorageObjectTests extends ESTestCase {
         obj.abortStream(stream);
 
         assertSame(stream, captured[0]);
+    }
+
+    /**
+     * A transient transport fault <em>during</em> a range read must re-open the remaining byte range and
+     * resume, delivering every byte exactly once (object content is immutable). The re-open requests
+     * {@code [position + delivered, end]}, so nothing is duplicated or skipped.
+     */
+    public void testRangeReadResumesByteExactAfterMidReadFault() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        byte[] payload = new byte[1000];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        // First range-read delivers 400 bytes then drops; the re-open from byte 400 delivers the rest.
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            400,
+            new TransientStorageException("mid-read drop", new IOException("premature end of body"))
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            read = in.readAllBytes();
+        }
+
+        assertArrayEquals("every byte delivered exactly once, byte-exact resume", payload, read);
+        assertEquals("the range was re-opened exactly once", 2, delegate.openCount());
+        assertEquals("the resume was counted as a retry", 1L, obj.metrics().retryCount());
+    }
+
+    /**
+     * A non-transient error mid-read (e.g. a permission error surfacing on the stream) must propagate
+     * unchanged — no re-open, no retry.
+     */
+    public void testRangeReadPropagatesNonTransientMidReadError() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        byte[] payload = new byte[200];
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            40,
+            new IOException("Access Denied")
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            IOException thrown = expectThrows(IOException.class, in::readAllBytes);
+            assertEquals("Access Denied", thrown.getMessage());
+        }
+        assertEquals("a non-transient error must not trigger a re-open", 1, delegate.openCount());
+    }
+
+    /**
+     * A stream stuck at the same offset — every re-open fails before delivering a byte — must fail cleanly
+     * once the retry budget is exhausted, surfacing the transient fault rather than hanging or looping.
+     */
+    public void testRangeReadFailsAfterRetryBudgetExhausted() throws IOException {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10);
+        byte[] payload = new byte[500];
+        // Every open fails immediately with zero progress — the fault never clears.
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            0,
+            new TransientStorageException("persistent drop", new IOException("premature end of body")),
+            true
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            expectThrows(IOException.class, in::readAllBytes);
+        }
+        // Initial open + 2 retries (the budget), then it gives up.
+        assertEquals("re-opened up to the retry budget then gave up", 3, delegate.openCount());
+    }
+
+    /**
+     * A stream that drops repeatedly but makes progress each time is <em>not</em> stuck: the budget resets
+     * on every byte delivered, so it re-opens as many times as needed and completes byte-exact. This is the
+     * realistic "flaky connection over a large object" case.
+     */
+    public void testRangeReadCompletesWhenEachReopenMakesProgress() throws IOException {
+        RetryPolicy policy = new RetryPolicy(2, 1, 10);
+        byte[] payload = new byte[1000];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        // Every open delivers 150 bytes then drops — but each makes progress, so it never exhausts.
+        MidReadFailingStorageObject delegate = new MidReadFailingStorageObject(
+            StoragePath.of("s3://bucket/key"),
+            payload,
+            150,
+            new TransientStorageException("flaky drop", new IOException("premature end of body")),
+            true
+        );
+
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            read = in.readAllBytes();
+        }
+        assertArrayEquals("progress-making drops still complete byte-exact", payload, read);
+    }
+
+    /**
+     * Test fixture for the resuming-stream tests: a range read returns {@code [position, position+length)}
+     * of the payload, but the first open (or every open, if {@code alwaysFail}) delivers only
+     * {@code failAfterBytes} bytes before throwing the configured fault.
+     */
+    private static final class MidReadFailingStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final byte[] payload;
+        private final int failAfterBytes;
+        private final IOException midReadFailure;
+        private final boolean alwaysFail;
+        private int opens = 0;
+
+        MidReadFailingStorageObject(StoragePath path, byte[] payload, int failAfterBytes, IOException midReadFailure) {
+            this(path, payload, failAfterBytes, midReadFailure, false);
+        }
+
+        MidReadFailingStorageObject(StoragePath path, byte[] payload, int failAfterBytes, IOException midReadFailure, boolean alwaysFail) {
+            this.path = path;
+            this.payload = payload;
+            this.failAfterBytes = failAfterBytes;
+            this.midReadFailure = midReadFailure;
+            this.alwaysFail = alwaysFail;
+        }
+
+        int openCount() {
+            return opens;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int pos = Math.toIntExact(position);
+            int len = Math.toIntExact(Math.min(length, payload.length - pos));
+            byte[] slice = Arrays.copyOfRange(payload, pos, pos + len);
+            boolean fail = alwaysFail || opens == 0;
+            opens++;
+            return fail ? new FailingAfterNStream(slice, failAfterBytes, midReadFailure) : new ByteArrayInputStream(slice);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return newStream(0, payload.length);
+        }
+
+        @Override
+        public long length() {
+            return payload.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(opens, 0, 0, 0);
+        }
+    }
+
+    /** Delivers up to {@code failAfter} bytes of {@code data}, then throws {@code failure} on the next read. */
+    private static final class FailingAfterNStream extends InputStream {
+        private final byte[] data;
+        private final int failAfter;
+        private final IOException failure;
+        private int pos = 0;
+
+        FailingAfterNStream(byte[] data, int failAfter, IOException failure) {
+            this.data = data;
+            this.failAfter = failAfter;
+            this.failure = failure;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (pos >= failAfter) {
+                throw failure;
+            }
+            return pos < data.length ? data[pos++] & 0xFF : -1;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (pos >= failAfter) {
+                throw failure;
+            }
+            if (pos >= data.length) {
+                return -1;
+            }
+            int n = Math.min(len, Math.min(failAfter, data.length) - pos);
+            System.arraycopy(data, pos, b, off, n);
+            pos += n;
+            return n;
+        }
     }
 }

@@ -61,12 +61,17 @@ class RetryableStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream(long position, long length) throws IOException {
-        return retryPolicy.execute(
+        // Retry the OPEN (existing behavior), then wrap the stream so a transient fault DURING the read
+        // re-opens the remaining byte range and resumes — byte-exact, governed by the same RetryPolicy.
+        // This is the path text segments and parquet row-groups/footers read through, so closing the
+        // mid-read gap here makes every format resilient without per-format code.
+        InputStream initial = retryPolicy.execute(
             () -> delegate.newStream(position, length),
             "newStream(range)",
             delegate.path(),
             retryCounters::addRetry
         );
+        return new ResumingInputStream(initial, position, length);
     }
 
     @Override
@@ -95,7 +100,14 @@ class RetryableStorageObject implements StorageObject {
         // connection-discard (e.g. S3 ResponseInputStream.abort()). If we silently fall back to
         // the SPI default stream.close() here, providers like S3 drain the entire response body
         // before returning, defeating the purpose of abortStream on partial-read paths.
-        delegate.abortStream(stream);
+        //
+        // A ResumingInputStream is our own wrapper; abort the live underlying stream so the provider's
+        // Abortable fast-path applies to the real instance, not the wrapper (which the provider can't cast).
+        if (stream instanceof ResumingInputStream resuming) {
+            delegate.abortStream(resuming.currentStream());
+        } else {
+            delegate.abortStream(stream);
+        }
     }
 
     @Override
@@ -182,5 +194,121 @@ class RetryableStorageObject implements StorageObject {
     @Override
     public StorageObjectMetrics metrics() {
         return delegate.metrics().add(retryCounters.snapshot());
+    }
+
+    /**
+     * Wraps a range read so a transient transport fault <em>during</em> the read re-opens the remaining byte
+     * range and resumes, instead of failing the whole read. Resume is byte-exact: {@code delivered} tracks
+     * bytes already handed to the caller, so a re-open requests {@code [position + delivered, end]} and no
+     * byte is delivered twice or skipped (object content is immutable for the life of a query). Whether a
+     * fault is retryable, the backoff, and the total-time budget all come from the same {@link RetryPolicy}
+     * used for opens; a non-retryable fault or an exhausted budget propagates unchanged. Reading raw object
+     * bytes, every failure here is transport (parsing happens above this stream), so there is no data-error
+     * to misclassify.
+     * <p>
+     * Single-threaded by contract: one consumer reads one stream. Not {@code Abortable}; the enclosing
+     * {@link #abortStream} unwraps to abort the live underlying stream.
+     */
+    private final class ResumingInputStream extends InputStream {
+        private final long position;
+        private final long length;
+        private InputStream current;
+        private long delivered = 0;
+
+        ResumingInputStream(InputStream initial, long position, long length) {
+            this.current = initial;
+            this.position = position;
+            this.length = length;
+        }
+
+        // Consecutive re-opens since the last byte of progress, and when that "stuck" episode began.
+        // Both reset whenever a read delivers bytes: a stream that keeps making progress (even if it drops
+        // repeatedly) is not stuck and completes; only a stream stuck at the same offset exhausts the budget.
+        private int failuresSinceProgress = 0;
+        private long episodeStartNanos = 0;
+
+        InputStream currentStream() {
+            return current;
+        }
+
+        @Override
+        public int read() throws IOException {
+            byte[] one = new byte[1];
+            int n = read(one, 0, 1);
+            return n == -1 ? -1 : (one[0] & 0xFF);
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            while (true) {
+                try {
+                    int n = current.read(b, off, len);
+                    if (n > 0) {
+                        delivered += n;
+                        failuresSinceProgress = 0;
+                        episodeStartNanos = 0;
+                    }
+                    return n;
+                } catch (IOException e) {
+                    reopenOrThrow(e);
+                }
+            }
+        }
+
+        private void reopenOrThrow(IOException e) throws IOException {
+            boolean throttle = RetryPolicy.isThrottlingError(e);
+            int maxAttempts = throttle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
+            if (retryPolicy.isRetryable(e) == false || failuresSinceProgress >= maxAttempts) {
+                throw e;
+            }
+            if (episodeStartNanos == 0) {
+                episodeStartNanos = System.nanoTime();
+            }
+            long delay = retryPolicy.delayMillis(failuresSinceProgress, throttle);
+            long budgetMs = retryPolicy.maxTotalDurationMs();
+            if (budgetMs > 0 && (System.nanoTime() - episodeStartNanos) / 1_000_000 + delay > budgetMs) {
+                throw e;
+            }
+            closeQuietly(current);
+            if (delay > 0) {
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
+                }
+            }
+            retryCounters.addRetry();
+            failuresSinceProgress++;
+            long remaining = length - delivered;
+            logger.debug(
+                "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]/[{}]): [{}]",
+                delegate.path(),
+                position + delivered,
+                failuresSinceProgress,
+                maxAttempts,
+                e.getMessage()
+            );
+            // Re-open only the undelivered tail; if everything was delivered, an empty stream yields EOF.
+            current = remaining > 0 ? delegate.newStream(position + delivered, remaining) : InputStream.nullInputStream();
+        }
+
+        @Override
+        public int available() throws IOException {
+            return current.available();
+        }
+
+        @Override
+        public void close() throws IOException {
+            current.close();
+        }
+
+        private void closeQuietly(InputStream in) {
+            try {
+                in.close();
+            } catch (IOException ignored) {
+                // best-effort: discarding this stream to re-open a fresh range
+            }
+        }
     }
 }

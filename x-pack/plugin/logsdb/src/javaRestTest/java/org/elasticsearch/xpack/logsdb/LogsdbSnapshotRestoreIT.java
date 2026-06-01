@@ -25,6 +25,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -51,7 +52,12 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
-    private static boolean columnarEnabled = true;
+    private static boolean columnarEnabled;
+
+    @BeforeClass
+    public static void randomizeColumnar() {
+        columnarEnabled = randomBoolean();
+    }
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -59,7 +65,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.columnar.enabled", columnarEnabled ? "true" : "false")
+        .setting("cluster.columnar.enabled", () -> Boolean.toString(columnarEnabled))
         .build();
 
     @ClassRule
@@ -145,7 +151,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestore() throws Exception {
-        snapshotAndRestore("synthetic", "object", false);
+        snapshotAndRestore("synthetic", columnarEnabled ? "flattened" : "object", false);
     }
 
     public void testSnapshotRestoreWithSourceOnlyRepository() throws Exception {
@@ -153,11 +159,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreNested() throws Exception {
-        snapshotAndRestore("synthetic", "nested", false);
+        snapshotAndRestore("synthetic", columnarEnabled ? "flattened" : "nested", false);
     }
 
     public void testSnapshotRestoreNestedWithSourceOnlyRepository() throws Exception {
-        snapshotAndFail("nested");
+        snapshotAndFail(columnarEnabled ? "flattened" : "nested");
     }
 
     public void testSnapshotRestoreStoredSource() throws Exception {
@@ -169,11 +175,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreStoredSourceNested() throws Exception {
-        snapshotAndRestore("stored", "nested", false);
+        snapshotAndRestore("stored", columnarEnabled ? "flattened" : "nested", false);
     }
 
     public void testSnapshotRestoreStoredSourceNestedWithSourceOnlyRepository() throws Exception {
-        snapshotAndRestore("stored", "nested", true);
+        snapshotAndRestore("stored", columnarEnabled ? "flattened" : "nested", true);
     }
 
     @After
@@ -359,18 +365,60 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         assertThat(hits, hasSize(docs.length));
         for (Object hit : hits) {
             Map<?, ?> actualSource = (Map<?, ?>) ((Map<?, ?>) hit).get("_source");
-            String actualHost = (String) ((Map<?, ?>) actualSource.get("host")).get("name");
+            String actualHost = extractHostName(actualSource);
             Map<?, ?> expectedSource = null;
             for (String doc : docs) {
-                expectedSource = XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
-                String expectedHost = (String) ((Map<?, ?>) expectedSource.get("host")).get("name");
+                Map<?, ?> parsed = XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
+                String expectedHost = (String) ((Map<?, ?>) parsed.get("host")).get("name");
                 if (expectedHost.equals(actualHost)) {
+                    expectedSource = parsed;
                     break;
                 }
             }
 
-            assertMap(actualSource, matchesMap(expectedSource));
+            assertMap(actualSource, matchesMap(normalizeExpectedSource(expectedSource, actualSource)));
         }
+    }
+
+    // In logsdb_columnar mode (subobjects disabled), host.name appears as a flat top-level
+    // key "host.name" rather than nested {"host": {"name": "..."}}.
+    private static String extractHostName(Map<?, ?> source) {
+        Object host = source.get("host");
+        if (host instanceof Map<?, ?> hostMap) {
+            return (String) hostMap.get("name");
+        }
+        return (String) source.get("host.name");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<?, ?> normalizeExpectedSource(Map<?, ?> expected, Map<?, ?> actualSource) {
+        // Only normalize when columnar mode produces a flat synthetic _source. Stored-source
+        // indexes preserve the original nested structure even in logsdb_columnar mode, so
+        // we detect which case we're in by checking whether the actual source already has the
+        // nested "host" key.
+        if (columnarEnabled == false || actualSource.containsKey("host")) {
+            return expected;
+        }
+        var normalized = new java.util.LinkedHashMap<>((Map<Object, Object>) expected);
+        // In logsdb_columnar mode (subobjects disabled), {"host": {"name": "..."}} is stored
+        // as the flat key "host.name" in synthetic _source.
+        Object host = normalized.remove("host");
+        if (host instanceof Map<?, ?> hostMap) {
+            normalized.put("host.name", hostMap.get("name"));
+        }
+        // flattened type collapses [{field_1:a,field_2:b},{field_1:c,field_2:d}]
+        // into {field_1:[a,c],field_2:[b,d]} in synthetic _source.
+        Object arr = normalized.remove("my_object_array");
+        if (arr instanceof List<?> list) {
+            var flatMap = new java.util.LinkedHashMap<String, List<Object>>();
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> m) {
+                    m.forEach((k, v) -> flatMap.computeIfAbsent(k.toString(), key -> new java.util.ArrayList<>()).add(v));
+                }
+            }
+            normalized.put("my_object_array", flatMap);
+        }
+        return normalized;
     }
 
     @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")

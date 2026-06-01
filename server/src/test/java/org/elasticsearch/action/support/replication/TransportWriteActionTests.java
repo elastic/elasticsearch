@@ -476,7 +476,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "Pre Submission Cancellation",
                     TestCancellableAction.class.getCanonicalName(),
-                    Level.WARN,
+                    Level.DEBUG,
                     Strings.format(
                         "Bulk Transport Write Action request [%s] for Index shard [[test][1]] is cancelled pre-submission.",
                         request.getDescription()
@@ -501,7 +501,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "Post Submission Cancellation",
                     TestCancellableAction.class.getCanonicalName(),
-                    Level.WARN,
+                    Level.DEBUG,
                     Strings.format(
                         "Bulk Transport Write Action request [%s] for Index shard [[test][1]] is cancelled post-submission.",
                         request.getDescription()

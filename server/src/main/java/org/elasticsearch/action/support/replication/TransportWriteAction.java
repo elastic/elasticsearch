@@ -243,7 +243,7 @@ public abstract class TransportWriteAction<
     ) {
         assert task instanceof CancellableTask;
         if (((CancellableTask) task).notifyIfCancelled(listener)) {
-            logger.warn(
+            logger.debug(
                 () -> format(
                     "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled pre-submission.",
                     request.getDescription(),
@@ -258,7 +258,7 @@ public abstract class TransportWriteAction<
             @Override
             protected void doRun() {
                 if (((CancellableTask) task).notifyIfCancelled(listener)) {
-                    logger.warn(
+                    logger.debug(
                         () -> format(
                             "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled post-submission.",
                             request.getDescription(),

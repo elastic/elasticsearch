@@ -153,7 +153,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 new MockLog.SeenEventExpectation(
                     "Pre Submission Cancellation",
                     TransportShardBulkAction.class.getCanonicalName(),
-                    Level.WARN,
+                    Level.DEBUG,
                     Strings.format("for Index shard [[%s][0]] is cancelled pre-submission.", INDEX_NAME)
                 )
             );
@@ -216,7 +216,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 new MockLog.SeenEventExpectation(
                     "Post Submission Cancellation",
                     TransportShardBulkAction.class.getCanonicalName(),
-                    Level.WARN,
+                    Level.DEBUG,
                     Strings.format("for Index shard [[%s][0]] is cancelled post-submission.", INDEX_NAME)
                 )
             );

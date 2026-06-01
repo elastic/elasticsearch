@@ -695,7 +695,6 @@ public final class EsqlTestUtils {
 
     public static final PromqlFunctionRegistry TEST_PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry(List.of());
 
-
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 
     public static final Verifier TEST_VERIFIER = new Verifier(

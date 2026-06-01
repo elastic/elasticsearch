@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
@@ -371,6 +372,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+            CloudCredentialsExtension.getInstance().credentialManager(),
             effectiveDatafeed,
             null,
             job,

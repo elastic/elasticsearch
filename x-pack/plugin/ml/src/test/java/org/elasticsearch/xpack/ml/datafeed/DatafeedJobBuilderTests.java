@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialManager;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
@@ -114,7 +115,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             System::currentTimeMillis,
             jobResultsPersister,
             Settings.EMPTY,
-            clusterService
+            clusterService,
+            CloudCredentialManager.Noop::new
         );
     }
 
@@ -217,7 +219,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             System::currentTimeMillis,
             jobResultsPersister,
             nonRemoteClusterClientNode(),
-            clusterService
+            clusterService,
+            CloudCredentialManager.Noop::new
         );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");

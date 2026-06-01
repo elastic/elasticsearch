@@ -674,17 +674,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             // before() never ran (e.g. setUp() threw AssumptionViolatedException before @Before executed)
             return;
         }
-        if (testLeakWindow.hasLeaks()) {
-            // respondAndRelease calls decRef() in a finally block after delivering the response to the
-            // client. The client's future is resolved first, so the test thread can reach @After before
-            // the server thread executes that finally block. Wait briefly to let those in-flight
-            // decrefs complete before declaring a leak.
-            try {
-                assertBusy(() -> assertFalse(testLeakWindow.hasLeaks()), 1, TimeUnit.SECONDS);
-            } catch (AssertionError | Exception ignored) {
-                // still leaking after the wait; fall through to assertNoLeaks() for the diagnostic
-            }
-        }
         testLeakWindow.assertNoLeaks();
     }
 

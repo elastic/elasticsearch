@@ -153,4 +153,10 @@ public final class OtelSdkSettings {
         TimeValue.timeValueSeconds(10),
         NodeScope
     );
+
+    /** External OTel resource attributes attached to every metric and span exported by the SDK path.*/
+    public static final Setting.AffixSetting<String> TELEMETRY_OTEL_RESOURCE_ATTRIBUTES = Setting.prefixKeySetting(
+        "telemetry.otel.resource.",
+        key -> Setting.simpleString(key, NodeScope)
+    );
 }

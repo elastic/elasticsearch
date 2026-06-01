@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.cluster.metadata;
+package org.elasticsearch.xpack.esql.datasources.metadata;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.io.IOException;
 
@@ -34,9 +33,7 @@ public class DataSourceSettingTests extends ESTestCase {
         var setting = new DataSourceSetting("AKIA123", true);
         var deserialized = writeableRoundTrip(setting);
         assertEquals(setting, deserialized);
-        try (var s = deserialized.secretValue()) {
-            assertEquals("AKIA123", s.toString());
-        }
+        assertEquals("AKIA123", deserialized.rawValue());
         assertTrue(deserialized.secret());
     }
 
@@ -109,38 +106,36 @@ public class DataSourceSettingTests extends ESTestCase {
         assertNotEquals(a, d);
     }
 
-    public void testSecretMustBeString() {
-        // Per the class invariant, a secret setting must carry a String value (or null).
-        // Numeric and boolean payloads aren't valid sensitive types in the domain; rejecting
-        // them at construction prevents a later layer from accidentally producing one.
-        var ex = expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(42, true));
-        assertTrue(ex.getMessage().contains("must be String-valued"));
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(9_999_999_999L, true));
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(3.14159, true));
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(true, true));
-    }
-
     public void testSecretMayBeNull() {
-        // Null is the explicit "no value" state and is allowed even when secret=true.
         var setting = new DataSourceSetting(null, true);
-        assertNull(setting.secretValue());
+        assertNull(setting.rawValue());
+        assertFalse(setting.isEncrypted());
     }
 
-    public void testSecretValueReturnsSecureString() {
-        var setting = new DataSourceSetting("AKIA_THE_REAL_KEY", true);
-        try (SecureString s = setting.secretValue()) {
-            assertEquals("AKIA_THE_REAL_KEY", s.toString());
-        }
+    public void testEncryptedSecretIsDetectedAndEqualByContent() {
+        var a = new DataSourceSetting(encryptedData("AKIA123"), true);
+        var b = new DataSourceSetting(encryptedData("AKIA123"), true);
+        assertTrue(a.isEncrypted());
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, new DataSourceSetting(encryptedData("different"), true));
     }
 
-    public void testSecretValueWithNull() {
-        var setting = new DataSourceSetting(null, true);
-        assertNull(setting.secretValue());
+    public void testEncryptedSecretWriteableRoundTrip() throws IOException {
+        EncryptedData carrier = encryptedData("AKIA_secret");
+        var setting = new DataSourceSetting(carrier, true);
+        var deserialized = writeableRoundTrip(setting);
+        assertEquals(setting, deserialized);
+        assertTrue(deserialized.isEncrypted());
+        assertTrue(deserialized.secret());
+        assertEquals(carrier, deserialized.rawValue());
     }
 
-    public void testSecretValueThrowsIfNotSecret() {
-        var setting = new DataSourceSetting("us-east-1", false);
-        expectThrows(IllegalStateException.class, setting::secretValue);
+    public void testEncryptedSecretXContentRoundTrip() throws IOException {
+        // The encrypted carrier is a nested {key_id, data} object; round-trips through both JSON and the
+        // SMILE container that PersistedClusterStateService actually uses.
+        assertXContentRoundTrip(new DataSourceSetting(encryptedData("AKIA_secret"), true));
+        assertSmileRoundTrip(new DataSourceSetting(encryptedData("AKIA_secret"), true));
     }
 
     public void testXContentRoundTrip() throws IOException {
@@ -153,6 +148,24 @@ public class DataSourceSettingTests extends ESTestCase {
         assertXContentRoundTrip(new DataSourceSetting(3.14159, false));
         assertXContentRoundTrip(new DataSourceSetting(true, false));
         assertXContentRoundTrip(new DataSourceSetting(null, false));
+    }
+
+    public void testSmileRoundTripPreservesValueTypes() throws IOException {
+        // Cluster-state persistence (PersistedClusterStateService) uses SMILE, so the GATEWAY path must
+        // preserve non-secret value types across a restart — objectText() keeps the parsed type rather
+        // than stringifying. Guards against a regression to text() that would silently coerce to String.
+        assertSmileRoundTrip(new DataSourceSetting(42, false));
+        assertSmileRoundTrip(new DataSourceSetting(9_999_999_999L, false));
+        assertSmileRoundTrip(new DataSourceSetting(3.14159, false));
+        assertSmileRoundTrip(new DataSourceSetting(true, false));
+        assertSmileRoundTrip(new DataSourceSetting(null, false));
+    }
+
+    private void assertSmileRoundTrip(DataSourceSetting setting) throws IOException {
+        XContentBuilder builder = SmileXContent.contentBuilder();
+        setting.toXContent(builder, null);
+        XContentParser parser = createParser(SmileXContent.smileXContent, BytesReference.bytes(builder));
+        assertEquals(setting, DataSourceSetting.fromXContent(parser));
     }
 
     private void assertXContentRoundTrip(DataSourceSetting setting) throws IOException {
@@ -169,5 +182,9 @@ public class DataSourceSettingTests extends ESTestCase {
         setting.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         return new DataSourceSetting(in);
+    }
+
+    private static EncryptedData encryptedData(String plaintext) {
+        return new EncryptedData("test-key", plaintext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 }

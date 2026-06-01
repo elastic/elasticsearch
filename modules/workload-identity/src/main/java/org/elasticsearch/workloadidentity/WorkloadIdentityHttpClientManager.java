@@ -30,78 +30,131 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Owns the Apache HC {@link CloseableHttpAsyncClient} used to talk to the
  * workload-identity-issuer, together with the {@link PoolingNHttpClientConnectionManager} and
  * {@link HttpConnectionEvictor} backing it.
  *
- * <p>The {@link SSLIOSessionStrategy} from {@link WorkloadIdentitySslConfig} is captured at
- * construction and is not refreshed thereafter; cert rotation requires a node restart.
+ * <p>The HC client, connection manager, IO reactor and evictor are built once at construction
+ * and live for the lifetime of the manager. Cert/key rotation reaches the connection
+ * establishment path via a {@link ReloadableSchemeIoSessionStrategy} indirection installed in
+ * the scheme registry: {@link #reload()} swaps that delegate to the freshly-built
+ * {@link SSLIOSessionStrategy} from {@link WorkloadIdentitySslConfig}, so the very next TLS
+ * handshake picks up the new material. Already-pooled connections are not aborted — in-flight
+ * requests complete on the previous (still-valid) certificate.
  *
- * <p>Lifecycle: construct &rarr; {@link #start()} &rarr; {@link #getHttpClient()} &rarr; {@link #close()}.
+ * <p>Lifecycle: {@code INIT} (constructed) &rarr; {@code INIT_RELOADED} (first {@link #reload()})
+ * &rarr; {@code STARTED} ({@link #start()}) &rarr;
+ * {@code CLOSED} ({@link #close()}).
  */
 public final class WorkloadIdentityHttpClientManager implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(WorkloadIdentityHttpClientManager.class);
 
+    private final WorkloadIdentitySslConfig sslConfig;
+    private final ReloadableSchemeIoSessionStrategy sslStrategy;
     private final CloseableHttpAsyncClient httpClient;
     private final HttpConnectionEvictor connectionEvictor;
 
-    private final AtomicBoolean started = new AtomicBoolean(false);
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    /** Lifecycle states; see the class Javadoc for transitions. */
+    private enum State {
+        /** Constructed; no SSL strategy delegate published yet. */
+        INIT,
+        /** Initial SSL delegate published via {@link #reload()}; {@link #start()} not yet called. */
+        INIT_RELOADED,
+        /** Apache HC async client and connection evictor started; {@link #getHttpClient()} returns the client. */
+        STARTED,
+        /** {@link #close()} has been called; all resources released. Terminal. */
+        CLOSED
+    }
+
+    private final AtomicReference<State> state = new AtomicReference<>(State.INIT);
 
     public WorkloadIdentityHttpClientManager(Settings settings, WorkloadIdentitySslConfig sslConfig, ThreadPool threadPool) {
+        this.sslConfig = sslConfig;
         final int maxTotalConnections = WorkloadIdentityHttpSettings.MAX_TOTAL_CONNECTIONS.get(settings);
         final int maxRouteConnections = WorkloadIdentityHttpSettings.MAX_ROUTE_CONNECTIONS.get(settings);
         final TimeValue evictionInterval = WorkloadIdentityHttpSettings.CONNECTION_EVICTION_INTERVAL.get(settings);
         final TimeValue connectionMaxIdle = WorkloadIdentityHttpSettings.CONNECTION_MAX_IDLE_TIME.get(settings);
 
-        // SSL strategy is captured here exactly once; see WorkloadIdentitySslConfig.
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslConfig.getStrategy());
+        // Constructed empty; the first reload() call publishes the initial delegate.
+        // The wrapper instance is captured by the connection manager below and
+        // never replaced — only its delegate rotates.
+        this.sslStrategy = new ReloadableSchemeIoSessionStrategy();
+        final PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslStrategy);
         connectionManager.setMaxTotal(maxTotalConnections);
         connectionManager.setDefaultMaxPerRoute(maxRouteConnections);
 
         // Disable cookies and connection state to maximize pooling across requests that share the
         // same mTLS identity. Per-request connect/socket timeouts are applied by the issuer client.
+        // The rotation-aware reuse strategy closes connections whose TLS handshake predates the
+        // most recent reload(), so the pool drains stale material within one request RTT per
+        // connection without disturbing in-flight requests (see RotationAwareReuseStrategy).
         this.httpClient = HttpAsyncClientBuilder.create()
             .setConnectionManager(connectionManager)
+            .setConnectionReuseStrategy(new RotationAwareReuseStrategy(sslStrategy))
             .disableCookieManagement()
             .disableConnectionState()
             .build();
-
         this.connectionEvictor = new HttpConnectionEvictor(threadPool, connectionManager, evictionInterval, connectionMaxIdle);
     }
 
     /**
-     * Start the underlying async client and connection evictor. Must be called once, after
-     * construction and before the first {@link #getHttpClient()} call.
+     * Start the underlying async client and connection evictor. Valid only from
+     * {@code INIT_RELOADED} (i.e. {@link #reload()} has published the initial SSL delegate);
+     * any other source state throws.
      */
-    public synchronized void start() {
-        if (started.compareAndSet(false, true) == false) {
-            return;
+    public void start() {
+        if (state.compareAndSet(State.INIT_RELOADED, State.STARTED) == false) {
+            throw new IllegalStateException("cannot start workload-identity HTTP client manager in state [" + state.get() + "]");
         }
         httpClient.start();
         connectionEvictor.start();
     }
 
     /**
-     * @return the long-lived Apache HC async client. The reference is stable for the lifetime
-     *         of the manager; we deliberately do not rebuild it on cert rotation (see
-     *         the class Javadoc).
+     * @return the Apache HC async client. The same instance is returned for the lifetime of the
+     *         manager: cert/key rotation is applied in place via the registered scheme strategy
+     *         (see {@link #reload()}) rather than by republishing a new client.
      */
     public CloseableHttpAsyncClient getHttpClient() {
-        if (closed.get()) {
-            throw new IllegalStateException("workload-identity HTTP client manager is closed");
-        }
-        if (started.get() == false) {
-            throw new IllegalStateException("workload-identity HTTP client manager has not been started");
+        final State current = state.get();
+        if (current != State.STARTED) {
+            throw new IllegalStateException("workload-identity HTTP client manager in state [" + current + "]");
         }
         return httpClient;
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy) {
+    /**
+     * Swap the registered {@link SchemeIOSessionStrategy}'s underlying {@link SSLIOSessionStrategy}
+     * to one built over the freshly-loaded {@code SSLContext} and advance the rotation epoch.
+     */
+    public void reload() {
+        if (state.get() == State.CLOSED) {
+            return;
+        }
+        final SSLIOSessionStrategy next;
+        try {
+            next = sslConfig.getStrategy();
+        } catch (Exception e) {
+            logger.warn("failed to fetch new workload-identity SSL strategy during reload; keeping previous delegate", e);
+            return;
+        }
+        sslStrategy.setDelegate(next);
+        state.compareAndSet(State.INIT, State.INIT_RELOADED);
+        logger.debug(
+            "published workload-identity SSL strategy; pooled connections will be retired by the reuse strategy on their next response"
+        );
+    }
+
+    // Visible for testing
+    ReloadableSchemeIoSessionStrategy getSslStrategy() {
+        return sslStrategy;
+    }
+
+    private static PoolingNHttpClientConnectionManager createConnectionManager(SchemeIOSessionStrategy sslStrategy) {
         final ConnectingIOReactor ioReactor;
         try {
             // Override the IOReactorConfig default of availableProcessors(): this client is low-QPS and
@@ -119,9 +172,14 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
         return new PoolingNHttpClientConnectionManager(ioReactor, registry);
     }
 
+    /**
+     * Shut down the started HC client and connection evictor. Only the {@code STARTED → CLOSED}
+     * transition does work; calls from any other state (including a repeat call from
+     * {@code CLOSED}) silently return.
+     */
     @Override
-    public synchronized void close() {
-        if (closed.compareAndSet(false, true) == false) {
+    public void close() {
+        if (state.compareAndSet(State.STARTED, State.CLOSED) == false) {
             return;
         }
         // Close the HC client first so its blocking shutdown of the IO reactor and connection

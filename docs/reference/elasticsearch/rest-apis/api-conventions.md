@@ -304,7 +304,7 @@ Aliases are resolved after wildcard expressions. This can result in a request th
 ::::
 
 
-You can also exclude clusters from a list of clusters to search using the `-` character: `remote*:*,-remote1:*,-remote4:*` will search all clusters with an alias that starts with "remote" except for "remote1" and "remote4". To exclude an entire cluster, the index part must be `*` (for example, `-remote1:*`).
+You can also exclude clusters from a list of clusters to search using the `-` character: `remote*:*,-remote1:*,-remote4:*` will search all clusters with an alias that starts with `"remote"` except for `"remote1"` and `"remote4"`. To exclude an entire cluster, the index part must be `*` (for example, `-remote1:*`).
 
 To exclude specific indexes on a remote cluster, prefix the index with `-` after the cluster qualifier: `remote*:*,remote1:-logs*` searches all "remote*" clusters but skips indexes matching `logs*` on `remote1`. {applies_to}`stack: ga 9.5` The form `-cluster:<index>` (where `<index>` is not `*`) is also accepted as an alternative for `cluster:-<index>` — for example, `remote*:*,-remote1:logs*` is equivalent to `remote*:*,remote1:-logs*`. Combining both prefixes (for example, `-remote1:-logs*`) is invalid and rejected.
 

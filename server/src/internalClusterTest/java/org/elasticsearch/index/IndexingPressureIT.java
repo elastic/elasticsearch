@@ -54,7 +54,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -64,6 +63,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -104,25 +104,21 @@ public class IndexingPressureIT extends ESIntegTestCase {
         return 1;
     }
 
-    public void testCancellableTransportWriteAction() throws InterruptedException {
+    public void testCancellableTransportWriteAction() throws Exception {
         assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
         ensureGreen(INDEX_NAME);
 
         Tuple<String, String> primaryReplicaNodeNames = getPrimaryReplicaNodeNames();
         String primaryName = primaryReplicaNodeNames.v1();
-        String replicaName = primaryReplicaNodeNames.v2();
         String coordinatingOnlyNode = getCoordinatingOnlyNode();
 
         TransportService primaryService = internalCluster().getInstance(TransportService.class, primaryName);
         final MockTransportService primaryTransportService = (MockTransportService) primaryService;
-        TransportService replicaService = internalCluster().getInstance(TransportService.class, replicaName);
-        final MockTransportService replicaTransportService = (MockTransportService) replicaService;
 
         TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
         IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, primaryName);
 
         AtomicReference<ReplicationTask> replicationTask = new AtomicReference<>();
-        AtomicReference<TransportRequest> requestAtomicReference = new AtomicReference<>();
         final CountDownLatch waitForPreSubmissionTaskCancellation = new CountDownLatch(1);
 
         AtomicBoolean preIndexCalled = new AtomicBoolean(false);
@@ -137,7 +133,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
                 assertThat(task, instanceOf(ReplicationTask.class));
                 assertThat(indexingPressure.stats().getTotalCancelledOps(), is(0L));
                 replicationTask.set((ReplicationTask) task);
-                requestAtomicReference.set(request);
                 taskManager.cancel(replicationTask.get(), "presubmission-cancellation", () -> {});
                 assertThat(((ReplicationTask) task).isCancelled(), is(true));
                 waitForPreSubmissionTaskCancellation.countDown();
@@ -152,12 +147,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
             bulkRequest.add(request);
         }
 
-        ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
-        Executor writeExecutor = primaryThreadPool.executor(ThreadPool.Names.WRITE);
-
-        ThreadPool replicaThreadPool = internalCluster().getInstance(ThreadPool.class, replicaName);
-        Executor replicaWriteExecutor = replicaThreadPool.executor(ThreadPool.Names.WRITE);
-
+        // Pre submission cancellation.
         try (var mockLog = MockLog.capture(TransportShardBulkAction.class)) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -187,9 +177,84 @@ public class IndexingPressureIT extends ESIntegTestCase {
             if (waitForPreSubmissionTaskCancellation.getCount() > 0) {
                 waitForPreSubmissionTaskCancellation.countDown();
             }
+            // Clean up previous set up.
             PreIndexListenerInstallerPlugin.resetPreIndexListener();
+            primaryTransportService.clearAllRules();
         }
         assertFalse(preIndexCalled.get());
+
+        // Post submission cancellation.
+        AtomicBoolean postSubmissionCancellationIndexCalled = new AtomicBoolean(false);
+        PreIndexListenerInstallerPlugin.installPreIndexListener((shardId, index) -> {
+            postSubmissionCancellationIndexCalled.set(true);
+            fail("indexing should not run when cancelled post-submission");
+        });
+
+        AtomicReference<ReplicationTask> postCancelTask = new AtomicReference<>();
+        CountDownLatch primaryRequestArrived = new CountDownLatch(1);
+
+        // watch for arrival for our bulk task.
+        primaryTransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]",
+            (handler, request, channel, task) -> {
+                postCancelTask.set((ReplicationTask) task);
+                primaryRequestArrived.countDown();
+                // No cancellation here.
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryName);
+        Executor writeExecutor = primaryThreadPool.executor(ThreadPool.Names.WRITE);
+
+        // First block off all primary write thread pool.
+        try (
+            var mockLog = MockLog.capture(TransportShardBulkAction.class);
+            Releasable primaryRelease = blockWriteThreadPool(primaryThreadPool)
+        ) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Post Submission Cancellation",
+                    TransportShardBulkAction.class.getCanonicalName(),
+                    Level.WARN,
+                    Strings.format("for Index shard [[%s][0]] is cancelled post-submission.", INDEX_NAME)
+                )
+            );
+
+            ThreadPoolExecutor writePool = asInstanceOf(ThreadPoolExecutor.class, writeExecutor);
+
+            // Make sure every thread is blocked.
+            assertBusy(() -> assertThat(writePool.getActiveCount(), equalTo(writePool.getMaximumPoolSize())));
+            int queueBefore = writePool.getQueue().size();
+            assertThat(queueBefore, is(0));
+
+            ActionFuture<BulkResponse> postSubmissionCancelledFuture = client(coordinatingOnlyNode).bulk(bulkRequest);
+
+            // release the request handler.
+            primaryRequestArrived.await();
+            assertBusy(() -> assertThat(writePool.getQueue().size(), greaterThan(0)));
+
+            // Cancel while task is enqueued.
+            taskManager.cancel(postCancelTask.get(), "post-submission-cancellation", () -> {});
+
+            // Let go all write threads.
+            primaryRelease.close();
+
+            mockLog.awaitAllExpectationsMatched();
+            BulkResponse bulkResponse = postSubmissionCancelledFuture.actionGet();
+            assertThat(indexingPressure.stats().getTotalCancelledOps(), is(2L));
+
+            Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
+
+            while (iterator.hasNext()) {
+                BulkItemResponse bulkItemResponse = iterator.next();
+                Throwable rootCause = ExceptionsHelper.unwrap(bulkItemResponse.getFailure().getCause(), TaskCancelledException.class);
+                assertThat(rootCause, notNullValue());
+                assertThat(rootCause.getMessage(), is("task cancelled [post-submission-cancellation]"));
+            }
+        }
+
+        assertFalse(postSubmissionCancellationIndexCalled.get());
     }
 
     public void testWriteIndexingPressureMetricsAreIncremented() throws Exception {

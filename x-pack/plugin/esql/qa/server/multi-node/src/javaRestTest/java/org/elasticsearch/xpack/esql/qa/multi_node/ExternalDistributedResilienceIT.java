@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import fixture.s3.BlobEntry;
+
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.xpack.esql.datasources.FaultInjectingS3HttpHandler;
@@ -23,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.isServerless;
+import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.WAREHOUSE;
 
 /**
@@ -135,6 +139,69 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
 
             faultHandler().clearFault();
         }
+    }
+
+    /**
+     * End-to-end coverage of the <b>multi-segment</b> uncompressed external-read path (the path that
+     * regressed in esql #862). The file is sized above twice NDJSON's 4 MiB minimum segment size, so
+     * {@code parsing_parallelism >= 2} splits it into several byte-range segments and the read goes
+     * through {@code ParallelParsingCoordinator}'s multi-segment as-ready iterator rather than the
+     * single-stream fallback. With the S3 fixture injecting connection resets on the data object's
+     * reads, the query must still return every row exactly once through the real
+     * REST/planner/executor/storage stack.
+     * <p>
+     * Note on layering: the fixture's {@link FaultType#CONNECTION_RESET} drops the connection at
+     * stream-open, which the object-store layer retries transparently — so this asserts integrated
+     * correctness + open-time resilience for the multi-segment path, not the coordinator's mid-read
+     * reset recovery. That mid-read path (a reset on an already-open segment stream) is covered
+     * deterministically by the unit tests {@code ParallelParsingCoordinatorTests
+     * #testConnectionResetMidSegmentResumesAndDeliversAllRowsOnce} and {@code
+     * ParallelParsingAdversarialTests}, and end-to-end against a real object store by the manual
+     * large-glob smoke documented on the PR.
+     */
+    public void testMultiSegmentNdjsonReadRecoversFromConnectionReset() throws Exception {
+        int rows = 200_000;
+        // ~16 MiB of uncompressed NDJSON: comfortably above 2x the 4 MiB minimum segment size, so a
+        // parsing_parallelism of 4 yields multiple segments.
+        byte[] ndjson = generateNdjson(rows);
+        String key = WAREHOUSE + "/reset/big.ndjson";
+        s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
+
+        String query = externalS3Query(key) + " | STATS count = COUNT(*)";
+        for (String mode : DISTRIBUTION_MODES) {
+            // Two resets on the data object's reads; each segment re-open is within the retry budget.
+            faultHandler().setFault(FaultType.CONNECTION_RESET, 2, path -> path.endsWith("big.ndjson"));
+
+            Map<String, Object> result = runQueryWithMode(query, mode, 4);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) result.get("values");
+            assertNotNull(Strings.format("Expected values after reset recovery for mode %s", mode), values);
+            assertEquals(Strings.format("Expected a single COUNT row for mode %s", mode), 1, values.size());
+            assertEquals(
+                Strings.format("Expected exactly-once full count after reset recovery for mode %s", mode),
+                (long) rows,
+                ((Number) values.get(0).get(0)).longValue()
+            );
+            assertEquals(Strings.format("All injected resets should have been consumed for mode %s", mode), 0, faultHandler().remainingFaults());
+
+            faultHandler().clearFault();
+        }
+    }
+
+    private static byte[] generateNdjson(int rows) {
+        StringBuilder sb = new StringBuilder(rows * 90);
+        for (int i = 0; i < rows; i++) {
+            sb.append("{\"id\":")
+                .append(i)
+                .append(",\"name\":\"emp-")
+                .append(i)
+                .append("\",\"dept\":\"engineering-department-")
+                .append(i % 32)
+                .append("\",\"salary\":")
+                .append(40000 + (i % 50000))
+                .append("}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     private static boolean hasCause(Throwable t, Class<? extends Throwable> type) {

@@ -111,6 +111,13 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
     /**
+     * Query-level override for the IN subquery hash join threshold.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting("in_subquery_hash_join_threshold", -1, -1);
+
+    /**
      * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
      * This applies to forks and subqueries.
      */

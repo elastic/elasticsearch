@@ -1,10 +1,10 @@
 import { execSync } from "child_process";
 import { resolve } from "path";
 
-import { analyzeReports } from "../analyzer/analyze";
-import { renderMarkdown, severity } from "../analyzer/render";
+import { analyzeReports } from "../analyzer/analyze.ts";
+import { renderMarkdown, severity } from "../analyzer/render.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 async function run(): Promise<void> {
   const report = await analyzeReports([PROJECT_ROOT]);

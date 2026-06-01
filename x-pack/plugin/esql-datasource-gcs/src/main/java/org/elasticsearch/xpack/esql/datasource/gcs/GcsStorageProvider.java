@@ -40,14 +40,15 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Google Cloud Storage.
  * <p>
- * Supports the {@code gs://} URI scheme. Authentication can be provided via:
+ * Supports the {@code gs://} URI scheme. Authentication must be provided explicitly via:
  * <ul>
  *   <li>Explicit service account JSON credentials</li>
  *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
  *       {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>Application Default Credentials (ADC) — environment variable, metadata server, etc.</li>
  * </ul>
+ * The node's ambient credentials (Application Default Credentials) are never used: a data source must
+ * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -64,8 +65,9 @@ public final class GcsStorageProvider implements StorageProvider {
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
         // When explicit credentials, keyless auth, or anonymous mode are configured, build the client
-        // eagerly so misconfigurations are caught early. When using ADC (config is null), defer client
-        // creation to first use so the plugin can load even when no GCS credentials are configured.
+        // eagerly so misconfigurations are caught early. When no credentials are configured (config is null),
+        // defer client creation to first use so the plugin can load; the missing-credentials error then
+        // surfaces only when a gs:// query is actually executed.
         if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
             this.storage = buildStorageClient(config);
         }
@@ -123,7 +125,11 @@ public final class GcsStorageProvider implements StorageProvider {
             } else if (config != null && config.hasKeylessAuth()) {
                 builder.setCredentials(buildIdentityPoolCredentials(config));
             } else {
-                builder.setCredentials(GoogleCredentials.getApplicationDefault());
+                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+                throw new IllegalArgumentException(
+                    "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
+                        + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
+                );
             }
 
             if (config != null && config.projectId() != null) {

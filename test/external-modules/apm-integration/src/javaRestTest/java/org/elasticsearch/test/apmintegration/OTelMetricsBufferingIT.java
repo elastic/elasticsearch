@@ -30,7 +30,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "500ms")
+        .setting("telemetry.otel.metrics.interval", "10m") // we flush manually in all tests anyway
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
         // Tight write/read windows so buffered files become drainable within the test budget.
@@ -73,19 +73,19 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
         CountDownLatch backlogReplayed = new CountDownLatch(1);
         CountDownLatch outageWindowBatchReplayed = new CountDownLatch(1);
-        AtomicLong maxReplaysSeen = new AtomicLong();
+        AtomicLong replayedFiles = new AtomicLong();
         recordingApmServer.addMessageConsumer(msg -> {
             if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
                 long timestamp = m.collectionTime();
                 if (timestamp >= outageStartEpochNanos && timestamp <= outageEndEpochNanos) {
                     outageWindowBatchReplayed.countDown();
                 }
-                long replays = longSample(m, "es.apm.metrics.disk_buffer.replays");
-                if (replays > 0) {
-                    maxReplaysSeen.accumulateAndGet(replays, Math::max);
-                }
-                // Require ≥2 to verify the drain loop iterated through more than a single file.
-                if (maxReplaysSeen.get() >= 2) {
+                replayedFiles.getAndAdd(longSample(m, "es.apm.metrics.disk_buffer.replays"));
+                // Require all files to be replayed:
+                // - there were ${BUFFER_BATCHES} triggered
+                // - each one was actually flushed twice (since we flush the system meter provider twice on attemptFlush()), which resulted
+                // in 2 files being created per batch
+                if (replayedFiles.get() == 2 * BUFFER_BATCHES) {
                     backlogReplayed.countDown();
                 }
             }
@@ -96,9 +96,9 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
         assertTrue(
-            "expected the drain loop to replay at least two disk-buffered batches after recovery "
+            "expected the drain loop to replay all disk-buffered batches after recovery "
                 + "(es.apm.metrics.disk_buffer.replays peaked at "
-                + maxReplaysSeen.get()
+                + replayedFiles.get()
                 + ")",
             backlogReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
         );

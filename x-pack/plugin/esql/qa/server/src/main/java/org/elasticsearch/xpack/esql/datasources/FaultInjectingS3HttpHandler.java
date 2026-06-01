@@ -85,7 +85,7 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
                 // Serve the real response but truncate once the body crosses the threshold; the wrapper
                 // decrements the budget only if/when it actually truncates, so sub-threshold probe reads
                 // leave the fault armed for the next (larger) segment read.
-                delegate.handle(new TruncatingHttpExchange(exchange, fault.resetAfterBytes, fault.remaining, fault.pathFilter));
+                delegate.handle(new TruncatingHttpExchange(exchange, fault.resetAfterBytes, fault.remaining));
                 return;
             }
             if (fault.remaining.decrementAndGet() >= 0) {
@@ -107,7 +107,8 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
             case HTTP_503 -> sendErrorResponse(exchange, 503, "Service Unavailable", "SlowDown", "Reduce your request rate");
             case HTTP_500 -> sendErrorResponse(exchange, 500, "Internal Server Error", "InternalError", "Internal server error");
             case CONNECTION_RESET -> exchange.close();
-            case CONNECTION_RESET_MID_BODY -> exchange.close(); // unreachable here; handled in handle() via the wrapper
+            // Handled in handle() via the truncating wrapper before injectFault is reached.
+            case CONNECTION_RESET_MID_BODY -> throw new AssertionError("CONNECTION_RESET_MID_BODY must be handled in handle()");
         }
     }
 
@@ -147,13 +148,11 @@ public class FaultInjectingS3HttpHandler implements HttpHandler {
         private final HttpExchange delegate;
         private final int resetAfterBytes;
         private final AtomicInteger remaining;
-        private final Predicate<String> pathFilter;
 
-        TruncatingHttpExchange(HttpExchange delegate, int resetAfterBytes, AtomicInteger remaining, Predicate<String> pathFilter) {
+        TruncatingHttpExchange(HttpExchange delegate, int resetAfterBytes, AtomicInteger remaining) {
             this.delegate = delegate;
             this.resetAfterBytes = resetAfterBytes;
             this.remaining = remaining;
-            this.pathFilter = pathFilter;
         }
 
         @Override

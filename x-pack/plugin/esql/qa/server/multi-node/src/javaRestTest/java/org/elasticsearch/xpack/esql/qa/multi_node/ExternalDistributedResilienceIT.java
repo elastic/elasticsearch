@@ -142,8 +142,8 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
     }
 
     /**
-     * End-to-end coverage of the <b>multi-segment</b> uncompressed external-read path (the path that
-     * regressed in esql #862). The file is sized above twice NDJSON's 4 MiB minimum segment size, so
+     * End-to-end coverage of the <b>multi-segment</b> uncompressed external-read path (the path whose
+     * idle-socket reset this change fixes). The file is sized above twice NDJSON's 4 MiB minimum segment size, so
      * {@code parsing_parallelism >= 2} splits it into several byte-range segments and the read goes
      * through {@code ParallelParsingCoordinator}'s multi-segment as-ready iterator rather than the
      * single-stream fallback. With the S3 fixture injecting connection resets on the data object's
@@ -193,7 +193,7 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
     }
 
     /**
-     * End-to-end regression for the idle/connection reset that motivated esql #862. Unlike
+     * End-to-end regression for the idle/connection reset on an already-open external segment stream. Unlike
      * {@link #testMultiSegmentNdjsonReadRecoversFromConnectionReset} (which resets at stream-open, where the
      * object-store layer retries), this drops the connection <b>mid-body</b> on a segment read — a reset on an
      * already-open stream, which propagates to {@code ParallelParsingCoordinator}'s mid-read recovery

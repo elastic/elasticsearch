@@ -620,6 +620,8 @@ public final class ParallelParsingCoordinator {
                     readSegmentOnce(segObj, ctx, deliveredRows);
                     return;
                 } catch (InterruptedException ie) {
+                    // Preserve the interrupt for callers up the stack; a blocking op may have cleared it.
+                    Thread.currentThread().interrupt();
                     throw ie;
                 } catch (Exception e) {
                     boolean canRetry = attempt < MAX_STREAM_RESET_RETRIES

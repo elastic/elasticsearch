@@ -912,12 +912,12 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             .size();
         assertThat("test needs multiple segments", segmentCount, Matchers.greaterThan(1));
 
-        // Segment 0 (the file-leader split) blocks before emitting any page until a later segment has emitted
-        // at least one. So if the iterator hands us any page while segment 0 is still blocked, that page came
-        // from a later segment — proving as-ready emission. A regressed in-order implementation would gate
-        // every page behind segment 0, which is blocked, and the read would time out instead of passing.
-        java.util.concurrent.CountDownLatch laterSegmentEmitted = new java.util.concurrent.CountDownLatch(1);
-        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), laterSegmentEmitted);
+        // Segment 0 (the file-leader split) blocks before emitting any page until the consumer has already
+        // pulled a page. Because the blocked leader has enqueued nothing, that first page can only have come
+        // from a later segment — proving as-ready emission deterministically, with no enqueue race. A
+        // regressed in-order implementation would gate every page behind the blocked leader and time out.
+        java.util.concurrent.CountDownLatch leaderRelease = new java.util.concurrent.CountDownLatch(1);
+        FirstSegmentStallingReader reader = new FirstSegmentStallingReader(blockFactory(), leaderRelease);
 
         ExecutorService exec = Executors.newFixedThreadPool(4);
         String firstLineEmitted = null;
@@ -942,6 +942,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     if (firstLineEmitted == null && p.getPositionCount() > 0) {
                         BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
                         firstLineEmitted = block.getBytesRef(block.getFirstValueIndex(0), new BytesRef()).utf8ToString();
+                        // First page is in hand while the leader is still blocked — now let the leader proceed.
+                        leaderRelease.countDown();
                     }
                     p.releaseBlocks();
                 }
@@ -1070,11 +1072,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * full speed. Proves the coordinator emits pages as they become ready rather than in segment order.
      */
     private static class FirstSegmentStallingReader extends LineFormatReader {
-        private final java.util.concurrent.CountDownLatch laterSegmentEmitted;
+        private final java.util.concurrent.CountDownLatch leaderRelease;
 
-        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch laterSegmentEmitted) {
+        FirstSegmentStallingReader(BlockFactory blockFactory, java.util.concurrent.CountDownLatch leaderRelease) {
             super(blockFactory);
-            this.laterSegmentEmitted = laterSegmentEmitted;
+            this.leaderRelease = leaderRelease;
         }
 
         @Override
@@ -1091,18 +1093,15 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
                 @Override
                 public Page next() {
-                    if (firstPage) {
+                    if (firstPage && isFirstSplit) {
                         firstPage = false;
-                        if (isFirstSplit) {
-                            // Block the leader segment before emitting anything until a later segment emits.
-                            try {
-                                laterSegmentEmitted.await(30, TimeUnit.SECONDS);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                            }
-                        } else {
-                            // A later segment is producing its first page; unblock the leader.
-                            laterSegmentEmitted.countDown();
+                        // Block the leader before emitting anything until the consumer releases it (which it
+                        // does only after pulling a page — necessarily from a later segment, since the leader
+                        // has enqueued nothing). Later segments are never gated and run at full speed.
+                        try {
+                            leaderRelease.await(30, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
                         }
                     }
                     return delegate.next();

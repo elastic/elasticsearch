@@ -8,6 +8,7 @@
  */
 
 import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 def clusterCredentials = [
         username: providers.systemProperty('tests.rest.cluster.username')
@@ -16,11 +17,19 @@ def clusterCredentials = [
                 .getOrElse('x-pack-test-password')
 ]
 
+// New path: plain Test tasks enrolled via RestTestBasePlugin / JUnit-rule-based test clusters
 plugins.withType(RestTestBasePlugin) {
   restTests.tasks.configureEach {
     systemProperty 'tests.rest.cluster.username', clusterCredentials.username
     systemProperty 'tests.rest.cluster.password', clusterCredentials.password
   }
+}
+
+// Legacy path: Gradle test-cluster framework (LegacyRestTestBasePlugin).
+// Must remain unconditional so that projects not using RestTestBasePlugin still receive credentials.
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+    systemProperty 'tests.rest.cluster.username', clusterCredentials.username
+    systemProperty 'tests.rest.cluster.password', clusterCredentials.password
 }
 
 testClusters.configureEach {

@@ -445,6 +445,17 @@ public class EsqlCapabilities {
         FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
 
         /**
+         * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
+         * keyword block for an array sub-field, a JSON-string keyword for a nested-object sub-field, and a
+         * null position for {@code VALUE_NULL}, instead of always going through {@code parser.text()} (which
+         * threw on every non-scalar value). Tests that exercise the parse path on a non-scalar sub-field
+         * must require this capability so they skip on mixed clusters where any data node still runs the
+         * pre-fix evaluator and would surface the legacy {@code Expected text at &lt;line&gt;:&lt;col&gt;
+         * but found START_ARRAY} warning instead of the new value.
+         */
+        FIELD_EXTRACT_RETURNS_MULTI_VALUE,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,

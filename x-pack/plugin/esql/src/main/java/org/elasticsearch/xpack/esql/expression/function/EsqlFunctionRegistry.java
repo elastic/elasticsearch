@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.Clamp;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -660,6 +661,32 @@ public class EsqlFunctionRegistry {
 
     public EsqlFunctionRegistry snapshotRegistry() {
         return snapshotRegistry;
+    }
+
+    /**
+     * Returns the names (primary names and aliases, normalized) of all registered inference functions.
+     */
+    private Set<String> inferenceFunctionNames;
+
+    /**
+     * Returns the names (primary names and aliases, normalized) of all registered inference functions.
+     */
+    public Set<String> inferenceFunctionNames() {
+        Set<String> names = inferenceFunctionNames;
+        if (names == null) {
+            names = new HashSet<>();
+            for (FunctionDefinition def : listFunctions()) {
+                if (InferenceFunction.class.isAssignableFrom(def.clazz())) {
+                    names.add(normalize(def.name()));
+                    for (String alias : def.aliases()) {
+                        names.add(normalize(alias));
+                    }
+                }
+            }
+            names = Set.copyOf(names);
+            inferenceFunctionNames = names;
+        }
+        return names;
     }
 
     public static boolean isSnapshotOnly(String functionName) {

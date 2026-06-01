@@ -150,11 +150,17 @@ public class PreAnalyzer {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });
+        // Get the names of all registered inference functions
         EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
+        Set<String> inferenceFunctionNames = snapshotRegistry.inferenceFunctionNames();
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
-            String inferenceId = inferenceId(fn, snapshotRegistry);
-            if (inferenceId != null) {
-                inferenceIds.add(inferenceId);
+            String functionName = snapshotRegistry.resolveAlias(fn.name());
+            if (inferenceFunctionNames.contains(functionName)) {
+                // The name set guarantees this resolves to an InferenceFunction, so we go straight to the definition.
+                String inferenceId = inferenceId(fn, snapshotRegistry.resolveFunction(functionName));
+                if (inferenceId != null) {
+                    inferenceIds.add(inferenceId);
+                }
             }
             if (fn.name().equalsIgnoreCase("knn")
                 || fn.name().equalsIgnoreCase("to_dense_vector")
@@ -193,20 +199,6 @@ public class PreAnalyzer {
 
     private static String inferenceId(InferencePlan<?> plan) {
         return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
-    }
-
-    private static String inferenceId(UnresolvedFunction f, EsqlFunctionRegistry snapshotRegistry) {
-        String functionName = snapshotRegistry.resolveAlias(f.name());
-        if (snapshotRegistry.functionExists(functionName) == false) {
-            return null;
-        }
-
-        FunctionDefinition def = snapshotRegistry.resolveFunction(functionName);
-        if (InferenceFunction.class.isAssignableFrom(def.clazz()) == false) {
-            return null;
-        }
-
-        return inferenceId(f, def);
     }
 
     private static String inferenceId(UnresolvedFunction f, FunctionDefinition def) {

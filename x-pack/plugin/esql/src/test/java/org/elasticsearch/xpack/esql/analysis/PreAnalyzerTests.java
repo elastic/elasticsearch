@@ -10,10 +10,14 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 
 public class PreAnalyzerTests extends ESTestCase {
 
@@ -41,11 +45,26 @@ public class PreAnalyzerTests extends ESTestCase {
             List.of("text-embedding-inference-id")
         );
 
+        // Embedding function
+        assertCollectInferenceIds(
+            preAnalyzer,
+            "FROM books METADATA _score | EVAL embedding = EMBEDDING(\"description\", \"embedding-inference-id\")",
+            List.of("embedding-inference-id")
+        );
+
         // Nested inference functions
         assertCollectInferenceIds(
             preAnalyzer,
             "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(TEXT_EMBEDDING(\"nested\", \"nested-id\"), \"outer-id\")",
             List.of("nested-id", "outer-id")
+        );
+
+        // Inference function wrapping a regular (non-inference) function: the cheap short-circuit must
+        // skip CONCAT but still collect the inference function's id.
+        assertCollectInferenceIds(
+            preAnalyzer,
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(CONCAT(\"a\", \"b\"), \"text-embedding-inference-id\")",
+            List.of("text-embedding-inference-id")
         );
 
         // Multiple inference plans
@@ -57,6 +76,25 @@ public class PreAnalyzerTests extends ESTestCase {
 
         // No inference operations
         assertCollectInferenceIds(preAnalyzer, "FROM books | WHERE title:\"test\"", List.of());
+
+        // No inference operations, but several regular functions are present: the cheap short-circuit must
+        // skip every one of them without collecting any inference id.
+        assertCollectInferenceIds(
+            preAnalyzer,
+            "FROM books | EVAL x = LENGTH(CONCAT(TO_LOWER(title), \"!\")) | WHERE x > ABS(-1)",
+            List.of()
+        );
+    }
+
+    /**
+     * Test that the inference function names are correctly collected.
+     */
+    public void testInferenceFunctionNames() {
+        Set<String> inferenceFunctionNames = TEST_FUNCTION_REGISTRY.inferenceFunctionNames();
+
+        assertThat(inferenceFunctionNames, hasItems("text_embedding", "embedding"));
+        assertThat(inferenceFunctionNames, not(hasItem("concat")));
+        assertThat(inferenceFunctionNames, not(hasItem("length")));
     }
 
     private void assertCollectInferenceIds(PreAnalyzer preAnalyzer, String query, List<String> expectedInferenceIds) {

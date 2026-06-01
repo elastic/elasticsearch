@@ -75,41 +75,4 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isFullTextAfterSubqueryInFromBug(error, query));
     }
 
-    public void testApproximationUnsupportedSubqueryMatchesLimitByBeforeStats() {
-        String query = "SET approximation={};FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),logs";
-        String error = "verification_exception: line 1:40: approximation not supported: query with [LIMIT 12 BY color] "
-            + "before [STATS] cannot be approximated";
-
-        assertTrue(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryRequiresApproximation() {
-        String query = "FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),logs";
-        String error = "verification_exception: line 1:40: approximation not supported: query with [LIMIT 12 BY color] "
-            + "before [STATS] cannot be approximated";
-
-        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryRequiresSubqueryInFrom() {
-        String query = "SET approximation={};FROM colors | LIMIT 12 BY color | STATS c = COUNT(*)";
-        String error = "verification_exception: line 1:40: approximation not supported: query with [LIMIT 12 BY color] "
-            + "before [STATS] cannot be approximated";
-
-        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryMatchesPlaceholderMessage() {
-        String query = "SET approximation={};FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),logs";
-        String error = "verification_exception: approximation not supported: SampleProbabilityPlaceHolder cannot be planned";
-
-        assertTrue(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
-
-    public void testApproximationUnsupportedSubqueryRequiresApproximationErrorForPlaceholder() {
-        String query = "SET approximation={};FROM (FROM colors | LIMIT 12 BY color | INLINE STATS c = COUNT(*)),logs";
-        String error = "verification_exception: plan contains SampleProbabilityPlaceHolder";
-
-        assertFalse(GenerativeRestTest.isApproximationUnsupportedSubqueryBug(error, query));
-    }
 }

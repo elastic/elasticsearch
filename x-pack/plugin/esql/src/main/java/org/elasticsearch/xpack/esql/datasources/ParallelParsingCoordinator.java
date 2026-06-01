@@ -22,12 +22,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -437,18 +433,6 @@ public final class ParallelParsingCoordinator {
          * {@code maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT}, preserving backpressure pressure.
          */
         private static final int PAGES_PER_OPEN_SEGMENT = 16;
-        /**
-         * How many times a worker re-opens its segment after a connection-reset-class failure before
-         * giving up and propagating. Bounded so a persistently-resetting endpoint fails fast rather than
-         * looping forever.
-         */
-        private static final int MAX_STREAM_RESET_RETRIES = 3;
-        /**
-         * Fixed delay between a connection-reset re-open and the retry, giving a momentarily-unhealthy
-         * endpoint a beat to recover rather than hammering it back-to-back.
-         */
-        private static final long RESET_RETRY_BACKOFF_MILLIS = 100;
-
         private final SegmentableFormatReader reader;
         private final StorageObject storageObject;
         private final List<String> projectedColumns;
@@ -556,7 +540,7 @@ public final class ParallelParsingCoordinator {
                 if (closed || firstError.get() != null) {
                     return;
                 }
-                readSegmentWithResetRetries(segmentIndex, offset, length);
+                readSegment(segmentIndex, offset, length);
             } catch (Exception e) {
                 firstError.compareAndSet(null, e);
             } finally {
@@ -570,15 +554,12 @@ public final class ParallelParsingCoordinator {
         }
 
         /**
-         * Reads one segment, re-opening and resuming on connection-reset-class failures.
-         * <p>
-         * Segments are {@code recordAligned} and the underlying read is deterministic, so re-opening from the
-         * segment start reproduces the same page sequence. On a reset we re-read from the start and skip the
-         * rows this worker already enqueued (tracked by {@code deliveredRows}), so each row reaches the shared
-         * queue exactly once. {@link InterruptedException} and genuine data/parse errors are not reset-class
-         * and propagate immediately; retries are bounded by {@link #MAX_STREAM_RESET_RETRIES}.
+         * Reads one segment and emits its pages as they become ready. A transient transport fault during the
+         * read (connection reset, premature end of body) is recovered <em>beneath</em> this read by the
+         * self-healing storage stream, which re-opens the byte range and resumes; so this simply reads
+         * complete pages. A genuine data/parse error propagates and fails the query.
          */
-        private void readSegmentWithResetRetries(int segmentIndex, long offset, long length) throws Exception {
+        private void readSegment(int segmentIndex, long offset, long length) throws Exception {
             boolean lastSplit = segmentIndex == segments.size() - 1;
             StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
@@ -609,159 +590,14 @@ public final class ParallelParsingCoordinator {
                 .maxRecordBytes(maxRecordBytes)
                 .build();
 
-            // Running count of rows from this segment already delivered to the shared queue. Held in a
-            // single-element array so the count survives a mid-read throw: readSegmentOnce updates it as it
-            // enqueues, so on a reset-resume we re-read from the segment start and skip exactly this many
-            // rows, never delivering any row twice.
-            long[] deliveredRows = { 0 };
-            int attempt = 0;
-            while (true) {
-                try {
-                    readSegmentOnce(segObj, ctx, deliveredRows);
-                    return;
-                } catch (InterruptedException ie) {
-                    // Preserve the interrupt for callers up the stack; a blocking op may have cleared it.
-                    Thread.currentThread().interrupt();
-                    throw ie;
-                } catch (Exception e) {
-                    boolean canRetry = attempt < MAX_STREAM_RESET_RETRIES
-                        && closed == false
-                        && firstError.get() == null
-                        && isConnectionReset(e);
-                    if (canRetry == false) {
-                        throw e;
-                    }
-                    attempt++;
-                    logger.debug(
-                        "segment [{}] hit a connection reset after [{}] delivered rows; re-opening (attempt [{}]/[{}])",
-                        segmentIndex,
-                        deliveredRows[0],
-                        attempt,
-                        MAX_STREAM_RESET_RETRIES
-                    );
-                    // Brief backoff so a momentarily-unhealthy endpoint gets a beat to recover rather than
-                    // being hammered with an immediate re-open. Interrupt-aware: an interrupt during the
-                    // wait aborts the read promptly.
-                    try {
-                        Thread.sleep(RESET_RETRY_BACKOFF_MILLIS);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw ie;
-                    }
-                }
-            }
-        }
-
-        /**
-         * Reads the segment from its start, skipping the first {@code deliveredRows[0]} rows (already delivered
-         * on a prior attempt), and enqueues the remaining pages onto the shared queue. {@code deliveredRows[0]}
-         * is advanced only as pages are actually enqueued, in place, so it reflects truly-delivered progress
-         * even if this method throws partway through — a subsequent reset-resume then knows exactly where to
-         * pick up.
-         * <p>
-         * The skip is performed at the <em>row</em> level, not the page level. A {@link SegmentableFormatReader}
-         * is only required to reproduce the same row sequence on a re-read, not the same pagination (a reader
-         * that fills pages by buffer or timing legitimately repaginates). So when the skip lands inside a page,
-         * the already-delivered prefix of that page is dropped and only the remaining
-         * {@code pageRows - toSkip} rows are enqueued; whole earlier pages are dropped outright.
-         */
-        private void readSegmentOnce(StorageObject segObj, FormatReadContext ctx, long[] deliveredRows) throws Exception {
-            long toSkip = deliveredRows[0];
-            CloseableIterator<Page> pages = reader.read(segObj, ctx);
-            try (pages) {
+            try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
                 while (pages.hasNext()) {
                     if (firstError.get() != null || closed) {
                         break;
                     }
-                    Page page = pages.next();
-                    int pageRows = page.getPositionCount();
-                    if (toSkip > 0) {
-                        // Replay path: this page (or a prefix of it) was already delivered before the reset.
-                        if (toSkip >= pageRows) {
-                            // Entire page already delivered: drop it and move on.
-                            toSkip -= pageRows;
-                            page.releaseBlocks();
-                            continue;
-                        }
-                        // The skip lands inside this page: the first `toSkip` rows were already delivered, the
-                        // remaining `pageRows - toSkip` rows have not. Slice out the undelivered tail and
-                        // enqueue only that. Page#slice builds independent blocks, so the original page is
-                        // released here regardless of whether the slice is enqueued.
-                        int skipInPage = (int) toSkip;
-                        Page remainder = page.slice(skipInPage, pageRows);
-                        page.releaseBlocks();
-                        toSkip = 0;
-                        int remainderRows = remainder.getPositionCount();
-                        if (enqueueOrRelease(remainder)) {
-                            deliveredRows[0] += remainderRows;
-                        }
-                        continue;
-                    }
-                    if (enqueueOrRelease(page)) {
-                        deliveredRows[0] += pageRows;
-                    }
+                    enqueueOrRelease(pages.next());
                 }
             }
-        }
-
-        /**
-         * True if {@code t} (or any cause in its chain) is a transient transport fault whose segment stream
-         * can be safely re-opened and resumed, as opposed to a genuine data or parse error (which must
-         * propagate without retry).
-         * <p>
-         * <b>Type first.</b> Classification keys off the exception <em>type</em>: the JDK transport types
-         * {@link SocketException} (covers "Connection reset" / "Connection reset by peer" / "Broken pipe"),
-         * {@link SocketTimeoutException}, and {@link InterruptedIOException} (a read timeout surfaces as one of
-         * these from the object-store HTTP client). The s3 datasource ({@code esql-datasource-s3}) wraps its
-         * transport failures: {@code S3StorageObject} rethrows them as {@link IOException} ("Range request
-         * failed", "Failed to read object"), and the AWS SDK's own
-         * {@code software.amazon.awssdk.core.exception.SdkClientException} / {@code AbortedException} carry the
-         * underlying {@code SocketException} as a cause — both of which are caught by the cause-chain walk
-         * above. (The esql plugin does not depend on the AWS SDK, so those concrete types cannot be referenced
-         * here by class; they are matched through their JDK transport cause.)
-         * <p>
-         * <b>Message fallback is narrow and documented.</b> Some HTTP clients surface a connection drop as an
-         * {@link IOException} with no transport-typed cause — either an outright reset/close, or a mid-read
-         * truncation where fewer body bytes arrived than the Content-Length promised (Apache HttpClient's
-         * {@code ConnectionClosedException} "Premature end of Content-Length delimited message body", or
-         * "unexpected end of stream" elsewhere). Only for those cases do we fall back to a tight substring
-         * check on the message. A throwable that cannot be type-identified as transport and does not match
-         * those narrow phrases is treated as a real error and is <em>not</em> retried — a genuine data/parse
-         * error never gets retried as transient, and a genuinely truncated object simply re-trips and fails
-         * cleanly within the bounded retry budget.
-         */
-        static boolean isConnectionReset(Throwable t) {
-            for (Throwable c = t; c != null; c = c.getCause()) {
-                // Type-based detection: JDK transport exception types are the authoritative signal.
-                if (c instanceof SocketException || c instanceof SocketTimeoutException || c instanceof InterruptedIOException) {
-                    return true;
-                }
-                // Narrow, documented message fallback: only an IOException whose message is a connection-drop
-                // phrase. Covers two shapes of the same transport failure — an outright reset/close, and a
-                // mid-read truncation where the HTTP client received fewer body bytes than the Content-Length
-                // promised (an idle/connection drop on an already-open object stream surfaces from Apache
-                // HttpClient as ConnectionClosedException "Premature end of Content-Length delimited message
-                // body", and from other clients as "unexpected end of stream"). Deliberately does NOT match
-                // arbitrary throwables — a data or parse error that merely mentions the phrase must not be
-                // retried; a re-read of a genuinely truncated object simply re-trips and fails cleanly within
-                // the bounded retry budget.
-                if (c instanceof IOException) {
-                    String msg = c.getMessage();
-                    if (msg != null) {
-                        String lower = msg.toLowerCase(Locale.ROOT);
-                        if (lower.contains("connection reset")
-                            || lower.contains("connection closed")
-                            || lower.contains("premature end of")
-                            || lower.contains("unexpected end of stream")) {
-                            return true;
-                        }
-                    }
-                }
-                if (c.getCause() == c) {
-                    break;
-                }
-            }
-            return false;
         }
 
         /**

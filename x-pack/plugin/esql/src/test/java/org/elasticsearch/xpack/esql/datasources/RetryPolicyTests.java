@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -57,46 +58,34 @@ public class RetryPolicyTests extends ESTestCase {
         assertTrue(policy.isRetryable(new SocketException("Connection reset")));
     }
 
-    public void testSocketExceptionWithoutResetIsNotRetryable() {
+    public void testAnySocketExceptionIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertFalse(policy.isRetryable(new SocketException("Broken pipe")));
+        // Connection reset and broken pipe are both transport faults; on a read either can be re-opened and
+        // resumed, so both are retryable by type — no message inspection.
+        assertTrue(policy.isRetryable(new SocketException("Connection reset")));
+        assertTrue(policy.isRetryable(new SocketException("Broken pipe")));
     }
 
-    public void testHttp429IsRetryable() {
+    public void testTransientStorageMarkerIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new IOException("Status code: 429")));
-        assertTrue(policy.isRetryable(new IOException("Too Many Requests")));
+        // Providers classify transient transport faults and retryable server responses (500 / 503 / 429) by
+        // type and status code, then raise this typed marker; the retry layer reacts to the type, not text.
+        assertTrue(policy.isRetryable(new TransientStorageException("transient transport fault", null)));
+        assertTrue(policy.isRetryable(new TransientStorageException("throttled", null, true)));
     }
 
-    public void testHttp503IsRetryable() {
+    public void testWrappedTransientMarkerIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new IOException("Status code: 503")));
-        assertTrue(policy.isRetryable(new IOException("Service Unavailable")));
-    }
-
-    public void testSlowDownIsRetryable() {
-        RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new IOException("SlowDown")));
-        assertTrue(policy.isRetryable(new IOException("Reduce your request rate")));
-    }
-
-    public void testHttp500IsRetryable() {
-        RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new IOException("Status code: 500")));
-        assertTrue(policy.isRetryable(new IOException("Internal Server Error")));
-        assertTrue(policy.isRetryable(new IOException("InternalError")));
-    }
-
-    public void testWrappedHttp500IsRetryable() {
-        RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new IOException("500 Internal Server Error"))));
-        assertTrue(policy.isRetryable(new IOException("outer", new IOException("InternalError"))));
+        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new TransientStorageException("transient", null))));
     }
 
     public void testNonTransientErrorIsNotRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
+        // A bare throwable with no transport type and no typed marker is a real error regardless of message —
+        // a 503 that was not classified into the typed marker by a provider is not retried here.
         assertFalse(policy.isRetryable(new IOException("Access Denied")));
         assertFalse(policy.isRetryable(new IOException("NoSuchKey")));
+        assertFalse(policy.isRetryable(new IOException("Service Unavailable")));
         assertFalse(policy.isRetryable(new SecurityException("forbidden")));
     }
 
@@ -105,10 +94,9 @@ public class RetryPolicyTests extends ESTestCase {
         assertFalse(policy.isRetryable(new IOException((String) null)));
     }
 
-    public void testWrappedTransientErrorIsRetryable() {
+    public void testWrappedTransientTransportErrorIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         assertTrue(policy.isRetryable(new RuntimeException("wrapper", new SocketTimeoutException("timeout"))));
-        assertTrue(policy.isRetryable(new IOException("outer", new IOException("503 Service Unavailable"))));
     }
 
     public void testWrappedNonTransientErrorIsNotRetryable() {
@@ -265,7 +253,7 @@ public class RetryPolicyTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() <= 6) {
-                throw new IOException("503 Service Unavailable");
+                throw new TransientStorageException("throttled", null, true);
             }
             return "ok";
         }, "test", path);
@@ -299,16 +287,16 @@ public class RetryPolicyTests extends ESTestCase {
     }
 
     public void testIsThrottlingErrorClassification() {
-        assertTrue(RetryPolicy.isThrottlingError(new IOException("Status code: 429")));
-        assertTrue(RetryPolicy.isThrottlingError(new IOException("Too Many Requests")));
-        assertTrue(RetryPolicy.isThrottlingError(new IOException("Status code: 503")));
-        assertTrue(RetryPolicy.isThrottlingError(new IOException("Service Unavailable")));
-        assertTrue(RetryPolicy.isThrottlingError(new IOException("SlowDown")));
-        assertTrue(RetryPolicy.isThrottlingError(new IOException("Reduce your request rate")));
+        // Throttling is decided by the provider (from the HTTP status) and flagged on the typed marker; it is
+        // no longer inferred from message text. The throttling marker is recognized through the cause chain.
+        assertTrue(RetryPolicy.isThrottlingError(new TransientStorageException("throttled", null, true)));
+        assertTrue(RetryPolicy.isThrottlingError(new RuntimeException("wrapper", new TransientStorageException("throttled", null, true))));
 
+        // A plain transient marker is retryable but not throttling.
+        assertFalse(RetryPolicy.isThrottlingError(new TransientStorageException("transient transport", null, false)));
         assertFalse(RetryPolicy.isThrottlingError(new SocketTimeoutException("timeout")));
         assertFalse(RetryPolicy.isThrottlingError(new ConnectException("refused")));
-        assertFalse(RetryPolicy.isThrottlingError(new IOException("Access Denied")));
+        assertFalse(RetryPolicy.isThrottlingError(new IOException("Service Unavailable")));
         assertFalse(RetryPolicy.isThrottlingError(new IOException((String) null)));
     }
 

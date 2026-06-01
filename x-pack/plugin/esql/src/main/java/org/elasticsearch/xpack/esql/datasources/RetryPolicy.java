@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
@@ -281,24 +282,9 @@ class RetryPolicy {
     }
 
     private static boolean isThrottlingSingleCause(Throwable t) {
-        if (t instanceof TransientStorageException tse) {
-            // The provider already classified this by type/status; trust its throttling flag.
-            return tse.throttling();
-        }
-        String message = t.getMessage();
-        if (message == null) {
-            return false;
-        }
-        if (message.contains("429") || message.contains("Too Many Requests")) {
-            return true;
-        }
-        if (message.contains("503") || message.contains("Service Unavailable")) {
-            return true;
-        }
-        if (message.contains("SlowDown") || message.contains("Reduce your request rate")) {
-            return true;
-        }
-        return false;
+        // Throttling (HTTP 429 / 503 / SlowDown) is classified by the provider from the status code and flagged
+        // on the typed exception; it is no longer inferred from message text.
+        return t instanceof TransientStorageException tse && tse.throttling();
     }
 
     private static boolean isTransientStorageError(Throwable t) {
@@ -311,14 +297,12 @@ class RetryPolicy {
     }
 
     private static boolean isTransientSingleCause(Throwable t) {
+        // Typed signal from a storage provider: it classified this fault by type/status (no message sniffing).
         if (t instanceof TransientStorageException) {
-            // Typed signal from a storage provider: it classified this fault by type/status, no message
-            // sniffing needed. This is the path that will replace the string checks below.
             return true;
         }
-        if (t instanceof SocketTimeoutException) {
-            return true;
-        }
+        // ConnectException is a SocketException subtype, so it must be checked FIRST: a failure to (re)connect
+        // is transient EXCEPT when caused by an unresolvable host (a config / DNS error, not worth retrying).
         if (t instanceof ConnectException) {
             for (Throwable cause = t.getCause(); cause != null; cause = cause.getCause()) {
                 if (cause instanceof UnknownHostException) {
@@ -327,17 +311,13 @@ class RetryPolicy {
             }
             return true;
         }
-        if (t instanceof SocketException) {
-            String msg = t.getMessage();
-            return msg != null && msg.contains("Connection reset");
-        }
-        String message = t.getMessage();
-        if (message == null) {
-            return false;
-        }
-        if (message.contains("500") || message.contains("Internal Server Error") || message.contains("InternalError")) {
+        // Other JDK transport types are transient by type. A SocketException covers connection reset / reset
+        // by peer / broken pipe; on a read these are all transient, since the byte range can be re-opened.
+        if (t instanceof SocketTimeoutException || t instanceof SocketException || t instanceof InterruptedIOException) {
             return true;
         }
+        // HTTP-status transients (500 / 503 / 429) reach here only as a typed TransientStorageException raised
+        // by the provider (the layer that has the status code); a bare throwable is treated as a real error.
         return isThrottlingSingleCause(t);
     }
 

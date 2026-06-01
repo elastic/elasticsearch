@@ -255,7 +255,7 @@ class AbstractRateGroupingFunction {
             return size;
         }
 
-        void clear() {
+        final void clear() {
             size = 0;
         }
 

@@ -1,0 +1,5 @@
+area: Infra/Scripting
+issues: []
+pr: 150092
+summary: "Painless: `cancellation_aware` augmentation infrastructure"
+type: enhancement

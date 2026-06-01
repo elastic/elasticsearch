@@ -11,6 +11,7 @@ import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -81,11 +82,16 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
         );
         assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo("exponential_histogram"));
         assertThat(histogram.getTemporality(), equalTo(AGGREGATION_TEMPORALITY_CUMULATIVE));
-        assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(true));
-        assertThat(validationErrors, empty());
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(true));
+            assertThat(validationErrors, empty());
+        } else {
+            assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_EXPONENTIAL_HISTOGRAM), equalTo(false));
+            assertThat(validationErrors, contains(containsString("cumulative exponential histogram metrics are not supported")));
+        }
     }
 
-    public void testCumulativeExponentialHistogramUnsupportedWithTDigest() {
+    public void testCumulativeExponentialHistogramAsTDigest() {
         DataPoint.ExponentialHistogram histogram = new DataPoint.ExponentialHistogram(
             ExponentialHistogramDataPoint.newBuilder().build(),
             Metric.newBuilder()
@@ -96,9 +102,14 @@ public class DataPointExponentialHistogramTests extends ESTestCase {
         );
         assertThat(histogram.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("histogram"));
         assertThat(histogram.isValid(validationErrors, MappingHints.DEFAULT_TDIGEST), equalTo(false));
-        assertThat(
-            validationErrors,
-            contains(containsString("cumulative exponential histogram metrics are only supported when stored as exponential_histogram"))
-        );
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(
+                validationErrors,
+                contains(containsString("cumulative exponential histogram metrics are only supported when stored as exponential_histogram"))
+            );
+        } else {
+            assertThat(validationErrors, contains(containsString("cumulative exponential histogram metrics are not supported")));
+        }
     }
+
 }

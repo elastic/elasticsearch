@@ -16,6 +16,7 @@ import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.HistogramMapping;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
@@ -167,9 +168,10 @@ public interface DataPoint {
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
             String type;
-            if (metric.hasSum() && metric.getSum().getIsMonotonic()) {
+            if (metric.hasSum() && metric.getSum().getIsMonotonic() && isCounterTemporalitySupported()) {
                 type = "counter_";
             } else {
+                // TODO add support for up/down counters - for now we represent them as gauges
                 type = "gauge_";
             }
             if (dataPoint.getValueCase() == NumberDataPoint.ValueCase.AS_INT) {
@@ -179,6 +181,13 @@ public interface DataPoint {
             } else {
                 return null;
             }
+        }
+
+        private boolean isCounterTemporalitySupported() {
+            if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+                return true;
+            }
+            return metric.getSum().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE;
         }
 
         @Override
@@ -280,13 +289,17 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors, MappingHints mappingHints) {
-            if (metric.getExponentialHistogram().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE
-                && mappingHints.histogramMapping() != HistogramMapping.EXPONENTIAL_HISTOGRAM) {
-                errors.add(
-                    "cumulative exponential histogram metrics are only supported when stored as exponential_histogram, ignoring "
-                        + metric.getName()
-                );
-                return false;
+            if (metric.getExponentialHistogram().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE) {
+                if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled() == false) {
+                    errors.add("cumulative exponential histogram metrics are not supported, ignoring " + metric.getName());
+                    return false;
+                } else if (mappingHints.histogramMapping() != HistogramMapping.EXPONENTIAL_HISTOGRAM) {
+                    errors.add(
+                        "cumulative exponential histogram metrics are only supported when stored as exponential_histogram, ignoring "
+                            + metric.getName()
+                    );
+                    return false;
+                }
             }
             return true;
         }
@@ -377,12 +390,16 @@ public interface DataPoint {
 
         @Override
         public boolean isValid(Set<String> errors, MappingHints mappingHints) {
-            if (metric.getHistogram().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE
-                && mappingHints.histogramMapping() != HistogramMapping.EXPONENTIAL_HISTOGRAM) {
-                errors.add(
-                    "cumulative histogram metrics are only supported when stored as exponential_histogram, ignoring " + metric.getName()
-                );
-                return false;
+            if (metric.getHistogram().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE) {
+                if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled() == false) {
+                    errors.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
+                    return false;
+                } else if (mappingHints.histogramMapping() != HistogramMapping.EXPONENTIAL_HISTOGRAM) {
+                    errors.add(
+                        "cumulative histogram metrics are only supported when stored as exponential_histogram, ignoring " + metric.getName()
+                    );
+                    return false;
+                }
             }
             int bucketCountsCount = dataPoint.getBucketCountsCount();
             int explicitBoundsCount = dataPoint.getExplicitBoundsCount();

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.BufferedMurmur3Hasher;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
@@ -65,7 +66,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
             builder.field("unit", dataPointGroup.unit());
         }
         String temporality = temporalityToString(dataPointGroup.temporality());
-        if (temporality != null) {
+        if (temporality != null && IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
             builder.field("temporality", temporality);
         }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);

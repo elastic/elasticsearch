@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
@@ -55,12 +56,17 @@ public class DataPointNumberTests extends ESTestCase {
             createDoubleDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_double"));
         DataPoint.Number longDelta = new DataPoint.Number(
             createLongDataPoint(nowUnixNanos),
             createSumMetric("http.requests.count", "", List.of(), true, AGGREGATION_TEMPORALITY_DELTA)
         );
-        assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_long"));
+        if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
+            assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_double"));
+            assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("counter_long"));
+        } else {
+            assertThat(doubleDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_double"));
+            assertThat(longDelta.getDynamicTemplate(MappingHints.DEFAULT_TDIGEST), equalTo("gauge_long"));
+        }
     }
 
     public void testCounterNonMonotonic() {

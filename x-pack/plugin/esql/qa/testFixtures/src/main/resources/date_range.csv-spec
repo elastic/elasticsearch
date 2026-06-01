@@ -1140,6 +1140,127 @@ decade:integer | description:keyword | date_range:date_range
 
 
 ###############################################
+# MV_FIRST / MV_LAST tests
+###############################################
+
+// MV_FIRST returns the first element of a multivalued date_range field.
+mvFirstDateRange
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM mv_decades
+| WHERE decade == 1950
+| EVAL first = MV_FIRST(date_range)
+| KEEP decade, first
+;
+
+decade:integer | first:date_range
+1950           | 1950-01-01..1960-01-01
+;
+
+// MV_LAST returns the last element of a multivalued date_range field.
+mvLastDateRange
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM mv_decades
+| WHERE decade == 1950
+| EVAL last = MV_LAST(date_range)
+| KEEP decade, last
+;
+
+decade:integer | last:date_range
+1950           | 1955-01-01..1965-01-01
+;
+
+// MV_FIRST on a single-valued date_range field returns the value unchanged.
+mvFirstDateRangeSingleValue
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL first = MV_FIRST(date_range)
+| KEEP decade, first
+;
+
+decade:integer | first:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// MV_LAST on a single-valued date_range field returns the value unchanged.
+mvLastDateRangeSingleValue
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL last = MV_LAST(date_range)
+| KEEP decade, last
+;
+
+decade:integer | last:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// MV_FIRST with ROW returns the first element of an inline multivalued date_range.
+mvFirstDateRangeRow
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+ROW a = [TO_DATE_RANGE("2020-01-01..2021-01-01"), TO_DATE_RANGE("2022-01-01..2023-01-01"), TO_DATE_RANGE("2024-01-01..2025-01-01")]
+| EVAL first = MV_FIRST(a)
+| KEEP first
+;
+
+first:date_range
+2020-01-01..2021-01-01
+;
+
+// MV_LAST with ROW returns the last element of an inline multivalued date_range.
+mvLastDateRangeRow
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+ROW a = [TO_DATE_RANGE("2020-01-01..2021-01-01"), TO_DATE_RANGE("2022-01-01..2023-01-01"), TO_DATE_RANGE("2024-01-01..2025-01-01")]
+| EVAL last = MV_LAST(a)
+| KEEP last
+;
+
+last:date_range
+2024-01-01..2025-01-01
+;
+
+// MV_FIRST with ROW on a single date_range value returns it unchanged.
+mvFirstDateRangeRowSingle
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+ROW a = TO_DATE_RANGE("2023-06-01..2023-12-31")
+| EVAL first = MV_FIRST(a)
+| KEEP first
+;
+
+first:date_range
+2023-06-01..2023-12-31
+;
+
+// MV_LAST with ROW on a single date_range value returns it unchanged.
+mvLastDateRangeRowSingle
+required_capability: date_range_field_type_v6
+required_capability: mv_first_last_date_range
+
+ROW a = TO_DATE_RANGE("2023-06-01..2023-12-31")
+| EVAL last = MV_LAST(a)
+| KEEP last
+;
+
+last:date_range
+2023-06-01..2023-12-31
+;
+
+
+###############################################
 # COALESCE tests
 ###############################################
 

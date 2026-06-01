@@ -3019,6 +3019,11 @@ public class EsqlCapabilities {
         CASE_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
 
         /**
+         * Support for MV_FIRST and MV_LAST with date_range type.
+         */
+        MV_FIRST_LAST_DATE_RANGE(DATE_RANGE_FIELD_TYPE_V6.isEnabled()),
+
+        /**
          * Support for ESQL parameters in PromQL label matchers:
          * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
          */

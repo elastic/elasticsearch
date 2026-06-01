@@ -395,20 +395,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
-        assertBusy(() -> {
-            final RoutingTable routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable();
-            final IndexRoutingTable indexRoutingTable = routingTable.index("test");
-            assertNotNull(indexRoutingTable);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                assertTrue(shardRoutingTable.primaryShard().unassigned());
-                assertEquals(
-                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus()
-                );
-                assertThat(shardRoutingTable.primaryShard().unassignedInfo().failedAllocations(), greaterThan(0));
-            }
-        }, 60, TimeUnit.SECONDS);
+        awaitPrimariesUnassignedWithDecidersNo("test");
         indicesAdmin().prepareClose("test").get();
 
         state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
@@ -463,20 +450,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(brokenMeta)));
 
         // check that the cluster does not keep reallocating shards
-        assertBusy(() -> {
-            final RoutingTable routingTable = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().routingTable();
-            final IndexRoutingTable indexRoutingTable = routingTable.index("test");
-            assertNotNull(indexRoutingTable);
-            for (int i = 0; i < indexRoutingTable.size(); i++) {
-                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                assertTrue(shardRoutingTable.primaryShard().unassigned());
-                assertEquals(
-                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus()
-                );
-                assertThat(shardRoutingTable.primaryShard().unassignedInfo().failedAllocations(), greaterThan(0));
-            }
-        }, 60, TimeUnit.SECONDS);
+        awaitPrimariesUnassignedWithDecidersNo("test");
         indicesAdmin().prepareClose("test").get();
 
         // try to open it with the broken setting - fail again!
@@ -534,6 +508,28 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             state.metadata().persistentSettings().get("archived." + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey())
         );
         assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
+    }
+
+    private void awaitPrimariesUnassignedWithDecidersNo(String indexName) {
+        awaitClusterState(state -> {
+            IndexRoutingTable indexRoutingTable = state.routingTable().index(indexName);
+            if (indexRoutingTable == null) {
+                return false;
+            }
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+                if (shardRoutingTable.primaryShard().assignedToNode()) {
+                    return false;
+                }
+                if (shardRoutingTable.primaryShard().unassignedInfo().lastAllocationStatus() != UnassignedInfo.AllocationStatus.DECIDERS_NO) {
+                    return false;
+                }
+                if (shardRoutingTable.primaryShard().unassignedInfo().failedAllocations() <= 0) {
+                    return false;
+                }
+            }
+            return true;
+        });
     }
 
 }

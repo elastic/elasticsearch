@@ -22,9 +22,11 @@ import static org.hamcrest.Matchers.containsString;
 
 public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestCase<OpenAiOAuth2Settings> {
 
+    public static final URI TEST_AUTH_URL = URI.create("https://idp.example.com/oauth2/token");
+    public static final URI INITIAL_TEST_AUTH_URL = URI.create("https://initial-idp.example.com/oauth2/token");
+
     private static final String CLIENT_ID = "client-id";
     private static final List<String> SCOPES = List.of("scope-a", "scope-b");
-    private static final URI AUTH_URL = URI.create("https://idp.example.com/oauth2/token");
 
     public static OpenAiOAuth2Settings createRandom() {
         return new OpenAiOAuth2Settings(
@@ -58,7 +60,7 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
         var map = new HashMap<String, Object>();
         map.put("client_id", CLIENT_ID);
         map.put("scopes", SCOPES);
-        map.put("auth_url", AUTH_URL.toString());
+        map.put("auth_url", TEST_AUTH_URL.toString());
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
@@ -66,7 +68,7 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
         assertNotNull(result);
         assertEquals(CLIENT_ID, result.clientId());
         assertEquals(SCOPES, result.scopes());
-        assertEquals(AUTH_URL, result.authUrl());
+        assertEquals(TEST_AUTH_URL, result.authUrl());
         assertTrue(validationException.validationErrors().isEmpty());
     }
 
@@ -95,7 +97,7 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
     public void testFromMap_ValidationErrorWhenClientIdMissingButAuthUrlPresent() {
         var map = new HashMap<String, Object>();
-        map.put("auth_url", AUTH_URL.toString());
+        map.put("auth_url", TEST_AUTH_URL.toString());
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
@@ -105,12 +107,12 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testHasAnyOAuth2Fields_ReturnsTrueForAuthUrlOnly() {
-        Map<String, Object> map = Map.of("auth_url", "https://example.com/token");
+        Map<String, Object> map = Map.of("auth_url", TEST_AUTH_URL.toString());
         assertTrue(OpenAiOAuth2Settings.hasAnyOAuth2Fields(map));
     }
 
     public void testUpdateServiceSettings_RetainsExistingFieldsWhenMapEmpty() {
-        var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, AUTH_URL);
+        var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, TEST_AUTH_URL);
         var validationException = new ValidationException();
 
         var updated = original.updateServiceSettings(new HashMap<>(), validationException);
@@ -120,15 +122,14 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testUpdateServiceSettings_OverridesAuthUrl() {
-        var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, AUTH_URL);
-        var newAuthUrl = URI.create("https://new-idp.example.com/token");
+        var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, INITIAL_TEST_AUTH_URL);
 
         var map = new HashMap<String, Object>();
-        map.put("auth_url", newAuthUrl.toString());
+        map.put("auth_url", TEST_AUTH_URL.toString());
 
         var updated = original.updateServiceSettings(map, new ValidationException());
 
-        assertEquals(newAuthUrl, updated.authUrl());
+        assertEquals(TEST_AUTH_URL, updated.authUrl());
         assertEquals(original.clientId(), updated.clientId());
         assertEquals(original.scopes(), updated.scopes());
     }

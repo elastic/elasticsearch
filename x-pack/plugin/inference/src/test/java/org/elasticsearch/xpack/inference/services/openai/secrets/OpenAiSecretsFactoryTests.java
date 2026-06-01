@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.common.secrets.NoopSecretsApplier;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.junit.After;
 import org.junit.Before;
@@ -129,6 +130,6 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
     }
 
     private static OpenAiServiceSettings serviceSettingsWith(OpenAiOAuth2Settings oAuth2Settings) {
-        return () -> oAuth2Settings;
+        return new OpenAiChatCompletionServiceSettings(randomAlphaOfLength(5), null, null, null, null, oAuth2Settings);
     }
 }

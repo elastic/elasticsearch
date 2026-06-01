@@ -23,29 +23,30 @@ import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.is;
 
 public class OpenAiOAuth2ApplierTests extends ESTestCase {
 
     private static final String INFERENCE_ID = "inference-id";
     private static final String BEARER_VALUE = "bearer-12345";
+    private static final String URL = "http://example.com/embeddings";
 
     public void testApplyTo_StampsBearerHeaderFromCache() {
         var cache = recordingCacheReturning(new CachedToken(BEARER_VALUE, Instant.now().plusSeconds(60)));
         var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail("supplier shouldn't be invoked directly here"));
 
-        HttpRequestBase request = new HttpGet("http://example.com/embeddings");
+        var request = new HttpGet(URL);
         var future = new PlainActionFuture<HttpRequestBase>();
         applier.applyTo(request, future);
 
         var resultRequest = future.actionGet();
-        assertThat(resultRequest.getFirstHeader(HttpHeaders.AUTHORIZATION), notNullValue());
         assertThat(resultRequest.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), equalTo("Bearer " + BEARER_VALUE));
     }
 
     public void testApplyTo_PropagatesCacheFailure() {
-        var failure = new ElasticsearchException("idp failure");
-        TokenCache cache = new TokenCache() {
+        var failureMessage = "idp failure";
+        var failure = new ElasticsearchException(failureMessage);
+        var cache = new TokenCache() {
             @Override
             public void getToken(String inferenceId, OAuth2TokenSupplier supplier, ActionListener<CachedToken> listener) {
                 listener.onFailure(failure);
@@ -58,19 +59,19 @@ public class OpenAiOAuth2ApplierTests extends ESTestCase {
         };
         var applier = new OpenAiOAuth2Applier(INFERENCE_ID, cache, listener -> fail("supplier shouldn't be invoked"));
 
-        HttpRequestBase request = new HttpGet("http://example.com/embeddings");
+        var request = new HttpGet(URL);
         var future = new PlainActionFuture<HttpRequestBase>();
         applier.applyTo(request, future);
 
         var thrown = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(thrown.getMessage(), containsString("idp failure"));
+        assertThat(thrown.getMessage(), containsString(failureMessage));
     }
 
     private static TokenCache recordingCacheReturning(CachedToken token) {
         return new TokenCache() {
             @Override
             public void getToken(String inferenceId, OAuth2TokenSupplier supplier, ActionListener<CachedToken> listener) {
-                assertEquals(INFERENCE_ID, inferenceId);
+                assertThat(inferenceId, is(INFERENCE_ID));
                 listener.onResponse(token);
             }
 

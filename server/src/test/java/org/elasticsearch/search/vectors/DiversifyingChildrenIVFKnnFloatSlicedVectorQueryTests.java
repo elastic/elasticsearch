@@ -87,7 +87,8 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             0,
             random().nextBoolean(),
             RoutingFieldMapper.NAME,
-            SLICE_ZERO
+            SLICE_ZERO,
+            1f
         );
     }
 
@@ -427,7 +428,8 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                             1.0f,
                             random().nextBoolean(),
                             RoutingFieldMapper.NAME,
-                            new BytesRef("" + slice)
+                            new BytesRef("" + slice),
+                            1f
                         );
                         TopDocs topDocs = searcher.search(kvq, k);
                         assertEquals(expectedDocs, topDocs.scoreDocs.length);
@@ -449,7 +451,8 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                         1.0f,
                         random().nextBoolean(),
                         RoutingFieldMapper.NAME,
-                        new BytesRef("invalid")
+                        new BytesRef("invalid"),
+                        1f
                     );
                     TopDocs topDocs = searcher.search(kvq, 3);
                     assertEquals(0, topDocs.scoreDocs.length);
@@ -478,7 +481,8 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             0.1f,
             false,
             RoutingFieldMapper.NAME,
-            SLICE_ZERO
+            SLICE_ZERO,
+            1f
         );
         assertEquals(
             "DiversifyingChildrenIVFKnnFloatSlicedVectorQuery:vec[0.5,...][4][" + RoutingFieldMapper.NAME + "=0]",

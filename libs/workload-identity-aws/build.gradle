@@ -1,0 +1,40 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  // ActionListener lives in :server; CheckedConsumer (used by ActionListener.run) lives in :libs:core
+  // (module org.elasticsearch.base). Both are always present at runtime in the consuming plugin,
+  // so they are compile-only here.
+  compileOnly project(':libs:core')
+  compileOnly project(':libs:logging')
+  compileOnly project(':server')
+
+  // AWS SDK v2 types referenced at compile time. The consuming plugin (esql-datasource-s3)
+  // already bundles the full AWS SDK, so these must not be bundled again here -> compileOnly.
+  compileOnly "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  compileOnly "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+
+  testImplementation project(':test:framework')
+  // Tests need the AWS SDK types on the runtime classpath (compileOnly does not extend to tests).
+  testImplementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  testImplementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}

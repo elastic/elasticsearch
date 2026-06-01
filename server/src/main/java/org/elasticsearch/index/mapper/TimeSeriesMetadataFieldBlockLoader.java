@@ -15,6 +15,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -135,7 +136,7 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
             // concrete dimension fields and can drop the excluded ones by name.
             if (dimensionFieldsFromSettings != null
                 && dimensionFieldsFromSettings.isEmpty() == false
-                && (config.withoutFields().isEmpty() || containsWildcard(dimensionFieldsFromSettings) == false)) {
+                && (config.withoutFields().isEmpty() || dimensionFieldsFromSettings.stream().noneMatch(Regex::isSimpleMatchPattern))) {
                 Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
                 result.removeAll(config.withoutFields());
                 return result;
@@ -157,15 +158,6 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
 
         return result;
-    }
-
-    private static boolean containsWildcard(List<String> fields) {
-        for (String field : fields) {
-            if (field.indexOf('*') >= 0) {
-                return true;
-            }
-        }
-        return false;
     }
 
     @Override

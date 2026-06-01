@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
-import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -102,7 +101,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1602,7 +1600,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             try {
                 final long totalSizeInBytes = virtualBatchedCompoundCommit.getTotalSizeInBytes();
                 if (concurrentMultipartUploads == false || blobContainer.supportsConcurrentMultipartUploads() == false) {
-                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload();) {
+                    try (var vbccInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
                         blobContainer.writeBlobAtomic(
                             OperationPurpose.INDICES,
                             virtualBatchedCompoundCommit.getBlobName(),
@@ -1631,8 +1629,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                     final long uploadIoMs = TimeValue.nsecToMSec(threadPool.relativeTimeInNanos() - uploadIoStartNanos);
                     logger.debug(
                         () -> format(
-                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms" +
-                                " (object store queue [%s] ms)",
+                            "%s file %s of size [%s] bytes from batched compound commit [%s] uploaded in [%s] ms"
+                                + " (object store queue [%s] ms)",
                             shardId,
                             blobContainer.path().add(virtualBatchedCompoundCommit.getBlobName()),
                             totalSizeInBytes,

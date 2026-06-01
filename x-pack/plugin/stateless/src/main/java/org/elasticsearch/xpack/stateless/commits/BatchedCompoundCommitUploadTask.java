@@ -24,9 +24,9 @@ import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -53,7 +53,7 @@ public class BatchedCompoundCommitUploadTask extends RetryableAction<BccUploadRe
     private final long taskStartMillis;
     private final TimeValue hotThreadsLogInterval;
     private final AtomicBoolean cacheWarmedAttempted = new AtomicBoolean();
-    private final List<BccUploadResult.BccUploadAttemptTiming> attemptTimings = new ArrayList<>();
+    private final List<BccUploadResult.BccUploadAttemptTiming> attemptTimings = new CopyOnWriteArrayList<>();
     private int uploadTryNumber = 0;
     private volatile Scheduler.Cancellable hotThreadsLoggingTask;
     private volatile long attemptStartMillis;

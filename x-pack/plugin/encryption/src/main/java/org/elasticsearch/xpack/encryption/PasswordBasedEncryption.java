@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.encryption;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.util.Arrays;
+
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.security.GeneralSecurityException;
-import java.security.SecureRandom;
-import java.util.Arrays;
 
 /**
  * Password-based wrap/unwrap of the 32-byte project encryption key (PEK).

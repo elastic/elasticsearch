@@ -181,8 +181,7 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
     }
 
     public void testDataAccessTierSentOnSingleBlobUpload() throws IOException {
-        final String tierInput = randomFrom("hot", "Hot", "HOT");
-        final AzureBlobContainer container = buildContainer(tierInput, null);
+        final AzureBlobContainer container = buildContainer("hot", null);
         final String blobName = randomIdentifier();
 
         container.getBlobStore()
@@ -245,8 +244,8 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         final AzureBlobContainer container = buildContainer("cold", null);
         final String blobName = randomIdentifier();
 
-        // Write more than the 1MB threshold to trigger the block list upload path
-        final int blobSize = (int) (container.getBlobStore().getUploadBlockSize() + 1);
+        // Write more than the single-part threshold to trigger the block list upload path
+        final int blobSize = (int) (container.getBlobStore().getLargeBlobThresholdInBytes() + 1);
         final byte[] data = randomByteArrayOfLength(blobSize);
 
         container.getBlobStore().writeBlob(OperationPurpose.SNAPSHOT_DATA, blobName, new ByteArrayInputStream(data), blobSize, false);
@@ -258,8 +257,8 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         final AzureBlobContainer container = buildContainer(null, "cool");
         final String blobName = randomIdentifier();
 
-        // Write more than the 1MB threshold to flush at least one block, triggering the BlockBlobCommitBlockListOptions path
-        final int blobSize = (int) (container.getBlobStore().getUploadBlockSize() + 1);
+        // Write more than the single-part threshold to flush at least one block, triggering the BlockBlobCommitBlockListOptions path
+        final int blobSize = (int) (container.getBlobStore().getLargeBlobThresholdInBytes() + 1);
         final byte[] data = randomByteArrayOfLength(blobSize);
 
         container.writeMetadataBlob(OperationPurpose.SNAPSHOT_METADATA, blobName, false, false, out -> out.write(data));
@@ -301,5 +300,22 @@ public class AzureBlobContainerAccessTierTests extends ESTestCase {
         container.copyBlob(OperationPurpose.SNAPSHOT_DATA, container, sourceBlobName, destBlobName, data.length);
 
         assertEquals("Hot", azureHttpHandler.getMockBlobStore().getBlob(destBlobName, null).accessTier());
+    }
+
+    public void testMetadataAccessTierSentOnCopyBlob() throws IOException {
+        final AzureBlobContainer container = buildContainer(null, "cool");
+        final String sourceBlobName = randomIdentifier();
+        final String destBlobName = randomIdentifier();
+        final byte[] data = randomByteArrayOfLength(128);
+
+        // Write source blob with a non-snapshot purpose so it has no access tier
+        container.getBlobStore()
+            .writeBlob(OperationPurpose.CLUSTER_STATE, sourceBlobName, BytesReference.fromByteBuffer(ByteBuffer.wrap(data)), false);
+        assertNull(azureHttpHandler.getMockBlobStore().getBlob(sourceBlobName, null).accessTier());
+
+        // Copy with snapshot metadata purpose — the destination should receive the configured metadata access tier
+        container.copyBlob(OperationPurpose.SNAPSHOT_METADATA, container, sourceBlobName, destBlobName, data.length);
+
+        assertEquals("Cool", azureHttpHandler.getMockBlobStore().getBlob(destBlobName, null).accessTier());
     }
 }

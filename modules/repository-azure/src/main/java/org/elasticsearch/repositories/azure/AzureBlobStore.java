@@ -231,9 +231,6 @@ public class AzureBlobStore implements BlobStore {
             return null;
         }
         final String stripped = accessTierName.strip();
-        if (stripped.isEmpty()) {
-            return null;
-        }
         final AccessTier accessTier = ALLOWED_ACCESS_TIERS_BY_LOWER_NAME.get(stripped.toLowerCase(Locale.ENGLISH));
         if (accessTier == null) {
             throw new BlobStoreException("`" + stripped + "` is not an allowed Azure Access Tier.");
@@ -243,13 +240,11 @@ public class AzureBlobStore implements BlobStore {
 
     // visible for testing
     Optional<AccessTier> resolveAccessTier(OperationPurpose purpose) {
-        if (purpose == OperationPurpose.SNAPSHOT_DATA) {
-            return Optional.ofNullable(dataAccessTier);
-        } else if (purpose == OperationPurpose.SNAPSHOT_METADATA) {
-            return Optional.ofNullable(metadataAccessTier);
-        } else {
-            return Optional.empty();
-        }
+        return switch (purpose) {
+            case SNAPSHOT_DATA -> Optional.ofNullable(dataAccessTier);
+            case SNAPSHOT_METADATA -> Optional.ofNullable(metadataAccessTier);
+            case REPOSITORY_ANALYSIS, CLUSTER_STATE, INDICES, TRANSLOG, RESHARDING -> Optional.empty();
+        };
     }
 
     private static boolean isBlobBatch(HttpRequest httpRequest) {

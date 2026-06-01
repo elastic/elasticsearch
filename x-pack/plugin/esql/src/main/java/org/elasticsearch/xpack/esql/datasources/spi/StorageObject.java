@@ -142,9 +142,10 @@ public interface StorageObject {
         // synchronously via the listener instead of escaping the executor's Runnable as an Error
         // and leaving the listener permanently uncompleted.
         final DirectReadBuffer drb;
+        boolean submitted = false;
         try {
             drb = factory.allocate((int) length);
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
@@ -171,12 +172,13 @@ public interface StorageObject {
                     throw e;
                 }
             });
-        } catch (RejectedExecutionException e) {
-            // Route executor rejection (saturated queue, shutdown) through the listener and
-            // release the allocator-backed buffer eagerly so it does not stay charged against
-            // the breaker for the lifetime of the JVM.
-            drb.close();
-            listener.onFailure(e);
+            submitted = true;
+        } finally {
+            if (submitted == false) {
+                // Executor rejected (saturated queue, shutdown) — release the buffer eagerly so it
+                // does not stay charged against the breaker for the lifetime of the JVM.
+                drb.close();
+            }
         }
     }
 

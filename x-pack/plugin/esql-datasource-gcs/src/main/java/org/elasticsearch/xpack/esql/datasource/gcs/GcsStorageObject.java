@@ -216,7 +216,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
         final DirectReadBuffer drb;
         try {
             drb = factory.allocate(len);
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }

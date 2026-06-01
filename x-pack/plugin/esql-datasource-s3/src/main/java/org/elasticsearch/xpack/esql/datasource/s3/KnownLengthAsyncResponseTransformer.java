@@ -187,7 +187,7 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                     releaseOnFailure();
                     return;
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 failed = true;
                 releaseOnFailure();
                 s.cancel();

@@ -96,7 +96,8 @@ public final class DirectMemoryDebug {
         view.clear();
         int limit = DEBUG_TRACKING ? view.remaining() : Math.min(HEADER_POISON_BYTES, view.remaining());
         int written = 0;
-        while (written + Integer.BYTES <= limit) {
+        int intLimit = limit - Integer.BYTES;
+        while (written <= intLimit) {
             view.putInt(POISON);
             written += Integer.BYTES;
         }

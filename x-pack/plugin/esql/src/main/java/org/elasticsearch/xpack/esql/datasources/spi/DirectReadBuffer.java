@@ -11,7 +11,6 @@ import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.core.Releasable;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
@@ -78,20 +77,22 @@ public final class DirectReadBuffer implements Releasable {
      * {@link #buffer()} before delivering it downstream and for calling {@link #close()} once
      * consumption is complete (or on the failure path).
      *
-     * <p>Translates allocator failures (breaker trip, {@link OutOfMemoryError}, any other Arrow
-     * runtime exception) into a single {@link IOException} so backend implementations can use a
-     * uniform error path. The intermediate {@link ArrowBuf} is released on every failure path.
+     * <p>The intermediate {@link ArrowBuf} is released on every failure path. Allocator failures
+     * (breaker trip, {@link OutOfMemoryError}, Arrow runtime exceptions) propagate as-is so callers
+     * can distinguish a circuit-breaker rejection (eligible for a 429 response) from an I/O error.
      */
-    public static DirectReadBuffer allocate(BufferAllocator allocator, int length) throws IOException {
+    public static DirectReadBuffer allocate(BufferAllocator allocator, int length) {
         ArrowBuf buf = null;
+        boolean success = false;
         try {
             buf = allocator.buffer(length);
-            return new DirectReadBuffer(buf.nioBuffer(0, length), buf::close);
-        } catch (OutOfMemoryError | RuntimeException e) {
-            if (buf != null) {
+            DirectReadBuffer result = new DirectReadBuffer(buf.nioBuffer(0, length), buf::close);
+            success = true;
+            return result;
+        } finally {
+            if (success == false && buf != null) {
                 buf.close();
             }
-            throw new IOException("failed to allocate " + length + " bytes from allocator " + allocator.getName(), e);
         }
     }
 

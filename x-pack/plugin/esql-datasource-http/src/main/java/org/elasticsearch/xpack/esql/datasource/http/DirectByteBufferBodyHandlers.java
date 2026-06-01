@@ -87,7 +87,7 @@ final class DirectByteBufferBodyHandlers {
             try {
                 this.destinationBuf = factory.allocate(expectedLength);
                 this.destination = destinationBuf.buffer();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 failed = true;
                 subscription.cancel();
                 body.completeExceptionally(e);
@@ -219,7 +219,7 @@ final class DirectByteBufferBodyHandlers {
             try {
                 this.destinationBuf = factory.allocate(length);
                 this.destination = destinationBuf.buffer();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 failed = true;
                 subscription.cancel();
                 body.completeExceptionally(e);

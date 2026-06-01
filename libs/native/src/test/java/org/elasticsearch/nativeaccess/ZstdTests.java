@@ -382,6 +382,40 @@ public class ZstdTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression test for the {@code JAVA_INT} vs {@code JAVA_LONG} descriptor bug on the heap
+     * {@code decompress(byte[], int, int, byte[], int, int)} path (fixed in {@code JdkZstdLibrary}).
+     * <p>
+     * The wrong descriptor caused C2 to emit a native call with stale upper-32 bits in the {@code srcSize}
+     * register on x86-64, making ZSTD see a {@code srcSize} like {@code 0xXXXXXXXX_00000020} instead of
+     * {@code 0x20}. This test validates the correct round-trip on the heap path using large enough payloads
+     * to span the range of sizes where the upper-bits corruption would produce a wrong value.
+     */
+    public void testHeapRoundtripSmall() {
+        byte[] data = new byte[randomIntBetween(1, 100)];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        doTestHeapRoundtrip(data);
+    }
+
+    public void testHeapRoundtripMedium() {
+        byte[] data = new byte[randomIntBetween(1_000, 100_000)];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = (byte) randomInt();
+        }
+        doTestHeapRoundtrip(data);
+    }
+
+    private void doTestHeapRoundtrip(byte[] data) {
+        byte[] compressed = new byte[zstd.compressBound(data.length)];
+        int compressedLen = zstd.compress(compressed, 0, compressed.length, data, 0, data.length, 1);
+        byte[] restored = new byte[data.length];
+        int written = zstd.decompress(restored, 0, restored.length, compressed, 0, compressedLen);
+        assertThat(written, equalTo(data.length));
+        assertThat(restored, equalTo(data));
+    }
+
     // ---- Streaming API (DStream) tests -----------------------------------------------------------
 
     public void testDStreamInSizeIsReasonable() {

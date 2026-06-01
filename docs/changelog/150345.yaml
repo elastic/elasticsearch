@@ -1,0 +1,7 @@
+area: Analysis
+issues: []
+pr: 150345
+summary: Fix Nynorsk stemmer `UnsupportedOperationException`. The `light_nynorsk`
+  and `minimal_nynorsk` stemmers no longer fail with an HTTP 500 error during index
+  creation due to passing an immutable map to Lucene's analysis factory.
+type: bug

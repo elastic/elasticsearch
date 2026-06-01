@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -71,11 +72,14 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ScrollDataExtractorTests extends ESTestCase {
@@ -92,6 +96,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private int scrollSize;
     private long initScrollStartTime;
     private DatafeedTimingStatsReporter timingStatsReporter;
+    private ScrollDataExtractorFactory scrollDataExtractorFactory;
 
     private class TestDataExtractor extends ScrollDataExtractor {
 
@@ -107,7 +112,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         TestDataExtractor(ScrollDataExtractorContext context) {
-            super(client, context, timingStatsReporter);
+            super(client, context, timingStatsReporter, scrollDataExtractorFactory);
         }
 
         @Override
@@ -188,6 +193,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
             mock(ActionFuture.class)
         );
         timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
+        scrollDataExtractorFactory = mock(ScrollDataExtractorFactory.class);
+        when(scrollDataExtractorFactory.hasOrphanedScrollIds()).thenReturn(false);
     }
 
     public void testSinglePageExtraction() throws IOException {
@@ -556,36 +563,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
 
-    public void testGetSummarySetsProjectRouting() {
-        String projectRouting = "_alias:prod-*";
-        ScrollDataExtractorContext context = createContext(1000L, 2300L, projectRouting);
-        TestDataExtractor extractor = new TestDataExtractor(context);
-        extractor.setNextResponse(createSummaryResponse(1001L, 2299L, 10L));
-
-        DataSummary summary = extractor.getSummary();
-        assertThat(summary.earliestTime(), equalTo(1001L));
-        assertThat(summary.latestTime(), equalTo(2299L));
-        assertThat(summary.totalHits(), equalTo(10L));
-
-        assertThat(capturedSearchRequests.size(), equalTo(1));
-        SearchRequest request = (SearchRequest) capturedSearchRequests.get(0).request();
-        assertThat(request.getProjectRouting(), equalTo(projectRouting));
-    }
-
-    public void testExtractionSetsProjectRouting() throws IOException {
-        String projectRouting = "_project._region:us-*";
-        ScrollDataExtractorContext context = createContext(1000L, 2000L, projectRouting);
-        TestDataExtractor extractor = new TestDataExtractor(context);
-        extractor.setNextResponse(createSearchResponse(Arrays.asList(1100L), Arrays.asList("a1"), Arrays.asList("b1")));
-
-        assertThat(extractor.hasNext(), is(true));
-        extractor.next();
-
-        assertThat(capturedSearchRequests.size(), greaterThanOrEqualTo(1));
-        SearchRequest request = (SearchRequest) capturedSearchRequests.get(0).request();
-        assertThat(request.getProjectRouting(), equalTo(projectRouting));
-    }
-
     @SuppressWarnings("unchecked")
     public void testDestroyTransfersFailedScrollIdsToFactory() throws IOException {
         // Make all ClearScroll attempts fail to simulate an ongoing network disruption
@@ -820,7 +797,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private SearchResponse createCcsSearchResponse(List<Long> timestamps, List<String> field1Values, List<String> field2Values) {
         SearchResponse searchResponse = createSearchResponse(timestamps, field1Values, field2Values);
         Map<String, SearchResponse.Cluster> clusterInfo = new HashMap<>();
-        clusterInfo.put("remote", new SearchResponse.Cluster("remote", "*", false, null));
+        clusterInfo.put("remote", new SearchResponse.Cluster("remote", "*", false));
         SearchResponse.Clusters realClusters = new SearchResponse.Clusters(clusterInfo);
         when(searchResponse.getClusters()).thenReturn(realClusters);
         return searchResponse;

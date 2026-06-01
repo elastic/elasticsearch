@@ -6,12 +6,18 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -37,6 +43,8 @@ import java.util.Optional;
 import java.util.Set;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
+
+    private static final Logger logger = LogManager.getLogger(ScrollDataExtractorFactory.class);
 
     // This field type is not supported for scrolling datafeeds.
     private static final String AGGREGATE_METRIC_DOUBLE = "aggregate_metric_double";
@@ -178,7 +186,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
             datafeedConfig.getIndicesOptions(),
             datafeedConfig.getRuntimeMappings()
         );
-        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter);
+        return new ScrollDataExtractor(client, dataExtractorContext, timingStatsReporter, this);
     }
 
     public static void create(

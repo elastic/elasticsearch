@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
 
 def clusterCredentials = [
         username: providers.systemProperty('tests.rest.cluster.username')
@@ -16,9 +16,11 @@ def clusterCredentials = [
                 .getOrElse('x-pack-test-password')
 ]
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+plugins.withType(RestTestBasePlugin) {
+  restTests.tasks.configureEach {
     systemProperty 'tests.rest.cluster.username', clusterCredentials.username
     systemProperty 'tests.rest.cluster.password', clusterCredentials.password
+  }
 }
 
 testClusters.configureEach {

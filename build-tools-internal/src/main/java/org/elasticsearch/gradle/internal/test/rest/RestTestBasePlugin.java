@@ -48,6 +48,7 @@ import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -166,7 +167,21 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
         });
 
+        // Register the restTests project extension
+        RestIntegTests restTests = new RestIntegTests(project);
+        project.getExtensions().add(RestIntegTests.class, "restTests", restTests);
+
+        // Auto-enroll every StandaloneRestIntegTestTask before the configureEach below fires.
+        // Registered first so that enrollment happens before the configuration handler runs.
         project.getTasks().withType(StandaloneRestIntegTestTask.class).configureEach(task -> {
+            restTests.enroll(task.getName());
+            RestIntegTestSpec.mark(task);
+        });
+
+        // Apply standard REST integ-test configuration to all enrolled Test tasks.
+        // restTests.configureEach uses a plain withType(Test).configureEach internally, so it
+        // fires before the task's own register action and before any build-script configureEach.
+        restTests.configureEach(task -> {
             SystemPropertyCommandLineArgumentProvider nonInputSystemProperties = task.getExtensions()
                 .getByType(SystemPropertyCommandLineArgumentProvider.class);
 
@@ -300,7 +315,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
      * 8.10.4 is the last version shipped with jdk < 21. We configure these cluster to run with jdk 17 adoptium as 17 was
      * the last LTS release before 21
      */
-    private static void handleJdkIncompatibleWithOS(Version version, Project project, StandaloneRestIntegTestTask task) {
+    private static void handleJdkIncompatibleWithOS(Version version, Project project, Test task) {
         if (jdkIsIncompatibleWithOS(version)) {
             var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
             var fallbackJdk17Launcher = toolChainService.launcherFor(JAVA_TOOLCHAIN_JDK_ADOPTIUM_SPEC_ACTION);

@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -57,7 +57,7 @@ tasks.named("yamlRestTest") {
   usesDefaultDistribution("uses _xpack info api")
 }
 
-tasks.withType(StandaloneRestIntegTestTask).configureEach {
+restTests.tasks.configureEach {
   // These fail in CI but only when run as part of checkPart2 and not individually.
   // Tracked in : https://github.com/elastic/elasticsearch/issues/66661
   buildParams.withFipsEnabledOnly(it)

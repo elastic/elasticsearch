@@ -162,7 +162,6 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
         Settings settings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
         ReshardUnownedBitsetCache cache = new ReshardUnownedBitsetCache(settings);
 
-        // Two independent DirectoryReader opens typically get distinct segment core cache keys, so you would see 2 misses.
         // Same leaf context twice exercises the intended hit path (same core key + same query).
         try (DirectoryReader reader = DirectoryReader.open(directory)) {
 

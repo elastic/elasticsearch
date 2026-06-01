@@ -132,9 +132,6 @@ public class ReshardSearchFiltersTests extends ESTestCase {
 
             var deletedId = randomIntBetween(0, docs - 1);
             iw.deleteDocuments(new Term(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(deletedId))));
-            // DirectoryReader refreshedWrapper = DirectoryReader.openIfChanged(wrapper);
-            // assertNotNull(refreshedWrapper);
-            // try (DirectoryReader wrapper2 = refreshedWrapper) {
             try (DirectoryReader wrapper2 = DirectoryReader.openIfChanged(wrapper)) {
                 assertEquals(docs - 1, wrapper2.numDocs());
                 Map<String, Object> cacheStatsAfterWrapper2NumDocs = cache().usageStats();

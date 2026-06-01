@@ -58,6 +58,8 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
 
     private static final Logger logger = LogManager.getLogger(ReshardUnownedBitsetCache.class);
 
+    //// Default time to live for this cache is: The grace period for deleting unowned documents
+    /// ({@link SplitSourceService#RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD}) plus 30 sec.
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
         "stateless.reshard.unowned_bitset.cache.ttl",
         TimeValue.timeValueSeconds(330),
@@ -74,7 +76,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
 
     private final long maxWeightBytes;
     private final Cache<BitsetCacheKey, BitSet> bitsetCache;
-    private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndex;
+    private final Map<IndexReader.CacheKey, Set<BitsetCacheKey>> keysByIndexReader;
     private final AtomicLong cacheFullWarningTime;
     private final LongSupplier relativeNanoTimeProvider;
     private final LongAdder hitsTimeInNanos = new LongAdder();
@@ -95,14 +97,14 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
             .removalListener(this::onCacheEviction)
             .build();
 
-        this.keysByIndex = new ConcurrentHashMap<>();
+        this.keysByIndexReader = new ConcurrentHashMap<>();
         this.cacheFullWarningTime = new AtomicLong(0);
         this.relativeNanoTimeProvider = Objects.requireNonNull(relativeNanoTimeProvider);
     }
 
     @Override
     public void onClose(IndexReader.CacheKey indexKey) {
-        final Set<BitsetCacheKey> keys = keysByIndex.remove(indexKey);
+        final Set<BitsetCacheKey> keys = keysByIndexReader.remove(indexKey);
         if (keys != null) {
             keys.forEach(bitsetCache::invalidate);
         }
@@ -111,7 +113,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
         final BitsetCacheKey cacheKey = notification.getKey();
         final IndexReader.CacheKey indexKey = cacheKey.indexKey;
-        keysByIndex.computeIfPresent(indexKey, (ignored, keys) -> {
+        keysByIndexReader.computeIfPresent(indexKey, (ignored, keys) -> {
             keys.remove(cacheKey);
             return keys.isEmpty() ? null : keys;
         });
@@ -124,7 +126,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
 
     public void clear(String reason) {
         logger.debug("clearing all reshard unowned bitsets because [{}]", reason);
-        keysByIndex.clear();
+        keysByIndexReader.clear();
         bitsetCache.invalidateAll();
     }
 
@@ -162,7 +164,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
         final boolean[] cacheKeyWasPresent = new boolean[] { true };
         final BitSet bitSet = bitsetCache.computeIfAbsent(cacheKey, ignore1 -> {
             cacheKeyWasPresent[0] = false;
-            keysByIndex.compute(indexKey, (ignore2, keys) -> {
+            keysByIndexReader.compute(indexKey, (ignore2, keys) -> {
                 if (keys == null) {
                     keys = ConcurrentCollections.newConcurrentSet();
                 }
@@ -188,7 +190,7 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
                 }
                 return result;
             } catch (Exception e) {
-                keysByIndex.computeIfPresent(indexKey, (ignore2, keys) -> {
+                keysByIndexReader.computeIfPresent(indexKey, (ignore2, keys) -> {
                     keys.remove(cacheKey);
                     return keys.isEmpty() ? null : keys;
                 });
@@ -310,14 +312,14 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
 
     void verifyInternalConsistency() {
         bitsetCache.keys().forEach(cacheKey -> {
-            final Set<BitsetCacheKey> keys = keysByIndex.get(cacheKey.indexKey);
+            final Set<BitsetCacheKey> keys = keysByIndexReader.get(cacheKey.indexKey);
             if (keys == null || keys.contains(cacheKey) == false) {
                 throw new IllegalStateException(
                     "Key [" + cacheKey + "] is in the cache, but the lookup entry for [" + cacheKey.indexKey + "] does not contain that key"
                 );
             }
         });
-        keysByIndex.forEach((indexKey, keys) -> {
+        keysByIndexReader.forEach((indexKey, keys) -> {
             if (keys == null || keys.isEmpty()) {
                 throw new IllegalStateException("The lookup entry for [" + indexKey + "] is null or empty");
             } else {

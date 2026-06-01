@@ -276,9 +276,11 @@ public final class Def {
         }
 
         // Recipe positions and the loop indices below are user-visible (post-receiver, post-
-        // scriptThis); the descriptor positions are shifted by one when scriptThisPushed is
-        // true, which we account for at each access to callSiteType.parameterType(...).
-        int descriptorScriptThisOffset = scriptThisPushed ? 1 : 0;
+        // scriptThis); both the call-site descriptor (callSiteType) and the adapted handle carry
+        // an extra leading scriptThis slot when scriptThisPushed is true. The two stay aligned by
+        // construction: the swap/dropArguments adaptation above is what makes the handle's shape
+        // match the descriptor, so a single offset applies to both coordinate spaces.
+        int scriptThisOffset = scriptThisPushed ? 1 : 0;
 
         // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
@@ -326,8 +328,7 @@ public final class Def {
 
         // The handle's parameter shape is now (receiver, [scriptThis], userArgs...). The
         // collectArguments calls below position the lambda filters within the userArgs region,
-        // so they need to account for any leading scriptThis slot.
-        int handleScriptThisOffset = scriptThisPushed ? 1 : 0;
+        // so they account for any leading scriptThis slot via scriptThisOffset (declared above).
 
         int replaced = 0;
         upTo = 1;
@@ -357,7 +358,7 @@ public final class Def {
                     // this cache). It won't blow up since we never nest here (just references)
                     Class<?>[] captures = new Class<?>[defEncoding.numCaptures];
                     for (int capture = 0; capture < captures.length; capture++) {
-                        captures[capture] = callSiteType.parameterType(i + 1 + capture + descriptorScriptThisOffset);
+                        captures[capture] = callSiteType.parameterType(i + 1 + capture + scriptThisOffset);
                     }
                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                     CallSite nested = DefBootstrap.bootstrap(
@@ -375,7 +376,7 @@ public final class Def {
                 }
                 // the filter now ignores the signature (placeholder) on the stack
                 filter = MethodHandles.dropArguments(filter, 0, String.class);
-                handle = MethodHandles.collectArguments(handle, i + handleScriptThisOffset - (defEncoding.needsInstance ? 1 : 0), filter);
+                handle = MethodHandles.collectArguments(handle, i + scriptThisOffset - (defEncoding.needsInstance ? 1 : 0), filter);
                 i += defEncoding.numCaptures;
                 replaced += defEncoding.numCaptures;
             }

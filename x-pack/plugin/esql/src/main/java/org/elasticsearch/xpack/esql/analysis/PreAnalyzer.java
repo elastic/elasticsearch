@@ -14,9 +14,10 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.expression.function.inference.Embedding;
-import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -39,6 +40,19 @@ import java.util.Set;
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
  */
 public class PreAnalyzer {
+
+    private final EsqlFunctionRegistry functionRegistry;
+
+    public PreAnalyzer() {
+        this(null);
+    }
+
+    /**
+     * @param functionRegistry the function registry to use for inference function resolution
+     *  */
+    public PreAnalyzer(EsqlFunctionRegistry functionRegistry) {
+        this.functionRegistry = functionRegistry;
+    }
 
     public record PreAnalysis(
         Map<IndexPattern, IndexMode> indexes,
@@ -132,7 +146,6 @@ public class PreAnalyzer {
          * nodes that don't have 9.2.1 or 9.3.0. If all nodes in the cluster have 9.2.1 or 9.3.0
          * this code doesn't do anything.
          */
-
         Holder<Boolean> useAggregateMetricDoubleWhenNotSupported = new Holder<>(false);
         Holder<Boolean> useDenseVectorWhenNotSupported = new Holder<>(false);
         indexes.forEach((ip, mode) -> {
@@ -140,12 +153,11 @@ public class PreAnalyzer {
                 useAggregateMetricDoubleWhenNotSupported.set(true);
             }
         });
+        EsqlFunctionRegistry snapshotRegistry = functionRegistry == null ? null : functionRegistry.snapshotRegistry();
         plan.forEachDown(p -> p.forEachExpression(UnresolvedFunction.class, fn -> {
-            if (isInferenceFunction(fn.name())) {
-                String inferenceId = inferenceId(fn);
-                if (inferenceId != null) {
-                    inferenceIds.add(inferenceId);
-                }
+            String inferenceId = inferenceId(fn, snapshotRegistry);
+            if (inferenceId != null) {
+                inferenceIds.add(inferenceId);
             }
             if (fn.name().equalsIgnoreCase("knn")
                 || fn.name().equalsIgnoreCase("to_dense_vector")
@@ -182,22 +194,46 @@ public class PreAnalyzer {
         );
     }
 
-    private static boolean isInferenceFunction(String functionName) {
-        return TextEmbedding.DEFINITION.name().equalsIgnoreCase(functionName) || Embedding.DEFINITION.name().equalsIgnoreCase(functionName);
-    }
-
     private static String inferenceId(InferencePlan<?> plan) {
         return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
     }
 
-    private static String inferenceId(UnresolvedFunction function) {
-        if (function.arguments().size() <= 1) {
+    private static String inferenceId(UnresolvedFunction f, EsqlFunctionRegistry snapshotRegistry) {
+        if (snapshotRegistry == null) {
             return null;
         }
-        Expression inferenceId = function.arguments().get(1);
-        if (inferenceId != null && inferenceId.foldable() && DataType.isString(inferenceId.dataType())) {
-            return BytesRefs.toString(inferenceId.fold(FoldContext.small()));
+
+        String functionName = snapshotRegistry.resolveAlias(f.name());
+        if (snapshotRegistry.functionExists(functionName) == false) {
+            return null;
         }
+
+        FunctionDefinition def = snapshotRegistry.resolveFunction(functionName);
+        if (InferenceFunction.class.isAssignableFrom(def.clazz()) == false) {
+            return null;
+        }
+
+        return inferenceId(f, def);
+    }
+
+    private static String inferenceId(UnresolvedFunction f, FunctionDefinition def) {
+        EsqlFunctionRegistry.FunctionDescription functionDescription = EsqlFunctionRegistry.description(def);
+
+        for (int i = 0; i < functionDescription.args().size(); i++) {
+            EsqlFunctionRegistry.ArgSignature arg = functionDescription.args().get(i);
+            if (i >= f.arguments().size()) {
+                // Argument is missing. We will fail later during verifier, so just return null here.
+                return null;
+            }
+
+            if (arg.name().equals(InferenceFunction.INFERENCE_ID_PARAMETER_NAME)) {
+                Expression inferenceId = f.arguments().get(i);
+                if (inferenceId != null && inferenceId.foldable() && DataType.isString(inferenceId.dataType())) {
+                    return BytesRefs.toString(inferenceId.fold(FoldContext.small()));
+                }
+            }
+        }
+
         return null;
     }
 }

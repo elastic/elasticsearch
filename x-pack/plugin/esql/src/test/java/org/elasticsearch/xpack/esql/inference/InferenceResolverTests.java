@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -64,7 +65,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     public void testCollectInferenceIds() {
-        PreAnalyzer preAnalyzer = new PreAnalyzer();
+        PreAnalyzer preAnalyzer = new PreAnalyzer(TEST_FUNCTION_REGISTRY);
 
         // Rerank inference plan
         assertCollectInferenceIds(

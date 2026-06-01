@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -149,6 +150,20 @@ public class OrderBy extends UnaryPlan
                                 UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
                                 "MV_EXPAND",
                                 mvExpand.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof SemiJoin semiJoin) {
+                semiJoin.right()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                semiJoin,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "IN subquery",
+                                semiJoin.sourceText(),
                                 orderBy.sourceText()
                             )
                         )

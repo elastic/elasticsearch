@@ -22,6 +22,26 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY
  */
 public class Clusters {
 
+    /**
+     * Cluster for tests that only need HTTP access (e.g. downloading from public URLs).
+     * No S3/GCS client settings are configured.
+     */
+    public static ElasticsearchCluster httpOnlyTestCluster() {
+        return ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .shared(true)
+            .plugin("inference-service-test")
+            .module("repository-s3")
+            .module("repository-gcs")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.ml.enabled", "false")
+            .setting("path.repo", FixtureUtils.pathRepoRootForIcebergFixtures(Clusters.class))
+            .jvmArg("--add-opens=java.base/java.nio=ALL-UNNAMED")
+            .jvmArg("-Darrow.allocation.manager.type=Unsafe")
+            .build();
+    }
+
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)

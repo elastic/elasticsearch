@@ -490,7 +490,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 this,
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD,
-                indexSettings.getMode().isColumnar(),
+                indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters().multiValue()
             );
             return new KeywordFieldMapper(
@@ -619,7 +619,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexVersion = builder.indexSettings.getIndexVersionCreated();
             this.readInArrayOrder = builder.offsetsFieldName != null
                 && builder.docValuesParameters().multiValue()
-                && builder.indexSettings.getMode().isColumnar();
+                && builder.indexSettings.getMode().isStrictColumnar();
         }
 
         public KeywordFieldType(String name) {
@@ -1422,29 +1422,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (shouldRecordOffset(context)) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
-    }
-
-    private boolean shouldRecordOffset(DocumentParserContext context) {
-        if (offsetsFieldName == null) {
-            return false;
-        }
-
-        // Columnar mode relies solely on offsets for array order reconstruction. Record an offset for every indexed value so the offset
-        // slots remain aligned with the sorted-set ords during decode, regardless of whether the value's immediate parent was an array.
-        if (docValuesParameters.multiValue() && indexSettings.getMode().isStrictColumnar()) {
-            return true;
-        }
-
-        // synthetic_source_keep=arrays path: only record when the value's immediate parent is an array, since out-of-array values are
-        // captured by _ignored_source.
-        return context.isImmediateParentAnArray() && context.canAddIgnoredField();
     }
 
     @Override

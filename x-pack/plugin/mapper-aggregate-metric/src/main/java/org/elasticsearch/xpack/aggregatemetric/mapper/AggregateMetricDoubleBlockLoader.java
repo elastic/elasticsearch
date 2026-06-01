@@ -165,8 +165,19 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
                 return ConstantNull.COLUMN_READER;
             }
             NumericDvSingletonOrSorted dvSumValues = NumericDvSingletonOrSorted.get(breaker, context, sumFieldType.name());
-            NumericDvSingletonOrSorted dvValueCountValues = NumericDvSingletonOrSorted.get(breaker, context, countFieldType.name());
+            NumericDvSingletonOrSorted dvValueCountValues = null;
+            try {
+                dvValueCountValues = NumericDvSingletonOrSorted.get(breaker, context, countFieldType.name());
+            } catch (Exception e) {
+                // The sum doc values reserved breaker space above; release it if acquiring the count doc values fails (ex. circuit
+                // breaker), otherwise it leaks.
+                releaseDocValues(dvSumValues);
+                throw e;
+            }
             if (dvSumValues == null || dvValueCountValues == null) {
+                // One sub-field is missing; release whichever doc values we did acquire so their reservation isn't leaked.
+                releaseDocValues(dvSumValues);
+                releaseDocValues(dvValueCountValues);
                 return ConstantNull.COLUMN_READER;
             }
             assert dvSumValues.sorted() == null && dvValueCountValues.sorted() == null
@@ -228,6 +239,13 @@ public class AggregateMetricDoubleBlockLoader extends BlockDocValuesReader.DocVa
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
             throw new UnsupportedOperationException("AvgBlockLoader does not have a corresponding builder");
+        }
+
+        /** Releases the breaker reservation held by the given doc values, tolerating a {@code null} holder. */
+        private static void releaseDocValues(NumericDvSingletonOrSorted docValues) {
+            if (docValues != null) {
+                Releasables.close(docValues.singleton(), docValues.sorted());
+            }
         }
     }
 }

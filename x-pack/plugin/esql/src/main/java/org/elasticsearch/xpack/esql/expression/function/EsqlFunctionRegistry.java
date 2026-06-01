@@ -663,9 +663,6 @@ public class EsqlFunctionRegistry {
         return snapshotRegistry;
     }
 
-    /**
-     * Returns the names (primary names and aliases, normalized) of all registered inference functions.
-     */
     private Set<String> inferenceFunctionNames;
 
     /**

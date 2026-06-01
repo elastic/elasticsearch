@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -157,7 +158,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 }
             } catch (Exception e) {
                 int newRetries = entry.retryAttempts() + 1;
-                logger.debug("[{}] Retry {} for orphaned scroll [{}] still failed", job.getId(), newRetries, entry.scrollId());
+                logger.debug(
+                    () -> Strings.format("[%s] Retry %d for orphaned scroll [%s] still failed", job.getId(), newRetries, entry.scrollId()),
+                    e
+                );
                 orphanedScrolls.addLast(new OrphanedScroll(entry.scrollId(), entry.createdAtMillis(), newRetries));
             }
         }

@@ -102,7 +102,6 @@ class ScrollDataExtractor implements DataExtractor {
     @Override
     public void destroy() {
         cancel();
-        // First clear attempt for the active scroll. CCS failure -> INFO + scroll id added to failedClearScrollIds.
         clearScroll();
         List<String> scrollIdsToRetry = List.copyOf(failedClearScrollIds);
         failedClearScrollIds.clear();
@@ -120,7 +119,6 @@ class ScrollDataExtractor implements DataExtractor {
         // important when the datafeed is shutting down and no further initScroll() calls will
         // happen to trigger the retry there. If the network has since recovered, these will clear.
         if (factory.hasOrphanedScrollIds()) {
-            // DEBUG-only retry path as initScroll() for orphans from other extractors.
             factory.retryClearOrphanedScrollIds();
         }
     }
@@ -158,7 +156,6 @@ class ScrollDataExtractor implements DataExtractor {
 
     protected InputStream initScroll(long startTimestamp) throws IOException {
         if (factory.hasOrphanedScrollIds()) {
-            // Queued CCS orphans from prior extractors: clear failures are DEBUG in ScrollDataExtractorFactory.
             factory.retryClearOrphanedScrollIds();
         }
         logger.debug("[{}] Initializing scroll with start time [{}]", context.jobId, startTimestamp);
@@ -320,56 +317,46 @@ class ScrollDataExtractor implements DataExtractor {
         scrollId = null;
     }
 
+    /**
+     * Clears a scroll id, logging and optionally queuing for factory retry when clear fails.
+     * <p>
+     * Cross-cluster search (CCS) is inferred from {@link #lastLinkedClusterStates}: if this extractor
+     * has observed remote-cluster metadata during its lifetime (via {@link DataExtractorUtils#preferRicherLinkedClusterStates}),
+     * failed clears are treated as CCS. That snapshot never shrinks when later responses omit cluster metadata,
+     * so it is a lifetime proxy, not a per-scroll-id remote check. Remote scroll contexts can outlive a brief outage
+     * and are queued for retry; local contexts are left to expire without queuing.
+     */
     private void clearScrollLoggingExceptions(String scrollId) {
         if (scrollId == null) {
             return;
         }
-        try {
-            boolean succeeded = innerClearScroll(scrollId);
-            if (succeeded == false) {
-                boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
-                if (isCcsScroll) {
-                    logger.info("[{}] CCS scroll context could not be cleared, will retry [{}]", context.jobId, scrollId);
-                    failedClearScrollIds.add(scrollId);
-                } else {
-                    logger.debug("[{}] Transient scroll clear failure, context will expire on its own [{}]", context.jobId, scrollId);
-                }
-            }
-        } catch (Exception e) {
-            // Transport exception during clear (e.g. NodeNotConnectedException)
-            boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
-            if (isCcsScroll) {
-                logger.info(
-                    () -> Strings.format("[%s] CCS scroll context could not be cleared, will retry [%s]", context.jobId, scrollId),
-                    e
-                );
-                failedClearScrollIds.add(scrollId);
-            } else {
-                logger.debug(
-                    () -> Strings.format(
-                        "[%s] Transient scroll clear failure, context will expire on its own [%s]",
-                        context.jobId,
-                        scrollId
-                    ),
-                    e
-                );
-            }
+        if (innerClearScroll(scrollId)) {
+            return;
+        }
+        boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
+        if (isCcsScroll) {
+            logger.info("[{}] CCS scroll context could not be cleared, will retry [{}]", context.jobId, scrollId);
+            failedClearScrollIds.add(scrollId);
+        } else {
+            logger.debug("[{}] Transient scroll clear failure, context will expire on its own [{}]", context.jobId, scrollId);
         }
     }
 
     private boolean innerClearScroll(String scrollId) {
-        if (scrollId == null) {
-            return true;
+        try {
+            ClearScrollRequest request = new ClearScrollRequest();
+            request.addScrollId(scrollId);
+            ClearScrollResponse response = ClientHelper.executeWithHeaders(
+                context.queryContext.headers,
+                ClientHelper.ML_ORIGIN,
+                client,
+                () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
+            );
+            return response.isSucceeded();
+        } catch (Exception e) {
+            logger.debug(() -> Strings.format("[%s] Scroll clear request threw exception [%s]", context.jobId, scrollId), e);
+            return false;
         }
-        ClearScrollRequest request = new ClearScrollRequest();
-        request.addScrollId(scrollId);
-        ClearScrollResponse response = ClientHelper.executeWithHeaders(
-            context.queryContext.headers,
-            ClientHelper.ML_ORIGIN,
-            client,
-            () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
-        );
-        return response.isSucceeded();
     }
 
     @Override

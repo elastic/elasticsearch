@@ -1,0 +1,3 @@
+FROM employees
+| LOOKUP JOIN test_lookup ON first_name
+| WHERE last_name == "Facello"

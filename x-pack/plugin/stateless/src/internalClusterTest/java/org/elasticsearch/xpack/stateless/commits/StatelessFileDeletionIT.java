@@ -255,7 +255,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 }
 
                 @Override
-                ActionListener<BatchedCompoundCommit> newUploadTaskListener(
+                ActionListener<BccUploadResult> newUploadTaskListener(
                     ShardCommitState commitState,
                     VirtualBatchedCompoundCommit virtualBcc,
                     ShardCommitState.BlobReference blobReference

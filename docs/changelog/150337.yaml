@@ -1,5 +1,0 @@
-area: "PromQL, ES|QL"
-issues: []
-pr: 150337
-summary: Add classic histogram quantile compute aggregator
-type: enhancement

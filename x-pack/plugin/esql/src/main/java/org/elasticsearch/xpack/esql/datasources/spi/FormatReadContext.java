@@ -49,6 +49,8 @@ import java.util.List;
  *                         (the substrate of {@code _file.record_ref} / {@code _id}). {@code 0} for the
  *                         whole-file (non-split) case and for columnar formats, which derive a file-global
  *                         row index from their own footer/stripe metadata rather than from a byte anchor.
+ * @param maxRecordBytes   maximum bytes a single text record may occupy while split/trim code
+ *                         scans for a record boundary.
  */
 public record FormatReadContext(
     List<String> projectedColumns,
@@ -59,12 +61,16 @@ public record FormatReadContext(
     boolean lastSplit,
     boolean recordAligned,
     @Nullable List<Attribute> readSchema,
-    long splitStartByte
+    long splitStartByte,
+    int maxRecordBytes
 ) {
 
     public FormatReadContext {
         if (readSchema != null && readSchema.isEmpty()) {
             readSchema = null;
+        }
+        if (maxRecordBytes <= 0) {
+            throw new IllegalArgumentException("maxRecordBytes must be positive, got: " + maxRecordBytes);
         }
     }
 
@@ -92,7 +98,8 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
-            splitStartByte
+            splitStartByte,
+            maxRecordBytes
         );
     }
 
@@ -109,7 +116,8 @@ public record FormatReadContext(
             lastSplit,
             recordAligned,
             readSchema,
-            splitStartByte
+            splitStartByte,
+            maxRecordBytes
         );
     }
 
@@ -126,7 +134,8 @@ public record FormatReadContext(
             last,
             recordAligned,
             readSchema,
-            splitStartByte
+            splitStartByte,
+            maxRecordBytes
         );
     }
 
@@ -148,6 +157,7 @@ public record FormatReadContext(
         @Nullable
         private List<Attribute> readSchema = null;
         private long splitStartByte = 0L;
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
 
         private Builder() {}
 
@@ -202,6 +212,11 @@ public record FormatReadContext(
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public FormatReadContext build() {
             if (batchSize <= 0) {
                 throw new IllegalArgumentException("batchSize must be positive, got: " + batchSize);
@@ -215,7 +230,8 @@ public record FormatReadContext(
                 lastSplit,
                 recordAligned,
                 readSchema,
-                splitStartByte
+                splitStartByte,
+                maxRecordBytes
             );
         }
     }

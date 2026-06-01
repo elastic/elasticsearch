@@ -64,8 +64,10 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -195,6 +197,8 @@ public class CsvIT extends ESTestCase {
             List.of(
                 getTestTransportPlugin(),
                 EsqlTestPlugin.class,
+                // EncryptionService binding for the always-registered data-source CRUD actions.
+                TestEncryptionServicePlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
@@ -251,10 +255,16 @@ public class CsvIT extends ESTestCase {
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
+        if (randomBoolean()) {
+            Settings.Builder pragmaSettings = Settings.builder();
+            pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
+            request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
+        }
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
         try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
+            assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
             ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
             ActualResults actual = new ActualResults(
                 response.zoneId(),

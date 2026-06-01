@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -93,7 +94,18 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, decompressedStream, projectedColumns, batchSize, parallelism, executor, errorPolicy, null, 0L);
+        return parallelRead(
+            reader,
+            decompressedStream,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            null,
+            0L,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
     }
 
     /**
@@ -116,7 +128,8 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy,
         @Nullable List<Attribute> readSchema,
-        long baseFileOffset
+        long baseFileOffset,
+        int maxRecordBytes
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -135,6 +148,7 @@ public final class StreamingParallelParsingCoordinator {
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
                 .splitStartByte(baseFileOffset)
+                .maxRecordBytes(maxRecordBytes)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -148,7 +162,8 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             effectivePolicy,
             readSchema,
-            baseFileOffset
+            baseFileOffset,
+            maxRecordBytes
         );
     }
 
@@ -189,7 +204,14 @@ public final class StreamingParallelParsingCoordinator {
         /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
         private final int pageQueueRingSize;
         private final int chunkSize;
+        /**
+         * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
+         * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
+         */
+        private final int maxRecordBytes;
         private final ArrayBlockingQueue<Page>[] pageQueues;
+        private volatile SegmentableFormatReader recordSplitterReader;
+        private volatile RecordSplitter recordSplitter;
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
         /**
@@ -235,7 +257,8 @@ public final class StreamingParallelParsingCoordinator {
             Executor executor,
             ErrorPolicy errorPolicy,
             @Nullable List<Attribute> readSchema,
-            long baseFileOffset
+            long baseFileOffset,
+            int maxRecordBytes
         ) {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
@@ -243,6 +266,7 @@ public final class StreamingParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.readSchema = readSchema;
             this.baseFileOffset = baseFileOffset;
+            this.maxRecordBytes = maxRecordBytes;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -282,6 +306,34 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
+        private RecordSplitter recordSplitter() {
+            SegmentableFormatReader currentReader = reader;
+            RecordSplitter currentSplitter = recordSplitter;
+            if (currentSplitter == null || recordSplitterReader != currentReader) {
+                currentSplitter = currentReader.recordSplitter(maxRecordBytes);
+                recordSplitterReader = currentReader;
+                recordSplitter = currentSplitter;
+            }
+            return currentSplitter;
+        }
+
+        private IOException recordTooLargeException(int scannedBytes) {
+            String hint = switch (reader.formatName()) {
+                case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
+                default -> "";
+            };
+            return new IOException(
+                "record exceeded max_record_size ["
+                    + maxRecordBytes
+                    + "] after scanning ["
+                    + scannedBytes
+                    + "] bytes for format ["
+                    + reader.formatName()
+                    + "]"
+                    + hint
+            );
+        }
+
         private void runSegmentator(InputStream stream, int chunkSize) {
             byte[] carry = null;
             int carryLen = 0;
@@ -314,7 +366,10 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = reader.findLastRecordBoundary(buf, totalBytes);
+                    int lastNewline = recordSplitter().findLastRecordBoundary(buf, 0, totalBytes);
+                    if (lastNewline == RecordSplitter.RECORD_TOO_LARGE) {
+                        throw recordTooLargeException(totalBytes);
+                    }
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -528,6 +583,7 @@ public final class StreamingParallelParsingCoordinator {
                     .recordAligned(true)
                     .readSchema(readSchema)
                     .splitStartByte(baseFileOffset + chunk.startByte)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                     while (pages.hasNext()) {
@@ -617,12 +673,21 @@ public final class StreamingParallelParsingCoordinator {
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] buf = existing;
             int len = existingLen;
+            // Bound the grow loop: a record past maxRecordBytes means the scanner won't find a boundary
+            // (a format/quoting mismatch), so fail rather than read the input without bound.
             while (true) {
+                if (len + growBy > maxRecordBytes) {
+                    throw recordTooLargeException(len);
+                }
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
                     return new GrowResult(grown, -1);
                 }
-                int boundary = reader.findLastRecordBoundary(grown, grown.length);
+                // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
+                int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
+                if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
+                    throw recordTooLargeException(grown.length);
+                }
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);
                 }

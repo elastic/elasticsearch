@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
@@ -29,7 +30,11 @@ public class ForkApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^10, and a filtered count of 10^10.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | FORK (WHERE emp_no > 42) (WHERE emp_no <= 42) | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -67,7 +72,11 @@ public class ForkApproximationTests extends ApproximationTestCase {
         LogicalPlan originalPlan = getLogicalPlan(
             "FROM test | FORK (WHERE emp_no > 42 | STATS SUM(emp_no)) (WHERE emp_no <= 42 | STATS STD_DEV(emp_no))"
         );
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the shared source count (run once, not per branch).

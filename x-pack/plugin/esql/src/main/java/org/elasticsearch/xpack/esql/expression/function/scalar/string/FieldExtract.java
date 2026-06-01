@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +17,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.mapper.flattened.ExtractFlattenedSubfieldConfig;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -105,9 +103,14 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             Returns `null` if either argument is `null`, if no sub-field with that name exists, or if the stored value
             is JSON `null`. Returns `null` and emits a warning if the root value is not valid JSON.
 
-            String values are returned without surrounding quotes, numbers and booleans as their string representation,
-            and objects and arrays as JSON strings. When the sub-field is multi-valued in the flattened field, the
-            result is a multi-valued `keyword` block.""",
+            String values are returned without surrounding quotes, and numbers and booleans as their string
+            representation. When the sub-field is multi-valued in the flattened field, the result is a multi-valued
+            `keyword` block. Because the underlying mapper flattens nested objects into dotted keys at index time,
+            a sub-field whose value is itself a JSON object has no leaf at the requested key in the flat storage and
+            the function returns `null`. The dotted child paths (`a.b`, `a.b.c`, ...) still address the leaves directly.
+            Inside a multi-value sub-field, JSON object elements are likewise absent from the flat storage and are
+            skipped; nested JSON arrays are flattened recursively so all scalar leaves end up in the resulting
+            multi-value block.""",
         examples = @Example(file = "field_extract", tag = "field_extract_host_name")
     )
     public FieldExtract(
@@ -242,10 +245,12 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
      * Emits the JSON value at the parser's current token to {@code builder}. Mirrors the
      * keyed sub-field block-loader's per-cell shape so the parse-path output is interchangeable
      * with the pushdown path's output for the same source: scalars produce a single-value
-     * position, JSON arrays produce a multi-value position (one keyword per element), and
-     * nested JSON objects (and any objects/arrays inside an outer array) are serialised to
-     * a JSON string per the function's {@code detailedDescription} contract. {@code VALUE_NULL}
-     * appends a null position.
+     * position and JSON arrays produce a multi-value position with one keyword per scalar leaf.
+     * A nested JSON object at the requested key produces a {@code null} position because the
+     * flattened mapper indexes its leaves under dotted child keys ({@code key.a},
+     * {@code key.a.b}, ...) and therefore stores no value at {@code key} itself; the same
+     * dotted child paths still address the inner leaves directly. {@code VALUE_NULL} appends a
+     * null position.
      */
     private static void appendValueAtCurrentToken(BytesRefBlock.Builder builder, XContentParser parser, String key) throws IOException {
         XContentParser.Token token = parser.currentToken();
@@ -253,43 +258,39 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
             case VALUE_STRING, VALUE_NUMBER -> builder.appendBytesRef(new BytesRef(parser.text()));
             case VALUE_BOOLEAN -> builder.appendBytesRef(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
             case VALUE_NULL -> builder.appendNull();
-            case START_OBJECT -> builder.appendBytesRef(serializeCurrentStructure(parser));
+            case START_OBJECT -> {
+                parser.skipChildren();
+                builder.appendNull();
+            }
             case START_ARRAY -> appendArrayAsMultiValue(builder, parser, key);
             default -> throw new IllegalArgumentException("unexpected token [" + token + "] at path [" + key + "]");
         }
     }
 
     /**
-     * Walks the current JSON array and emits each element as a keyword. Buffers the rendered
-     * elements first so the choice between scalar position, multi-value position, and null
-     * can be made once the array is exhausted: an empty array (or an array consisting only of
-     * JSON nulls) maps to null, mirroring how the function treats a missing key. A
-     * single-element array collapses to a scalar position so the resulting block is shaped
-     * identically to a doc whose source already held a single value (the single-element
-     * collapse that {@code CsvTestsDataLoader.parseDocument} performs on the way in is the
-     * symmetric version of this on the input side). Multi-element arrays use a
-     * begin/end position-entry pair on the block builder.
+     * Walks the current JSON array and emits the scalar leaves at the requested key as a
+     * single block-builder position. Mirrors how the flattened mapper iterates leaf-array
+     * elements without extending the storage key: nested arrays are walked recursively
+     * because their scalar contents would also be indexed under the outer key, while
+     * embedded objects are skipped because their leaves would be indexed under
+     * <em>extended</em> dotted keys ({@code key.a}, {@code key.a.b}, ...) and never under
+     * {@code key} itself. JSON null elements are dropped because a {@code BytesRefBlock}
+     * multi-value position cannot represent {@code null} as one of its elements, and
+     * dropping is the only representable option that does not silently substitute an empty
+     * {@link BytesRef} for a missing value.
      * <p>
-     * JSON null elements are dropped: a {@code BytesRefBlock} multi-value position cannot
-     * represent {@code null} as one of its elements, and dropping nulls is the only
-     * representable option that does not silently substitute an empty {@link BytesRef} for a
-     * missing value. An array of all nulls therefore reduces to the empty case and produces
-     * a null position.
+     * Buffers the rendered scalars first so the choice between scalar position, multi-value
+     * position, and null can be made once the array is exhausted: an empty result (the
+     * source array was empty, held only JSON nulls, or held only embedded objects whose
+     * leaves live at extended keys) maps to a null position; a single-element result
+     * collapses to a scalar position so the block is shaped identically to a doc whose
+     * source already held a single value (symmetric to the single-element collapse
+     * {@code CsvTestsDataLoader.parseDocument} performs on the way in); multi-element
+     * results use a begin/end position-entry pair on the block builder.
      */
     private static void appendArrayAsMultiValue(BytesRefBlock.Builder builder, XContentParser parser, String key) throws IOException {
         List<BytesRef> elements = new ArrayList<>();
-        XContentParser.Token elem;
-        while ((elem = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            switch (elem) {
-                case VALUE_STRING, VALUE_NUMBER -> elements.add(new BytesRef(parser.text()));
-                case VALUE_BOOLEAN -> elements.add(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
-                case VALUE_NULL -> {
-                    // see method-level Javadoc: drop nulls inside multi-value keyword positions.
-                }
-                case START_OBJECT, START_ARRAY -> elements.add(serializeCurrentStructure(parser));
-                default -> throw new IllegalArgumentException("unexpected token [" + elem + "] inside array at path [" + key + "]");
-            }
-        }
+        collectScalarLeavesFromCurrentArray(parser, elements, key);
         if (elements.isEmpty()) {
             builder.appendNull();
             return;
@@ -306,15 +307,27 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
     }
 
     /**
-     * Re-serialises the JSON sub-tree starting at the parser's current token to a UTF-8
-     * {@link BytesRef}. Used to render nested objects (and objects/arrays nested inside an
-     * outer array) as a JSON string, since the function's return type is {@code keyword} and
-     * the block builder cannot represent structured values directly.
+     * Consumes the parser's current array (up to and including the matching {@code END_ARRAY})
+     * and appends every scalar leaf in document order to {@code elements}. Recurses into
+     * nested arrays so their scalars are flattened into the same key (this matches how the
+     * flattened mapper iterates leaf-array elements without extending the storage key).
+     * Skips embedded JSON objects in full because their leaves live at extended dotted keys
+     * ({@code key.a}, {@code key.a.b}, ...) and are never indexed at {@code key} itself.
+     * Drops JSON nulls, as the caller's multi-value position cannot represent them.
      */
-    private static BytesRef serializeCurrentStructure(XContentParser parser) throws IOException {
-        try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            jsonBuilder.copyCurrentStructure(parser);
-            return BytesReference.bytes(jsonBuilder).toBytesRef();
+    private static void collectScalarLeavesFromCurrentArray(XContentParser parser, List<BytesRef> elements, String key) throws IOException {
+        XContentParser.Token elem;
+        while ((elem = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            switch (elem) {
+                case VALUE_STRING, VALUE_NUMBER -> elements.add(new BytesRef(parser.text()));
+                case VALUE_BOOLEAN -> elements.add(parser.booleanValue() ? TRUE_BYTES : FALSE_BYTES);
+                case VALUE_NULL -> {
+                    // see method-level Javadoc: drop nulls inside multi-value keyword positions.
+                }
+                case START_ARRAY -> collectScalarLeavesFromCurrentArray(parser, elements, key);
+                case START_OBJECT -> parser.skipChildren();
+                default -> throw new IllegalArgumentException("unexpected token [" + elem + "] inside array at path [" + key + "]");
+            }
         }
     }
 

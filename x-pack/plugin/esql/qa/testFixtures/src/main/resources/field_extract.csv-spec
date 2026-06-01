@@ -236,6 +236,7 @@ FROM flattened_otel_logs
 multiValuedSubkeyAsMultiValue
 required_capability: fn_field_extract
 required_capability: flattened_datatype
+required_capability: field_extract_flattened_pushdown
 required_capability: field_extract_returns_multi_value
 
 FROM flattened_otel_logs
@@ -586,12 +587,9 @@ warningRegex:Line 2:9: java\.lang\.IllegalArgumentException: path \[host\.name\]
 2020-01-01T11:38:54.751Z
 ;
 
-// Pins the parse-path multi-value behavior independently of the pushdown gate. The CASE
-// produces a synthetic flattened expression (a ReferenceAttribute), so block-loader fusion
-// cannot fire and field_extract must materialize the whole flattened JSON and parse it per
-// row. Asserting MV_COUNT == 2 here verifies the per-row evaluator emits a real multi-value
-// keyword block; the value-level ordering is verified by mvExpandOnMultiValuedExtractViaCase
-// below.
+// Pins the parse-path multi-value behavior independently of the pushdown gate. CASE can't be pushed. 
+// Asserting MV_COUNT == 2 here verifies the per-row evaluator emits a real multi-value keyword block. 
+// The value-level ordering is verified by mvExpandOnMultiValuedExtractViaCase below.
 multiValuedSubkeyAsMultiValueViaCase
 required_capability: fn_field_extract
 required_capability: flattened_datatype

@@ -31,14 +31,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
@@ -47,10 +48,10 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         private final String name;
         private boolean multivalued;
 
-        public Column(String esqlType, String name) {
-            this.converter = ESQL_CONVERTERS.get(esqlType);
+        public Column(DataType esqlType, String name) {
+            this.converter = ESQL_FORMATTERS.get(esqlType);
             if (converter == null) {
-                throw new IllegalArgumentException("ES|QL type [" + esqlType + "] is not supported by the Arrow format");
+                throw new IllegalArgumentException("ES|QL type [" + esqlType.outputType() + "] is not supported by the Arrow format");
             }
             this.name = name;
         }
@@ -364,56 +365,94 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     /**
      * Converters for every ES|QL type
      */
-    static final Map<String, BlockArrowFormatter> ESQL_CONVERTERS = Map.ofEntries(
+    static final EnumMap<DataType, BlockArrowFormatter> ESQL_FORMATTERS;
+
+    static {
+        ESQL_FORMATTERS = new EnumMap<>(DataType.class);
+        for (var type : DataType.values()) {
+            var formatter = formatterForType(type);
+            if (formatter != null) {
+                ESQL_FORMATTERS.put(type, formatter);
+            }
+        }
+    }
+
+    /**
+     * Converters for every ES|QL type. Returns null if the type is not supported in the output.
+     */
+    private static BlockArrowFormatter formatterForType(DataType type) {
         // For reference:
         // - DataType: list of ESQL data types (not all are present in outputs)
         // - PositionToXContent: conversions for ESQL JSON output
         // - EsqlDataTypeConverter: conversions to ESQL datatypes
         // Missing: multi-valued values
+        return switch (type) {
+            case UNSUPPORTED -> new BlockArrowFormatter.AsNull(type);
+            case NULL -> new BlockArrowFormatter.AsNull(type);
 
-        buildEntry(new BlockArrowFormatter.AsNull("null")),
-        buildEntry(new BlockArrowFormatter.AsNull("unsupported")),
+            case BOOLEAN -> new BlockArrowFormatter.AsBoolean(type);
 
-        buildEntry(new BlockArrowFormatter.AsBoolean("boolean")),
+            case INTEGER -> new BlockArrowFormatter.AsInt32(type);
+            case COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
 
-        buildEntry(new BlockArrowFormatter.AsInt32("integer")),
-        buildEntry(new BlockArrowFormatter.AsInt32("counter_integer")),
+            case LONG -> new BlockArrowFormatter.AsInt64(type);
+            // FIXME: counters: are they signed?
+            case COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
+            case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
 
-        buildEntry(new BlockArrowFormatter.AsInt64("long")),
-        // FIXME: counters: are they signed?
-        buildEntry(new BlockArrowFormatter.AsInt64("counter_long")),
-        buildEntry(new BlockArrowFormatter.AsInt64("unsigned_long", MinorType.UINT8)),
+            case DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
+            case COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
-        buildEntry(new BlockArrowFormatter.AsFloat64("double")),
-        buildEntry(new BlockArrowFormatter.AsFloat64("counter_double")),
+            case KEYWORD -> new BlockArrowFormatter.AsVarChar(type);
+            case TEXT -> new BlockArrowFormatter.AsVarChar(type);
 
-        buildEntry(new BlockArrowFormatter.AsVarChar("keyword")),
-        buildEntry(new BlockArrowFormatter.AsVarChar("text")),
+            // date: array of int64 milliseconds since epoch
+            // FIXME: is it signed?
+            case DATETIME -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPMILLI);
 
-        // date: array of int64 seconds since epoch
-        // FIXME: is it signed?
-        buildEntry(new BlockArrowFormatter.AsInt64("date", MinorType.TIMESTAMPMILLI)),
+            // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
+            // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
+            // ipv4 addresses it would still be twice as big.
+            case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
-        // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
-        // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
-        // ipv4 addresses it would still be twice as big.
-        buildEntry(new BlockArrowFormatter.TransformedBytesRef("ip", MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses)),
+            // geo_point: Keep WKB format (JSON converts to WKT)
+            case GEO_POINT -> new BlockArrowFormatter.AsVarBinary(type);
+            case GEO_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            case CARTESIAN_POINT -> new BlockArrowFormatter.AsVarBinary(type);
+            case CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
 
-        // geo_point: Keep WKB format (JSON converts to WKT)
-        buildEntry(new BlockArrowFormatter.AsVarBinary("geo_point")),
-        buildEntry(new BlockArrowFormatter.AsVarBinary("geo_shape")),
-        buildEntry(new BlockArrowFormatter.AsVarBinary("cartesian_point")),
-        buildEntry(new BlockArrowFormatter.AsVarBinary("cartesian_shape")),
+            // version: convert to string
+            case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
 
-        // version: convert to string
-        buildEntry(new BlockArrowFormatter.TransformedBytesRef("version", MinorType.VARCHAR, ValueConversions::versionToString)),
+            // _source: json
+            // TODO: support also CBOR and SMILE with an additional formatting parameter
+            case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
 
-        // _source: json
-        // TODO: support also CBOR and SMILE with an additional formatting parameter
-        buildEntry(new BlockArrowFormatter.TransformedBytesRef("_source", MinorType.VARCHAR, ValueConversions::sourceToJson))
-    );
+            // Explicitly list every unsupported type so that compilation fails when we add a new type and can take care of it.
+            case SHORT -> null;
+            case BYTE -> null;
+            case FLOAT -> null;
+            case HALF_FLOAT -> null;
+            case SCALED_FLOAT -> null;
 
-    private static Map.Entry<String, BlockArrowFormatter> buildEntry(BlockArrowFormatter converter) {
-        return Map.entry(converter.esqlType(), converter);
+            case DATE_NANOS -> null;
+            case DATE_RANGE -> null;
+
+            case OBJECT -> null;
+            case DATE_PERIOD -> null;
+            case TIME_DURATION -> null;
+            case GEOHASH -> null;
+            case GEOTILE -> null;
+            case GEOHEX -> null;
+            case DOC_DATA_TYPE -> null;
+            case TSID_DATA_TYPE -> null;
+            case PARTIAL_AGG -> null;
+            case AGGREGATE_METRIC_DOUBLE -> null;
+            case EXPONENTIAL_HISTOGRAM -> null;
+            case TDIGEST -> null;
+            case HISTOGRAM -> null;
+            case DENSE_VECTOR -> null;
+            case FLATTENED -> null;
+        };
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.BitSet;
@@ -30,11 +31,12 @@ public abstract class BlockArrowFormatter {
     private final FieldType fieldType;
     private final String esqlType;
 
-    protected BlockArrowFormatter(String esqlType, Types.MinorType minorType) {
+    protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType) {
         // Add the exact ESQL type as field metadata
-        var meta = Map.of("elastic:type", esqlType);
+        var outputType = esqlType.outputType();
+        var meta = Map.of("elastic:type", outputType);
         this.fieldType = new FieldType(true, minorType.getType(), null, meta);
-        this.esqlType = esqlType;
+        this.esqlType = outputType;
     }
 
     public final String esqlType() {
@@ -82,7 +84,7 @@ public abstract class BlockArrowFormatter {
      */
     public static class AsFloat64 extends BlockArrowFormatter {
 
-        public AsFloat64(String esqlType) {
+        public AsFloat64(DataType esqlType) {
             super(esqlType, Types.MinorType.FLOAT8);
         }
 
@@ -120,7 +122,7 @@ public abstract class BlockArrowFormatter {
      */
     public static class AsInt32 extends BlockArrowFormatter {
 
-        public AsInt32(String esqlType) {
+        public AsInt32(DataType esqlType) {
             super(esqlType, Types.MinorType.INT);
         }
 
@@ -157,11 +159,11 @@ public abstract class BlockArrowFormatter {
      * Conversion of Long blocks
      */
     public static class AsInt64 extends BlockArrowFormatter {
-        public AsInt64(String esqlType) {
+        public AsInt64(DataType esqlType) {
             this(esqlType, Types.MinorType.BIGINT);
         }
 
-        protected AsInt64(String esqlType, Types.MinorType minorType) {
+        protected AsInt64(DataType esqlType, Types.MinorType minorType) {
             super(esqlType, minorType);
         }
 
@@ -198,7 +200,7 @@ public abstract class BlockArrowFormatter {
      * Conversion of Boolean blocks
      */
     public static class AsBoolean extends BlockArrowFormatter {
-        public AsBoolean(String esqlType) {
+        public AsBoolean(DataType esqlType) {
             super(esqlType, Types.MinorType.BIT);
         }
 
@@ -240,7 +242,7 @@ public abstract class BlockArrowFormatter {
      */
     public static class BytesReFormatter extends BlockArrowFormatter {
 
-        public BytesReFormatter(String esqlType, Types.MinorType minorType) {
+        public BytesReFormatter(DataType esqlType, Types.MinorType minorType) {
             super(esqlType, minorType);
         }
 
@@ -331,11 +333,11 @@ public abstract class BlockArrowFormatter {
 
         /**
          *
-         * @param esqlType ESQL type name
+         * @param esqlType ESQL data type
          * @param minorType Arrow type
          * @param valueConverter a function that takes (value, scratch) input parameters and returns the transformed value
          */
-        public TransformedBytesRef(String esqlType, Types.MinorType minorType, BiFunction<BytesRef, BytesRef, BytesRef> valueConverter) {
+        public TransformedBytesRef(DataType esqlType, Types.MinorType minorType, BiFunction<BytesRef, BytesRef, BytesRef> valueConverter) {
             super(esqlType, minorType);
             this.valueConverter = valueConverter;
         }
@@ -391,19 +393,19 @@ public abstract class BlockArrowFormatter {
     }
 
     public static class AsVarChar extends BytesReFormatter {
-        public AsVarChar(String esqlType) {
+        public AsVarChar(DataType esqlType) {
             super(esqlType, Types.MinorType.VARCHAR);
         }
     }
 
     public static class AsVarBinary extends BytesReFormatter {
-        public AsVarBinary(String esqlType) {
+        public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
         }
     }
 
     public static class AsNull extends BlockArrowFormatter {
-        public AsNull(String esqlType) {
+        public AsNull(DataType esqlType) {
             super(esqlType, Types.MinorType.NULL);
         }
 

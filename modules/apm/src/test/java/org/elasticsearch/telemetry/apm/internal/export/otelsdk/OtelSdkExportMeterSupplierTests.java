@@ -76,7 +76,10 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
         supplier.get();
-        assertThat(supplier.getHealthMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
+        assertThat(
+            supplier.getHealthMeterProvider(),
+            org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class)
+        );
         supplier.close();
     }
 
@@ -88,7 +91,10 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
-        assertThat(supplier.getHealthMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
+        assertThat(
+            supplier.getHealthMeterProvider(),
+            org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class)
+        );
         supplier.close();
     }
 

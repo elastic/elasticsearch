@@ -85,9 +85,7 @@ public class ProjectEncryptionKeyIT extends SecurityIntegTestCase {
             assertThat(
                 encryptedActive.payload().length,
                 equalTo(
-                    PasswordBasedEncryption.SALT_OFFSET
-                        + PasswordBasedEncryption.SALT_LENGTH_BYTES
-                        + AesGcm.OVERHEAD_BYTES
+                    PasswordBasedEncryption.SALT_OFFSET + PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES
                         + PasswordBasedEncryption.PEK_LENGTH_BYTES
                 )
             );

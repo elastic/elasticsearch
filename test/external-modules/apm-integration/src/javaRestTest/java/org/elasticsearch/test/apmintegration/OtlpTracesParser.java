@@ -10,7 +10,6 @@
 package org.elasticsearch.test.apmintegration;
 
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
-import io.opentelemetry.proto.common.v1.AnyValue;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.trace.v1.ResourceSpans;
 import io.opentelemetry.proto.trace.v1.ScopeSpans;
@@ -29,7 +28,7 @@ import java.util.Optional;
  * Parses OTLP protobuf traces and produces protocol-neutral {@link ReceivedTelemetry} so that
  * tests can assert in a format-independent way.
  */
-public final class OtlpTracesParser {
+public final class OtlpTracesParser extends OtlpParser {
 
     private OtlpTracesParser() {}
 
@@ -89,24 +88,6 @@ public final class OtlpTracesParser {
             attributes.put("otel.attributes." + kv.getKey(), toJavaValue(kv.getValue()));
         }
         return Map.copyOf(attributes);
-    }
-
-    private static Map<String, Object> extractRawAttributes(List<KeyValue> kvs) {
-        Map<String, Object> attributes = new LinkedHashMap<>();
-        for (KeyValue kv : kvs) {
-            attributes.put(kv.getKey(), toJavaValue(kv.getValue()));
-        }
-        return Map.copyOf(attributes);
-    }
-
-    private static Object toJavaValue(AnyValue value) {
-        return switch (value.getValueCase()) {
-            case STRING_VALUE -> value.getStringValue();
-            case INT_VALUE -> value.getIntValue();
-            case DOUBLE_VALUE -> value.getDoubleValue();
-            case BOOL_VALUE -> value.getBoolValue();
-            default -> value.toString();
-        };
     }
 
     private static String toHex(byte[] bytes) {

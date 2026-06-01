@@ -762,6 +762,13 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        for (int d = 0; d < dest.length; d++) {
+            dest[d] = fma(scaleOther, other[d], dest[d]);
+        }
+    }
+
+    @Override
     public float logSumExpNQT(float[] vector) {
         assert vector.length > 0;
 

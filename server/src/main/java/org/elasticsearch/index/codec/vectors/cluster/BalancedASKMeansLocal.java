@@ -15,6 +15,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.function.IntFunction;
 
 /**
  * Balanced k-means algorithm that uses a mini-batch approach with an L2 regularization over the cluster sizes.
@@ -127,37 +128,37 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         float[] cumulativeClusterWeights,
         int[] assignments,
         V[] centroids,
-        float[][] floatCentroidsShadow
+        float[][] sgdCentroids
     ) throws IOException {
         // The SGD learning rate is computed as 1 / (clusterCount + learningRateShift).
         // Using a shift so that the updates are gentle and small.
         float learningRateShift = 3.f * this.sampleSize / centroids.length;
 
+        IntFunction<float[]> asFloatCentroid;
         if (ops instanceof CentroidOps.ByteOps) {
-            assert floatCentroidsShadow != null;
-            // Byte path: SGD in float precision, round to byte for distance computation
+            assert sgdCentroids != null;
+            asFloatCentroid = k -> sgdCentroids[k];
+        } else {
+            asFloatCentroid = k -> (float[]) centroids[k];
+        }
+
+        for (int idx = 0; idx < vectors.size(); idx++) {
+            V vec = vectors.vectorValue(idx);
+            int k = assignments[idx];
+            float[] centroid = asFloatCentroid.apply(k);
+            cumulativeClusterWeights[k]++;
+            float learningRate = 1.f / (cumulativeClusterWeights[k] + learningRateShift);
+            ops.linearCombination(learningRate, vec, 1 - learningRate, centroid);
+        }
+
+        if (ops instanceof CentroidOps.ByteOps) {
+            // SGD was done in float precision, round to byte for subsequent distance computation
             int dim = vectors.dimension();
-            for (int idx = 0; idx < vectors.size(); idx++) {
-                byte[] vec = (byte[]) vectors.vectorValue(idx);
-                int k = assignments[idx];
-                cumulativeClusterWeights[k]++;
-                float lr = 1.f / (cumulativeClusterWeights[k] + learningRateShift);
-                ESVectorUtil.linearCombination(lr, vec, 1 - lr, floatCentroidsShadow[k]);
-                // Round back to byte centroid for distance computation
+            for (int k = 0; k < centroids.length; k++) {
                 byte[] byteCentroid = (byte[]) centroids[k];
                 for (int d = 0; d < dim; d++) {
-                    byteCentroid[d] = (byte) Math.clamp(Math.round(floatCentroidsShadow[k][d]), -128, 127);
+                    byteCentroid[d] = (byte) Math.clamp(Math.round(sgdCentroids[k][d]), -128, 127);
                 }
-            }
-        } else {
-            // Float path
-            CentroidOps.FloatOps floatOps = (CentroidOps.FloatOps) ops;
-            for (int idx = 0; idx < vectors.size(); idx++) {
-                V vec = vectors.vectorValue(idx);
-                int k = assignments[idx];
-                cumulativeClusterWeights[k]++;
-                float learningRate = 1.f / (cumulativeClusterWeights[k] + learningRateShift);
-                floatOps.linearCombination(learningRate, (float[]) vec, 1 - learningRate, (float[]) centroids[k]);
             }
         }
     }
@@ -211,10 +212,12 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
 
         OnlineQuantileEstimator medianEstimator = null; // We cannot initialize the estimator now because we need to know its range.
 
+        // TODO: there's not a great way to handle this computationally for updating centroids on the byte path;
+        // alternatively here we could lazily construct float[] centroids caching some fraction of them instead
         // For byte centroids, maintain float shadow to avoid rounding noise during SGD
-        float[][] floatCentroidsShadow = null;
+        float[][] sgdCentroids = null;
         if (ops instanceof CentroidOps.ByteOps) {
-            floatCentroidsShadow = ops.toFloatCentroids(centroids);
+            sgdCentroids = ops.toFloatCentroids(centroids);
         }
 
         int t = 0;
@@ -258,7 +261,7 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
                 assignMiniBatch(distances, cumulativeClusterWeights, alpha, assigner, neighborhoods, localAssignments);
 
                 // Update the centroids using SGD.
-                updateCentroids(sampledVectors, cumulativeClusterWeights, localAssignments, centroids, floatCentroidsShadow);
+                updateCentroids(sampledVectors, cumulativeClusterWeights, localAssignments, centroids, sgdCentroids);
             }
             for (int kk = 0; kk < k; kk++) {
                 cumulativeClusterWeights[kk] *= forgettingFactor;
@@ -274,7 +277,7 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         assign(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods);
 
         int[] centroidCounts = new int[centroids.length];
-        int[][] byteAccumulators = (ops instanceof CentroidOps.ByteOps) ? new int[centroids.length][vectors.dimension()] : null;
+        int[][] centroidAccumulators = (ops instanceof CentroidOps.ByteOps) ? new int[centroids.length][vectors.dimension()] : null;
         CentroidAssignment.updateCentroids(
             vectors,
             ops,
@@ -283,7 +286,7 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
             centroidChangedSlices,
             centroidCounts,
             assignments,
-            byteAccumulators
+            centroidAccumulators
         );
     }
 

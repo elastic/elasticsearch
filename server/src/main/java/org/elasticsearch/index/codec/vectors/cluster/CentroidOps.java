@@ -12,6 +12,8 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.simdvec.MathUtils;
 
+import java.io.IOException;
+
 /**
  * Encapsulates all vector/centroid-type-specific arithmetic for k-means clustering.
  * <p>
@@ -61,9 +63,6 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
 
     // ---- Centroid lifecycle ----
 
-    /** Allocate a fresh zero-filled centroid of the given dimension. */
-    V newCentroid(int dims);
-
     /** Allocate a 2D centroid array of shape {@code [k][dims]}. */
     V[] newCentroidArray(int k, int dims);
 
@@ -81,11 +80,56 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
 
     // ---- Centroid update operations ----
 
-    /**
-     * Copy the contents of {@code vector} into {@code centroid} (first assignment).
-     * Equivalent to {@code System.arraycopy(vector, 0, centroid, 0, dim)}.
-     */
     void initCentroid(V centroid, V vector, int dim);
+
+    /**
+     * Abstracts accumulation and finalization of centroid updates, parameterized by
+     * accumulator type {@code W} and vector type {@code V}.
+     * <p>
+     * {@link FloatOps} implements this as {@code Accumulator<float[], float[]>} where the
+     * accumulator is the centroid itself. {@link ByteOps} implements as {@code Accumulator<int[], byte[]>}
+     * using int-precision accumulators to avoid overflow during summation.
+     *
+     * @param <W> the accumulator array type ({@code float[]} for floats, {@code int[]} for bytes)
+     * @param <V> the vector/centroid array type ({@code float[]} or {@code byte[]})
+     */
+    interface Accumulator<W, V> {
+        /**
+         * Accumulate a vector into the accumulator: {@code accumulator[d] += vector[d]},
+         * widening as needed for the byte path.
+         */
+        void accumulate(W accumulator, V vector, int dim);
+
+        /**
+         * Initialize the accumulator from a vector (first assignment for a cluster).
+         * Copies vector values into the accumulator, widening for the byte path.
+         */
+        void initAccumulator(W accumulator, V vector, int dim);
+
+        /**
+         * Divide the accumulator by {@code count} and write the result into {@code centroid}.
+         * For float ops, this divides in place. For byte ops, this rounds and clamps to byte range.
+         */
+        void divideAccumulator(V centroid, W accumulator, float count, int dim);
+    }
+
+    /**
+     * Computes SGD linear combination: {@code dest[i] = scaleOther * other[i] + scaleDest * dest[i]} where the source is a vector
+     * and the destination is always a float accumulator.
+     */
+    void linearCombination(float scaleOther, V other, float scaleDest, float[] dest);
+
+    /**
+     * Computes {@code dest[i] += scale * src[i]}. The source is type V and the destination is always a float accumulator.
+     */
+    void addScaled(float scale, V src, float[] dest);
+
+    /**
+     * Compute the mean centroid of all vectors in the given collection.
+     * For float vectors this accumulates directly into a {@code float[]} centroid.
+     * For byte vectors this accumulates into {@code int[]} precision and rounds once at the end.
+     */
+    V computeMeanCentroid(ClusteringVectorValues<V> vectors, int dimension) throws IOException;
 
     /**
      * Compute {@code diffs[d] = vector[d] - centroid[d]} as floats (for SOAR residuals).
@@ -120,7 +164,7 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      * {@link CentroidOps} for {@code float[]} vectors and centroids.
      * Delegates to {@link ESVectorUtil} for SIMD-accelerated operations.
      */
-    final class FloatOps implements CentroidOps<float[]> {
+    final class FloatOps implements CentroidOps<float[]>, Accumulator<float[], float[]> {
 
         public static final FloatOps INSTANCE = new FloatOps();
 
@@ -181,11 +225,6 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
-        public float[] newCentroid(int dims) {
-            return new float[dims];
-        }
-
-        @Override
         public float[][] newCentroidArray(int k, int dims) {
             float[][] result = new float[k][];
             for (int i = 0; i < k; i++) {
@@ -221,41 +260,45 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             System.arraycopy(vector, 0, centroid, 0, dim);
         }
 
-        /**
-         * Accumulate a vector into a centroid: {@code centroid[d] += vector[d]}.
-         * This is a float-only operation; byte centroids use {@code int[]} accumulators
-         * in {@code CentroidAssignment.updateCentroidsByte()} to avoid overflow.
-         */
-        void accumulate(float[] centroid, float[] vector, int dim) {
+        @Override
+        public void accumulate(float[] centroid, float[] vector, int dim) {
             for (int d = 0; d < dim; d++) {
                 centroid[d] += vector[d];
             }
         }
 
-        /**
-         * Divide each element of the centroid by {@code count}: {@code centroid[d] /= count}.
-         * Float-only; byte centroids divide from {@code int[]} accumulators and round once.
-         */
-        void divide(float[] centroid, float count, int dim) {
+        @Override
+        public void initAccumulator(float[] centroid, float[] vector, int dim) {
+            initCentroid(centroid, vector, dim);
+        }
+
+        @Override
+        public void divideAccumulator(float[] centroid, float[] accumulator, float count, int dim) {
             for (int d = 0; d < dim; d++) {
-                centroid[d] /= count;
+                centroid[d] = accumulator[d] / count;
             }
         }
 
-        /**
-         * SGD linear combination: {@code dest[d] += scale * src[d]}.
-         * Float-only; byte SGD operates on float shadow arrays via {@code ESVectorUtil}.
-         */
-        void linearCombination(float scale, float[] src, float[] dest) {
-            ESVectorUtil.linearCombination(scale, src, dest);
+        @Override
+        public float[] computeMeanCentroid(ClusteringVectorValues<float[]> vectors, int dimension) throws IOException {
+            assert vectors.size() > 0 : "cannot compute mean of zero vectors";
+            float[] centroid = new float[dimension];
+            initAccumulator(centroid, vectors.vectorValue(0), dimension);
+            for (int i = 1; i < vectors.size(); i++) {
+                accumulate(centroid, vectors.vectorValue(i), dimension);
+            }
+            divideAccumulator(centroid, centroid, vectors.size(), dimension);
+            return centroid;
         }
 
-        /**
-         * SGD linear combination: {@code dest[d] = scaleOther * other[d] + scaleDest * dest[d]}.
-         * Float-only; byte SGD operates on float shadow arrays via {@code ESVectorUtil}.
-         */
-        void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
+        @Override
+        public void linearCombination(float scaleOther, float[] other, float scaleDest, float[] dest) {
             ESVectorUtil.linearCombination(scaleOther, other, scaleDest, dest);
+        }
+
+        @Override
+        public void addScaled(float scale, float[] src, float[] dest) {
+            ESVectorUtil.linearCombination(scale, src, dest);
         }
 
         @Override
@@ -286,10 +329,10 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /**
      * {@link CentroidOps} for {@code byte[]} vectors and centroids.
      * <p>
-     * Centroid averaging uses {@code int[]} accumulators (see {@code CentroidAssignment.updateCentroidsByte}).
+     * Centroid averaging uses {@code int[]} accumulators via the {@link Accumulator} interface.
      * SGD updates use float shadow arrays (see {@code BalancedASKMeansLocal}, {@code BalancedOTKMeansLocal}).
      */
-    final class ByteOps implements CentroidOps<byte[]> {
+    final class ByteOps implements CentroidOps<byte[]>, Accumulator<int[], byte[]> {
 
         public static final ByteOps INSTANCE = new ByteOps();
 
@@ -350,11 +393,6 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
-        public byte[] newCentroid(int dims) {
-            return new byte[dims];
-        }
-
-        @Override
         public byte[][] newCentroidArray(int k, int dims) {
             return new byte[k][dims];
         }
@@ -387,6 +425,28 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void accumulate(int[] centroid, byte[] vector, int dim) {
+            for (int d = 0; d < dim; d++) {
+                centroid[d] += vector[d];
+            }
+        }
+
+        @Override
+        public void initAccumulator(int[] centroid, byte[] vector, int dim) {
+            for (int d = 0; d < dim; d++) {
+                centroid[d] = vector[d];
+            }
+        }
+
+        @Override
+        public void divideAccumulator(byte[] centroid, int[] accumulator, float count, int dim) {
+            for (int d = 0; d < dim; d++) {
+                // Round the average and clamp to byte range
+                centroid[d] = (byte) Math.clamp(Math.round((float) accumulator[d] / count), -128, 127);
+            }
+        }
+
+        @Override
         public void computeDiffs(byte[] vector, byte[] centroid, float[] diffs) {
             for (int j = 0; j < diffs.length; j++) {
                 diffs[j] = vector[j] - centroid[j];
@@ -406,6 +466,29 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public void linearCombination(float scaleOther, byte[] other, float scaleDest, float[] dest) {
+            ESVectorUtil.linearCombination(scaleOther, other, scaleDest, dest);
+        }
+
+        @Override
+        public void addScaled(float scale, byte[] src, float[] dest) {
+            ESVectorUtil.linearCombination(scale, src, dest);
+        }
+
+        @Override
+        public byte[] computeMeanCentroid(ClusteringVectorValues<byte[]> vectors, int dimension) throws IOException {
+            assert vectors.size() > 0 : "cannot compute mean of zero vectors";
+            int[] acc = new int[dimension];
+            initAccumulator(acc, vectors.vectorValue(0), dimension);
+            for (int i = 1; i < vectors.size(); i++) {
+                accumulate(acc, vectors.vectorValue(i), dimension);
+            }
+            byte[] centroid = new byte[dimension];
+            divideAccumulator(centroid, acc, vectors.size(), dimension);
+            return centroid;
+        }
+
+        @Override
         public float[][] toFloatCentroids(byte[][] centroids) {
             float[][] result = new float[centroids.length][];
             for (int i = 0; i < centroids.length; i++) {
@@ -418,5 +501,6 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             }
             return result;
         }
+
     }
 }

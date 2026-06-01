@@ -1910,6 +1910,31 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
+    public void linearCombination(float scaleOther, byte[] other, float[] dest) {
+        assert other.length == dest.length;
+
+        final FloatVector scaleOtherVec = FloatVector.broadcast(FLOAT_SPECIES, scaleOther);
+        final int byteLen = BYTE_SPECIES.length();
+        final int floatLen = FLOAT_SPECIES.length();
+        final int vectorEnd = BYTE_SPECIES.loopBound(other.length);
+        int i = 0;
+        for (; i < vectorEnd; i += byteLen) {
+            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES, other, i);
+            for (int part = 0; part < BYTE_TO_FLOAT_PARTS; part++) {
+                int offset = i + part * floatLen;
+                FloatVector destVec = FloatVector.fromArray(FLOAT_SPECIES, dest, offset);
+                FloatVector otherVec = (FloatVector) bv.castShape(FLOAT_SPECIES, part);
+                destVec = fma(otherVec, scaleOtherVec, destVec);
+                destVec.intoArray(dest, offset);
+            }
+        }
+        // tail
+        for (; i < dest.length; i++) {
+            dest[i] = fma(other[i], scaleOther, dest[i]);
+        }
+    }
+
+    @Override
     public float logSumExpNQT(float[] vector) {
         assert vector.length > 0;
 

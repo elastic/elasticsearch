@@ -57,8 +57,9 @@ public class BalancedKMeansLocalTests extends ESTestCase {
 
         float[] inertias = new float[methods.size()];
         float[] stdClusterSizes = new float[methods.size()];
-        double geoMeanInertiaRatio = 0;
-        double geoMeanStdClusterSizes = 0;
+        // Both geometric means are computed in log domain for numerical stability.
+        double geoMeanInertiaRatio = 0; // the geometric mean of the ratios between both inertias
+        double geoMeanStdClusterSizes = 0; // the geometric mean of the ratios between the standard deviations of the cluster sizes
 
         int nTrials = 10;
 

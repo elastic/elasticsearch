@@ -127,36 +127,7 @@ public class HierarchicalKMeans<V> {
 
         // if we have a small number of vectors calculate the centroid directly
         if (vectors.size() <= targetSize) {
-            V centroid;
-            if (ops instanceof CentroidOps.ByteOps) {
-                // Accumulate in int precision to avoid byte overflow, then round once
-                int[] acc = new int[dimension];
-                for (int i = 0; i < vectors.size(); i++) {
-                    byte[] vector = (byte[]) vectors.vectorValue(i);
-                    for (int d = 0; d < dimension; d++) {
-                        acc[d] += vector[d];
-                    }
-                }
-                byte[] byteCentroid = new byte[dimension];
-                float count = vectors.size();
-                for (int d = 0; d < dimension; d++) {
-                    byteCentroid[d] = (byte) Math.clamp(Math.round(acc[d] / count), -128, 127);
-                }
-                @SuppressWarnings("unchecked")
-                V typed = (V) byteCentroid;
-                centroid = typed;
-            } else {
-                CentroidOps.FloatOps floatOps = (CentroidOps.FloatOps) ops;
-                float[] centroidF = floatOps.newCentroid(dimension);
-                for (int i = 0; i < vectors.size(); i++) {
-                    float[] vector = (float[]) vectors.vectorValue(i);
-                    floatOps.accumulate(centroidF, vector, dimension);
-                }
-                floatOps.divide(centroidF, vectors.size(), dimension);
-                @SuppressWarnings("unchecked")
-                V typed = (V) centroidF;
-                centroid = typed;
-            }
+            V centroid = ops.computeMeanCentroid(vectors, dimension);
             V[] centroids = ops.newCentroidArrayShallow(1);
             centroids[0] = centroid;
             return new KMeansIntermediate<>(centroids, new int[vectors.size()]);

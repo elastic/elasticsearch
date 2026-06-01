@@ -23,20 +23,20 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
 
 public class HierarchicalKMeansTests extends ESTestCase {
 
-    public void testHierarchicalKMeansWithBalancing() throws IOException {
-        int nVectors = random().nextInt(100, 10000);
+    public void testHKmeans() throws IOException {
+        int nClusters = random().nextInt(1, 10);
+        int nVectors = random().nextInt(nClusters, nClusters * 200);
         int dims = random().nextInt(2, 20);
-        int nClusters = random().nextInt(2, 50);
         int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
         int maxIterations = random().nextInt(1, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
+        int targetSize = (int) ((float) nVectors / (float) nClusters);
 
         boolean useByte = randomBoolean();
         if (useByte) {
             KMeansByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
-            int targetSize = (int) ((float) nVectors / (float) nClusters);
-            HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(
+            HierarchicalKMeans<byte[]> hkmeansSerial = HierarchicalKMeans.ofSerial(
                 CentroidOps.BYTE,
                 dims,
                 maxIterations,
@@ -44,77 +44,86 @@ public class HierarchicalKMeansTests extends ESTestCase {
                 clustersPerNeighborhood,
                 soarLambda
             );
-            KMeansResult<byte[]> result = hkmeans.cluster(vectors, targetSize);
-            assertKMeansResultValid(result, nVectors, nClusters);
-        } else {
-            KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
-            int targetSize = (int) ((float) nVectors / (float) nClusters);
-            HierarchicalKMeans<float[]> hkmeans = HierarchicalKMeans.ofSerial(
-                CentroidOps.FLOAT,
-                dims,
-                maxIterations,
-                sampleSize,
-                clustersPerNeighborhood,
-                soarLambda
-            );
-            KMeansResult<float[]> result = hkmeans.cluster(vectors, targetSize);
-            assertKMeansResultValid(result, nVectors, nClusters);
-        }
-    }
+            KMeansResult<byte[]> serialResult = hkmeansSerial.cluster(vectors, targetSize);
+            assertKMeansResultValid(serialResult, nVectors, nClusters);
 
-    public void testHierarchicalKMeansConcurrency() throws IOException {
-        int nVectors = random().nextInt(100, 10000);
-        int dims = random().nextInt(2, 20);
-        int nClusters = random().nextInt(2, 50);
-        int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
-        int maxIterations = random().nextInt(1, 100);
-        int clustersPerNeighborhood = random().nextInt(2, 512);
-        float soarLambda = random().nextFloat(0.5f, 1.5f);
-
-        KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
-
-        int targetSize = (int) ((float) nVectors / (float) nClusters);
-        HierarchicalKMeans<float[]> hkmeansSerial = HierarchicalKMeans.ofSerial(
-            CentroidOps.FLOAT,
-            dims,
-            maxIterations,
-            sampleSize,
-            clustersPerNeighborhood,
-            soarLambda
-        );
-
-        KMeansResult<float[]> serialResult = hkmeansSerial.cluster(vectors, targetSize);
-
-        int[] serialClusterSizes = new int[serialResult.centroids().length];
-        for (int k : serialResult.assignments()) {
-            serialClusterSizes[k]++;
-        }
-
-        int numWorker = randomIntBetween(2, 8);
-        try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
-            TaskExecutor executor = new TaskExecutor(service);
-            HierarchicalKMeans<float[]> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
-                CentroidOps.FLOAT,
-                dims,
-                executor,
-                numWorker,
-                maxIterations,
-                sampleSize,
-                clustersPerNeighborhood,
-                soarLambda
-            );
-            KMeansResult<float[]> concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
-
-            int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
-            for (int k : concurrentResult.assignments()) {
-                concurrentClusterSizes[k]++;
+            int[] serialClusterSizes = new int[serialResult.centroids().length];
+            for (int k : serialResult.assignments()) {
+                serialClusterSizes[k]++;
             }
 
-            assertEquals(
-                clusterSizesStandardDeviation(serialClusterSizes),
-                clusterSizesStandardDeviation(concurrentClusterSizes),
-                1e-1 * clusterSizesStandardDeviation(serialClusterSizes)
+            int numWorker = randomIntBetween(2, 8);
+            try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
+                TaskExecutor executor = new TaskExecutor(service);
+                HierarchicalKMeans<byte[]> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
+                    CentroidOps.BYTE,
+                    dims,
+                    executor,
+                    numWorker,
+                    maxIterations,
+                    sampleSize,
+                    clustersPerNeighborhood,
+                    soarLambda
+                );
+                KMeansResult<byte[]> concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
+                assertKMeansResultValid(concurrentResult, nVectors, nClusters);
+
+                int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
+                for (int k : concurrentResult.assignments()) {
+                    concurrentClusterSizes[k]++;
+                }
+
+                assertEquals(
+                    clusterSizesStandardDeviation(serialClusterSizes),
+                    clusterSizesStandardDeviation(concurrentClusterSizes),
+                    1e-1 * clusterSizesStandardDeviation(serialClusterSizes)
+                );
+            }
+        } else {
+            KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
+            HierarchicalKMeans<float[]> hkmeansSerial = HierarchicalKMeans.ofSerial(
+                CentroidOps.FLOAT,
+                dims,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood,
+                soarLambda
             );
+            KMeansResult<float[]> serialResult = hkmeansSerial.cluster(vectors, targetSize);
+            assertKMeansResultValid(serialResult, nVectors, nClusters);
+
+            int[] serialClusterSizes = new int[serialResult.centroids().length];
+            for (int k : serialResult.assignments()) {
+                serialClusterSizes[k]++;
+            }
+
+            int numWorker = randomIntBetween(2, 8);
+            try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
+                TaskExecutor executor = new TaskExecutor(service);
+                HierarchicalKMeans<float[]> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
+                    CentroidOps.FLOAT,
+                    dims,
+                    executor,
+                    numWorker,
+                    maxIterations,
+                    sampleSize,
+                    clustersPerNeighborhood,
+                    soarLambda
+                );
+                KMeansResult<float[]> concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
+                assertKMeansResultValid(concurrentResult, nVectors, nClusters);
+
+                int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
+                for (int k : concurrentResult.assignments()) {
+                    concurrentClusterSizes[k]++;
+                }
+
+                assertEquals(
+                    clusterSizesStandardDeviation(serialClusterSizes),
+                    clusterSizesStandardDeviation(concurrentClusterSizes),
+                    1e-1 * clusterSizesStandardDeviation(serialClusterSizes)
+                );
+            }
         }
     }
 

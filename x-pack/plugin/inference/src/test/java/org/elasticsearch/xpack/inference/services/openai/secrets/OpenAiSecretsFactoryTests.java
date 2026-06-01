@@ -129,6 +129,32 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
         assertThat(thrownException.getMessage(), containsString(USE_CLIENT_SECRET_ERROR));
     }
 
+    public void testCreateSecretsApplier_NullApiKeySecrets_ReturnsNoopSecretsApplier() {
+        var secretsApplier = OpenAiSecretsFactory.createSecretsApplier(null);
+
+        assertThat(secretsApplier, sameInstance(NoopSecretsApplier.INSTANCE));
+
+        var listener = new TestPlainActionFuture<HttpRequestBase>();
+        var httpPost = new HttpPost();
+        secretsApplier.applyTo(httpPost, listener);
+
+        var resultRequest = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(resultRequest, sameInstance(httpPost));
+        assertThat(resultRequest.getAllHeaders(), emptyArray());
+    }
+
+    public void testCreateSecretsApplier_ApiKeySecrets_SetsBearerAuthorizationHeader() {
+        var apiKey = randomSecureStringOfLength(10);
+        var httpPost = new HttpPost();
+
+        var secretsApplier = OpenAiSecretsFactory.createSecretsApplier(new DefaultSecretSettings(apiKey));
+
+        secretsApplier.applyTo(httpPost, ActionListener.noop());
+        var authHeader = httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION);
+
+        assertThat(authHeader.getValue(), is("Bearer " + apiKey));
+    }
+
     private static OpenAiServiceSettings serviceSettingsWith(OpenAiOAuth2Settings oAuth2Settings) {
         return new OpenAiChatCompletionServiceSettings(randomAlphaOfLength(5), null, null, null, null, oAuth2Settings);
     }

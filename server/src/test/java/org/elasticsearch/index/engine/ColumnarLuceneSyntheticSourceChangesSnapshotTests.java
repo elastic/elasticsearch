@@ -24,6 +24,10 @@ public class ColumnarLuceneSyntheticSourceChangesSnapshotTests extends LuceneSyn
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.name())
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY.name())
+            // Workaround for https://github.com/elastic/elasticsearch/issues/150408: seq no pruning
+            // during merges drops _seq_no from soft-deleted docs, causing LuceneSyntheticSourceChangesSnapshot
+            // to miss DELETE tombstones and stale ops.
+            .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), false)
             .build();
     }
 

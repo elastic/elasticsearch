@@ -53,6 +53,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         this.diskBufferPath = diskBufferPath;
     }
 
+    /** For testing: pre-initializes resources so tests can inject readable providers. */
+    OtelSdkExportMeterSupplier(Settings settings, Path diskBufferPath, OTelMetricsResources testResources) {
+        this.settings = settings;
+        this.diskBufferPath = diskBufferPath;
+        this.resources = testResources;
+    }
+
     @Override
     public Meter get() {
         synchronized (mutex) {
@@ -184,21 +191,19 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     /**
-     * Returns the system {@link MeterProvider} for wiring SDK self-monitoring into other exporters
-     * (e.g. the span exporter). If resources have not yet been initialized but a metrics endpoint is
-     * configured, initializes them eagerly. Returns {@link MeterProvider#noop()} only when no endpoint
-     * is set. (The endpoint is fixed at startup, and without this we cannot call {@code createMeteringResources}.)
+     * {@code BatchSpanProcessor} registers its queue-metric instruments exactly once on the first span,
+     * so the provider it receives here is permanent. Initializing eagerly ensures that happens against
+     * the real SDK provider even if metrics have not been explicitly enabled yet.
+     * The health provider is returned (not the system provider) because span pipeline self-monitoring
+     * metrics are OTel SDK-internal telemetry, not application metrics.
      */
     @Override
-    public MeterProvider getMeterProvider() {
+    public MeterProvider getHealthMeterProvider() {
         synchronized (mutex) {
             if (resources == null) {
-                String endpoint = OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.get(settings);
-                if (endpoint != null && endpoint.isEmpty() == false) {
-                    resources = createMeteringResources();
-                }
+                resources = createMeteringResources();
             }
-            return resources != null ? resources.systemMeterProvider() : MeterProvider.noop();
+            return resources.meterHealthMeterProvider();
         }
     }
 

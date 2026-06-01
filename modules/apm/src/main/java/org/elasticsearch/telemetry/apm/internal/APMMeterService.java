@@ -72,8 +72,8 @@ public class APMMeterService extends AbstractLifecycleComponent {
      * Not intended for general metric recording; use {@link #getMeterRegistry()} for that.
      * Returns {@link MeterProvider#noop()} when the OTel SDK path is not active.
      */
-    MeterProvider getMeterProvider() {
-        return otelMeterSupplier.getMeterProvider();
+    MeterProvider getHealthMeterProvider() {
+        return otelMeterSupplier.getHealthMeterProvider();
     }
 
     /**

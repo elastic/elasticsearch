@@ -28,7 +28,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
 
     public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
-        apmTracer = new APMTracer(settings, apmMeterService::getMeterProvider);
+        apmTracer = new APMTracer(settings, apmMeterService::getHealthMeterProvider);
         flushTimeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
     }
 

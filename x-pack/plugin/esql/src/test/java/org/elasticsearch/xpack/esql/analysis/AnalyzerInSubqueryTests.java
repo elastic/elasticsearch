@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.AntiJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -2637,10 +2639,245 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
                 """, containsString("[none specified]"));
     }
 
+    // -- tests with TS source inside IN subquery --
+
+    public void testTsRateInsideInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (TS k8s
+                               | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                               | KEEP cluster)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        // Outer TS rate aggregation sits above the SemiJoin produced by the IN subquery
+        TimeSeriesAggregate outerAgg = as(limit.child(), TimeSeriesAggregate.class);
+        assertThat(outerAgg.groupings().size(), equalTo(1));
+        FieldAttribute outerGrouping = as(outerAgg.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", outerGrouping.name());
+
+        SemiJoin semiJoin = as(outerAgg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        // Left side is the outer TS source itself
+        assertK8sTimeSeriesRelation(semiJoin.left());
+
+        // Right side: Project[cluster] -> TimeSeriesAggregate[rate(...) BY cluster] -> EsRelation[k8s][TIME_SERIES]
+        Project rightProject = as(semiJoin.right(), Project.class);
+        TimeSeriesAggregate tsAggregate = as(rightProject.child(), TimeSeriesAggregate.class);
+        assertThat(tsAggregate.groupings().size(), equalTo(1));
+        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", clusterGrouping.name());
+        assertK8sTimeSeriesRelation(tsAggregate.child());
+    }
+
+    public void testTsRateInsideNotInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (TS k8s
+                                   | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                   | KEEP cluster)
+            | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        // Outer TS rate aggregation sits above the AntiJoin produced by the NOT IN subquery
+        TimeSeriesAggregate outerAgg = as(limit.child(), TimeSeriesAggregate.class);
+        assertThat(outerAgg.groupings().size(), equalTo(1));
+        FieldAttribute outerGrouping = as(outerAgg.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", outerGrouping.name());
+
+        AntiJoin antiJoin = as(outerAgg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        // Left side is the outer TS source itself
+        assertK8sTimeSeriesRelation(antiJoin.left());
+
+        // Right side: Project[cluster] -> TimeSeriesAggregate[rate(...) BY cluster] -> EsRelation[k8s][TIME_SERIES]
+        Project rightProject = as(antiJoin.right(), Project.class);
+        TimeSeriesAggregate tsAggregate = as(rightProject.child(), TimeSeriesAggregate.class);
+        assertThat(tsAggregate.groupings().size(), equalTo(1));
+        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", clusterGrouping.name());
+        assertK8sTimeSeriesRelation(tsAggregate.child());
+    }
+
+    // -- tests with a TS source that groups BY WITHOUT(...) above the IN subquery --
+
+    public void testTsWithoutAndRateInsideInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (TS k8s
+                               | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                               | KEEP cluster)
+            | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        TimeSeriesAggregate outerAgg = as(limit.child(), TimeSeriesAggregate.class);
+        assertThat(outerAgg.groupings().size(), equalTo(1));
+        TimeSeriesWithout without = as(Alias.unwrap(outerAgg.groupings().get(0)), TimeSeriesWithout.class);
+        assertThat(without.excludedFieldNames(), equalTo(Set.of("pod", "region")));
+
+        SemiJoin semiJoin = as(outerAgg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sTimeSeriesRelation(semiJoin.left());
+
+        // Right side: Project[cluster] -> TimeSeriesAggregate[rate(...) BY cluster] -> EsRelation[k8s][TIME_SERIES]
+        Project rightProject = as(semiJoin.right(), Project.class);
+        TimeSeriesAggregate tsAggregate = as(rightProject.child(), TimeSeriesAggregate.class);
+        assertThat(tsAggregate.groupings().size(), equalTo(1));
+        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", clusterGrouping.name());
+        assertK8sTimeSeriesRelation(tsAggregate.child());
+    }
+
+    public void testTsWithoutAndRateInsideNotInSubquery() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires WITHOUT grouping support", EsqlCapabilities.Cap.ESQL_WITHOUT_GROUPING.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (TS k8s
+                                   | STATS m = max(rate(network.total_bytes_in)) BY cluster
+                                   | KEEP cluster)
+            | STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        TimeSeriesAggregate outerAgg = as(limit.child(), TimeSeriesAggregate.class);
+        assertThat(outerAgg.groupings().size(), equalTo(1));
+        TimeSeriesWithout without = as(Alias.unwrap(outerAgg.groupings().get(0)), TimeSeriesWithout.class);
+        assertThat(without.excludedFieldNames(), equalTo(Set.of("pod", "region")));
+
+        AntiJoin antiJoin = as(outerAgg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sTimeSeriesRelation(antiJoin.left());
+
+        // Right side: Project[cluster] -> TimeSeriesAggregate[rate(...) BY cluster] -> EsRelation[k8s][TIME_SERIES]
+        Project rightProject = as(antiJoin.right(), Project.class);
+        TimeSeriesAggregate tsAggregate = as(rightProject.child(), TimeSeriesAggregate.class);
+        assertThat(tsAggregate.groupings().size(), equalTo(1));
+        FieldAttribute clusterGrouping = as(tsAggregate.groupings().get(0), FieldAttribute.class);
+        assertEquals("cluster", clusterGrouping.name());
+        assertK8sTimeSeriesRelation(tsAggregate.child());
+    }
+
+    // -- multiple TS subqueries combined with UnionAll inside IN/NOT IN --
+
+    public void testMultipleTsSubqueriesInsideInSubquery() {
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster IN (FROM
+                                   (TS k8s
+                                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                    | WHERE max_bytes > 10500
+                                    | KEEP cluster),
+                                   (TS k8s
+                                    | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                    | WHERE max_bytes < 8000
+                                    | KEEP cluster)
+                               )
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+            | SORT cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        TimeSeriesAggregate outerAgg = as(orderBy.child(), TimeSeriesAggregate.class);
+        SemiJoin semiJoin = as(outerAgg.child(), SemiJoin.class);
+        assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
+        assertFalse(semiJoin.isAntiJoin());
+        assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(semiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sTimeSeriesRelation(semiJoin.left());
+
+        UnionAll unionAll = as(semiJoin.right(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        assertTsUnionBranch(unionAll.children().get(0));
+        assertTsUnionBranch(unionAll.children().get(1));
+    }
+
+    public void testMultipleTsSubqueriesInsideNotInSubquery() {
+        assumeTrue("Requires TS subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITH_TS.isEnabled());
+        LogicalPlan plan = analyzeInSubqueryWithK8s("""
+            TS k8s
+            | WHERE cluster NOT IN (FROM
+                                       (TS k8s
+                                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                        | WHERE max_bytes > 10500
+                                        | KEEP cluster),
+                                       (TS k8s
+                                        | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+                                        | WHERE max_bytes < 8000
+                                        | KEEP cluster)
+                                   )
+            | STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+            | SORT cluster
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        TimeSeriesAggregate outerAgg = as(orderBy.child(), TimeSeriesAggregate.class);
+        AntiJoin antiJoin = as(outerAgg.child(), AntiJoin.class);
+        assertThat(antiJoin.config().type(), equalTo(JoinTypes.ANTI));
+        assertThat(antiJoin.config().leftFields().get(0).name(), equalTo("cluster"));
+        assertThat(antiJoin.config().rightFields().get(0).name(), equalTo("cluster"));
+
+        assertK8sTimeSeriesRelation(antiJoin.left());
+
+        UnionAll unionAll = as(antiJoin.right(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        assertTsUnionBranch(unionAll.children().get(0));
+        assertTsUnionBranch(unionAll.children().get(1));
+    }
+
+    private static void assertTsUnionBranch(LogicalPlan branch) {
+        Project alignProject = as(branch, Project.class);
+        Subquery subquery = as(alignProject.child(), Subquery.class);
+        Project keepProject = as(subquery.child(), Project.class);
+        Filter filter = as(keepProject.child(), Filter.class);
+        TimeSeriesAggregate tsAgg = as(filter.child(), TimeSeriesAggregate.class);
+        assertK8sTimeSeriesRelation(tsAgg.child());
+    }
+
+    private static void assertK8sTimeSeriesRelation(LogicalPlan plan) {
+        EsRelation relation = as(plan, EsRelation.class);
+        assertEquals("k8s", relation.indexPattern());
+        assertThat(relation.indexMode(), equalTo(IndexMode.TIME_SERIES));
+    }
+
     // -- helpers --
 
     private static LogicalPlan analyzeInSubquery(String query) {
         return analyzer().addIndex("test", "mapping-basic.json").addIndex("employees", "mapping-basic.json").query(query);
+    }
+
+    private static LogicalPlan analyzeInSubqueryWithK8s(String query) {
+        return analyzer().addIndex("test", "mapping-basic.json").addK8s().query(query);
     }
 
     private static void errorInSubquery(String query, Matcher<String> messageMatcher) {

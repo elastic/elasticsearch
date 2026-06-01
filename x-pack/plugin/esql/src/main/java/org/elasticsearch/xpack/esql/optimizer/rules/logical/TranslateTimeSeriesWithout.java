@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TimeSeriesMetadataAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -88,9 +89,36 @@ public final class TranslateTimeSeriesWithout extends OptimizerRules.Parameteriz
         // Propagate the lowered attributes into aggregate expressions that reference the old grouping ids.
         List<NamedExpression> newAggregates = aggregate.aggregates().stream().map(agg -> replaceReferences(agg, replacements)).toList();
         // Add the new _timeseries attribute to the EsRelation so field extraction can find it.
-        LogicalPlan newChild = aggregate.child()
-            .transformDown(EsRelation.class, relation -> addLoweredAttributes(relation, replacements.values()));
+        LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(aggregate.child(), replacements.values());
 
         return aggregate.with(newChild, newGroupings, newAggregates);
+    }
+
+    /**
+     * Injects the lowered {@code _timeseries} attributes into the time-series source relation(s) feeding this
+     * aggregate, walking only the main input path. The right-hand side of a {@link BinaryPlan} (a lookup index, or
+     * an {@code IN}-subquery rewritten to a {@link org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin SemiJoin})
+     * is skipped: that subtree is a separate time-series source with its own {@code _timeseries} grouping. Crossing
+     * that boundary would inject this aggregate's lowered attribute into the nested subquery relation, producing a
+     * relation with a duplicate {@code _timeseries} attribute when the subquery itself groups {@code BY WITHOUT}.
+     */
+    private static LogicalPlan addLoweredAttributesToTimeSeriesSource(
+        LogicalPlan plan,
+        Iterable<TimeSeriesMetadataAttribute> loweredAttributes
+    ) {
+        if (plan instanceof EsRelation relation) {
+            return addLoweredAttributes(relation, loweredAttributes);
+        }
+        if (plan instanceof BinaryPlan binary) {
+            return binary.replaceLeft(addLoweredAttributesToTimeSeriesSource(binary.left(), loweredAttributes));
+        }
+        List<LogicalPlan> newChildren = new ArrayList<>(plan.children().size());
+        boolean changed = false;
+        for (LogicalPlan child : plan.children()) {
+            LogicalPlan newChild = addLoweredAttributesToTimeSeriesSource(child, loweredAttributes);
+            changed |= newChild != child;
+            newChildren.add(newChild);
+        }
+        return changed ? plan.replaceChildren(newChildren) : plan;
     }
 }

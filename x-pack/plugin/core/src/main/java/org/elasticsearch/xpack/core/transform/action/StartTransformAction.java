@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -44,8 +45,11 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
 
     public static class Request extends AcknowledgedRequest<Request> implements Releasable {
 
+        private static final TransportVersion TRANSFORM_START_INITIAL_DELAY = TransportVersion.fromName("transform_start_initial_delay");
+
         private final String id;
         private final Instant from;
+        private final TimeValue initialDelay;
 
         // Caller's UIAM cloud credential carried on the request so it survives coordinator -> master
         // transport, where the AUTHENTICATING_CLOUD_TOKEN_THREAD_CONTEXT transient is no longer present.
@@ -53,9 +57,14 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         private CloudCredential cloudCredential;
 
         public Request(String id, Instant from, TimeValue timeout) {
+            this(id, from, null, timeout);
+        }
+
+        public Request(String id, Instant from, TimeValue initialDelay, TimeValue timeout) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.from = from;
+            this.initialDelay = initialDelay;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -66,6 +75,11 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
                 cloudCredential = in.readOptionalWriteable(CloudCredential::new);
             } else {
                 cloudCredential = null;
+            }
+            if (in.getTransportVersion().supports(TRANSFORM_START_INITIAL_DELAY)) {
+                initialDelay = in.readOptionalTimeValue();
+            } else {
+                initialDelay = null;
             }
         }
 
@@ -94,6 +108,10 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             return previous;
         }
 
+        public TimeValue getInitialDelay() {
+            return initialDelay;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -101,6 +119,9 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             out.writeOptionalInstant(from);
             if (out.getTransportVersion().supports(TRANSFORM_CLOUD_CREDENTIAL_ON_REQUEST)) {
                 out.writeOptionalWriteable(cloudCredential);
+            }
+            if (out.getTransportVersion().supports(TRANSFORM_START_INITIAL_DELAY)) {
+                out.writeOptionalTimeValue(initialDelay);
             }
         }
 
@@ -113,7 +134,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
             // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
-            return Objects.hash(ackTimeout(), id, from);
+            return Objects.hash(ackTimeout(), id, from, initialDelay);
         }
 
         @Override
@@ -127,7 +148,10 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             Request other = (Request) obj;
             // the base class does not implement equals, therefore we need to check timeout ourselves
             // cloudCredential is intentionally excluded: request-scoped secret carrier, not logical identity.
-            return Objects.equals(id, other.id) && Objects.equals(from, other.from) && ackTimeout().equals(other.ackTimeout());
+            return Objects.equals(id, other.id)
+                && Objects.equals(from, other.from)
+                && Objects.equals(initialDelay, other.initialDelay)
+                && ackTimeout().equals(other.ackTimeout());
         }
 
         @Override

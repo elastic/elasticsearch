@@ -625,6 +625,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             // Reset our failure count as we have finished and may start again with a new checkpoint
             context.resetReasonAndFailureCounter();
 
+            // Once we have processed a document we are past the initial catch-up phase, so any _start-time initial_delay
+            // override should no longer apply on subsequent checkpoints.
+            if (getStats().getNumDocuments() > 0) {
+                context.setHasProcessedData();
+            }
+
             // With bucket_selector we could have read all the buckets and completed the transform
             // but not "see" all the buckets since they were filtered out. Consequently, progress would
             // show less than 100% even though we are done.

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -68,6 +69,24 @@ public class TransformCheckpointService {
         final TransformConfig transformConfig,
         final Supplier<PersistedCloudCredential> credentialSupplier
     ) {
+        // Read-only checkpointing-info callers never create checkpoints, so there is no catch-up phase: no initial_delay
+        // override and report "processed" so they use the steady-state delay.
+        return getCheckpointProvider(client, transformConfig, credentialSupplier, null, () -> true);
+    }
+
+    /**
+     * @param initialDelay   the one-time reduced sync delay supplied at {@code _start}, or {@code null} to always use the
+     *                       steady-state {@code sync.time.delay}. Only used by a {@link TimeBasedCheckpointProvider}.
+     * @param hasProcessedData whether the running transform has processed at least one source document; a
+     *                         {@link TimeBasedCheckpointProvider} applies {@code initialDelay} only while this is {@code false}.
+     */
+    public CheckpointProvider getCheckpointProvider(
+        final ParentTaskAssigningClient client,
+        final TransformConfig transformConfig,
+        final Supplier<PersistedCloudCredential> credentialSupplier,
+        final TimeValue initialDelay,
+        final BooleanSupplier hasProcessedData
+    ) {
         Supplier<Client> clientSupplier = () -> cloudCredentialManager.wrapWithPersistedIfPresent(client, credentialSupplier.get());
         Supplier<ThreadContext> threadContextSupplier = () -> client.threadPool().getThreadContext();
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
@@ -78,7 +97,9 @@ public class TransformCheckpointService {
                 transformConfigManager,
                 transformAuditor,
                 transformConfig,
-                crossProjectModeDecider
+                crossProjectModeDecider,
+                initialDelay,
+                hasProcessedData
             );
         }
 

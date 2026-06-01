@@ -26,11 +26,15 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StartTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
+
+    private static final TransportVersion TRANSFORM_START_INITIAL_DELAY = TransportVersion.fromName("transform_start_initial_delay");
+
     @Override
     protected Request createTestInstance() {
         Request request = new Request(
             randomAlphaOfLengthBetween(1, 20),
             randomBoolean() ? ofEpochMilli(randomNonNegativeLong()) : null,
+            randomBoolean() ? randomTimeValue() : null,
             randomTimeValue()
         );
         // Randomly include a cloud credential so the wire path with the optional field is exercised
@@ -48,16 +52,20 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTra
     protected Request mutateInstance(Request instance) {
         String id = instance.getId();
         Instant from = instance.from();
+        TimeValue initialDelay = instance.getInitialDelay();
         TimeValue timeout = instance.ackTimeout();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0 -> id += randomAlphaOfLengthBetween(1, 5);
             case 1 -> from = from != null ? from.plus(Duration.ofDays(1)) : Instant.ofEpochMilli(randomNonNegativeLong());
             case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            case 3 -> initialDelay = initialDelay != null
+                ? new TimeValue(initialDelay.duration() + randomLongBetween(1, 5), initialDelay.timeUnit())
+                : randomTimeValue();
             default -> throw new AssertionError("Illegal randomization branch");
         }
 
-        Request mutated = new Request(id, from, timeout);
+        Request mutated = new Request(id, from, initialDelay, timeout);
         mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
     }
@@ -65,8 +73,10 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTra
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
         // cloudCredential is excluded from Request.equals so it passes through unchanged here; the explicit
-        // drop semantics are asserted by testCloudCredentialDroppedWhenWireVersionTooOld.
-        Request mutated = new Request(instance.getId(), instance.from(), instance.ackTimeout());
+        // drop semantics are asserted by testCloudCredentialDroppedWhenWireVersionTooOld. initialDelay is part
+        // of equals, so it must round-trip as null for versions that predate the initial_delay parameter.
+        TimeValue initialDelay = version.supports(TRANSFORM_START_INITIAL_DELAY) ? instance.getInitialDelay() : null;
+        Request mutated = new Request(instance.getId(), instance.from(), initialDelay, instance.ackTimeout());
         mutated.setCloudCredential(instance.getCloudCredential());
         return mutated;
     }

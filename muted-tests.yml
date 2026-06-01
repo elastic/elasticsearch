@@ -593,3 +593,45 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotsServiceIT
   method: testDeleteSnapshotWhenNotWaitingForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/150257
+- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
+  method: testLatestCommitDependenciesUsesTheRightGenerations
+  issue: https://github.com/elastic/elasticsearch/issues/150287
+- class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
+  method: testPointInTimeRelocationClosingSourceContexts
+  issue: https://github.com/elastic/elasticsearch/issues/150288
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testJvmMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/150289
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskRelocatesOnNodeShutdown
+  issue: https://github.com/elastic/elasticsearch/issues/150294
+- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
+  method: testReindexTaskFailsWhenDataNodeIsShuttingDownAndTaskDoesNotFinishInTime
+  issue: https://github.com/elastic/elasticsearch/issues/150295
+- class: org.elasticsearch.gradle.internal.transport.GenerateInitialTransportVersionFuncTest
+  method: cannot create upper bound file for patch
+  issue: https://github.com/elastic/elasticsearch/issues/150296
+- class: org.elasticsearch.xpack.stateless.engine.translog.StatelessTranslogIT
+  method: testTranslogStressRecoveryTest
+  issue: https://github.com/elastic/elasticsearch/issues/150297
+- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetTestingIT
+  method: testParquetFile {bad_ARROW-GH-41321}
+  issue: https://github.com/elastic/elasticsearch/issues/150300
+- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
+  method: testSnapshotShardsWhileHollowing
+  issue: https://github.com/elastic/elasticsearch/issues/150301
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testExplicitMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/150302
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=NONE, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150308
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=STORED, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150309
+- class: org.elasticsearch.index.mapper.blockloader.BooleanFieldBlockLoaderTests
+  method: testBlockLoaderWithCranky {preference=Params[syntheticSource=true, preference=DOC_VALUES, indexMode=columnar]}
+  issue: https://github.com/elastic/elasticsearch/issues/150310
+- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
+  method: testRenameBucketColumnHasNoMetadata
+  issue: https://github.com/elastic/elasticsearch/issues/150311

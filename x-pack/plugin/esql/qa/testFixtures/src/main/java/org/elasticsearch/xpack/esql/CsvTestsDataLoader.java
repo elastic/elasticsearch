@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 
 public class CsvTestsDataLoader {
 
@@ -316,7 +317,8 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
-        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW))
+        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

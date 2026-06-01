@@ -243,7 +243,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
                 } catch (StorageException e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
                     drb.close();
-                    listener.onFailure(wrapException(e, "Failed to read bytes from"));
+                    listener.onFailure(mapReadFailure("Failed to read bytes from", e));
                     return;
                 } catch (Exception e) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);

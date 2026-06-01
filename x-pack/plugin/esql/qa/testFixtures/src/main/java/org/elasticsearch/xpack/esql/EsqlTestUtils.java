@@ -668,7 +668,7 @@ public final class EsqlTestUtils {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
-            PromqlFunctionRegistry.INSTANCE,
+            TEST_PROMQL_FUNCTION_REGISTRY,
             indexResolutions,
             lookupResolution,
             enrichResolution,

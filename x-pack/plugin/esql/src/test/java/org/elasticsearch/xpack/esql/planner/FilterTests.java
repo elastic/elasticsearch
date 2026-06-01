@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
@@ -56,6 +55,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
@@ -95,7 +95,7 @@ public class FilterTests extends ESTestCase {
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
-                PromqlFunctionRegistry.INSTANCE,
+                TEST_PROMQL_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),

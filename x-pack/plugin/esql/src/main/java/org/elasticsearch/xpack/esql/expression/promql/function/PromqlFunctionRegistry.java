@@ -153,8 +153,6 @@ public class PromqlFunctionRegistry {
         PromqlBuiltinFunctionDefinitions.MINUTE,
         PromqlBuiltinFunctionDefinitions.TIME, };
 
-    public static final PromqlFunctionRegistry INSTANCE = new PromqlFunctionRegistry(List.of());
-
     private final Map<String, PromqlFunctionDefinition> promqlFunctions = new HashMap<>();
 
     public PromqlFunctionRegistry(List<FunctionPlugin> plugins) {

@@ -75,7 +75,7 @@ public interface PromqlPlan {
     @Nullable
     static PromqlDataType getType(@Nullable LogicalPlan plan) {
         if (plan instanceof UnresolvedPromqlFunction unresolved) {
-            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
+            PromqlFunctionDefinition def = new PromqlFunctionRegistry(List.of()).functionMetadata(unresolved.functionName());
             return def != null ? def.functionType().outputType() : null;
         }
         if (plan instanceof PromqlPlan promqlPlan) {

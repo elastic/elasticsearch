@@ -191,7 +191,7 @@ public final class PromqlDocsSupport {
     private PromqlDocsSupport() {}
 
     public static void entrypoint(DocsV3Support.Callbacks callbacks) throws Exception {
-        for (var def : PromqlFunctionRegistry.INSTANCE.allFunctions()) {
+        for (var def : new PromqlFunctionRegistry(List.of()).allFunctions()) {
             genFunctionDocs(def, callbacks);
         }
         for (var opDef : OPERATOR_DEFS) {

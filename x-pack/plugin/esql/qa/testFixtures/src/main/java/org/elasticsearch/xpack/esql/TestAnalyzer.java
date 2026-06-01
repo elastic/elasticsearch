@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import static junit.framework.Assert.assertTrue;
 import static org.elasticsearch.test.ESTestCase.expectThrows;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.toQueryParams;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -799,7 +800,7 @@ public class TestAnalyzer {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
-            PromqlFunctionRegistry.INSTANCE,
+            TEST_PROMQL_FUNCTION_REGISTRY,
             null,
             indexResolutions,
             lookupResolution,

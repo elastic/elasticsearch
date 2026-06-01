@@ -328,7 +328,10 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 
-                if (columnMapping != null && columnMapping.isIdentity() == false) {
+                // Empty queryDataSchema is COUNT(*) / _file.*-only: no data columns to reshape and the
+                // reader already emits zero-data-block row-count pages, so skip the adapter (a
+                // full-width mapping would otherwise trip its output-size-vs-mapping-width guard).
+                if (columnMapping != null && columnMapping.isIdentity() == false && queryDataSchema.isEmpty() == false) {
                     // Per-file source types are only needed when the mapping has a KEYWORD cast
                     // (the only path where LongBlock — DATETIME / DATE_NANOS / LONG — needs
                     // disambiguating). Skip the schema-narrowing dance entirely otherwise.

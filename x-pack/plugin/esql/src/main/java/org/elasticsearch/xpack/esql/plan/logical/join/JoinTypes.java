@@ -25,6 +25,9 @@ public class JoinTypes {
     public static JoinType RIGHT = CoreJoinType.RIGHT;
     public static JoinType FULL = CoreJoinType.FULL;
     public static JoinType CROSS = CoreJoinType.CROSS;
+    public static JoinType SEMI = CoreJoinType.SEMI;
+    public static JoinType ANTI = CoreJoinType.ANTI;
+    public static JoinType LEFT_SEMI = CoreJoinType.LEFT_SEMI;
 
     private static Map<Byte, JoinType> JOIN_TYPES;
 
@@ -44,7 +47,10 @@ public class JoinTypes {
         LEFT(2, "LEFT OUTER"),
         RIGHT(3, "RIGHT OUTER"),
         FULL(4, "FULL OUTER"),
-        CROSS(5, "CROSS");
+        CROSS(5, "CROSS"),
+        SEMI(6, "SEMI"),
+        ANTI(7, "ANTI"),
+        LEFT_SEMI(8, "LEFT SEMI");
 
         private final String name;
         private final byte id;

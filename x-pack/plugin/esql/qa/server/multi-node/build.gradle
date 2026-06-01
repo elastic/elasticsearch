@@ -53,7 +53,7 @@ def parquetFixtureDir = file("${ext.parquetFixtureOutputDir}/standalone")
 ext.testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
 ext.testFixturesDataDir = ext.testFixturesProject.file('src/main/resources/data')
 // CSV base names for sync + Parquet generation; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-ext.csvToParquetFixtures = ['employees', 'web_logs', 'books']
+ext.csvToParquetFixtures = ['employees', 'web_logs', 'books', 'employees_no_mv']
 
 tasks.register('syncIcebergFixtures', Sync) {
   dependsOn testFixturesProject.tasks.named('processResources')
@@ -78,6 +78,7 @@ csvToParquetFixtures.each { baseName ->
     inputs.file(csvInput)
     outputs.file(parquetFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateParquetTasks.add(tasks.named(taskName))
 }

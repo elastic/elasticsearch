@@ -9,8 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
@@ -19,6 +21,7 @@ import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link ClassicHistogramQuantileAggregator}.
@@ -26,9 +29,11 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class ClassicHistogramQuantileGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("buckets", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("buckets", ElementType.DOUBLE)  );
 
   private final ClassicHistogramQuantileStates.GroupingState state;
+
+  private final Warnings warnings;
 
   private final List<Integer> channels;
 
@@ -36,11 +41,12 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
 
   private final double quantile;
 
-  ClassicHistogramQuantileGroupingAggregatorFunction(List<Integer> channels,
+  ClassicHistogramQuantileGroupingAggregatorFunction(Warnings warnings, List<Integer> channels,
       DriverContext driverContext, double quantile) {
     this.quantile = quantile;
+    this.warnings = warnings;
     this.channels = channels;
-    this.state = ClassicHistogramQuantileAggregator.initGrouping(driverContext, quantile);
+    this.state = ClassicHistogramQuantileAggregator.initGrouping(driverContext, quantile, warnings);
     this.driverContext = driverContext;
   }
 
@@ -57,7 +63,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     DoubleBlock countBlock = page.getBlock(channels.get(0));
-    DoubleBlock upperBoundBlock = page.getBlock(channels.get(1));
+    BytesRefBlock upperBoundBlock = page.getBlock(channels.get(1));
     if (countBlock.areAllValuesNull()) {
       /*
        * All values are null so we can skip processing this block. But we
@@ -100,7 +106,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
         }
       };
     }
-    DoubleVector upperBoundVector = upperBoundBlock.asVector();
+    BytesRefVector upperBoundVector = upperBoundBlock.asVector();
     if (upperBoundVector == null) {
       maybeEnableGroupIdTracking(seenGroupIds, countBlock, upperBoundBlock);
       return new GroupingAggregatorFunction.AddInput() {
@@ -147,7 +153,8 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock countBlock,
-      DoubleBlock upperBoundBlock) {
+      BytesRefBlock upperBoundBlock) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -170,7 +177,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
           int upperBoundStart = upperBoundBlock.getFirstValueIndex(valuesPosition);
           int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
           for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
-            double upperBoundValue = upperBoundBlock.getDouble(upperBoundOffset);
+            BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
             ClassicHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
           }
         }
@@ -179,7 +186,8 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
   }
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector countVector,
-      DoubleVector upperBoundVector) {
+      BytesRefVector upperBoundVector) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -190,7 +198,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double countValue = countVector.getDouble(valuesPosition);
-        double upperBoundValue = upperBoundVector.getDouble(valuesPosition);
+        BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
         ClassicHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
       }
     }
@@ -201,12 +209,13 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
-    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    DoubleBlock buckets = (DoubleBlock) bucketsUncast;
     ClassicHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock countBlock,
-      DoubleBlock upperBoundBlock) {
+      BytesRefBlock upperBoundBlock) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -229,7 +238,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
           int upperBoundStart = upperBoundBlock.getFirstValueIndex(valuesPosition);
           int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
           for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
-            double upperBoundValue = upperBoundBlock.getDouble(upperBoundOffset);
+            BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
             ClassicHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
           }
         }
@@ -238,7 +247,8 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleVector countVector,
-      DoubleVector upperBoundVector) {
+      BytesRefVector upperBoundVector) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -249,7 +259,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         double countValue = countVector.getDouble(valuesPosition);
-        double upperBoundValue = upperBoundVector.getDouble(valuesPosition);
+        BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
         ClassicHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
       }
     }
@@ -260,12 +270,13 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
-    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    DoubleBlock buckets = (DoubleBlock) bucketsUncast;
     ClassicHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleBlock countBlock,
-      DoubleBlock upperBoundBlock) {
+      BytesRefBlock upperBoundBlock) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       if (countBlock.isNull(valuesPosition)) {
@@ -282,7 +293,7 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
         int upperBoundStart = upperBoundBlock.getFirstValueIndex(valuesPosition);
         int upperBoundEnd = upperBoundStart + upperBoundBlock.getValueCount(valuesPosition);
         for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
-          double upperBoundValue = upperBoundBlock.getDouble(upperBoundOffset);
+          BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
           ClassicHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
         }
       }
@@ -290,12 +301,13 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
   }
 
   private void addRawInput(int positionOffset, IntVector groups, DoubleVector countVector,
-      DoubleVector upperBoundVector) {
+      BytesRefVector upperBoundVector) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
       double countValue = countVector.getDouble(valuesPosition);
-      double upperBoundValue = upperBoundVector.getDouble(valuesPosition);
+      BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
       ClassicHistogramQuantileAggregator.combine(state, groupId, countValue, upperBoundValue);
     }
   }
@@ -305,12 +317,12 @@ public final class ClassicHistogramQuantileGroupingAggregatorFunction implements
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block bucketsUncast = page.getBlock(channels.get(0));
-    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    DoubleBlock buckets = (DoubleBlock) bucketsUncast;
     ClassicHistogramQuantileAggregator.combineIntermediate(state, positionOffset, groups, buckets);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock countBlock,
-      DoubleBlock upperBoundBlock) {
+      BytesRefBlock upperBoundBlock) {
     if (countBlock.mayHaveNulls()) {
       /*
        * Some values in the block are null so some group ids may not

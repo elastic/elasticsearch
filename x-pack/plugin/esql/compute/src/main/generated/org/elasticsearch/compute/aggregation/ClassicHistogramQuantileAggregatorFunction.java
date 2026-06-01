@@ -13,11 +13,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunction} implementation for {@link ClassicHistogramQuantileAggregator}.
@@ -25,7 +27,9 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class ClassicHistogramQuantileAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("buckets", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("buckets", ElementType.DOUBLE)  );
+
+  private final Warnings warnings;
 
   private final DriverContext driverContext;
 
@@ -35,12 +39,13 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
 
   private final double quantile;
 
-  ClassicHistogramQuantileAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      double quantile) {
+  ClassicHistogramQuantileAggregatorFunction(Warnings warnings, DriverContext driverContext,
+      List<Integer> channels, double quantile) {
     this.quantile = quantile;
+    this.warnings = warnings;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = ClassicHistogramQuantileAggregator.initSingle(driverContext, quantile);
+    this.state = ClassicHistogramQuantileAggregator.initSingle(driverContext, quantile, warnings);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -65,7 +70,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
     DoubleBlock countBlock = page.getBlock(channels.get(0));
-    DoubleBlock upperBoundBlock = page.getBlock(channels.get(1));
+    BytesRefBlock upperBoundBlock = page.getBlock(channels.get(1));
     DoubleVector countVector = countBlock.asVector();
     if (countVector == null) {
       if (countBlock.areAllValuesNull()) {
@@ -83,7 +88,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
       addRawBlock(countBlock, upperBoundBlock, mask);
       return;
     }
-    DoubleVector upperBoundVector = upperBoundBlock.asVector();
+    BytesRefVector upperBoundVector = upperBoundBlock.asVector();
     if (upperBoundVector == null) {
       if (upperBoundBlock.areAllValuesNull()) {
         /*
@@ -105,7 +110,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
 
   private void addRawInputNotMasked(Page page) {
     DoubleBlock countBlock = page.getBlock(channels.get(0));
-    DoubleBlock upperBoundBlock = page.getBlock(channels.get(1));
+    BytesRefBlock upperBoundBlock = page.getBlock(channels.get(1));
     DoubleVector countVector = countBlock.asVector();
     if (countVector == null) {
       if (countBlock.areAllValuesNull()) {
@@ -123,7 +128,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
       addRawBlock(countBlock, upperBoundBlock);
       return;
     }
-    DoubleVector upperBoundVector = upperBoundBlock.asVector();
+    BytesRefVector upperBoundVector = upperBoundBlock.asVector();
     if (upperBoundVector == null) {
       if (upperBoundBlock.areAllValuesNull()) {
         /*
@@ -143,27 +148,30 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
     addRawVector(countVector, upperBoundVector);
   }
 
-  private void addRawVector(DoubleVector countVector, DoubleVector upperBoundVector) {
+  private void addRawVector(DoubleVector countVector, BytesRefVector upperBoundVector) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < countVector.getPositionCount(); valuesPosition++) {
       double countValue = countVector.getDouble(valuesPosition);
-      double upperBoundValue = upperBoundVector.getDouble(valuesPosition);
+      BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
       ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
     }
   }
 
-  private void addRawVector(DoubleVector countVector, DoubleVector upperBoundVector,
+  private void addRawVector(DoubleVector countVector, BytesRefVector upperBoundVector,
       BooleanVector mask) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < countVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
       double countValue = countVector.getDouble(valuesPosition);
-      double upperBoundValue = upperBoundVector.getDouble(valuesPosition);
+      BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
       ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
     }
   }
 
-  private void addRawBlock(DoubleBlock countBlock, DoubleBlock upperBoundBlock) {
+  private void addRawBlock(DoubleBlock countBlock, BytesRefBlock upperBoundBlock) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int p = 0; p < countBlock.getPositionCount(); p++) {
       int countValueCount = countBlock.getValueCount(p);
       if (countValueCount == 0) {
@@ -180,15 +188,16 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
         int upperBoundStart = upperBoundBlock.getFirstValueIndex(p);
         int upperBoundEnd = upperBoundStart + upperBoundValueCount;
         for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
-          double upperBoundValue = upperBoundBlock.getDouble(upperBoundOffset);
+          BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
           ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
         }
       }
     }
   }
 
-  private void addRawBlock(DoubleBlock countBlock, DoubleBlock upperBoundBlock,
+  private void addRawBlock(DoubleBlock countBlock, BytesRefBlock upperBoundBlock,
       BooleanVector mask) {
+    BytesRef upperBoundScratch = new BytesRef();
     for (int p = 0; p < countBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
@@ -208,7 +217,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
         int upperBoundStart = upperBoundBlock.getFirstValueIndex(p);
         int upperBoundEnd = upperBoundStart + upperBoundValueCount;
         for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
-          double upperBoundValue = upperBoundBlock.getDouble(upperBoundOffset);
+          BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
           ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
         }
       }
@@ -232,9 +241,8 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
        */
       return;
     }
-    BytesRefBlock buckets = (BytesRefBlock) bucketsUncast;
+    DoubleBlock buckets = (DoubleBlock) bucketsUncast;
     assert buckets.getPositionCount() == 1;
-    BytesRef bucketsScratch = new BytesRef();
     ClassicHistogramQuantileAggregator.combineIntermediate(state, buckets);
   }
 

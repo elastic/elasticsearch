@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ public class ClassicHistogramQuantileGroupingAggregatorFunctionTests extends Gro
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new ClassicHistogramQuantileAggregatorFunctionSupplier(quantile);
+        return new ClassicHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
     }
 
     @Override

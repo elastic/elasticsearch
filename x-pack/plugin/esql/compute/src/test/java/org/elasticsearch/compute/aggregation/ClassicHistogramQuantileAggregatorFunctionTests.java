@@ -11,13 +11,24 @@ import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.Buck
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.TestWarningsSource;
+import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private double quantile;
@@ -29,7 +40,7 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new ClassicHistogramQuantileAggregatorFunctionSupplier(quantile);
+        return new ClassicHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
     }
 
     @Override
@@ -64,9 +75,41 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
         assertQuantileResult((DoubleBlock) result, 0, expected);
     }
 
+    public void testWarnsAndSkipsUnparseableBound() {
+        DriverContext driverContext = driverContext();
+        // A valid two-bucket histogram plus a bucket whose `le` label is not a number, which must be skipped with a warning.
+        List<List<Object>> rows = List.of(List.of(2.0, "1.0"), List.of(4.0, "+Inf"), List.of(1.0, "not_a_number"));
+        List<Page> results = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new ListRowsBlockSourceOperator(driverContext.blockFactory(), List.of(ElementType.DOUBLE, ElementType.BYTES_REF), rows),
+                List.of(simple().get(driverContext)),
+                new TestResultPageSinkOperator(results::add),
+                () -> warnings.addAll(threadContext.getResponseHeaders().getOrDefault("Warning", List.of()))
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        // The bad bucket is dropped rather than failing the query: a single result is still produced.
+        assertThat(results.size(), equalTo(1));
+        assertThat(
+            warnings,
+            hasItem(containsString("evaluation of [source] failed, treating result as null. Only first 20 failures recorded."))
+        );
+        // The warning names the offending `le` value, mirroring Prometheus' "bad bucket label" warning.
+        assertThat(
+            warnings,
+            hasItem(containsString("java.lang.NumberFormatException: bucket label [le] has a malformed value of [not_a_number]"))
+        );
+    }
+
     static void assertQuantileResult(DoubleBlock result, int position, double expected) {
+        // A NaN estimate means the histogram cannot produce a quantile; the aggregator emits null rather than NaN.
         if (Double.isNaN(expected)) {
-            assertTrue(Double.isNaN(result.getDouble(position)));
+            assertTrue(result.isNull(position));
         } else {
             assertThat(result.getDouble(position), equalTo(expected));
         }

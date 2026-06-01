@@ -9,15 +9,21 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link ClassicHistogramQuantileAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ClassicHistogramQuantileAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  WarningSourceLocation warningsSource;
+
   private final double quantile;
 
-  public ClassicHistogramQuantileAggregatorFunctionSupplier(double quantile) {
+  public ClassicHistogramQuantileAggregatorFunctionSupplier(WarningSourceLocation warningsSource,
+      double quantile) {
+    this.warningsSource = warningsSource;
     this.quantile = quantile;
   }
 
@@ -34,13 +40,15 @@ public final class ClassicHistogramQuantileAggregatorFunctionSupplier implements
   @Override
   public ClassicHistogramQuantileAggregatorFunction aggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return new ClassicHistogramQuantileAggregatorFunction(driverContext, channels, quantile);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new ClassicHistogramQuantileAggregatorFunction(warnings, driverContext, channels, quantile);
   }
 
   @Override
   public ClassicHistogramQuantileGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return new ClassicHistogramQuantileGroupingAggregatorFunction(channels, driverContext, quantile);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsSource);
+    return new ClassicHistogramQuantileGroupingAggregatorFunction(warnings, channels, driverContext, quantile);
   }
 
   @Override

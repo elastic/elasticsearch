@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.Bucket;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -46,7 +48,7 @@ final class ClassicHistogramQuantileTestHelpers {
         List<List<Object>> rows = new ArrayList<>(size);
         while (rows.size() < size) {
             for (Bucket bucket : randomCumulativeHistogram()) {
-                rows.add(List.of(bucket.count(), bucket.upperBound()));
+                rows.add(List.of(bucket.count(), leLabel(bucket.upperBound())));
                 if (rows.size() == size) {
                     break;
                 }
@@ -60,7 +62,7 @@ final class ClassicHistogramQuantileTestHelpers {
         while (rows.size() < size) {
             long group = between(0, 4);
             for (Bucket bucket : randomCumulativeHistogram()) {
-                rows.add(List.of(group, bucket.count(), bucket.upperBound()));
+                rows.add(List.of(group, bucket.count(), leLabel(bucket.upperBound())));
                 if (rows.size() == size) {
                     break;
                 }
@@ -69,14 +71,22 @@ final class ClassicHistogramQuantileTestHelpers {
         return rows;
     }
 
+    /**
+     * Renders a bucket upper bound as the {@code le} keyword label the aggregator parses: PromQL writes the terminating
+     * bucket as {@code "+Inf"}, and every other bound as a finite number that round-trips through {@link Double#toString}.
+     */
+    static String leLabel(double upperBound) {
+        return upperBound == Double.POSITIVE_INFINITY ? "+Inf" : Double.toString(upperBound);
+    }
+
     static SourceOperator bucketRowsSource(BlockFactory blockFactory, int size) {
-        return new ListRowsBlockSourceOperator(blockFactory, List.of(ElementType.DOUBLE, ElementType.DOUBLE), randomBucketRows(size));
+        return new ListRowsBlockSourceOperator(blockFactory, List.of(ElementType.DOUBLE, ElementType.BYTES_REF), randomBucketRows(size));
     }
 
     static SourceOperator groupedBucketRowsSource(BlockFactory blockFactory, int size) {
         return new ListRowsBlockSourceOperator(
             blockFactory,
-            List.of(ElementType.LONG, ElementType.DOUBLE, ElementType.DOUBLE),
+            List.of(ElementType.LONG, ElementType.DOUBLE, ElementType.BYTES_REF),
             randomGroupedBucketRows(size)
         );
     }
@@ -97,7 +107,8 @@ final class ClassicHistogramQuantileTestHelpers {
 
     static void appendBuckets(Page page, int countChannel, int upperBoundChannel, int position, List<Bucket> buckets) {
         DoubleBlock counts = page.getBlock(countChannel);
-        DoubleBlock upperBounds = page.getBlock(upperBoundChannel);
+        BytesRefBlock upperBounds = page.getBlock(upperBoundChannel);
+        BytesRef scratch = new BytesRef();
         int countStart = counts.getFirstValueIndex(position);
         int countEnd = countStart + counts.getValueCount(position);
         int upperBoundStart = upperBounds.getFirstValueIndex(position);
@@ -105,7 +116,14 @@ final class ClassicHistogramQuantileTestHelpers {
         for (int countOffset = countStart; countOffset < countEnd; countOffset++) {
             double count = counts.getDouble(countOffset);
             for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
-                buckets.add(new Bucket(upperBounds.getDouble(upperBoundOffset), count));
+                double upperBound;
+                try {
+                    upperBound = ClassicHistogramQuantileStates.parseUpperBound(upperBounds.getBytesRef(upperBoundOffset, scratch));
+                } catch (NumberFormatException e) {
+                    // Mirror the aggregator: buckets with an unparseable `le` label are skipped, not counted.
+                    continue;
+                }
+                buckets.add(new Bucket(upperBound, count));
             }
         }
     }

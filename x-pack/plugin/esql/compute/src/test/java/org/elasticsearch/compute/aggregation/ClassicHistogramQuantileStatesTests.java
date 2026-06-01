@@ -12,9 +12,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.SingleState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -109,6 +109,42 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         assertThat(ClassicHistogramQuantileStates.bucketQuantile(1.0, buckets), equalTo(2.0));
     }
 
+    public void testParseUpperBound() {
+        // "+Inf" is the sentinel terminating every classic histogram. The accepted spellings mirror Go's
+        // strconv.ParseFloat (what Prometheus uses to parse `le`): inf/infinity with an optional sign, case-insensitive.
+        for (String text : List.of("+Inf", "Inf", "inf", "+INF", "Infinity", "+Infinity")) {
+            assertThat(text, ClassicHistogramQuantileStates.parseUpperBound(new BytesRef(text)), equalTo(Double.POSITIVE_INFINITY));
+        }
+        for (String text : List.of("-Inf", "-inf", "-Infinity")) {
+            assertThat(text, ClassicHistogramQuantileStates.parseUpperBound(new BytesRef(text)), equalTo(Double.NEGATIVE_INFINITY));
+        }
+        assertThat(ClassicHistogramQuantileStates.parseUpperBound(new BytesRef("0.5")), equalTo(0.5));
+        assertThat(ClassicHistogramQuantileStates.parseUpperBound(new BytesRef("1000")), equalTo(1000.0));
+        assertThat(ClassicHistogramQuantileStates.parseUpperBound(new BytesRef("-7.25")), equalTo(-7.25));
+        assertTrue(Double.isNaN(ClassicHistogramQuantileStates.parseUpperBound(new BytesRef("NaN"))));
+        // The exception names the offending value, mirroring Prometheus' "bad bucket label" warning.
+        NumberFormatException e = expectThrows(
+            NumberFormatException.class,
+            () -> ClassicHistogramQuantileStates.parseUpperBound(new BytesRef("not_a_number"))
+        );
+        assertThat(e.getMessage(), equalTo("bucket label [le] has a malformed value of [not_a_number]"));
+    }
+
+    public void testCombineSkipsUnparseableBound() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+
+        // A bucket whose `le` label is not a number is dropped (Prometheus warns and skips it), so the state stays empty.
+        try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
+            ClassicHistogramQuantileAggregator.combine(state, 1.0, new BytesRef("not_a_number"));
+
+            try (Block result = state.evaluateFinal(driverContext)) {
+                assertThat(result.elementType(), equalTo(ElementType.NULL));
+                assertTrue(result.areAllValuesNull());
+            }
+        }
+    }
+
     public void testBucketQuantileNaNQuantile() {
         assertTrue(
             Double.isNaN(
@@ -117,20 +153,11 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         );
     }
 
-    public void testSerializeDeserializeRoundTrip() {
-        List<Bucket> buckets = ClassicHistogramQuantileTestHelpers.canonicalHistogram();
-        BytesRef serialized = ClassicHistogramQuantileStates.serializeBuckets(buckets);
-        List<Bucket> deserialized = ClassicHistogramQuantileStates.deserializeBuckets(serialized);
-
-        assertBucketQuantileMatchesMonotonicVariant(0.5, buckets, deserialized);
-        assertThat(deserialized, equalTo(buckets));
-    }
-
     public void testSingleStateEmptyReturnsNull() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
-        try (var state = new ClassicHistogramQuantileStates.SingleState(blockFactory.breaker(), 0.5)) {
+        try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
             Block[] blocks = new Block[1];
             try {
                 state.toIntermediate(blocks, 0, driverContext);
@@ -147,6 +174,47 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         }
     }
 
+    public void testSingleStateNaNEstimateReturnsNull() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+
+        // A histogram without a +Inf bucket cannot produce an estimate, so bucketQuantile returns NaN.
+        try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
+            state.add(1.0, 1.0);
+            state.add(2.0, 2.0);
+            assertTrue(
+                Double.isNaN(ClassicHistogramQuantileStates.bucketQuantile(0.5, List.of(new Bucket(1.0, 1.0), new Bucket(2.0, 2.0))))
+            );
+
+            try (Block result = state.evaluateFinal(driverContext)) {
+                assertThat(result.elementType(), equalTo(ElementType.NULL));
+                assertTrue(result.areAllValuesNull());
+            }
+        }
+    }
+
+    public void testSingleStateEmitsInfinityForOutOfRangeQuantile() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+
+        // PromQL maps quantiles below 0 to -Inf and above 1 to +Inf; both must round-trip through the DoubleBlock output.
+        try (var below = new SingleState(blockFactory.breaker(), -0.1); var above = new SingleState(blockFactory.breaker(), 1.1)) {
+            below.add(1.0, 1.0);
+            below.add(Double.POSITIVE_INFINITY, 1.0);
+            above.add(1.0, 1.0);
+            above.add(Double.POSITIVE_INFINITY, 1.0);
+
+            try (Block result = below.evaluateFinal(driverContext)) {
+                assertFalse(result.areAllValuesNull());
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.NEGATIVE_INFINITY));
+            }
+            try (Block result = above.evaluateFinal(driverContext)) {
+                assertFalse(result.areAllValuesNull());
+                assertThat(((DoubleBlock) result).getDouble(0), equalTo(Double.POSITIVE_INFINITY));
+            }
+        }
+    }
+
     public void testSingleStateMergesPartialHistograms() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
@@ -155,11 +223,17 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         List<Bucket> shardTwo = List.of(new Bucket(1.0, 1.0), new Bucket(2.0, 2.0), new Bucket(Double.POSITIVE_INFINITY, 2.0));
         List<Bucket> merged = List.of(new Bucket(1.0, 3.0), new Bucket(2.0, 6.0), new Bucket(Double.POSITIVE_INFINITY, 6.0));
 
-        try (var state = new ClassicHistogramQuantileStates.SingleState(blockFactory.breaker(), 0.5)) {
-            state.add(ClassicHistogramQuantileStates.serializeBuckets(shardOne));
-            state.add(ClassicHistogramQuantileStates.serializeBuckets(shardTwo));
+        try (
+            var shardOneState = new SingleState(blockFactory.breaker(), 0.5);
+            var shardTwoState = new SingleState(blockFactory.breaker(), 0.5);
+            var combined = new SingleState(blockFactory.breaker(), 0.5)
+        ) {
+            addAll(shardOneState, shardOne);
+            addAll(shardTwoState, shardTwo);
+            mergeIntermediate(combined, shardOneState, driverContext);
+            mergeIntermediate(combined, shardTwoState, driverContext);
 
-            try (Block result = state.evaluateFinal(driverContext)) {
+            try (Block result = combined.evaluateFinal(driverContext)) {
                 assertThat(((DoubleBlock) result).getDouble(0), equalTo(ClassicHistogramQuantileStates.bucketQuantile(0.5, merged)));
             }
         }
@@ -178,7 +252,7 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
                 Block[] intermediates = new Block[1];
                 try {
                     state.toIntermediate(intermediates, 0, selected, driverContext);
-                    BytesRefBlock serialized = (BytesRefBlock) intermediates[0];
+                    DoubleBlock serialized = (DoubleBlock) intermediates[0];
                     assertFalse(serialized.isNull(0));
                     assertTrue(serialized.isNull(1));
                 } finally {
@@ -197,7 +271,7 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(4));
         assertThat(breaker.getUsed(), equalTo(0L));
 
-        try (var state = new ClassicHistogramQuantileStates.SingleState(breaker, 0.5)) {
+        try (var state = new SingleState(breaker, 0.5)) {
             state.add(1.0, 1.0);
             state.add(2.0, 3.0);
             state.add(Double.POSITIVE_INFINITY, 4.0);
@@ -206,11 +280,25 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         assertThat(breaker.getUsed(), equalTo(0L));
     }
 
+    public void testSingleStateMergingEqualBoundsDoesNotGrowBreaker() {
+        CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(4));
+
+        try (var state = new SingleState(breaker, 0.5)) {
+            state.add(1.0, 1.0);
+            long afterFirst = breaker.getUsed();
+            assertThat(afterFirst, greaterThan(0L));
+            // Re-adding the same upper bound sums into the existing entry and must not reserve more memory.
+            state.add(1.0, 2.0);
+            assertThat(breaker.getUsed(), equalTo(afterFirst));
+        }
+        assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
     public void testSingleStateCrankyCircuitBreaker() {
         CircuitBreaker breaker = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
         assertThrows(CircuitBreakingException.class, () -> {
             while (true) {
-                try (var state = new ClassicHistogramQuantileStates.SingleState(breaker, 0.5)) {
+                try (var state = new SingleState(breaker, 0.5)) {
                     for (int i = 0; i < 10_000; i++) {
                         state.add(i, i + 1.0);
                         state.add(Double.POSITIVE_INFINITY, i + 1.0);
@@ -264,7 +352,7 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         );
     }
 
-    public void testGroupingStateSerializedMergeRoundTrip() {
+    public void testGroupingStateIntermediateMergeRoundTrip() {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
@@ -286,10 +374,9 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
                     source.toIntermediate(intermediates, 0, selected, driverContext);
                 }
 
-                BytesRef scratch = new BytesRef();
-                BytesRefBlock serialized = (BytesRefBlock) intermediates[0];
-                target.add(0, serialized.getBytesRef(0, scratch));
-                target.add(1, serialized.getBytesRef(1, scratch));
+                DoubleBlock serialized = (DoubleBlock) intermediates[0];
+                target.add(0, serialized, 0);
+                target.add(1, serialized, 1);
             } finally {
                 Releasables.close(intermediates);
             }
@@ -301,6 +388,26 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
                 assertThat(results.getDouble(0), equalTo(1.5));
                 assertThat(results.getDouble(1), equalTo(1.0));
             }
+        }
+    }
+
+    private static void addAll(SingleState state, List<Bucket> buckets) {
+        for (Bucket bucket : buckets) {
+            state.add(bucket.upperBound(), bucket.count());
+        }
+    }
+
+    /**
+     * Serializes {@code source} to its intermediate {@link DoubleBlock} representation and merges it into {@code target},
+     * exercising the same partial-aggregation path the engine uses when combining states across nodes.
+     */
+    private static void mergeIntermediate(SingleState target, SingleState source, DriverContext driverContext) {
+        Block[] blocks = new Block[1];
+        try {
+            source.toIntermediate(blocks, 0, driverContext);
+            target.add((DoubleBlock) blocks[0], 0);
+        } finally {
+            Releasables.close(blocks);
         }
     }
 

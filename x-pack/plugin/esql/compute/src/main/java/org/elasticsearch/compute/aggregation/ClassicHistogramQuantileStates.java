@@ -7,20 +7,20 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import com.carrotsearch.hppc.LongDoubleHashMap;
+import com.carrotsearch.hppc.cursors.LongDoubleCursor;
+
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -30,47 +30,67 @@ import java.util.stream.LongStream;
 /**
  * Aggregation state and PromQL {@code histogram_quantile} evaluation for classic cumulative histogram buckets
  * ({@code le} upper bound plus cumulative count), used by {@link ClassicHistogramQuantileAggregator}.
+ * <p>
+ * Buckets are aggregated eagerly: each {@link SingleState} keeps a map from upper bound to the summed count for that
+ * bound, so equal upper bounds (which are dimensions and therefore frequently repeated) collapse into a single entry
+ * instead of being buffered as raw values. This keeps memory bounded by the number of distinct upper bounds and means
+ * the intermediate state shipped to the coordinating node is already pre-aggregated.
  */
 final class ClassicHistogramQuantileStates {
     static final double SMALL_DELTA_TOLERANCE = 1e-12;
 
     /**
-     * Bytes accounted to the circuit breaker for each buffered {@link Bucket}: the bucket object itself plus the
-     * reference slot it occupies in the backing {@link ArrayList}. ArrayList growth slack is intentionally not
-     * modelled; this is a per-element estimate to keep the unbounded bucket buffers visible to the breaker.
+     * Load factor of the {@link LongDoubleHashMap} backing each {@link SingleState}; matches the hppc default.
      */
-    static final long BUCKET_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Bucket.class)
-        + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+    static final double BUCKETS_LOAD_FACTOR = 0.75d;
+
+    /**
+     * Bytes charged to the circuit breaker for each distinct bucket upper bound buffered in a {@link SingleState}.
+     * The buckets live in a primitive {@link LongDoubleHashMap}, so a populated entry occupies a {@code long} key slot
+     * plus a {@code double} value slot (16 bytes) in the open-addressing tables. The map sizes its backing arrays to a
+     * power of two of {@code size / loadFactor}, so a table holding {@code N} entries can allocate close to
+     * {@code 2 * N / loadFactor} slots right after a rehash. We therefore charge {@code 2 * 16 / loadFactor} per entry:
+     * a deliberately conservative estimate that never under-counts the real footprint, rather than an exact allocation
+     * tally tracked across rehashes.
+     */
+    static final long BUCKET_RAM_BYTES_USED = (long) Math.ceil(2 * (Long.BYTES + Double.BYTES) / BUCKETS_LOAD_FACTOR);
 
     private static final String BREAKER_LABEL = "<classic_histogram_quantile>";
 
     private ClassicHistogramQuantileStates() {}
 
-    static BytesRef serializeBuckets(List<Bucket> buckets) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(buckets.size());
-            for (Bucket bucket : buckets) {
-                out.writeDouble(bucket.upperBound());
-                out.writeDouble(bucket.count());
-            }
-            return out.bytes().toBytesRef();
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to serialize histogram buckets", e);
+    /**
+     * Parses a classic histogram bucket upper bound from its {@code le} keyword label. PromQL stores {@code le} as a
+     * dimension (a keyword); the bucket terminating every classic histogram is the literal {@code "+Inf"}, and keeping
+     * the bound a keyword in storage also avoids {@code NumberFieldMapper} rejecting that non-finite sentinel.
+     * <p>
+     * The accepted spellings mirror Go's {@code strconv.ParseFloat}, which is what Prometheus' {@code histogram_quantile}
+     * uses to parse {@code le}: the special values {@code inf}/{@code infinity} (with an optional sign) and {@code nan}
+     * are recognized case-insensitively, and everything else is a finite number. {@link Double#parseDouble} already
+     * handles the case-sensitive {@code "Infinity"}/{@code "NaN"} forms, so only the abbreviated {@code "Inf"} forms and
+     * case folding need explicit handling.
+     *
+     * @throws NumberFormatException if the label is not one of those spellings; the message names the offending value
+     *         (like Prometheus' "bad bucket label" warning), and callers skip such buckets, as Prometheus does
+     */
+    static double parseUpperBound(BytesRef le) {
+        String text = le.utf8ToString();
+        if (text.equalsIgnoreCase("+Inf")
+            || text.equalsIgnoreCase("Inf")
+            || text.equalsIgnoreCase("Infinity")
+            || text.equalsIgnoreCase("+Infinity")) {
+            return Double.POSITIVE_INFINITY;
         }
-    }
-
-    static List<Bucket> deserializeBuckets(BytesRef bytesRef) {
-        ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
-        in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        if (text.equalsIgnoreCase("-Inf") || text.equalsIgnoreCase("-Infinity")) {
+            return Double.NEGATIVE_INFINITY;
+        }
+        if (text.equalsIgnoreCase("NaN")) {
+            return Double.NaN;
+        }
         try {
-            int size = in.readVInt();
-            List<Bucket> buckets = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                buckets.add(new Bucket(in.readDouble(), in.readDouble()));
-            }
-            return buckets;
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to deserialize histogram buckets", e);
+            return Double.parseDouble(text);
+        } catch (NumberFormatException e) {
+            throw new NumberFormatException("bucket label [le] has a malformed value of [" + text + "]");
         }
     }
 
@@ -226,31 +246,66 @@ final class ClassicHistogramQuantileStates {
     static final class SingleState implements AggregatorState {
         private final CircuitBreaker breaker;
         private final double quantile;
-        private final List<Bucket> buckets = new ArrayList<>();
+        private final Warnings warnings;
+        private final LongDoubleHashMap buckets = new LongDoubleHashMap();
         private long reservedBytes;
-        private boolean seen;
 
         SingleState(CircuitBreaker breaker, double quantile) {
+            this(breaker, quantile, Warnings.NOOP_WARNINGS);
+        }
+
+        SingleState(CircuitBreaker breaker, double quantile, Warnings warnings) {
             this.breaker = breaker;
             this.quantile = quantile;
-        }
-
-        void add(double upperBound, double count) {
-            reserve(1);
-            buckets.add(new Bucket(upperBound, count));
-            seen = true;
-        }
-
-        void add(BytesRef serializedState) {
-            List<Bucket> incoming = deserializeBuckets(serializedState);
-            reserve(incoming.size());
-            buckets.addAll(incoming);
-            seen = true;
+            this.warnings = warnings;
         }
 
         /**
-         * Accounts for {@code count} additional buckets against the request circuit breaker before they are buffered,
-         * so an over-large or high-cardinality histogram trips the breaker instead of exhausting the heap.
+         * Parses the bucket's {@code le} keyword bound and adds it, or — mirroring Prometheus' {@code histogram_quantile} —
+         * records a warning and skips the bucket when the label is not a number.
+         */
+        void add(BytesRef le, double count) {
+            double upperBound;
+            try {
+                upperBound = parseUpperBound(le);
+            } catch (NumberFormatException e) {
+                warnings.registerException(e);
+                return;
+            }
+            add(upperBound, count);
+        }
+
+        /**
+         * Adds the cumulative {@code count} for the given {@code upperBound}, summing into any existing entry with an
+         * exactly equal bound. The bound is keyed by its raw bits so equality matches {@link Double#equals} semantics
+         * ({@code -0.0} and {@code 0.0} are distinct, every {@code NaN} collapses to one entry).
+         */
+        void add(double upperBound, double count) {
+            long key = Double.doubleToLongBits(upperBound);
+            if (buckets.containsKey(key)) {
+                buckets.addTo(key, count);
+            } else {
+                reserve(1);
+                buckets.put(key, count);
+            }
+        }
+
+        /**
+         * Merges the pre-aggregated buckets serialized at {@code position} of an intermediate {@link DoubleBlock}, which
+         * stores each bucket as two consecutive values: the upper bound followed by its cumulative count.
+         */
+        void add(DoubleBlock block, int position) {
+            int start = block.getFirstValueIndex(position);
+            int valueCount = block.getValueCount(position);
+            assert valueCount % 2 == 0 : "histogram intermediate state must hold (upperBound, count) pairs, got " + valueCount;
+            for (int i = 0; i < valueCount; i += 2) {
+                add(block.getDouble(start + i), block.getDouble(start + i + 1));
+            }
+        }
+
+        /**
+         * Accounts for {@code count} additional distinct buckets against the request circuit breaker before they are
+         * buffered, so a high-cardinality histogram trips the breaker instead of exhausting the heap.
          */
         private void reserve(int count) {
             long bytes = count * BUCKET_RAM_BYTES_USED;
@@ -258,26 +313,55 @@ final class ClassicHistogramQuantileStates {
             reservedBytes += bytes;
         }
 
+        private List<Bucket> toBuckets() {
+            List<Bucket> result = new ArrayList<>(buckets.size());
+            for (LongDoubleCursor cursor : buckets) {
+                result.add(new Bucket(Double.longBitsToDouble(cursor.key), cursor.value));
+            }
+            return result;
+        }
+
+        /**
+         * Appends this state's buckets as a single multi-value position of {@code (upperBound, count)} pairs.
+         */
+        private void appendIntermediate(DoubleBlock.Builder builder) {
+            builder.beginPositionEntry();
+            for (LongDoubleCursor cursor : buckets) {
+                builder.appendDouble(Double.longBitsToDouble(cursor.key));
+                builder.appendDouble(cursor.value);
+            }
+            builder.endPositionEntry();
+        }
+
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            if (seen == false) {
+            if (buckets.isEmpty()) {
                 blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
                 return;
             }
-            blocks[offset] = driverContext.blockFactory().newConstantBytesRefBlockWith(serializeBuckets(buckets), 1);
+            try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(buckets.size() * 2)) {
+                appendIntermediate(builder);
+                blocks[offset] = builder.build();
+            }
         }
 
         Block evaluateFinal(DriverContext driverContext) {
-            if (seen == false) {
+            if (buckets.isEmpty()) {
                 return driverContext.blockFactory().newConstantNullBlock(1);
             }
-            return driverContext.blockFactory().newConstantDoubleBlockWith(bucketQuantile(quantile, buckets), 1);
+            double result = bucketQuantile(quantile, toBuckets());
+            // NaN signals "no estimate"; emit null rather than placing NaN in a DoubleBlock, where it would break equality.
+            if (Double.isNaN(result)) {
+                return driverContext.blockFactory().newConstantNullBlock(1);
+            }
+            return driverContext.blockFactory().newConstantDoubleBlockWith(result, 1);
         }
 
         @Override
         public void close() {
             breaker.addWithoutBreaking(-reservedBytes);
             reservedBytes = 0;
+            buckets.release();
         }
     }
 
@@ -285,12 +369,18 @@ final class ClassicHistogramQuantileStates {
         private final CircuitBreaker breaker;
         private final BigArrays bigArrays;
         private final double quantile;
+        private final Warnings warnings;
         private ObjectArray<SingleState> states;
 
         GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double quantile) {
+            this(breaker, bigArrays, quantile, Warnings.NOOP_WARNINGS);
+        }
+
+        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double quantile, Warnings warnings) {
             this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.quantile = quantile;
+            this.warnings = warnings;
             this.states = bigArrays.newObjectArray(1);
         }
 
@@ -304,12 +394,27 @@ final class ClassicHistogramQuantileStates {
             return state;
         }
 
+        /**
+         * Parses the bucket's {@code le} keyword bound for {@code groupId} and adds it, or — mirroring Prometheus'
+         * {@code histogram_quantile} — records a warning and skips the bucket when the label is not a number.
+         */
+        void add(int groupId, BytesRef le, double count) {
+            double upperBound;
+            try {
+                upperBound = parseUpperBound(le);
+            } catch (NumberFormatException e) {
+                warnings.registerException(e);
+                return;
+            }
+            getOrAdd(groupId).add(upperBound, count);
+        }
+
         void add(int groupId, double upperBound, double count) {
             getOrAdd(groupId).add(upperBound, count);
         }
 
-        void add(int groupId, BytesRef serializedState) {
-            getOrAdd(groupId).add(serializedState);
+        void add(int groupId, DoubleBlock block, int position) {
+            getOrAdd(groupId).add(block, position);
         }
 
         @Override
@@ -318,14 +423,14 @@ final class ClassicHistogramQuantileStates {
         }
 
         void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            try (var builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+            try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     SingleState state = groupId < states.size() ? states.get(groupId) : null;
-                    if (state == null) {
+                    if (state == null || state.buckets.isEmpty()) {
                         builder.appendNull();
                     } else {
-                        builder.appendBytesRef(serializeBuckets(state.buckets));
+                        state.appendIntermediate(builder);
                     }
                 }
                 blocks[offset] = builder.build();
@@ -337,10 +442,16 @@ final class ClassicHistogramQuantileStates {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int groupId = selected.getInt(i);
                     SingleState state = groupId < states.size() ? states.get(groupId) : null;
-                    if (state == null) {
+                    if (state == null || state.buckets.isEmpty()) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    double result = bucketQuantile(state.quantile, state.toBuckets());
+                    // NaN signals "no estimate"; emit null rather than placing NaN in a DoubleBlock, where it breaks equality.
+                    if (Double.isNaN(result)) {
                         builder.appendNull();
                     } else {
-                        builder.appendDouble(bucketQuantile(state.quantile, state.buckets));
+                        builder.appendDouble(result);
                     }
                 }
                 return builder.build();

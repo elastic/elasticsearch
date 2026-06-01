@@ -12,72 +12,81 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
-@Aggregator({ @IntermediateState(name = "buckets", type = "BYTES_REF_BLOCK") })
+/**
+ * The intermediate state ships the pre-aggregated buckets as a single multi-value {@code DOUBLE_BLOCK} position holding
+ * {@code (upperBound, count)} pairs, so no per-bucket encoding/decoding or {@code BytesRef} reuse is needed and only the
+ * distinct upper bounds (not the raw input values) travel to the coordinating node.
+ */
+@Aggregator({ @IntermediateState(name = "buckets", type = "DOUBLE_BLOCK") })
 @GroupingAggregator(processNulls = true)
 class ClassicHistogramQuantileAggregator {
     public static String describe() {
         return "classic_histogram_quantile";
     }
 
-    public static ClassicHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile) {
-        return new ClassicHistogramQuantileStates.SingleState(driverContext.breaker(), quantile);
+    public static ClassicHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
+        return new ClassicHistogramQuantileStates.SingleState(driverContext.breaker(), quantile, warnings);
     }
 
-    public static void combine(ClassicHistogramQuantileStates.SingleState state, double count, double upperBound) {
+    public static void combine(ClassicHistogramQuantileStates.SingleState state, double count, BytesRef upperBound) {
+        // The state parses the `le` keyword bound, skipping (and warning about) buckets whose label is not a number.
         state.add(upperBound, count);
     }
 
-    public static void combineIntermediate(ClassicHistogramQuantileStates.SingleState state, BytesRefBlock buckets) {
+    public static void combineIntermediate(ClassicHistogramQuantileStates.SingleState state, DoubleBlock buckets) {
         if (buckets.isNull(0)) {
             return;
         }
-        BytesRef scratch = new BytesRef();
-        state.add(buckets.getBytesRef(0, scratch));
+        state.add(buckets, 0);
     }
 
     public static Block evaluateFinal(ClassicHistogramQuantileStates.SingleState state, DriverContext driverContext) {
         return state.evaluateFinal(driverContext);
     }
 
-    public static ClassicHistogramQuantileStates.GroupingState initGrouping(DriverContext driverContext, double quantile) {
-        return new ClassicHistogramQuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), quantile);
+    public static ClassicHistogramQuantileStates.GroupingState initGrouping(
+        DriverContext driverContext,
+        double quantile,
+        Warnings warnings
+    ) {
+        return new ClassicHistogramQuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), quantile, warnings);
     }
 
-    public static void combine(ClassicHistogramQuantileStates.GroupingState state, int groupId, double count, double upperBound) {
+    public static void combine(ClassicHistogramQuantileStates.GroupingState state, int groupId, double count, BytesRef upperBound) {
+        // The state parses the `le` keyword bound, skipping (and warning about) buckets whose label is not a number.
         state.add(groupId, upperBound, count);
     }
 
     public static void combineIntermediate(
         ClassicHistogramQuantileStates.GroupingState state,
         int groupId,
-        BytesRefBlock buckets,
+        DoubleBlock buckets,
         int valuesPosition
     ) {
         if (buckets.isNull(valuesPosition)) {
             return;
         }
-        BytesRef scratch = new BytesRef();
-        state.add(groupId, buckets.getBytesRef(valuesPosition, scratch));
+        state.add(groupId, buckets, valuesPosition);
     }
 
     public static void combineIntermediate(
         ClassicHistogramQuantileStates.GroupingState state,
         int positionOffset,
         IntVector groups,
-        BytesRefBlock buckets
+        DoubleBlock buckets
     ) {
-        BytesRef scratch = new BytesRef();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuesPosition = groupPosition + positionOffset;
             if (buckets.isNull(valuesPosition)) {
                 continue;
             }
-            state.add(groups.getInt(groupPosition), buckets.getBytesRef(valuesPosition, scratch));
+            state.add(groups.getInt(groupPosition), buckets, valuesPosition);
         }
     }
 
@@ -85,9 +94,8 @@ class ClassicHistogramQuantileAggregator {
         ClassicHistogramQuantileStates.GroupingState state,
         int positionOffset,
         IntBlock groups,
-        BytesRefBlock buckets
+        DoubleBlock buckets
     ) {
-        BytesRef scratch = new BytesRef();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             if (groups.isNull(groupPosition)) {
                 continue;
@@ -96,11 +104,10 @@ class ClassicHistogramQuantileAggregator {
             if (buckets.isNull(valuesPosition)) {
                 continue;
             }
-            BytesRef serialized = buckets.getBytesRef(valuesPosition, scratch);
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                state.add(groups.getInt(g), serialized);
+                state.add(groups.getInt(g), buckets, valuesPosition);
             }
         }
     }

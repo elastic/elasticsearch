@@ -122,6 +122,11 @@ public abstract class SearchPhaseResult extends TransportResponse {
         return directoryMetrics;
     }
 
+    /**
+     * Set directory-level metrics for this phase result. Must not be null. This is invoked on the
+     * data node once a phase finishes (with the resolved per-phase metrics) and again on the
+     * coordinating node when the result is deserialized.
+     */
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         this.directoryMetrics = directoryMetrics;
     }

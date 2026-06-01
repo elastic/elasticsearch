@@ -70,6 +70,7 @@ dependencies {
   implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
 
   testImplementation project(':test:framework')
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

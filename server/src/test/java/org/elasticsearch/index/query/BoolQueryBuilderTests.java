@@ -535,7 +535,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testBoolDedupPathTripsBreakerMidWalkBeforeMerge() {
         assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-            IntStream.range(0, 50)
+            IntStream.range(0, 100)
                 .forEach(
                     i -> boolQuery.filter(
                         new RegexpQueryBuilder(TEXT_FIELD_NAME, "(pattern" + i + "|alternate" + i + "|option" + i + ").*")

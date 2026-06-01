@@ -1449,7 +1449,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testQueryStringCircuitBreakerTripsWithManyRegexps() {
         assertCircuitBreakerTripsOnQueryConstruction("500kb", () -> {
             StringJoiner joiner = new StringJoiner(" OR ");
-            IntStream.range(0, 50).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
+            IntStream.range(0, 100).forEach(i -> joiner.add("/(pattern" + i + "|alternate" + i + "|option" + i + ").*/"));
             return queryStringQuery(joiner.toString()).defaultField(TEXT_FIELD_NAME);
         });
     }

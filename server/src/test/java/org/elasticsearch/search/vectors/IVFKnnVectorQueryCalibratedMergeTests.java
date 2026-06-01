@@ -30,12 +30,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Query-time tests for IVF shard merge when leaves disagree on persisted rescore oversample.
- * <p>
  * Indexes are built with {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource}
- * injecting per-segment oversample values and {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver#useCodecDefault()}
+ * injecting per-segment oversample values and {@link IvfMergeConfigResolver#useCodecDefault()}
  * (no {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibration} on merge).
- * For codec merge calibration, see
- * {@link org.elasticsearch.index.codec.vectors.diskbbq.next.IvfAutoCalibrationTests}
  */
 public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 

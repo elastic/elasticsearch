@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.arrow.ArrowToBlockConverter;
 import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.BytesRefArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
@@ -27,7 +28,6 @@ import org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock;
 import org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.formatter.arrow.ArrowToBlockConverter;
 
 import java.util.EnumMap;
 import java.util.List;

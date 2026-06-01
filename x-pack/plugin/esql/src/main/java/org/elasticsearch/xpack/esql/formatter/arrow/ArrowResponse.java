@@ -43,7 +43,7 @@ import java.util.Map;
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     public static class Column {
-        private final BlockConverter converter;
+        private final BlockArrowFormatter converter;
         private final String name;
         private boolean multivalued;
 
@@ -266,7 +266,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             List<ArrowBuf> bufs = new ArrayList<>(page.getBlockCount() * 2);
 
             // Closures that will actually write a Block's data. Maps 1:1 to `bufs`.
-            List<BlockConverter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
+            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
 
             // Give Arrow a WriteChannel that will iterate on `bufWriters` when requested to write a buffer.
             WriteChannel arrowOut = new WriteChannel(arrowOut(out)) {
@@ -310,7 +310,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     // List node.
                     nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
                     // Value vector, does not contain nulls.
-                    nodes.add(new ArrowFieldNode(BlockConverter.valueCount(block), 0));
+                    nodes.add(new ArrowFieldNode(BlockArrowFormatter.valueCount(block), 0));
                 } else {
                     nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
                 }
@@ -364,56 +364,56 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     /**
      * Converters for every ES|QL type
      */
-    static final Map<String, BlockConverter> ESQL_CONVERTERS = Map.ofEntries(
+    static final Map<String, BlockArrowFormatter> ESQL_CONVERTERS = Map.ofEntries(
         // For reference:
         // - DataType: list of ESQL data types (not all are present in outputs)
         // - PositionToXContent: conversions for ESQL JSON output
         // - EsqlDataTypeConverter: conversions to ESQL datatypes
         // Missing: multi-valued values
 
-        buildEntry(new BlockConverter.AsNull("null")),
-        buildEntry(new BlockConverter.AsNull("unsupported")),
+        buildEntry(new BlockArrowFormatter.AsNull("null")),
+        buildEntry(new BlockArrowFormatter.AsNull("unsupported")),
 
-        buildEntry(new BlockConverter.AsBoolean("boolean")),
+        buildEntry(new BlockArrowFormatter.AsBoolean("boolean")),
 
-        buildEntry(new BlockConverter.AsInt32("integer")),
-        buildEntry(new BlockConverter.AsInt32("counter_integer")),
+        buildEntry(new BlockArrowFormatter.AsInt32("integer")),
+        buildEntry(new BlockArrowFormatter.AsInt32("counter_integer")),
 
-        buildEntry(new BlockConverter.AsInt64("long")),
+        buildEntry(new BlockArrowFormatter.AsInt64("long")),
         // FIXME: counters: are they signed?
-        buildEntry(new BlockConverter.AsInt64("counter_long")),
-        buildEntry(new BlockConverter.AsInt64("unsigned_long", MinorType.UINT8)),
+        buildEntry(new BlockArrowFormatter.AsInt64("counter_long")),
+        buildEntry(new BlockArrowFormatter.AsInt64("unsigned_long", MinorType.UINT8)),
 
-        buildEntry(new BlockConverter.AsFloat64("double")),
-        buildEntry(new BlockConverter.AsFloat64("counter_double")),
+        buildEntry(new BlockArrowFormatter.AsFloat64("double")),
+        buildEntry(new BlockArrowFormatter.AsFloat64("counter_double")),
 
-        buildEntry(new BlockConverter.AsVarChar("keyword")),
-        buildEntry(new BlockConverter.AsVarChar("text")),
+        buildEntry(new BlockArrowFormatter.AsVarChar("keyword")),
+        buildEntry(new BlockArrowFormatter.AsVarChar("text")),
 
         // date: array of int64 seconds since epoch
         // FIXME: is it signed?
-        buildEntry(new BlockConverter.AsInt64("date", MinorType.TIMESTAMPMILLI)),
+        buildEntry(new BlockArrowFormatter.AsInt64("date", MinorType.TIMESTAMPMILLI)),
 
         // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
         // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
         // ipv4 addresses it would still be twice as big.
-        buildEntry(new BlockConverter.TransformedBytesRef("ip", MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses)),
+        buildEntry(new BlockArrowFormatter.TransformedBytesRef("ip", MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses)),
 
         // geo_point: Keep WKB format (JSON converts to WKT)
-        buildEntry(new BlockConverter.AsVarBinary("geo_point")),
-        buildEntry(new BlockConverter.AsVarBinary("geo_shape")),
-        buildEntry(new BlockConverter.AsVarBinary("cartesian_point")),
-        buildEntry(new BlockConverter.AsVarBinary("cartesian_shape")),
+        buildEntry(new BlockArrowFormatter.AsVarBinary("geo_point")),
+        buildEntry(new BlockArrowFormatter.AsVarBinary("geo_shape")),
+        buildEntry(new BlockArrowFormatter.AsVarBinary("cartesian_point")),
+        buildEntry(new BlockArrowFormatter.AsVarBinary("cartesian_shape")),
 
         // version: convert to string
-        buildEntry(new BlockConverter.TransformedBytesRef("version", MinorType.VARCHAR, ValueConversions::versionToString)),
+        buildEntry(new BlockArrowFormatter.TransformedBytesRef("version", MinorType.VARCHAR, ValueConversions::versionToString)),
 
         // _source: json
         // TODO: support also CBOR and SMILE with an additional formatting parameter
-        buildEntry(new BlockConverter.TransformedBytesRef("_source", MinorType.VARCHAR, ValueConversions::sourceToJson))
+        buildEntry(new BlockArrowFormatter.TransformedBytesRef("_source", MinorType.VARCHAR, ValueConversions::sourceToJson))
     );
 
-    private static Map.Entry<String, BlockConverter> buildEntry(BlockConverter converter) {
+    private static Map.Entry<String, BlockArrowFormatter> buildEntry(BlockArrowFormatter converter) {
         return Map.entry(converter.esqlType(), converter);
     }
 }

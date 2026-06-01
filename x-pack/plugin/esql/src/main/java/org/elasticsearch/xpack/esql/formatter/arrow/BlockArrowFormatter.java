@@ -25,12 +25,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public abstract class BlockConverter {
+public abstract class BlockArrowFormatter {
 
     private final FieldType fieldType;
     private final String esqlType;
 
-    protected BlockConverter(String esqlType, Types.MinorType minorType) {
+    protected BlockArrowFormatter(String esqlType, Types.MinorType minorType) {
         // Add the exact ESQL type as field metadata
         var meta = Map.of("elastic:type", esqlType);
         this.fieldType = new FieldType(true, minorType.getType(), null, meta);
@@ -80,7 +80,7 @@ public abstract class BlockConverter {
     /**
      * Conversion of Double blocks
      */
-    public static class AsFloat64 extends BlockConverter {
+    public static class AsFloat64 extends BlockArrowFormatter {
 
         public AsFloat64(String esqlType) {
             super(esqlType, Types.MinorType.FLOAT8);
@@ -98,11 +98,11 @@ public abstract class BlockConverter {
             bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    return BlockConverter.writeZeroes(out, vectorByteSize(block));
+                    return BlockArrowFormatter.writeZeroes(out, vectorByteSize(block));
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = BlockConverter.valueCount(block);
+                int count = BlockArrowFormatter.valueCount(block);
                 for (int i = 0; i < count; i++) {
                     out.writeDoubleLE(block.getDouble(i));
                 }
@@ -111,14 +111,14 @@ public abstract class BlockConverter {
         }
 
         private static int vectorByteSize(DoubleBlock b) {
-            return Double.BYTES * BlockConverter.valueCount(b);
+            return Double.BYTES * BlockArrowFormatter.valueCount(b);
         }
     }
 
     /**
      * Conversion of Int blocks
      */
-    public static class AsInt32 extends BlockConverter {
+    public static class AsInt32 extends BlockArrowFormatter {
 
         public AsInt32(String esqlType) {
             super(esqlType, Types.MinorType.INT);
@@ -136,11 +136,11 @@ public abstract class BlockConverter {
             bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    return BlockConverter.writeZeroes(out, vectorByteSize(block));
+                    return BlockArrowFormatter.writeZeroes(out, vectorByteSize(block));
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = BlockConverter.valueCount(block);
+                int count = BlockArrowFormatter.valueCount(block);
                 for (int i = 0; i < count; i++) {
                     out.writeIntLE(block.getInt(i));
                 }
@@ -149,14 +149,14 @@ public abstract class BlockConverter {
         }
 
         private static int vectorByteSize(Block b) {
-            return Integer.BYTES * BlockConverter.valueCount(b);
+            return Integer.BYTES * BlockArrowFormatter.valueCount(b);
         }
     }
 
     /**
      * Conversion of Long blocks
      */
-    public static class AsInt64 extends BlockConverter {
+    public static class AsInt64 extends BlockArrowFormatter {
         public AsInt64(String esqlType) {
             this(esqlType, Types.MinorType.BIGINT);
         }
@@ -177,11 +177,11 @@ public abstract class BlockConverter {
             bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
-                    return BlockConverter.writeZeroes(out, vectorByteSize(block));
+                    return BlockArrowFormatter.writeZeroes(out, vectorByteSize(block));
                 }
 
                 // TODO could we "just" get the memory of the array and dump it?
-                int count = BlockConverter.valueCount(block);
+                int count = BlockArrowFormatter.valueCount(block);
                 for (int i = 0; i < count; i++) {
                     out.writeLongLE(block.getLong(i));
                 }
@@ -190,14 +190,14 @@ public abstract class BlockConverter {
         }
 
         private static int vectorByteSize(LongBlock b) {
-            return Long.BYTES * BlockConverter.valueCount(b);
+            return Long.BYTES * BlockArrowFormatter.valueCount(b);
         }
     }
 
     /**
      * Conversion of Boolean blocks
      */
-    public static class AsBoolean extends BlockConverter {
+    public static class AsBoolean extends BlockArrowFormatter {
         public AsBoolean(String esqlType) {
             super(esqlType, Types.MinorType.BIT);
         }
@@ -213,7 +213,7 @@ public abstract class BlockConverter {
 
             bufs.add(dummyArrowBuf(vectorByteSize(block)));
             bufWriters.add(out -> {
-                int count = BlockConverter.valueCount(block);
+                int count = BlockArrowFormatter.valueCount(block);
                 BitSet bits = new BitSet();
 
                 // Only set the bits that are true, writeBitSet will take
@@ -226,21 +226,21 @@ public abstract class BlockConverter {
                     }
                 }
 
-                return BlockConverter.writeBitSet(out, bits, count);
+                return BlockArrowFormatter.writeBitSet(out, bits, count);
             });
         }
 
         private static int vectorByteSize(BooleanBlock b) {
-            return BlockConverter.bitSetLength(BlockConverter.valueCount(b));
+            return BlockArrowFormatter.bitSetLength(BlockArrowFormatter.valueCount(b));
         }
     }
 
     /**
      * Conversion of ByteRef blocks
      */
-    public static class BytesRefConverter extends BlockConverter {
+    public static class BytesReFormatter extends BlockArrowFormatter {
 
-        public BytesRefConverter(String esqlType, Types.MinorType minorType) {
+        public BytesReFormatter(String esqlType, Types.MinorType minorType) {
             super(esqlType, minorType);
         }
 
@@ -281,7 +281,7 @@ public abstract class BlockConverter {
             });
 
             // Data vector
-            bufs.add(BlockConverter.dummyArrowBuf(dataVectorByteSize(block)));
+            bufs.add(BlockArrowFormatter.dummyArrowBuf(dataVectorByteSize(block)));
 
             bufWriters.add(out -> {
                 if (block.areAllValuesNull()) {
@@ -325,7 +325,7 @@ public abstract class BlockConverter {
     /**
      * Conversion of ByteRefs where each value is itself converted to a different format.
      */
-    public static class TransformedBytesRef extends BytesRefConverter {
+    public static class TransformedBytesRef extends BytesReFormatter {
 
         private final BiFunction<BytesRef, BytesRef, BytesRef> valueConverter;
 
@@ -390,19 +390,19 @@ public abstract class BlockConverter {
         }
     }
 
-    public static class AsVarChar extends BytesRefConverter {
+    public static class AsVarChar extends BytesReFormatter {
         public AsVarChar(String esqlType) {
             super(esqlType, Types.MinorType.VARCHAR);
         }
     }
 
-    public static class AsVarBinary extends BytesRefConverter {
+    public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(String esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
         }
     }
 
-    public static class AsNull extends BlockConverter {
+    public static class AsNull extends BlockArrowFormatter {
         public AsNull(String esqlType) {
             super(esqlType, Types.MinorType.NULL);
         }

@@ -281,6 +281,7 @@ public class ValuesSourceReaderBenchmark {
             false,
             null,
             null,
+            false,
             false
         ).blockLoader(new BenchContext());
     }

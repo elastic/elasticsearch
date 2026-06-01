@@ -68,6 +68,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "dense_vector",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "dense_vector"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "The search field"
@@ -75,6 +87,18 @@
       ],
       "variadic" : false,
       "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "exponential_histogram"
     },
     {
       "params" : [
@@ -183,6 +207,18 @@
       ],
       "variadic" : false,
       "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The search field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
     },
     {
       "params" : [

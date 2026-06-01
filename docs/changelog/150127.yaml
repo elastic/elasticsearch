@@ -1,0 +1,5 @@
+area: "Infra/Logging"
+issues: []
+pr: 150127
+summary: Add query filter logging to SQL and EQL queries
+type: enhancement

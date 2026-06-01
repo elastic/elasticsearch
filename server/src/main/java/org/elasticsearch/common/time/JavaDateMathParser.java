@@ -207,25 +207,21 @@ public class JavaDateMathParser implements DateMathParser {
 
         Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.parser;
         try {
+            if (timeZone == null) {
+                return DateFormatters.from(formatter.apply(value)).toInstant();
+            }
             TemporalAccessor accessor = formatter.apply(value);
-            // The time_zone parameter reinterprets a wall-clock reading in the supplied zone.
-            // It has no meaning for inputs that already denote an absolute instant: either the
-            // input carried its own zone/offset, or the format (epoch_millis, epoch_second) is
-            // UTC by definition and exposes no local-date component to reinterpret.
+            // Prefer offset over zone ID: an explicit offset is unambiguous, whereas a named
+            // zone requires knowing the date to resolve DST. Avoid TemporalQueries.zone(),
+            // which has the opposite precedence (see commit 6f47fa3d).
             ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
             ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
             if (zoneId != null) {
-                // Input carries its own zone/offset; apply it and ignore the timeZone parameter.
-                // Note: DateFormatters.from() does not preserve the accessor's zone, so we must
-                // re-apply it explicitly via withZoneSameLocal rather than calling toInstant() directly.
-                return DateFormatters.from(accessor).withZoneSameLocal(zoneId).toInstant();
-            }
-            if (timeZone == null
-                || (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(ChronoField.YEAR) == false)) {
-                // No zone to apply, or epoch-based format (UTC by definition).
+                timeZone = zoneId;
+            } else if (accessor.isSupported(ChronoField.INSTANT_SECONDS) && accessor.isSupported(ChronoField.YEAR) == false) {
+                // epoch_millis/epoch_second are UTC by definition; time_zone must not shift them.
                 return DateFormatters.from(accessor).toInstant();
             }
-
             return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
         } catch (IllegalArgumentException | DateTimeException e) {
             throw new ElasticsearchParseException(

@@ -27,8 +27,8 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
     public static final URI TEST_AUTH_URL = URI.create("https://idp.example.com/oauth2/token");
     public static final URI INITIAL_TEST_AUTH_URL = URI.create("https://initial-idp.example.com/oauth2/token");
 
-    private static final String CLIENT_ID = "client-id";
-    private static final List<String> SCOPES = List.of("scope-a", "scope-b");
+    private static final String TEST_CLIENT_ID = "client-id";
+    private static final List<String> TEST_SCOPES = List.of("scope-a", "scope-b");
 
     public static OpenAiOAuth2Settings createRandom() {
         return new OpenAiOAuth2Settings(
@@ -60,16 +60,16 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
     public void testFromMap_BuildsSettingsWhenAllFieldsPresent() {
         var map = new HashMap<String, Object>();
-        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
-        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, TEST_CLIENT_ID);
+        map.put(OAuth2Settings.SCOPES_FIELD, TEST_SCOPES);
         map.put(AUTH_URL, TEST_AUTH_URL.toString());
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
 
         assertNotNull(result);
-        assertThat(result.clientId(), is(CLIENT_ID));
-        assertThat(result.scopes(), is(SCOPES));
+        assertThat(result.clientId(), is(TEST_CLIENT_ID));
+        assertThat(result.scopes(), is(TEST_SCOPES));
         assertThat(result.authUrl(), is(TEST_AUTH_URL));
         assertTrue(validationException.validationErrors().isEmpty());
     }
@@ -86,8 +86,8 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
     public void testFromMap_ValidationErrorWhenAuthUrlMissing() {
         var map = new HashMap<String, Object>();
-        map.put(OAuth2Settings.CLIENT_ID_FIELD, CLIENT_ID);
-        map.put(OAuth2Settings.SCOPES_FIELD, SCOPES);
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, TEST_CLIENT_ID);
+        map.put(OAuth2Settings.SCOPES_FIELD, TEST_SCOPES);
 
         var validationException = new ValidationException();
         var result = OpenAiOAuth2Settings.fromMap(map, validationException);
@@ -123,7 +123,7 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testUpdateServiceSettings_RetainsExistingFieldsWhenMapEmpty() {
-        var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, TEST_AUTH_URL);
+        var original = new OpenAiOAuth2Settings(TEST_CLIENT_ID, TEST_SCOPES, TEST_AUTH_URL);
         var validationException = new ValidationException();
 
         var updated = original.updateServiceSettings(new HashMap<>(), validationException);
@@ -133,7 +133,7 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testUpdateServiceSettings_OverridesAuthUrl() {
-        var original = new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, INITIAL_TEST_AUTH_URL);
+        var original = new OpenAiOAuth2Settings(TEST_CLIENT_ID, TEST_SCOPES, INITIAL_TEST_AUTH_URL);
 
         var map = new HashMap<String, Object>();
         map.put(AUTH_URL, TEST_AUTH_URL.toString());
@@ -143,5 +143,63 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
         assertThat(updated.authUrl(), is(TEST_AUTH_URL));
         assertThat(updated.clientId(), is(original.clientId()));
         assertThat(updated.scopes(), is(original.scopes()));
+    }
+
+    public void testUpdateServiceSettingsIfPresent_ReturnsNullWithNoErrorsWhenNoOAuth2Fields() {
+        var validationException = new ValidationException();
+
+        var result = OpenAiOAuth2Settings.updateServiceSettingsIfPresent(null, new HashMap<>(), validationException);
+
+        assertNull(result);
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
+    public void testUpdateServiceSettingsIfPresent_AddsErrorWhenCurrentSettingsNullAndAuthUrlPresent() {
+        var map = new HashMap<String, Object>();
+        map.put(AUTH_URL, TEST_AUTH_URL.toString());
+
+        var validationException = new ValidationException();
+
+        var result = OpenAiOAuth2Settings.updateServiceSettingsIfPresent(null, map, validationException);
+
+        assertNull(result);
+        assertThat(validationException.validationErrors(), is(List.of(OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR)));
+    }
+
+    public void testUpdateServiceSettingsIfPresent_AddsErrorWhenCurrentSettingsNullAndClientIdPresent() {
+        var map = new HashMap<String, Object>();
+        map.put(OAuth2Settings.CLIENT_ID_FIELD, TEST_CLIENT_ID);
+
+        var validationException = new ValidationException();
+
+        var result = OpenAiOAuth2Settings.updateServiceSettingsIfPresent(null, map, validationException);
+
+        assertNull(result);
+        assertThat(validationException.validationErrors(), is(List.of(OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR)));
+    }
+
+    public void testUpdateServiceSettingsIfPresent_RetainsCurrentSettingsWhenMapEmpty() {
+        var original = new OpenAiOAuth2Settings(TEST_CLIENT_ID, TEST_SCOPES, TEST_AUTH_URL);
+        var validationException = new ValidationException();
+
+        var result = OpenAiOAuth2Settings.updateServiceSettingsIfPresent(original, new HashMap<>(), validationException);
+
+        assertThat(result, is(original));
+        assertTrue(validationException.validationErrors().isEmpty());
+    }
+
+    public void testUpdateServiceSettingsIfPresent_UpdatesSettingsWhenCurrentSettingsPresent() {
+        var original = new OpenAiOAuth2Settings(TEST_CLIENT_ID, TEST_SCOPES, INITIAL_TEST_AUTH_URL);
+        var map = new HashMap<String, Object>();
+        map.put(AUTH_URL, TEST_AUTH_URL.toString());
+
+        var validationException = new ValidationException();
+
+        var result = OpenAiOAuth2Settings.updateServiceSettingsIfPresent(original, map, validationException);
+
+        assertThat(result.authUrl(), is(TEST_AUTH_URL));
+        assertThat(result.clientId(), is(TEST_CLIENT_ID));
+        assertThat(result.scopes(), is(TEST_SCOPES));
+        assertTrue(validationException.validationErrors().isEmpty());
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -410,10 +411,19 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (installInFlight.compareAndSet(false, true) == false) {
             return;
         }
-        threadPool.generic().execute(() -> {
-            try {
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
                 wrapAndSubmitInstall(passwordId);
-            } finally {
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> "failed to submit install-project-encryption-key task for passwordId=" + passwordId, e);
+            }
+
+            @Override
+            public void onAfter() {
                 installInFlight.set(false);
             }
         });
@@ -488,20 +498,29 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
         if (passwordRotateInFlight.compareAndSet(false, true) == false) {
             return;
         }
-        threadPool.generic().execute(() -> {
-            try {
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            public void doRun() {
                 rewrapAndSubmit(metadata, newPasswordId);
-            } finally {
+            }
+            @Override
+            public void onAfter() {
                 passwordRotateInFlight.set(false);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> "failed to rewrap PEK during password rotation [" + metadata.getPasswordId() + " -> " + newPasswordId + "]", e);
             }
         });
     }
 
     private void rewrapAndSubmit(ProjectEncryptionKeyMetadata metadata, String newPasswordId) {
         String oldPasswordId = metadata.getPasswordId();
+        var settings = this.cachedSettings;
         try (
-            SecureString oldPassword = ProjectEncryptionKeyPasswordSettings.getPassword(cachedSettings, oldPasswordId);
-            SecureString newPassword = ProjectEncryptionKeyPasswordSettings.getPassword(cachedSettings, newPasswordId)
+            SecureString oldPassword = ProjectEncryptionKeyPasswordSettings.getPassword(settings, oldPasswordId);
+            SecureString newPassword = ProjectEncryptionKeyPasswordSettings.getPassword(settings, newPasswordId)
         ) {
             if (oldPassword == null) {
                 logger.warn(
@@ -519,7 +538,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 );
                 return;
             }
-            Map<String, ProjectEncryptionKeyMetadata.KeyEntry> rewrapped = new HashMap<>(metadata.getKeys().size());
+            Map<String, ProjectEncryptionKeyMetadata.KeyEntry> rewrapped = HashMap.newHashMap(metadata.getKeys().size());
             for (Map.Entry<String, ProjectEncryptionKeyMetadata.KeyEntry> entry : metadata.getKeys().entrySet()) {
                 EncryptedData encrypted = new EncryptedData(oldPasswordId, entry.getValue().bytes());
                 byte[] plaintext = PasswordBasedEncryption.unwrap(encrypted, oldPassword.getChars());
@@ -539,8 +558,6 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
                 new RotatePasswordTask(Map.copyOf(rewrapped), newPasswordId, oldPasswordId),
                 null
             );
-        } catch (Exception e) {
-            logger.warn(() -> "failed to rewrap PEK during password rotation [" + oldPasswordId + " -> " + newPasswordId + "]", e);
         }
     }
 

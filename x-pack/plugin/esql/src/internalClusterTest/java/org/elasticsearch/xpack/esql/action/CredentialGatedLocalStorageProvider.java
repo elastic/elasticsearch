@@ -24,16 +24,21 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * A test storage provider whose runtime contract <em>demands a decrypted plaintext credential</em>. All byte
- * reads (full and ranged) check that the provider was constructed with a non-null {@link String} credential
- * — i.e. the registry observed and decrypted a credential before building it. Any other state (a null, an
- * {@code EncryptedData} carrier, anything else) makes {@link StorageObject#newStream()} throw
- * {@link IOException}, so a successful end-to-end query against this scheme <em>requires</em> a successful
- * end-to-end decryption.
+ * A test storage provider whose runtime contract <em>demands a decrypted plaintext credential that matches a
+ * pre-declared expected value</em>. All byte reads (full and ranged) check that the provider was constructed
+ * with (1) a non-{@code null} {@code expectedCredential} (the test's contract: "here's what the provider
+ * should see"), and (2) a {@code credentialSeen} that is a {@link String} {@code equal} to that expected
+ * value. Any deviation — a missing expected, a non-{@code String} {@code credentialSeen} (e.g. an
+ * undecrypted {@code EncryptedData} carrier), or a value mismatch — makes {@link StorageObject#newStream()}
+ * throw {@link IOException} with a discriminating message.
+ *
+ * <p>Why a value check, not just a type check: a real cloud provider rejects with 403 when the credential is
+ * decrypted-but-wrong, not just when it is structurally missing. Type-only would let a future decryption bug
+ * that produced the wrong plaintext slip through.
  *
  * <p>Everything else delegates to the local file system, with {@code <scheme>:///<absolute-path>} URIs
- * resolving to the file at {@code <absolute-path>}. The provider is designed for hermetic internalClusterTests
- * — no cloud-store fixture needed — but it gives the same correctness guarantee a real provider would: no
+ * resolving to the file at {@code <absolute-path>}. Designed for hermetic internalClusterTests — no
+ * cloud-store fixture needed — but it gives the same correctness guarantee a real provider would: no matching
  * credential, no bytes.
  */
 final class CredentialGatedLocalStorageProvider implements StorageProvider {
@@ -44,21 +49,27 @@ final class CredentialGatedLocalStorageProvider implements StorageProvider {
 
     /**
      * @param scheme              the URI scheme this provider serves; the only value returned from {@link #supportedSchemes()}.
-     * @param credentialSeen      the credential value the factory observed at construction; must be a non-null {@link String}
-     *                            for reads to succeed. Pass {@code null} (or anything not a {@code String}, e.g. an
-     *                            {@code EncryptedData}) to deny reads.
-     * @param expectedCredential  if non-null, the gate additionally requires {@code credentialSeen} to equal this exact
-     *                            value — modelling a "wrong password" rejection in tests. {@code null} accepts any plaintext.
+     * @param credentialSeen      the credential the factory observed at construction time.
+     * @param expectedCredential  the credential the provider expects to receive. Reads succeed iff {@code credentialSeen}
+     *                            is a {@link String} equal to this value. May be {@code null} to model the "provider not
+     *                            configured for credentials" case, where every read denies.
+     *
+     *                            <p>Splitting the test cases:
+     *                            <ul>
+     *                              <li><b>Right credential:</b> set {@code expectedCredential} to the value the test will
+     *                                  {@code PutDataSource} so the registry's decrypted plaintext matches at read time.</li>
+     *                              <li><b>Wrong credential:</b> set {@code expectedCredential} to one value but
+     *                                  {@code PutDataSource} a different one — the read denies with a clear "credential
+     *                                  mismatch" message that an operator can diagnose.</li>
+     *                              <li><b>Decryption regression:</b> if a future change ever lets an {@code EncryptedData}
+     *                                  carrier reach the factory, {@code credentialSeen} will not be a {@code String} and the
+     *                                  read denies with a "no decrypted plaintext credential" message.</li>
+     *                            </ul>
      */
     CredentialGatedLocalStorageProvider(String scheme, Object credentialSeen, String expectedCredential) {
         this.scheme = scheme;
         this.credentialSeen = credentialSeen;
         this.expectedCredential = expectedCredential;
-    }
-
-    /** Convenience constructor: any non-null plaintext String credential is accepted. */
-    CredentialGatedLocalStorageProvider(String scheme, Object credentialSeen) {
-        this(scheme, credentialSeen, null);
     }
 
     @Override
@@ -126,15 +137,23 @@ final class CredentialGatedLocalStorageProvider implements StorageProvider {
         }
 
         private void requireDecryptedCredential() throws IOException {
-            if (credentialSeen instanceof String s) {
-                if (expectedCredential != null && expectedCredential.equals(s) == false) {
+            // The test fixture must always declare an expected credential — happy paths and failure paths
+            // both flow through this gate, so the test contract is "tell me what value the provider should
+            // see at construction time, I'll enforce it at read time".
+            if (expectedCredential == null) {
+                throw new IOException("read denied: storage provider not configured with an expected credential");
+            }
+            if (credentialSeen instanceof String seen) {
+                if (expectedCredential.equals(seen) == false) {
                     // Models a real provider rejecting a wrong password — e.g. S3 returning 403.
-                    throw new IOException("read denied: storage provider rejected the credential (wrong password)");
+                    throw new IOException(
+                        "read denied: credential mismatch (provider expected one value, observed a different decrypted plaintext)"
+                    );
                 }
                 return;
             }
             throw new IOException(
-                "read denied: storage provider was constructed without a decrypted plaintext credential (saw ["
+                "read denied: no decrypted plaintext credential observed (saw ["
                     + (credentialSeen == null ? "null" : credentialSeen.getClass().getName())
                     + "])"
             );

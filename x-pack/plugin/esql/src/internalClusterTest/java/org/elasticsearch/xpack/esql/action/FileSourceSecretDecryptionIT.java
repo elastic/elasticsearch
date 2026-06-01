@@ -64,8 +64,20 @@ import static org.hamcrest.Matchers.hasSize;
  * Regression guard for the file-on-blob-storage read path: the {@link StorageProvider} factory must
  * receive the decrypted plaintext secret, not the {@link org.elasticsearch.xpack.encryption.spi.EncryptedData}
  * carrier it is stored as. {@code StorageProviderRegistry} decrypts at the single point every provider
- * client is built. The capturing provider records the value it observes for the {@code secret_token} key;
- * the test asserts it is the plaintext {@code String} across csv/tsv/ndjson/parquet.
+ * client is built.
+ *
+ * <p>The proof comes in three layers:
+ * <ul>
+ *   <li>The capturing provider records the value handed to its factory for the {@code secret_token} key,
+ *       and the test asserts it is the {@code String} the test {@code PutDataSource}'d.</li>
+ *   <li>The provider's {@link CredentialGatedLocalStorageProvider} gate enforces value equality at byte-read
+ *       time — every test sets {@code expectedCredentialOverride} to the value it will {@code PutDataSource},
+ *       so a successful row-returning query <em>requires</em> the registry to have decrypted that exact
+ *       String. Type-only matches no longer slip through.</li>
+ *   <li>{@code testWrongCredentialFailsGracefully} drives the failure path: PUT one secret, configure the
+ *       provider to expect another; the query must surface a graceful failure whose cause chain identifies
+ *       a {@code credential mismatch} specifically (not just any "read denied").</li>
+ * </ul>
  *
  * <p>Single-node by design, mirroring {@link FromDatasetIT}; multi-node dataset publication trips an
  * unrelated assertion on {@code main}.
@@ -131,7 +143,7 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
         @Override
         public StorageProvider create(Settings settings) {
             // Zero-config path: no credential, so any subsequent byte read will throw via the provider's gate.
-            return new CredentialGatedLocalStorageProvider(SCHEME, null);
+            return new CredentialGatedLocalStorageProvider(SCHEME, null, null);
         }
 
         @Override
@@ -225,6 +237,10 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
         // would hit the SUITE-scoped cache and skip createTrackingConsumedKeys, and the factory would never
         // observe the secret. A monotonic suffix keeps every run a cache miss.
         final String secretValue = SECRET_VALUE + "_" + format + "_" + SECRET_SEQ.incrementAndGet();
+        // Tell the storage provider exactly what plaintext credential it should see at read time. The gate
+        // does a full String comparison; the read fails if decryption produces anything other than this
+        // exact value (e.g. wrong key, corrupted carrier, or the carrier left undecrypted entirely).
+        expectedCredentialOverride = secretValue;
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,
@@ -360,18 +376,23 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
         }
 
         assertNotNull("expected a graceful failure surfaced to the client; got null", queryFailure);
-        // Walk the cause chain: the IOException from the provider's gate is wrapped by the framework, so we
-        // expect "read denied" to appear at some level — pointing the operator at the credential rejection.
+        // The provider gate has three "read denied" branches: no-expected-configured, no-decrypted-plaintext
+        // (decryption regression — credential is not a String), and credential-mismatch (the wrong-password
+        // case this test models). Check for the *specific* mismatch marker so a regression in decryption
+        // cannot make this test pass for the wrong reason.
         Throwable cur = queryFailure;
-        boolean foundReadDenied = false;
+        boolean foundCredentialMismatch = false;
         while (cur != null) {
-            if (cur.getMessage() != null && cur.getMessage().contains("read denied")) {
-                foundReadDenied = true;
+            if (cur.getMessage() != null && cur.getMessage().contains("credential mismatch")) {
+                foundCredentialMismatch = true;
                 break;
             }
             cur = cur.getCause();
         }
-        assertTrue("expected 'read denied' somewhere in the failure cause chain; full toString=[" + queryFailure + "]", foundReadDenied);
+        assertTrue(
+            "expected 'credential mismatch' (not just any 'read denied') in the cause chain; full toString=[" + queryFailure + "]",
+            foundCredentialMismatch
+        );
         // Decryption itself must still have succeeded: the captured value is the wrong (but plaintext) secret.
         assertEquals("provider must have observed the decrypted (wrong) secret", wrongSecret, capturedSecret);
     }

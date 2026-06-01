@@ -65,6 +65,12 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
 
     /** node-name -> captured secret value at provider construction. */
     static final Map<String, String> capturedByNode = new ConcurrentHashMap<>();
+    /**
+     * Tells the gated storage provider what plaintext credential it should see at read time. Set per test
+     * before the query runs; the gate compares the value the registry handed the factory against this
+     * exact String and rejects any mismatch.
+     */
+    static volatile String expectedCredentialOverride;
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
@@ -89,7 +95,7 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
         @Override
         public StorageProvider create(Settings settings) {
             // No-config path: any byte read on the returned provider throws via its credential gate.
-            return new CredentialGatedLocalStorageProvider(SCHEME, null);
+            return new CredentialGatedLocalStorageProvider(SCHEME, null, null);
         }
 
         @Override
@@ -104,7 +110,7 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
                 throw new IllegalStateException("node [" + node + "] received an UNDECRYPTED secret carrier: " + secret);
             }
             return new Configured<>(
-                new CredentialGatedLocalStorageProvider(SCHEME, secret),
+                new CredentialGatedLocalStorageProvider(SCHEME, secret, expectedCredentialOverride),
                 secret == null ? Set.of() : Set.of(SECRET_KEY)
             );
         }
@@ -136,6 +142,7 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
     @Before
     public void resetCapture() {
         capturedByNode.clear();
+        expectedCredentialOverride = null;
     }
 
     // No @After cleanup: TEST scope rebuilds the cluster per method, and deleting the dataset on the now
@@ -145,6 +152,10 @@ public class FileSourceSecretDecryptionAcrossNodesIT extends AbstractEsqlIntegTe
     public void testJoinedDataNodeDecryptsTheSecret() throws Exception {
         // Step 1 — record the original cluster bootstrap node (master + data).
         String bootstrapName = internalCluster().getNodeNames()[0];
+
+        // Tell the storage provider exactly what plaintext credential it should see at read time. Reads
+        // succeed only when decryption produces this exact value.
+        expectedCredentialOverride = SECRET_VALUE;
 
         Path fixture = createTempFile("secret-fixture-", ".csv");
         Files.writeString(fixture, String.join("\n", "emp_no:integer,first_name:keyword", "1,Alice", "2,Bob") + "\n");

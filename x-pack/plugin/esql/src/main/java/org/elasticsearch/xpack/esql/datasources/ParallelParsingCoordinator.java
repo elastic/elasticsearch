@@ -428,9 +428,9 @@ public final class ParallelParsingCoordinator {
 
         private static final long CLOSE_TIMEOUT_SECONDS = 60;
         /**
-         * Per-segment cap on bytes of buffered pages before this rewrite used a 16-deep per-segment queue.
-         * The shared queue keeps the same per-segment budget so total buffered pages stay roughly
-         * {@code maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT}, preserving backpressure pressure.
+         * Per-open-segment page budget. Before this rewrite each open segment had its own 16-deep page queue;
+         * the single shared queue keeps the same per-segment depth so the total buffered pages stay roughly
+         * {@code maxConcurrentSegments * PAGES_PER_OPEN_SEGMENT}, preserving the same backpressure.
          */
         private static final int PAGES_PER_OPEN_SEGMENT = 16;
         private final SegmentableFormatReader reader;
@@ -601,20 +601,19 @@ public final class ParallelParsingCoordinator {
         }
 
         /**
-         * Offers {@code page} to the shared queue, blocking with a timeout for backpressure. Returns
-         * {@code true} if the page was enqueued (and is now owned by the consumer), {@code false} if it was
-         * released here because the iterator was closed or an error flipped before it could be enqueued. The
-         * caller uses the return value to advance {@code deliveredRows} only on a genuine enqueue, so the
-         * resume cursor reflects truly-delivered rows.
+         * Hands {@code page} to the consumer: offers it to the shared queue, blocking with a timeout for
+         * backpressure until it is accepted, or releases it (and returns) if the iterator was closed or an
+         * error flipped before it could be enqueued. Either way the page is accounted for — enqueued and
+         * owned by the consumer, or released here — so the caller never has to release it.
          */
-        private boolean enqueueOrRelease(Page page) throws InterruptedException {
+        private void enqueueOrRelease(Page page) throws InterruptedException {
             while (true) {
                 if (closed || firstError.get() != null) {
                     page.releaseBlocks();
-                    return false;
+                    return;
                 }
                 if (sharedQueue.offer(page, 500, TimeUnit.MILLISECONDS)) {
-                    return true;
+                    return;
                 }
             }
         }

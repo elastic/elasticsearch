@@ -152,12 +152,10 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
      * <p>
      * Note on layering: the fixture's {@link FaultType#CONNECTION_RESET} drops the connection at
      * stream-open, which the object-store layer retries transparently — so this asserts integrated
-     * correctness + open-time resilience for the multi-segment path, not the coordinator's mid-read
-     * reset recovery. That mid-read path (a reset on an already-open segment stream) is covered
-     * deterministically by the unit tests {@code ParallelParsingCoordinatorTests
-     * #testConnectionResetMidSegmentResumesAndDeliversAllRowsOnce} and {@code
-     * ParallelParsingAdversarialTests}, and end-to-end against a real object store by the manual
-     * large-glob smoke documented on the PR.
+     * correctness + open-time resilience for the multi-segment path. The mid-read path (a reset on an
+     * already-open stream) is exercised end-to-end by
+     * {@link #testMultiSegmentNdjsonReadRecoversFromMidReadReset} and deterministically at the unit layer by
+     * {@code RetryableStorageObjectTests#testRangeReadResumesByteExactAfterMidReadFault}.
      */
     public void testMultiSegmentNdjsonReadRecoversFromConnectionReset() throws Exception {
         int rows = 200_000;
@@ -196,11 +194,12 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
      * End-to-end regression for the idle/connection reset on an already-open external segment stream. Unlike
      * {@link #testMultiSegmentNdjsonReadRecoversFromConnectionReset} (which resets at stream-open, where the
      * object-store layer retries), this drops the connection <b>mid-body</b> on a segment read — a reset on an
-     * already-open stream, which propagates to {@code ParallelParsingCoordinator}'s mid-read recovery
-     * ({@code readSegmentWithResetRetries}: re-open the byte range, skip delivered rows, resume). The threshold
-     * is set above the small schema/record-boundary probes so only the large segment read is faulted. Before the
-     * fix this failed the query with "Parallel parsing failed" caused by a {@link java.net.SocketException};
-     * the full count coming back proves exactly-once reconnect-and-resume through the real stack.
+     * already-open stream, which the self-healing storage read ({@code RetryableStorageObject}'s resuming
+     * stream) recovers beneath the coordinator by re-opening the remaining byte range and resuming byte-exact.
+     * The threshold is set above the small schema/record-boundary probes so only the large segment read is
+     * faulted. Before the fix this failed the query with "Parallel parsing failed" caused by a
+     * {@link java.net.SocketException}; the full count coming back proves exactly-once recovery through the
+     * real stack.
      */
     public void testMultiSegmentNdjsonReadRecoversFromMidReadReset() throws Exception {
         int rows = 500_000;
@@ -211,9 +210,8 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
         // Reference a column (salary) so the read does NOT take the empty-projection schema-bind, which streams
-        // the whole file as one object read during setup (that read is not segment-scoped and is out of the
-        // coordinator's per-segment retry). With a projected column the fault lands on a segment byte-range read,
-        // which is exactly the path readSegmentWithResetRetries re-opens and resumes.
+        // the whole file as one object read during setup. With a projected column the fault lands on a segment
+        // byte-range read — exactly the newStream(pos,len) range the storage layer re-opens and resumes.
         // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 500k rows is 89999.
         String query = externalS3Query(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
         for (String mode : DISTRIBUTION_MODES) {

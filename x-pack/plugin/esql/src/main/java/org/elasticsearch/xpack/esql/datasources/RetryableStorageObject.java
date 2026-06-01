@@ -31,6 +31,13 @@ class RetryableStorageObject implements StorageObject {
 
     private static final Logger logger = LogManager.getLogger(RetryableStorageObject.class);
 
+    /**
+     * Absolute backstop on how many times a single range read may re-open and resume, independent of the
+     * per-episode retry budget. Bounds the degenerate "trickle a few bytes, then drop, forever" case; a real
+     * range read completes in a handful of re-opens at most, so this is never approached in practice.
+     */
+    private static final int MAX_TOTAL_RESUMES = 1000;
+
     private final StorageObject delegate;
     private final RetryPolicy retryPolicy;
     /**
@@ -203,8 +210,8 @@ class RetryableStorageObject implements StorageObject {
      * byte is delivered twice or skipped (object content is immutable for the life of a query). Whether a
      * fault is retryable, the backoff, and the total-time budget all come from the same {@link RetryPolicy}
      * used for opens; a non-retryable fault or an exhausted budget propagates unchanged. Reading raw object
-     * bytes, every failure here is transport (parsing happens above this stream), so there is no data-error
-     * to misclassify.
+     * bytes, a failure here is almost always transport (parsing happens above this stream); a rare
+     * data-integrity error misclassified as transient simply re-trips and fails within the bounded budget.
      * <p>
      * Single-threaded by contract: one consumer reads one stream. Not {@code Abortable}; the enclosing
      * {@link #abortStream} unwraps to abort the live underlying stream.
@@ -226,6 +233,10 @@ class RetryableStorageObject implements StorageObject {
         // repeatedly) is not stuck and completes; only a stream stuck at the same offset exhausts the budget.
         private int failuresSinceProgress = 0;
         private long episodeStartNanos = 0;
+        // Backstop independent of progress: a single range read that re-opens this many times — even while
+        // delivering a trickle of bytes each time — is treated as failed, bounding the degenerate slow-drip
+        // case that the per-episode budget alone would let loop. A genuine range read never approaches this.
+        private int totalResumes = 0;
 
         InputStream currentStream() {
             return current;
@@ -258,7 +269,7 @@ class RetryableStorageObject implements StorageObject {
         private void reopenOrThrow(IOException e) throws IOException {
             boolean throttle = RetryPolicy.isThrottlingError(e);
             int maxAttempts = throttle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
-            if (retryPolicy.isRetryable(e) == false || failuresSinceProgress >= maxAttempts) {
+            if (retryPolicy.isRetryable(e) == false || failuresSinceProgress >= maxAttempts || totalResumes >= MAX_TOTAL_RESUMES) {
                 throw e;
             }
             if (episodeStartNanos == 0) {
@@ -280,17 +291,27 @@ class RetryableStorageObject implements StorageObject {
             }
             retryCounters.addRetry();
             failuresSinceProgress++;
+            totalResumes++;
             long remaining = length - delivered;
+            long resumeFrom = position + delivered;
             logger.debug(
                 "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]/[{}]): [{}]",
                 delegate.path(),
-                position + delivered,
+                resumeFrom,
                 failuresSinceProgress,
                 maxAttempts,
                 e.getMessage()
             );
-            // Re-open only the undelivered tail; if everything was delivered, an empty stream yields EOF.
-            current = remaining > 0 ? delegate.newStream(position + delivered, remaining) : InputStream.nullInputStream();
+            // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the
+            // range (not just to read it) is itself retried. If everything was delivered, an empty stream is EOF.
+            current = remaining > 0
+                ? retryPolicy.execute(
+                    () -> delegate.newStream(resumeFrom, remaining),
+                    "newStream(resume)",
+                    delegate.path(),
+                    retryCounters::addRetry
+                )
+                : InputStream.nullInputStream();
         }
 
         @Override

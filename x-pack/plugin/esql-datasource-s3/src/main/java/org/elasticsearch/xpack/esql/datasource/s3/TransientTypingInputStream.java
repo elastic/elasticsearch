@@ -21,10 +21,12 @@ import java.io.InputStream;
  * Wraps an S3 object-read stream so that any failure <em>while reading raw bytes</em> is surfaced as a
  * typed {@link TransientStorageException} rather than a bare {@link IOException} or AWS {@link SdkException}.
  * <p>
- * At this layer there is no parsing — the bytes are an opaque object range — so every read failure is a
- * transport fault (connection reset, premature end of body, read timeout, aborted stream). Classifying it
- * by <b>type</b> here, where the concrete SDK/transport types are on the classpath, lets the generic retry
- * machinery decide to re-open and resume without sniffing exception messages.
+ * At this layer there is no parsing — the bytes are an opaque object range — so a read failure here is
+ * almost always a transport fault (connection reset, premature end of body, read timeout, aborted stream).
+ * Classifying it by <b>type</b> here, where the concrete SDK/transport types are on the classpath, lets the
+ * generic retry machinery decide to re-open and resume without sniffing exception messages. A rare
+ * data-integrity failure (e.g. an SDK checksum mismatch) surfaced on read would also be typed transient and
+ * retried, but it simply re-trips on the immutable object and fails within the bounded retry budget.
  * <p>
  * Remains {@link Abortable} so a caller's abort fast-path still reaches the underlying S3 stream rather than
  * falling back to a draining {@code close()}.

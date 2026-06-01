@@ -1,4 +1,4 @@
-area: "Search, Logs"
+area: Logs
 issues: []
 pr: 150319
 summary: Build competitive iterator immediately for `search_after` queries

@@ -895,7 +895,7 @@ public class SplitSourceService {
                         // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
                         // completed yet.
                         // We need to be STARTED to properly execute deletion of unowned documents so we'll wait for the cluster state
-                        // change that sets this shard to STARTED.`
+                        // change that sets this shard to STARTED.
                         return false;
                     }
 

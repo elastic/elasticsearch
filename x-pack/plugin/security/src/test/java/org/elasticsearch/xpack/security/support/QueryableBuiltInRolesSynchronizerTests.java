@@ -413,11 +413,7 @@ public class QueryableBuiltInRolesSynchronizerTests extends ESTestCase {
         // INDEX_CLOSED_BLOCK is added before IndexMetadata.state flips to CLOSE; the task must reject
         // both, not just state == CLOSE.
         final ClusterBlocks closingInProgressBlocks = ClusterBlocks.builder()
-            .addIndexBlock(
-                ProjectId.DEFAULT,
-                TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
-                MetadataIndexStateService.INDEX_CLOSED_BLOCK
-            )
+            .addIndexBlock(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7, MetadataIndexStateService.INDEX_CLOSED_BLOCK)
             .build();
         final ClusterState clusterState = markShardsAvailable(createClusterStateWithOpenSecurityIndex()).nodes(localNodeMaster())
             .blocks(closingInProgressBlocks)

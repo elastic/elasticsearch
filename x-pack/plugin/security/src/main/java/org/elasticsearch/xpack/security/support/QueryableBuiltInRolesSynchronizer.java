@@ -513,12 +513,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             return true;
         }
-        return state.blocks()
-            .hasIndexBlockWithId(
-                state.metadata().projectFor(indexMetadata.getIndex()).id(),
-                indexMetadata.getIndex().getName(),
-                MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID
-            );
+        return state.blocks().hasIndexBlockWithId(indexMetadata.getIndex().getName(), MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID);
     }
 
     /**

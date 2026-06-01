@@ -590,9 +590,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotsServiceIT
   method: testDeleteSnapshotWhenNotWaitingForCompletion
   issue: https://github.com/elastic/elasticsearch/issues/150257
-- class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
-  method: testLatestCommitDependenciesUsesTheRightGenerations
-  issue: https://github.com/elastic/elasticsearch/issues/150287
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288
@@ -626,3 +623,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356
+- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
+  method: testOutageBuffersToDiskAndDrainsOnRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150387

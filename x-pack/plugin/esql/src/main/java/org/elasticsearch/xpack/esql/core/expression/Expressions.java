@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,7 +42,7 @@ public final class Expressions {
      * <p>
      * Exceptions to the {@link ReferenceAttribute} conversion:
      * <ul>
-     *   <li>A {@link FieldAttribute} backed by an {@link InvalidMappedField} (ambiguous type across indices) is converted
+     *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
      *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
      *   clear user-facing error.</li>
      *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
@@ -70,7 +70,7 @@ public final class Expressions {
             Attribute existing = existingByName.get(exp.name());
             NameId id = existing != null ? existing.id() : new NameId();
             Attribute refAttr = switch (exp) {
-                case FieldAttribute fa when fa.field() instanceof InvalidMappedField -> fa.flagTypeConflicts();
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField -> fa.flagTypeConflicts();
                 case ReferenceAttribute ra -> ra.withId(id);
                 case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
                     xa.source(),

@@ -303,6 +303,7 @@ public final class ParallelParsingCoordinator {
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
+            .maxRecordBytes(maxRecordBytes)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -325,7 +326,8 @@ public final class ParallelParsingCoordinator {
             maxConcurrentOpenSegments,
             effectivePolicy,
             splitIncludesFileLeader,
-            readSchema
+            readSchema,
+            maxRecordBytes
         );
         // Fully constructed and published before any worker is dispatched — see AsReadyParallelIterator#start.
         iterator.start();
@@ -455,6 +457,7 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIncludesFileLeader;
         @org.elasticsearch.core.Nullable
         private final List<Attribute> readSchema;
+        private final int maxRecordBytes;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -486,7 +489,8 @@ public final class ParallelParsingCoordinator {
             int maxConcurrentOpenSegments,
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
-            List<Attribute> readSchema
+            List<Attribute> readSchema,
+            int maxRecordBytes
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -495,6 +499,7 @@ public final class ParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
+            this.maxRecordBytes = maxRecordBytes;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -601,6 +606,7 @@ public final class ParallelParsingCoordinator {
                 .lastSplit(lastSplit)
                 .recordAligned(true)
                 .readSchema(readSchema)
+                .maxRecordBytes(maxRecordBytes)
                 .build();
 
             // Running count of rows from this segment already delivered to the shared queue. Held in a

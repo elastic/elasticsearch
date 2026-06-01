@@ -179,6 +179,20 @@ public class BooleanFieldMapper extends FieldMapper {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension(true);
             }
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSettings.sourceKeepMode(),
+                docValuesParameters.getValue().enabled(),
+                stored.getValue(),
+                this,
+                indexSettings.getIndexVersionCreated(),
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN,
+                indexSettings.getMode().isStrictColumnar(),
+                docValuesParameters.getValue().multiValue()
+            );
+            boolean readInArrayOrder = offsetsFieldName != null
+                && docValuesParameters.getValue().multiValue()
+                && indexSettings.getMode().isStrictColumnar();
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(leafName()),
                 indexType(),
@@ -187,19 +201,11 @@ public class BooleanFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue(),
                 dimension.getValue(),
-                context.isSourceSynthetic()
+                context.isSourceSynthetic(),
+                readInArrayOrder
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
-            String offsetsFieldName = getOffsetsFieldName(
-                context,
-                indexSettings.sourceKeepMode(),
-                docValuesParameters.getValue().enabled(),
-                stored.getValue(),
-                this,
-                indexSettings.getIndexVersionCreated(),
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_BOOLEAN
-            );
             return new BooleanFieldMapper(
                 leafName(),
                 ft,
@@ -233,6 +239,7 @@ public class BooleanFieldMapper extends FieldMapper {
         private final FieldValues<Boolean> scriptValues;
         private final boolean isDimension;
         private final boolean isSyntheticSource;
+        private final boolean readInArrayOrder;
 
         public BooleanFieldType(
             String name,
@@ -244,11 +251,26 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean isDimension,
             boolean isSyntheticSource
         ) {
+            this(name, indexType, isStored, nullValue, scriptValues, meta, isDimension, isSyntheticSource, false);
+        }
+
+        public BooleanFieldType(
+            String name,
+            IndexType indexType,
+            boolean isStored,
+            Boolean nullValue,
+            FieldValues<Boolean> scriptValues,
+            Map<String, String> meta,
+            boolean isDimension,
+            boolean isSyntheticSource,
+            boolean readInArrayOrder
+        ) {
             super(name, indexType, isStored, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
             this.isSyntheticSource = isSyntheticSource;
+            this.readInArrayOrder = readInArrayOrder;
         }
 
         public BooleanFieldType(String name) {
@@ -351,7 +373,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
-                return new BooleansBlockLoader(name());
+                return new BooleansBlockLoader(name(), readInArrayOrder);
             }
 
             // Multi fields don't have fallback synthetic source.
@@ -624,7 +646,7 @@ public class BooleanFieldMapper extends FieldMapper {
             }
         }
         indexValue(context, value);
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (value != null) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value);
             } else {

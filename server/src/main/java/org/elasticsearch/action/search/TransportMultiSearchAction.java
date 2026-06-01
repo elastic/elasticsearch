@@ -252,11 +252,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         CountingStreamOutput counter = new CountingStreamOutput();
         counter.setTransportVersion(TransportVersion.current());
 
-        SearchHit[] hits = response.getHits().getHits();
-        if (hits != null) {
-            for (SearchHit hit : hits) {
-                bytes += estimateHitBytes(hit, counter);
-            }
+        for (SearchHit hit : response.getHits().getHits()) {
+            bytes += estimateHitBytes(hit, counter);
         }
 
         if (response.hasAggregations()) {

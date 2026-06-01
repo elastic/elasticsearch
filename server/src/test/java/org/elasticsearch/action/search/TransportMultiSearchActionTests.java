@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -67,13 +68,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -277,7 +277,19 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(result, equalTo(1));
     }
 
-    public void testEstimateActualBytes() throws Exception {
+    public void testEstimateBaseOverhead() throws Exception {
+        SearchResponse emptyHits = SearchResponse.emptyResponseBuilder().build();
+        try {
+            assertThat(
+                TransportMultiSearchAction.estimateActualBytes(emptyHits),
+                equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD)
+            );
+        } finally {
+            emptyHits.decRef();
+        }
+    }
+
+    public void testEstimateHitSource() throws Exception {
         assertEstimateBytes(
             new SearchHit(0, "id"),
             TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD + TransportMultiSearchAction.PER_HIT_OBJECT_OVERHEAD
@@ -302,7 +314,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         );
         // Note: do not use compressedHit after assertEstimateBytes — responseWithHits transfers
         // ownership into SearchHits, and response.decRef() releases the hit transitively.
+    }
 
+    public void testEstimateHitFields() throws Exception {
         // SearchHit is final so Mockito spy is not usable here. The correct code path
         // (getDocumentFields/getMetadataFields instead of the allocating getFields()) is
         // verified indirectly: the estimate uses only the non-allocating accessors and
@@ -326,17 +340,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 * TransportMultiSearchAction.PER_FIELD_OVERHEAD + TransportMultiSearchAction.estimateValueBytes("v")
                 + TransportMultiSearchAction.estimateValueBytes(1)
         );
+    }
 
-        SearchResponse emptyHits = SearchResponse.emptyResponseBuilder().build();
-        try {
-            assertThat(
-                TransportMultiSearchAction.estimateActualBytes(emptyHits),
-                equalTo(TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD)
-            );
-        } finally {
-            emptyHits.decRef();
-        }
-
+    public void testEstimateInnerHits() throws Exception {
         SearchHit inner = new SearchHit(0, "inner");
         SearchHit outer = new SearchHit(0, "outer");
         inner.sourceRef(new BytesArray("inner"));
@@ -363,7 +369,9 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             TransportMultiSearchAction.BASE_RESPONSE_OVERHEAD + 3 * TransportMultiSearchAction.PER_HIT_OBJECT_OVERHEAD + "t".length() + "m"
                 .length() + "d".length()
         );
+    }
 
+    public void testEstimateAggregations() throws Exception {
         InternalAggregations aggs = InternalAggregations.from(List.of(new Max("max", 42.0, DocValueFormat.RAW, Map.of())));
         SearchResponse withAggs = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).build();
         try {
@@ -635,18 +643,15 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         return response;
     }
 
-    private void runMsearchWithBreaker(
-        TrackingCircuitBreaker breaker,
-        int numRequests,
-        java.util.function.Supplier<SearchResponse> responseSupplier
-    ) throws Exception {
+    private void runMsearchWithBreaker(TrackingCircuitBreaker breaker, int numRequests, Supplier<SearchResponse> responseSupplier)
+        throws Exception {
         runMsearchWithBreaker(breaker, numRequests, responseSupplier, null, null);
     }
 
     private void runMsearchWithBreaker(
         TrackingCircuitBreaker breaker,
         int numRequests,
-        java.util.function.Supplier<SearchResponse> responseSupplier,
+        Supplier<SearchResponse> responseSupplier,
         AtomicInteger failFirstSearch
     ) throws Exception {
         runMsearchWithBreaker(breaker, numRequests, responseSupplier, failFirstSearch, null);
@@ -655,7 +660,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     private void runMsearchWithBreaker(
         TrackingCircuitBreaker breaker,
         int numRequests,
-        java.util.function.Supplier<SearchResponse> responseSupplier,
+        Supplier<SearchResponse> responseSupplier,
         AtomicInteger failFirstSearch,
         java.util.function.Consumer<MultiSearchResponse.Item[]> responseItemsConsumer
     ) throws Exception {
@@ -727,16 +732,18 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         }
     }
 
-    private static final class TrackingCircuitBreaker extends NoopCircuitBreaker {
+    private static final class TrackingCircuitBreaker implements CircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final AtomicLong totalReserved = new AtomicLong();
         private final AtomicInteger reservationCalls = new AtomicInteger();
         private final int tripOnCall;
 
         TrackingCircuitBreaker(int tripOnCall) {
-            super("msearch-test");
             this.tripOnCall = tripOnCall;
         }
+
+        @Override
+        public void circuitBreak(String fieldName, long bytesNeeded) {}
 
         @Override
         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
@@ -756,6 +763,34 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         public long getUsed() {
             return used.get();
         }
+
+        @Override
+        public long getLimit() {
+            return -1L;
+        }
+
+        @Override
+        public double getOverhead() {
+            return 0.0;
+        }
+
+        @Override
+        public long getTrippedCount() {
+            return 0L;
+        }
+
+        @Override
+        public String getName() {
+            return "msearch-test";
+        }
+
+        @Override
+        public CircuitBreaker.Durability getDurability() {
+            return CircuitBreaker.Durability.TRANSIENT;
+        }
+
+        @Override
+        public void setLimitAndOverhead(long limit, double overhead) {}
 
         long totalReserved() {
             return totalReserved.get();

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.msearch;
 
-import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -41,8 +40,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
@@ -107,8 +107,7 @@ public class MultiSearchIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
             indexRequests.add(
-                prepareIndex(index).setId(Integer.toString(i))
-                    .setSource("payload", Strings.repeat("x", scaledRandomIntBetween(1_000, 5_000)))
+                prepareIndex(index).setId(Integer.toString(i)).setSource("payload", "x".repeat(scaledRandomIntBetween(1_000, 5_000)))
             );
         }
         indexRandom(true, indexRequests);
@@ -124,15 +123,15 @@ public class MultiSearchIT extends ESIntegTestCase {
         long baseline = requestBreakerEstimated(coordinatorNode);
 
         AtomicLong peakUsage = new AtomicLong(baseline);
-        AtomicBoolean msearchRunning = new AtomicBoolean(true);
-        Thread monitor = new Thread(() -> {
-            while (msearchRunning.get()) {
-                long used = requestBreakerEstimated(coordinatorNode);
-                peakUsage.updateAndGet(current -> Math.max(current, used));
-            }
-        }, "msearch-breaker-monitor");
-        monitor.setDaemon(true);
-        monitor.start();
+        ScheduledExecutorService monitor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "msearch-breaker-monitor");
+            t.setDaemon(true);
+            return t;
+        });
+        monitor.scheduleWithFixedDelay(() -> {
+            long used = requestBreakerEstimated(coordinatorNode);
+            peakUsage.updateAndGet(current -> Math.max(current, used));
+        }, 0, 1, TimeUnit.MILLISECONDS);
 
         try {
             MultiSearchRequest request = new MultiSearchRequest();
@@ -148,8 +147,8 @@ public class MultiSearchIT extends ESIntegTestCase {
                 }
             });
         } finally {
-            msearchRunning.set(false);
-            monitor.join(TimeUnit.SECONDS.toMillis(30));
+            monitor.shutdownNow();
+            assertTrue(monitor.awaitTermination(30, TimeUnit.SECONDS));
         }
 
         assertThat(

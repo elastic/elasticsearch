@@ -134,7 +134,8 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
         // verify bucket duration plus reuse
         var evalBucket = as(tsAggregate.child(), Eval.class);
-        assertThat(evalBucket.fields(), hasSize(1));
+        // bucket alias + ToDouble(network.bytes_in) extracted from the avg surrogate's Sum
+        assertThat(evalBucket.fields(), hasSize(2));
         var bucketAlias = as(evalBucket.fields().get(0), Alias.class);
 
         var bucketSpan = tsAggregate.timeBucket().buckets();

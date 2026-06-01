@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -25,6 +22,9 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -65,7 +65,7 @@ public final class DatasetRewriter {
      * dataset(s) into {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of
      * such (multi). All other relations are left untouched. Two short-circuits avoid resolver
      * cost on the common path: {@code projectMetadata == null}, or no datasets registered — and
-     * since {@link DataSourceMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} gates the CRUD layer
+     * since {@link DatasetMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} gates the CRUD layer
      * that puts datasets into cluster state, the no-datasets check is the natural off-switch.
      *
      * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets),
@@ -239,15 +239,17 @@ public final class DatasetRewriter {
      * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
      * options. {@link ExternalSourceResolver#storageConfig} flattens the sub-map before passing
      * settings to a storage provider; {@link ExternalSourceResolver#planConfig} strips it before
-     * embedding config in plan nodes (avoiding serialization of credential objects).
+     * embedding config in plan nodes (avoiding serialization of credential objects). A secret forwards
+     * its raw value — an encrypted secret carries an {@code EncryptedData} the data-node decryption step
+     * recognizes by type.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
         merged.putAll(dataset.settings());
         if (parent.settings().isEmpty() == false) {
             Map<String, Object> dsSettings = new HashMap<>();
-            for (Map.Entry<String, DataSourceSetting> e : parent.settings().entrySet()) {
-                dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().secretValue() : e.getValue().nonSecretValue());
+            for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
+                dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
             }
             merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
         }

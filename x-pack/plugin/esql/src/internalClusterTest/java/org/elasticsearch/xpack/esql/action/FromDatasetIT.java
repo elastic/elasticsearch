@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -111,7 +111,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
     }
 
     @Before

@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlConfig;
@@ -142,7 +143,13 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class);
+        // TestEncryptionServicePlugin binds an EncryptionService so the (always-registered) data-source
+        // CRUD actions can be constructed — esql couples the datasources feature to the encryption
+        // feature, so a bound service is required wherever esql runs.
+        return CollectionUtils.appendToCopy(
+            CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class),
+            TestEncryptionServicePlugin.class
+        );
     }
 
     @Override

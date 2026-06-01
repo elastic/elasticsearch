@@ -42,14 +42,6 @@ import java.util.stream.Stream;
 /** Additional methods added to classes. These must be static methods with receiver as first argument */
 public class Augmentation {
 
-    /**
-     * Iteration count between {@code Runnable.run()} invocations for {@code @cancellation_aware}
-     * augmentation methods.  Matches the compiler's loop-back-edge / function-entry poll
-     * interval so users see one consistent polling cadence whether the loop is in user code
-     * or inside an augmentation.
-     */
-    private static final int CANCELLATION_POLL_INTERVAL = 1000;
-
     // static methods only!
     private Augmentation() {}
 
@@ -122,12 +114,12 @@ public class Augmentation {
 
     /**
      * Cancellation-aware overload of {@link #each(Iterable, Consumer)} resolved by the lookup
-     * builder in script contexts whose base class supports cancellation.  Invokes the script's
-     * cancel runnable every {@link #CANCELLATION_POLL_INTERVAL} iterations so the search
-     * timeout can interrupt a long iteration even when the consumer body is trivial or
-     * non-Painless.  When {@code _getCancellationCheck()} returns null (script context didn't
-     * wire a cancel runnable) the fast path delegates straight to {@link Iterable#forEach}
-     * with zero per-iteration overhead.
+     * builder in script contexts whose base class supports cancellation.  Calls
+     * {@link PainlessScript#_pollCancellation()} once per element so the script's shared poll
+     * counter advances and the search timeout can interrupt a long iteration even when the consumer
+     * body is trivial or non-Painless.  When {@code _getCancellationCheck()} returns null (script
+     * context didn't wire a cancel runnable) the fast path delegates straight to
+     * {@link Iterable#forEach} with zero per-iteration overhead.
      * <p>
      * The script receiver is placed <em>before</em> the augmentation's receiver so that
      * {@link org.elasticsearch.painless.FunctionRef#withSyntheticScriptCapture} (which prepends
@@ -135,18 +127,16 @@ public class Augmentation {
      * leading capture without any position arithmetic.
      */
     public static <T> Object each(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
-        Runnable cancel = script._getCancellationCheck();
-        if (cancel == null) {
+        if (script._getCancellationCheck() == null) {
             receiver.forEach(consumer);
             return receiver;
         }
-        int poll = CANCELLATION_POLL_INTERVAL;
+        // Poll the script's shared persistent counter once per element rather than keeping our own,
+        // so this iteration's polling decrements the same $cancelPoll that the consumer body and the
+        // rest of the script decrement — keeping the cadence amortised and respecting downstream work.
         for (T t : receiver) {
             consumer.accept(t);
-            if (--poll <= 0) {
-                cancel.run();
-                poll = CANCELLATION_POLL_INTERVAL;
-            }
+            script._pollCancellation();
         }
         return receiver;
     }

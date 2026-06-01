@@ -247,6 +247,28 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (needsCancelPollField) {
             classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.CANCEL_POLL_FIELD, "I", null, null).visitEnd();
+
+            // Generate `void _pollCancellation()`, which performs one persistent-counter decrement and
+            // cancellation check against $cancelPoll — the same operation the compiler emits inline at
+            // loop back-edges. @cancellation_aware augmentations (which run in a separate class and
+            // cannot touch the private field) call it once per iteration so their polling decrements
+            // the SAME counter as the rest of the script rather than a private copy. No-op when no
+            // cancellation runnable is bound, matching the runtime behavior of the inline loop guards.
+            MethodWriter pollCancellation = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.POLL_CANCELLATION);
+            pollCancellation.visitCode();
+            Label noRunnable = new Label();
+            // Runnable cancel = _getCancellationCheck(); if (cancel == null) return;
+            // The runnable lives in local slot 1 (slot 0 is `this`, the only parameter).
+            pollCancellation.loadThis();
+            pollCancellation.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
+            pollCancellation.visitVarInsn(Opcodes.ASTORE, 1);
+            pollCancellation.visitVarInsn(Opcodes.ALOAD, 1);
+            pollCancellation.ifNull(noRunnable);
+            // `this` is the generated class, so it is the scriptThis instance (slot 0).
+            writePersistentCancellationDecrement(pollCancellation, 0, 1);
+            pollCancellation.mark(noRunnable);
+            pollCancellation.returnValue();
+            pollCancellation.endMethod();
         }
 
         // Write the constructor:
@@ -366,7 +388,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label skipEntry = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skipEntry);
-            writePersistentCancellationDecrement(methodWriter, writeScope, cancelRunnable.getSlot());
+            writePersistentCancellationDecrement(
+                methodWriter,
+                writeScope.getInternalVariable("scriptThis").getSlot(),
+                cancelRunnable.getSlot()
+            );
             methodWriter.mark(skipEntry);
         }
 
@@ -424,7 +450,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label skip = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skip);
-            writePersistentCancellationDecrement(methodWriter, writeScope, cancelRunnable.getSlot());
+            writePersistentCancellationDecrement(
+                methodWriter,
+                writeScope.getInternalVariable("scriptThis").getSlot(),
+                cancelRunnable.getSlot()
+            );
             methodWriter.mark(skip);
             return;
         }
@@ -434,7 +464,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
         methodWriter.ifNull(legacyPath);
-        writePersistentCancellationDecrement(methodWriter, writeScope, cancelRunnable.getSlot());
+        writePersistentCancellationDecrement(
+            methodWriter,
+            writeScope.getInternalVariable("scriptThis").getSlot(),
+            cancelRunnable.getSlot()
+        );
         methodWriter.goTo(end);
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
@@ -449,9 +483,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
      * emitted before each field access because the static-lambda parameter is declared with the
      * script base class type rather than the generated class type.
      */
-    private static void writePersistentCancellationDecrement(MethodWriter methodWriter, WriteScope writeScope, int runnableSlot) {
+    private static void writePersistentCancellationDecrement(MethodWriter methodWriter, int scriptThisSlot, int runnableSlot) {
         Label skip = new Label();
-        int scriptThisSlot = writeScope.getInternalVariable("scriptThis").getSlot();
 
         // --scriptThis.$cancelPoll; if ($cancelPoll > 0) skip;
         loadScriptInstance(methodWriter, scriptThisSlot);

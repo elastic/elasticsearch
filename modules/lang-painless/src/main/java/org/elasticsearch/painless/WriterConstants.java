@@ -213,6 +213,14 @@ public final class WriterConstants {
 
     public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
 
+    /**
+     * Method generated on opted-in script classes that performs one decrement-and-check against
+     * {@link #CANCEL_POLL_FIELD}, letting {@code @cancellation_aware} augmentations poll the script's
+     * persistent counter directly instead of maintaining their own — so the count is shared with the
+     * compiler's inline loop/entry decrements and stays amortised across all script work.
+     */
+    public static final Method POLL_CANCELLATION = getAsmMethod(void.class, "_pollCancellation");
+
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }

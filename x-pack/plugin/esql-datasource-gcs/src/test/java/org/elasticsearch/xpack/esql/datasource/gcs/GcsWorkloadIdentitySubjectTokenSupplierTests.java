@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenResponse;
@@ -16,6 +18,8 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Instant;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class GcsWorkloadIdentitySubjectTokenSupplierTests extends ESTestCase {
@@ -48,6 +52,20 @@ public class GcsWorkloadIdentitySubjectTokenSupplierTests extends ESTestCase {
         GcsWorkloadIdentitySubjectTokenSupplier supplier = new GcsWorkloadIdentitySubjectTokenSupplier(client, "https://example-audience");
         SocketTimeoutException thrown = expectThrows(SocketTimeoutException.class, () -> supplier.getSubjectToken(null));
         assertThat(thrown, sameInstance(failure));
+    }
+
+    public void testGetSubjectTokenTimesOutWhenIssuerNeverResponds() {
+        // A misbehaving client that never completes the listener must not block the caller indefinitely.
+        WorkloadIdentityIssuerClient client = (request, listener) -> {};
+
+        GcsWorkloadIdentitySubjectTokenSupplier supplier = new GcsWorkloadIdentitySubjectTokenSupplier(
+            client,
+            "https://example-audience",
+            TimeValue.timeValueMillis(10)
+        );
+        IOException thrown = expectThrows(IOException.class, () -> supplier.getSubjectToken(null));
+        assertThat(thrown.getMessage(), containsString("timed out"));
+        assertThat(thrown.getCause(), instanceOf(ElasticsearchTimeoutException.class));
     }
 
     public void testGetSubjectTokenPropagatesRuntimeFailure() {

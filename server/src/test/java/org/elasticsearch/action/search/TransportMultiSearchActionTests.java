@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
@@ -55,6 +57,7 @@ import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.Text;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,6 +73,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -493,18 +497,22 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             withResponse.decRef();
             withoutResponse.decRef();
         }
+
+        // Text values (string form cached): sized as String + 16 B Text shell.
+        // The bytes-only form (Text(UTF8Bytes)) is constructed internally during parsing and is
+        // covered by the hasString() == false branch in estimateValueBytes, but is not easily
+        // constructable from a unit test without internal APIs.
+        String textContent = "text field value";
+        assertThat(
+            TransportMultiSearchAction.estimateValueBytes(new Text(textContent)),
+            equalTo(TransportMultiSearchAction.estimateValueBytes(textContent) + 16L)
+        );
     }
 
     public void testEstimateHighlights() throws Exception {
         SearchHit withHighlight = new SearchHit(0, "id");
         withHighlight.highlightFields(
-            Map.of(
-                "body",
-                new org.elasticsearch.search.fetch.subphase.highlight.HighlightField(
-                    "body",
-                    new org.elasticsearch.xcontent.Text[] { new org.elasticsearch.xcontent.Text("this is a <em>highlighted</em> fragment") }
-                )
-            )
+            Map.of("body", new HighlightField("body", new Text[] { new Text("this is a <em>highlighted</em> fragment") }))
         );
         SearchHit withoutHighlight = new SearchHit(0, "id");
         SearchResponse withResponse = responseWithHits(withHighlight);
@@ -529,10 +537,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     }
 
     public void testEstimateExplanation() throws Exception {
-        org.apache.lucene.search.Explanation explanation = org.apache.lucene.search.Explanation.match(
-            1.5f,
-            "weight(body:foo in 42) [PerFieldSimilarity], result of:"
-        );
+        Explanation explanation = Explanation.match(1.5f, "weight(body:foo in 42) [PerFieldSimilarity], result of:");
         SearchHit withExplanation = new SearchHit(0, "id");
         withExplanation.explanation(explanation);
         SearchHit withoutExplanation = new SearchHit(0, "id");
@@ -547,7 +552,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             long expectedExplanationBytes;
             try (CountingStreamOutput out = new CountingStreamOutput()) {
                 out.setTransportVersion(TransportVersion.current());
-                org.elasticsearch.common.lucene.Lucene.writeExplanation(out, explanation);
+                writeExplanation(out, explanation);
                 expectedExplanationBytes = out.position();
             }
             assertThat(withBytes - withoutBytes, equalTo(expectedExplanationBytes));

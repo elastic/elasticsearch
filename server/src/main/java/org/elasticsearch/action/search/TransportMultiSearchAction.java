@@ -42,6 +42,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.UncheckedIOException;
 import java.util.Map;
@@ -351,8 +352,12 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * Uses type-based sizing rather than serialisation to avoid encoding overhead on
      * the response path.
      * <ul>
-     *   <li>{@code String}: 32 B object shell + 1 B per character (Java compact-string encoding)</li>
+     *   <li>{@code String}: 32 B object shell + 1 B per char (accurate for Latin-1 compact strings;
+     *       under-counts non-Latin-1 characters which cost 2 B each)</li>
      *   <li>{@code byte[]}: 16 B array header + the byte count</li>
+     *   <li>{@link Text}: if the string form is cached, sized as a {@code String} plus 16 B shell;
+     *       otherwise sized as the underlying {@link org.elasticsearch.common.bytes.BytesReference}
+     *       plus 16 B shell</li>
      *   <li>Boxed number ({@code Long}, {@code Integer}, {@code Double}, etc.) or {@code Boolean}: 16 B</li>
      * </ul>
      */
@@ -362,6 +367,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         }
         if (value instanceof byte[] b) {
             return 16L + b.length;
+        }
+        if (value instanceof Text t) {
+            // 16 B for the Text object shell; then size the available form without forcing materialisation.
+            return t.hasString() ? 16L + 32L + t.string().length() : 16L + t.bytes().length();
         }
         return 16L;
     }

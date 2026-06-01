@@ -1513,7 +1513,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         ensureStableCluster(3);
 
         var indexName = randomIdentifier();
-        createIndex(indexName, 1, 1);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
 
         var stateless = internalCluster().getInstance(PluginsService.class, indexNode)
             .filterPlugins(TestStatelessPlugin.class)

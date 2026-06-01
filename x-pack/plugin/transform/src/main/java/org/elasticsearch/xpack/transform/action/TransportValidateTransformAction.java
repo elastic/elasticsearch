@@ -63,7 +63,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService,
-        TransformServices transformServices, ProjectResolver projectResolver
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;

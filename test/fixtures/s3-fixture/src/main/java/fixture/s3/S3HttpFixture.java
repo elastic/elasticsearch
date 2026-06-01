@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
@@ -84,13 +85,15 @@ public class S3HttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
+        final var socketAddress = server.getAddress();
+        final var hostAddress = socketAddress.getAddress();
         return Strings.format(
             "%s://%s:%d",
             tlsCertificate == null ? "http" : "https",
-            tlsCertificate == null
-                ? InetAddresses.toUriString(server.getAddress().getAddress())
-                : server.getAddress().getAddress().getHostName(),
-            server.getAddress().getPort()
+            tlsCertificate == null ? InetAddresses.toUriString(hostAddress)
+                : Constants.WINDOWS && hostAddress.isLoopbackAddress() ? "localhost" /* otherwise yields "127.0.0.1" -> cert mismatch */
+                : hostAddress.getHostName(),
+            socketAddress.getPort()
         );
     }
 

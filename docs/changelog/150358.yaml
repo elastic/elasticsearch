@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 150357
+pr: 150358
+summary: Add `initial_delay` to the continuous transform time `sync` so a transform can use a reduced delay while catching up (until it first processes data) while keeping the steady-state `delay`
+type: enhancement

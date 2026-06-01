@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 
 import java.time.Clock;
+import java.util.function.BooleanSupplier;
 
 /**
  * Transform Checkpoint Service
@@ -58,6 +59,20 @@ public class TransformCheckpointService {
     }
 
     public CheckpointProvider getCheckpointProvider(final ParentTaskAssigningClient client, final TransformConfig transformConfig) {
+        // Read-only checkpointing-info callers never create checkpoints; report "processed" so they use the steady-state delay.
+        return getCheckpointProvider(client, transformConfig, () -> true);
+    }
+
+    /**
+     * @param hasProcessedData whether the running transform has processed at least one source document; a
+     *                         {@link TimeBasedCheckpointProvider} uses it to apply {@code initial_delay} while catching up.
+     *                         Ignored for non-time-based sync configs.
+     */
+    public CheckpointProvider getCheckpointProvider(
+        final ParentTaskAssigningClient client,
+        final TransformConfig transformConfig,
+        final BooleanSupplier hasProcessedData
+    ) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(
                 clock,
@@ -65,7 +80,8 @@ public class TransformCheckpointService {
                 remoteClusterResolver,
                 transformConfigManager,
                 transformAuditor,
-                transformConfig
+                transformConfig,
+                hasProcessedData
             );
         }
 

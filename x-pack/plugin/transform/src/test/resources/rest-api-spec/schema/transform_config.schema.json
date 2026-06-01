@@ -304,6 +304,15 @@
                 "10s"
               ],
               "pattern": "^.*$"
+            },
+            "initial_delay": {
+              "$id": "#root/sync/time/initial_delay",
+              "title": "Initial delay",
+              "type": "string",
+              "examples": [
+                "0s"
+              ],
+              "pattern": "^.*$"
             }
           }
         }

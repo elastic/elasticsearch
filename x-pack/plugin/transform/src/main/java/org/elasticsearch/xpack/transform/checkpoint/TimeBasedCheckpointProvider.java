@@ -32,6 +32,7 @@ import java.time.Clock;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 import static java.util.function.Function.identity;
@@ -43,6 +44,8 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     private final TimeSyncConfig timeSyncConfig;
     // function aligning the given timestamp with date histogram interval or identity function is aligning is not possible
     private final Function<Long, Long> alignTimestamp;
+    // true once the transform has processed at least one source document, i.e. it is past its initial catch-up phase
+    private final BooleanSupplier hasProcessedData;
 
     TimeBasedCheckpointProvider(
         final Clock clock,
@@ -50,17 +53,28 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
-        final TransformConfig transformConfig
+        final TransformConfig transformConfig,
+        final BooleanSupplier hasProcessedData
     ) {
         super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
+        this.hasProcessedData = hasProcessedData;
+    }
+
+    // Reduced initial_delay while the transform is still catching up (no document processed yet), otherwise the steady-state
+    // delay. Keying off "has processed data" rather than "checkpoint #1" lets a chained transform pick up source data that
+    // lands just after its first (empty) checkpoint. The two values are equal unless an explicit initial_delay was configured.
+    private long syncDelayMillis() {
+        return (hasProcessedData.getAsBoolean() ? timeSyncConfig.getDelay() : timeSyncConfig.getInitialDelay()).millis();
     }
 
     @Override
     public void sourceHasChanged(TransformCheckpoint lastCheckpoint, ActionListener<Boolean> listener) {
         final long timestamp = clock.millis();
-        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
+        // Mirror createNextCheckpoint's delay so this change-detection gate also widens its window while catching up;
+        // otherwise just-landed backfill would never pass the gate.
+        final long timeUpperBound = alignTimestamp.apply(timestamp - syncDelayMillis());
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(transformConfig.getSource().getQueryConfig().getQuery())
             .filter(
@@ -97,8 +111,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        // for time based synchronization
-        final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
+        final long alignedUpperBound = alignTimestamp.apply(timestamp - syncDelayMillis());
+        // Never let the upper bound regress below the previous checkpoint's (can happen when switching from initial_delay to
+        // the larger steady-state delay), which would otherwise invert the [lower, upper) range. Stalls briefly, never gaps.
+        final long timeUpperBound = checkpoint > 1 ? Math.max(alignedUpperBound, lastCheckpoint.getTimeUpperBound()) : alignedUpperBound;
 
         getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
             listener.onResponse(

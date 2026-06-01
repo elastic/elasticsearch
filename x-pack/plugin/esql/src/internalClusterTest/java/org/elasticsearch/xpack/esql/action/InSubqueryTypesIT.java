@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
@@ -130,7 +131,9 @@ public class InSubqueryTypesIT extends ESIntegTestCase {
             UnsignedLongMapperPlugin.class,
             SpatialPlugin.class,
             AnalyticsPlugin.class,
-            AggregateMetricMapperPlugin.class
+            AggregateMetricMapperPlugin.class,
+            // EsqlPlugin's TransportPutDataSourceAction requires an EncryptionService at injection time.
+            TestEncryptionServicePlugin.class
         );
     }
 

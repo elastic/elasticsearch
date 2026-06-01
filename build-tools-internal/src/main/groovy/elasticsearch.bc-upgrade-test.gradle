@@ -8,9 +8,10 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.gradle.api.tasks.testing.Test
 
-tasks.register("bcUpgradeTest", StandaloneRestIntegTestTask) {
+restTests.enroll("bcUpgradeTest")
+tasks.register("bcUpgradeTest", Test) {
   project.gradle.taskGraph.whenReady { allTasks ->
     if (allTasks.hasTask(getPath())) {
       if (System.getProperty("tests.bwc.refspec.main") == null) {

@@ -503,6 +503,7 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
             public void doRun() {
                 rewrapAndSubmit(metadata, newPasswordId);
             }
+
             @Override
             public void onAfter() {
                 passwordRotateInFlight.set(false);
@@ -510,7 +511,10 @@ class KeyRotationCoordinator implements LocalNodeMasterListener, Closeable {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> "failed to rewrap PEK during password rotation [" + metadata.getPasswordId() + " -> " + newPasswordId + "]", e);
+                logger.warn(
+                    () -> "failed to rewrap PEK during password rotation [" + metadata.getPasswordId() + " -> " + newPasswordId + "]",
+                    e
+                );
             }
         });
     }

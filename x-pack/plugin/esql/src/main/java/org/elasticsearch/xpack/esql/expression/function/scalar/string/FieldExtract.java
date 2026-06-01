@@ -77,6 +77,7 @@ public class FieldExtract extends EsqlScalarFunction implements BlockLoaderExpre
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(FieldExtract.class)
         .binary(FieldExtract::new)
+        .capabilities("returns_multi_value")
         .name("field_extract");
 
     private final Expression field;

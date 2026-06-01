@@ -377,6 +377,39 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         );
     }
 
+    public void testEstimateSortValues() throws Exception {
+        Object[] sortVals = new Object[] { 42L, "keyword-value" };
+        DocValueFormat[] formats = new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW };
+
+        SearchHit withSort = new SearchHit(0, "id");
+        withSort.sortValues(sortVals, formats);
+        SearchHit withoutSort = new SearchHit(0, "id");
+        SearchResponse withResponse = responseWithHits(withSort);
+        SearchResponse withoutResponse = responseWithHits(withoutSort);
+        try {
+            long withBytes = TransportMultiSearchAction.estimateActualBytes(withResponse);
+            long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutResponse);
+
+            assertThat(withBytes, greaterThan(withoutBytes));
+
+            int n = sortVals.length;
+            // SearchSortValues shell + two Object[] headers + paired ref slots
+            long structuralOverhead = 64L + (long) n * 8;
+            long formattedBytes = 0;
+            long rawBytes = 0;
+            for (Object sv : withSort.getSortValues()) {
+                formattedBytes += TransportMultiSearchAction.estimateValueBytes(sv);
+            }
+            for (Object sv : withSort.getRawSortValues()) {
+                rawBytes += TransportMultiSearchAction.estimateValueBytes(sv);
+            }
+            assertThat(withBytes - withoutBytes, equalTo(structuralOverhead + formattedBytes + rawBytes));
+        } finally {
+            withResponse.decRef();
+            withoutResponse.decRef();
+        }
+    }
+
     public void testEstimateAggregations() throws Exception {
         InternalAggregations aggs = InternalAggregations.from(List.of(new Max("max", 42.0, DocValueFormat.RAW, Map.of())));
         SearchResponse withAggs = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).build();
@@ -441,7 +474,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 out.writeArray(new ShardSearchFailure[] { failure });
                 expectedFailureBytes = out.position();
             }
-            assertThat(withBytes - withoutBytes, equalTo(expectedFailureBytes));
+            assertThat(
+                withBytes - withoutBytes,
+                equalTo(TransportMultiSearchAction.SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * expectedFailureBytes)
+            );
         } finally {
             withFailure.decRef();
             withoutFailure.decRef();
@@ -466,7 +502,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 suggest.writeTo(out);
                 expectedSuggestBytes = out.position();
             }
-            assertThat(withBytes - withoutBytes, equalTo(expectedSuggestBytes));
+            assertThat(
+                withBytes - withoutBytes,
+                equalTo(TransportMultiSearchAction.SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * expectedSuggestBytes)
+            );
         } finally {
             withSuggest.decRef();
             withoutSuggest.decRef();
@@ -489,7 +528,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 profileResults.writeTo(out);
                 expectedProfileBytes = out.position();
             }
-            assertThat(withBytes - withoutBytes, equalTo(expectedProfileBytes));
+            assertThat(
+                withBytes - withoutBytes,
+                equalTo(TransportMultiSearchAction.SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * expectedProfileBytes)
+            );
         } finally {
             withProfile.decRef();
             withoutProfile.decRef();
@@ -519,14 +561,14 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             withoutResponse.decRef();
         }
 
-        // Text values (string form cached): sized as String + 16 B Text shell.
+        // Text values (string form cached): sized as String + 32 B Text shell.
         // The bytes-only form (Text(UTF8Bytes)) is constructed internally during parsing and is
         // covered by the hasString() == false branch in estimateValueBytes, but is not easily
         // constructable from a unit test without internal APIs.
         String textContent = "text field value";
         assertThat(
             TransportMultiSearchAction.estimateValueBytes(new Text(textContent)),
-            equalTo(TransportMultiSearchAction.estimateValueBytes(textContent) + 16L)
+            equalTo(TransportMultiSearchAction.estimateValueBytes(textContent) + 32L)
         );
     }
 
@@ -550,7 +592,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 out.writeCollection(withHighlight.getHighlightFields().values());
                 expectedHighlightBytes = out.position();
             }
-            assertThat(withBytes - withoutBytes, equalTo(expectedHighlightBytes));
+            assertThat(
+                withBytes - withoutBytes,
+                equalTo(TransportMultiSearchAction.SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * expectedHighlightBytes)
+            );
         } finally {
             withResponse.decRef();
             withoutResponse.decRef();
@@ -576,7 +621,10 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                 writeExplanation(out, explanation);
                 expectedExplanationBytes = out.position();
             }
-            assertThat(withBytes - withoutBytes, equalTo(expectedExplanationBytes));
+            assertThat(
+                withBytes - withoutBytes,
+                equalTo(TransportMultiSearchAction.SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * expectedExplanationBytes)
+            );
         } finally {
             withResponse.decRef();
             withoutResponse.decRef();

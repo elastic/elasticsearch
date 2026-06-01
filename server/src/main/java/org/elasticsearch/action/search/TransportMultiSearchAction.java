@@ -95,7 +95,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * </ul>
      * Source bytes are measured precisely via {@link SearchHit#rawSourceLength()}.
      * Field entries are counted separately via {@link #PER_FIELD_OVERHEAD}.
-     * Rounds to 400 B as a conservative upper bound.
+     * Sort values ({@link org.elasticsearch.search.SearchSortValues}) are charged separately in
+     * {@link #estimateHitBytes} when present.
+     * Matched queries ({@code matched_queries}) and nested identity ({@code _nested}) are not
+     * estimated — both are typically small but represent known omissions.
+     * Rounds to 400 B as a conservative upper bound for the shell components listed above.
      */
     static final long PER_HIT_OBJECT_OVERHEAD = 400L;
 
@@ -116,6 +120,16 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * via {@link #estimateValueBytes} for each value in {@link DocumentField#getValues()}.
      */
     static final long PER_FIELD_OVERHEAD = 200L;
+
+    /**
+     * Multiplier applied to wire-serialised byte counts (from {@link #tryCountSerializedBytes})
+     * to approximate coordinator heap. The heap form of structured objects is typically 2–5×
+     * larger than the wire form: exceptions carry {@code StackTraceElement[]} arrays (~80 B per
+     * frame), suggest and profile nodes carry Java collection overhead, and highlight
+     * {@link Text} objects add object shells beyond their string content. Using 2× is a
+     * conservative lower bound within the safe over-estimate range for circuit-breaker purposes.
+     */
+    static final long SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR = 2L;
 
     private final int allocatedProcessors;
     private final ClusterService clusterService;
@@ -229,20 +243,18 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      *       are already on the request breaker from query-phase reduce and are not counted again here.
      *       A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be
      *       counted both there and in top-level hits — a known over-estimate.</li>
-     *   <li>Shard failures (serialised via {@link CountingStreamOutput}; stack-trace strings are counted,
-     *       making this accurate for the OOM-relevant case where many large failures are buffered).</li>
-     *   <li>Suggest results ({@link Suggest}) and Profile results ({@link SearchProfileResults}) —
-     *       serialised via {@link CountingStreamOutput} when present.</li>
-     *   <li>CCS Clusters metadata ({@link SearchResponse.Clusters}) — serialised via
-     *       {@link CountingStreamOutput} only when per-cluster tracking is active
-     *       ({@link SearchResponse.Clusters#hasClusterObjects()} is true). For non-CCS searches the
-     *       Clusters object holds only three integers, already absorbed by {@link #BASE_RESPONSE_OVERHEAD}.
-     *       For CCS, per-cluster {@link ShardSearchFailure} entries serialised under Clusters may overlap
-     *       with top-level shard failures, resulting in a known over-estimate.</li>
-     *   <li>Highlight fragments ({@link HighlightField}) — serialised via {@link CountingStreamOutput}
-     *       per hit when present.</li>
-     *   <li>Explanations ({@link org.apache.lucene.search.Explanation}) — serialised via
-     *       {@link CountingStreamOutput} per hit when present.</li>
+     *   <li>Shard failures, suggest results ({@link Suggest}), profile results
+     *       ({@link SearchProfileResults}), CCS clusters metadata ({@link SearchResponse.Clusters}),
+     *       highlight fragments ({@link HighlightField}), and explanations
+     *       ({@link org.apache.lucene.search.Explanation}) — each serialised via
+     *       {@link CountingStreamOutput} then multiplied by {@link #SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR}
+     *       to account for Java object overhead beyond the wire bytes (e.g. {@code StackTraceElement[]}
+     *       arrays in exceptions, collection nodes in suggest/profile structures).
+     *       CCS clusters are only counted when per-cluster tracking is active
+     *       ({@link SearchResponse.Clusters#hasClusterObjects()} is true); for non-CCS searches the
+     *       Clusters object holds only three integers already absorbed by {@link #BASE_RESPONSE_OVERHEAD}.
+     *       For CCS, per-cluster {@link ShardSearchFailure} entries may overlap with top-level shard
+     *       failures, resulting in a known over-estimate.</li>
      *   <li>Stored {@link DocumentField} values — sized via {@link #estimateValueBytes}
      *       per value per hit; complements the structural overhead in {@link #PER_FIELD_OVERHEAD}.</li>
      * </ul>
@@ -270,7 +282,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
         ShardSearchFailure[] failures = response.getShardFailures();
         if (failures.length > 0) {
-            bytes += tryCountSerializedBytes(
+            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
                 counter,
                 out -> out.writeArray(failures),
                 "msearch circuit breaker: failed to estimate shard failure bytes"
@@ -279,19 +291,31 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
         Suggest suggest = response.getSuggest();
         if (suggest != null) {
-            bytes += tryCountSerializedBytes(counter, suggest, "msearch circuit breaker: failed to estimate suggest bytes");
+            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
+                counter,
+                suggest,
+                "msearch circuit breaker: failed to estimate suggest bytes"
+            );
         }
 
         SearchProfileResults profileResults = response.getSearchProfileResults();
         if (profileResults != null) {
-            bytes += tryCountSerializedBytes(counter, profileResults, "msearch circuit breaker: failed to estimate profile bytes");
+            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
+                counter,
+                profileResults,
+                "msearch circuit breaker: failed to estimate profile bytes"
+            );
         }
 
         // CCS only: for non-CCS responses the Clusters object holds just three integers, already
         // absorbed by BASE_RESPONSE_OVERHEAD. Only serialize when per-cluster tracking is active.
         SearchResponse.Clusters clusters = response.getClusters();
         if (clusters.hasClusterObjects()) {
-            bytes += tryCountSerializedBytes(counter, clusters, "msearch circuit breaker: failed to estimate cluster bytes");
+            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
+                counter,
+                clusters,
+                "msearch circuit breaker: failed to estimate cluster bytes"
+            );
         }
 
         return bytes;
@@ -317,8 +341,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     /**
      * Estimates the heap cost of a single {@link SearchHit}, including its stored source bytes,
-     * doc-value / stored field entry shells and their values, highlight fragments, explanations,
-     * and any nested {@code inner_hits} (recursive).
+     * doc-value / stored field entry shells and their values, sort values, highlight fragments,
+     * explanations, and any nested {@code inner_hits} (recursive).
      * Uses {@link SearchHit#getDocumentFields()} and {@link SearchHit#getMetadataFields()} rather than
      * {@link SearchHit#getFields()}, which allocates a new {@code HashMap} on every call.
      */
@@ -336,16 +360,27 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 bytes += estimateValueBytes(value);
             }
         }
+        Object[] sortVals = hit.getSortValues();
+        if (sortVals.length > 0) {
+            // SearchSortValues shell (~32 B) + two Object[] headers (16 B each) + ref slots (8 B per entry).
+            bytes += 64L + (long) sortVals.length * 8;
+            for (Object sv : sortVals) {
+                bytes += estimateValueBytes(sv);
+            }
+            for (Object sv : hit.getRawSortValues()) {
+                bytes += estimateValueBytes(sv);
+            }
+        }
         Map<String, HighlightField> highlights = hit.getHighlightFields();
         if (highlights.isEmpty() == false) {
-            bytes += tryCountSerializedBytes(
+            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
                 counter,
                 out -> out.writeCollection(highlights.values()),
                 "msearch circuit breaker: failed to estimate highlight bytes"
             );
         }
         if (hit.getExplanation() != null) {
-            bytes += tryCountSerializedBytes(
+            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
                 counter,
                 out -> writeExplanation(out, hit.getExplanation()),
                 "msearch circuit breaker: failed to estimate explanation bytes"
@@ -370,10 +405,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      *   <li>{@code String}: 32 B object shell + 1 B per char (accurate for Latin-1 compact strings;
      *       under-counts non-Latin-1 characters which cost 2 B each)</li>
      *   <li>{@code byte[]}: 16 B array header + the byte count</li>
-     *   <li>{@link Text}: if the string form is cached, sized as a {@code String} plus 16 B shell;
-     *       otherwise sized as the underlying {@link org.elasticsearch.common.bytes.BytesReference}
-     *       plus 16 B shell</li>
-     *   <li>Boxed number ({@code Long}, {@code Integer}, {@code Double}, etc.) or {@code Boolean}: 16 B</li>
+     *   <li>{@link Text}: 32 B object shell (header + 2 refs + 2 ints); if the string form is cached,
+     *       adds a {@code String} shell (32 B) plus char count; otherwise adds the underlying
+     *       {@link org.elasticsearch.common.bytes.BytesReference} byte count</li>
+     *   <li>{@code Number} ({@code Long}, {@code Double}, {@code Integer}, etc.): 24 B
+     *       (over-counts small types like {@code Integer} at 16 B; {@code Long}/{@code Double} are 24 B)</li>
+     *   <li>Other types ({@code Boolean}, {@code GeoPoint}, {@code ZonedDateTime}, {@code Map}, etc.):
+     *       32 B conservative lower bound; complex objects may be significantly larger</li>
      * </ul>
      */
     static long estimateValueBytes(Object value) {
@@ -384,10 +422,17 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             return 16L + b.length;
         }
         if (value instanceof Text t) {
-            // 16 B for the Text object shell; then size the available form without forcing materialisation.
-            return t.hasString() ? 16L + 32L + t.string().length() : 16L + t.bytes().length();
+            // 32 B for the Text object shell (header + bytes ref + string ref + 2 ints, padded);
+            // then size the available form without forcing materialisation.
+            return t.hasString() ? 32L + 32L + t.string().length() : 32L + t.bytes().length();
         }
-        return 16L;
+        if (value instanceof Number) {
+            // Long/Double pad to 24 B; use 24 B as a conservative upper bound for all numeric types.
+            return 24L;
+        }
+        // Boolean singletons, GeoPoint, ZonedDateTime, Map, List, and other reference types:
+        // 32 B is a conservative lower bound; complex objects may be significantly larger.
+        return 32L;
     }
 
     /**
@@ -438,6 +483,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         // responseCounter. CircuitBreakingException is caught below and returned as a failure item without throwing.
         client.search(request.request, subscribeListener.map(searchResponse -> {
             long queryPhaseAggHandoff = searchResponse.getQueryPhaseAggregationBreakerBytes();
+            // breakerAccounted tracks whether breakerAccounting.add() has been called. Once true,
+            // releaseAll() owns the release of both incremental bytes and the handoff; the outer
+            // catch must not also release the handoff directly (which would double-release it).
+            boolean breakerAccounted = false;
             try {
                 long bytes = estimateActualBytes(searchResponse);
                 try {
@@ -450,10 +499,13 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                     return new MultiSearchResponse.Item(null, e);
                 }
                 breakerAccounting.add(bytes, queryPhaseAggHandoff);
+                breakerAccounted = true;
                 searchResponse.mustIncRef();
                 return new MultiSearchResponse.Item(searchResponse, null);
             } catch (Exception unexpected) {
-                if (queryPhaseAggHandoff > 0) {
+                if (breakerAccounted == false && queryPhaseAggHandoff > 0) {
+                    // add() was never called; release the handoff directly.
+                    // If breakerAccounted is true, releaseAll() covers both bytes and handoff.
                     circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
                 }
                 throw unexpected;

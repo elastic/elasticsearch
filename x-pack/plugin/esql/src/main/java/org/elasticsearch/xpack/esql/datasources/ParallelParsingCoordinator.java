@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -247,6 +248,41 @@ public final class ParallelParsingCoordinator {
         int maxConcurrentOpenSegments,
         @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            maxConcurrentOpenSegments,
+            captureSink,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    /**
+     * Full-control overload that also takes the {@code max_record_size} cap used by record splitters.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        int maxConcurrentOpenSegments,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+        int maxRecordBytes
+    ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
 
@@ -271,12 +307,13 @@ public final class ParallelParsingCoordinator {
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
+            .maxRecordBytes(maxRecordBytes)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
         }
 
-        List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment);
+        List<long[]> segments = computeSegments(parallelReader, storageObject, fileLength, parallelism, minSegment, maxRecordBytes);
 
         if (segments.size() <= 1) {
             return parallelReader.read(storageObject, baseCtx);
@@ -294,7 +331,8 @@ public final class ParallelParsingCoordinator {
             effectivePolicy,
             splitIncludesFileLeader,
             readSchema,
-            captureSink
+            captureSink,
+            maxRecordBytes
         );
         // Fully constructed and published before any worker is dispatched — see OrderedParallelIterator#start.
         iterator.start();
@@ -314,11 +352,33 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         long minSegment
     ) throws IOException {
+        return computeSegments(
+            reader,
+            storageObject,
+            fileLength,
+            parallelism,
+            minSegment,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    /**
+     * Computes byte-range segments using a splitter capped by {@code maxRecordBytes}.
+     */
+    public static List<long[]> computeSegments(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        long fileLength,
+        int parallelism,
+        long minSegment,
+        int maxRecordBytes
+    ) throws IOException {
         long nominalSize = fileLength / parallelism;
         if (nominalSize < minSegment) {
             nominalSize = minSegment;
         }
 
+        RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
 
@@ -332,7 +392,7 @@ public final class ParallelParsingCoordinator {
             // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
             // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
             try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                long skipped = reader.findNextRecordBoundary(stream);
+                long skipped = splitter.findNextRecordBoundary(stream);
                 if (skipped < 0) {
                     break;
                 }
@@ -387,6 +447,7 @@ public final class ParallelParsingCoordinator {
          */
         @Nullable
         private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
+        private final int maxRecordBytes;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -411,7 +472,8 @@ public final class ParallelParsingCoordinator {
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
             List<Attribute> readSchema,
-            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink,
+            int maxRecordBytes
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -421,6 +483,7 @@ public final class ParallelParsingCoordinator {
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
             this.captureSink = captureSink;
+            this.maxRecordBytes = maxRecordBytes;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -508,6 +571,7 @@ public final class ParallelParsingCoordinator {
                     .lastSplit(lastSplit)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook (which
                 // publishes the chunk's _stats.* contribution via ExternalStatsCapture.record) reaches

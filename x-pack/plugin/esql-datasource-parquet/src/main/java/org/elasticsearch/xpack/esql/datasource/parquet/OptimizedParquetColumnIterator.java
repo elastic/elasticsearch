@@ -23,7 +23,6 @@ import org.apache.parquet.internal.column.columnindex.ColumnIndex;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -792,7 +791,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         try {
             return advanceRowGroup();
         } catch (IOException e) {
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to read Parquet row group [" + (rowGroupOrdinal + 1) + "] in file [" + fileLocation + "]: " + e.getMessage(),
                 e
             );
@@ -1232,7 +1231,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (info == null) {
                     predicateBlocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                 } else {
-                    predicateBlocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, predicateBlocks);
+                    predicateBlocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 }
                 predicateBlockMap.put(attributes.get(col).name(), predicateBlocks[col]);
             }
@@ -1323,7 +1322,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (projectionBytes > 0) {
                 breaker.addWithoutBreaking(-projectionBytes);
             }
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Trivially-passes Phase-2 fetch failed for row group ["
                     + rowGroupOrdinal
                     + "] in ["
@@ -1425,7 +1424,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             if (projectionBytes > 0) {
                 breaker.addWithoutBreaking(-projectionBytes);
             }
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Phase 2 prefetch failed for row group [" + rowGroupOrdinal + "] in [" + fileLocation + "]: " + e.getMessage(),
                 e
             );
@@ -1676,8 +1675,8 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         // Ownership invariant for the rest of this method: every predicate Block lives in EXACTLY
         // one of {predicateBlocks[col], blocks[col]} at any moment. We enforce this by nulling
         // predicateBlocks[col] the instant we hand the reference off to blocks[col], so the catch
-        // below never double-closes a transferred Block — even when a downstream call (e.g.
-        // readColumnBlockWithAttribution) closes blocks itself before re-throwing.
+        // below never double-closes a transferred Block. readColumnBlockNoCleanup leaves cleanup
+        // entirely to the outer catch (the sole owner of both arrays).
         //
         // The earlier implementation copied the reference into blocks[col] and only nulled
         // predicateBlocks[col] after the loop completed successfully. A mid-loop exception (e.g.
@@ -1798,7 +1797,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         } catch (RuntimeException e) {
             Releasables.closeExpectNoException(blocks);
             Releasables.closeExpectNoException(predicateBlocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to emit two-phase Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] batch ["
@@ -1902,7 +1901,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } catch (Exception e) {
                     Releasables.closeExpectNoException(blocks);
                     Attribute attr = attributes.get(col);
-                    throw new ElasticsearchException(
+                    throw new IllegalArgumentException(
                         "Failed to read Parquet column ["
                             + attr.name()
                             + "] (type "
@@ -1927,11 +1926,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     blocks[col] = blockFactory.newConstantNullBlock(producedRows);
                 }
             }
-        } catch (ElasticsearchException e) {
+        } catch (IllegalArgumentException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to create Page batch at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
@@ -1958,7 +1957,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else {
-                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                        blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                     }
                     predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                 }
@@ -2015,11 +2014,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 } else if (positions == null) {
-                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
-                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
                     blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
                 }
             }
@@ -2033,12 +2032,12 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
             counters.addRowsEmitted(survivorCount);
             return new Page(blocks);
-        } catch (ElasticsearchException e) {
+        } catch (IllegalArgumentException | CircuitBreakingException e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
-            throw new ElasticsearchException(
+            throw new IllegalArgumentException(
                 "Failed to create late-materialized Page at row group ["
                     + (rowGroupOrdinal + 1)
                     + "] page batch ["
@@ -2049,18 +2048,6 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     + e.getMessage(),
                 e
             );
-        }
-    }
-
-    private Block readColumnBlockWithAttribution(int colIndex, ColumnInfo info, int rowsToRead, Block[] blocks) {
-        try {
-            return readColumnBlock(colIndex, info, rowsToRead);
-        } catch (CircuitBreakingException e) {
-            Releasables.closeExpectNoException(blocks);
-            throw e;
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw wrapColumnReadException(colIndex, e);
         }
     }
 
@@ -2100,13 +2087,13 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     /**
-     * Variant of {@link #readColumnBlockWithAttribution} for callers that own their own
-     * cleanup loop and must not have {@code blocks} double-closed: the only failure-time work
-     * done here is exception attribution. Used by {@link #nextTwoPhaseBatch(int)} where the outer
-     * catch is the sole owner of {@code blocks[]} and {@code predicateBlocks[]} — letting the
-     * helper close {@code blocks} would double-close every slot already populated by previous
-     * loop iterations (including transferred predicate slots), which is exactly the production
-     * crash this method exists to avoid.
+     * Reads one column block with exception attribution but without any cleanup of sibling blocks.
+     * Every call site that builds a {@code blocks[]} (or {@code predicateBlocks[]}) array in a
+     * loop must use this helper rather than closing the array on failure itself, because the outer
+     * {@code catch} is the sole owner of that array: a helper that also closes it would
+     * double-close every slot populated by previous loop iterations (including transferred predicate
+     * slots), triggering {@code IllegalStateException: can't release already released object} that
+     * masks the original circuit-breaker exception and leaks block memory.
      */
     private Block readColumnBlockNoCleanup(int colIndex, ColumnInfo info, int rowsToRead) {
         try {
@@ -2118,9 +2105,9 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         }
     }
 
-    private ElasticsearchException wrapColumnReadException(int colIndex, Exception e) {
+    private IllegalArgumentException wrapColumnReadException(int colIndex, Exception e) {
         Attribute attr = attributes.get(colIndex);
-        return new ElasticsearchException(
+        return new IllegalArgumentException(
             "Failed to read Parquet column ["
                 + attr.name()
                 + "] (type "

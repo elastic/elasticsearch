@@ -79,6 +79,7 @@ dependencies {
   runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
 
   testImplementation project(':test:framework')
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   // S3 fixture for in-process unit tests of S3StorageProvider against a fake S3 endpoint.
   testImplementation project(':test:fixtures:s3-fixture')

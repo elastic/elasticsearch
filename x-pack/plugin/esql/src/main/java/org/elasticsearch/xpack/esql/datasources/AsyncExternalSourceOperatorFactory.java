@@ -1393,6 +1393,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(perFileReadSchema)
+                        .maxRecordBytes(maxRecordBytes)
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -1553,6 +1554,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .rowLimit(fileBudget)
                     .errorPolicy(errorPolicy)
                     .readSchema(perFileReadSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 pages = fileReader.read(obj, ctx);
             }
@@ -1647,6 +1649,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .batchSize(batchSize)
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 pages = reader.read(storageObject, ctx);
             }
@@ -1903,7 +1906,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     splitIncludesFileLeader,
                     perFileReadSchema,
                     maxConcurrentOpenSegments,
-                    captureSink
+                    captureSink,
+                    maxRecordBytes
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

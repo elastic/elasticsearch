@@ -141,6 +141,15 @@ The connector service has the following known issues:
     **Fix**: Tracked in [elastic/connectors#4014](https://github.com/elastic/connectors/issues/4014). The fix is to bump `python-tds` to `>=1.15.0`, where the `pkg_resources` import was removed.
 
 
+* **Content Connectors entry in Stack Management is visible to users without the `content_connectors` capability**
+
+    Even if a user did not have the `management.data.content_connectors` capability, they saw the **Content Connectors** entry in the Stack Management sidebar. Navigating to it returned a 403.
+
+    **Affected versions**: Kibana 9.1 through 9.4.
+
+    **Fix**: Resolved in [elastic/kibana#271709](https://github.com/elastic/kibana/pull/271709) and shipped in Kibana 9.3.6, 9.4.3, and 9.5.0
+
+
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
 Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.

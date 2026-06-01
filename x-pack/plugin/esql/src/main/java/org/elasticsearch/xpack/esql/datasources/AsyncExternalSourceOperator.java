@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
@@ -69,13 +70,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
     }
 
     private static RuntimeException propagateFailure(Throwable t) {
-        if (t instanceof RuntimeException re) {
-            return re;
-        }
-        if (t instanceof Error e) {
-            throw e;
-        }
-        return new RuntimeException(t);
+        // Classify the read failure so it surfaces with the right HTTP status (client/server/retryable)
+        // instead of the previous blanket wrap into a bare RuntimeException, which always became a 500.
+        // Classification must run co-located with the throw, before any serialization (see ExternalException
+        // and ExternalFailures): a NotSerializableExceptionWrapper arriving here would mean the failure has
+        // already crossed a node boundary, so the concrete type — and the chance to classify it — is lost.
+        assert t instanceof NotSerializableExceptionWrapper == false
+            : "external read failure reached classification already serialized: " + t.getClass().getName();
+        return ExternalFailures.classify(t);
     }
 
     @Override

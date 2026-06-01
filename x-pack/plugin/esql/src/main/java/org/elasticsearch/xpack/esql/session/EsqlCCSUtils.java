@@ -226,7 +226,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(
         EsqlExecutionInfo executionInfo,
         Collection<IndexResolution> indexResolutions,
-        Collection<IndexResolution> optionalLinkedIndexResolution,
+        Collection<IndexResolution> linkedResolution,
         boolean usedFilter
     ) {
         if (executionInfo.clusterInfo.isEmpty()) {
@@ -240,7 +240,7 @@ public class EsqlCCSUtils {
                 clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
             }
         }
-        for (IndexResolution indexResolution : optionalLinkedIndexResolution) {
+        for (IndexResolution indexResolution : linkedResolution) {
             for (String indexName : indexResolution.resolvedIndices()) {
                 clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
             }

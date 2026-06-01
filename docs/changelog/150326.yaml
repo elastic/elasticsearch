@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 150326
+summary: Add async AWS workload-identity provider
+type: enhancement

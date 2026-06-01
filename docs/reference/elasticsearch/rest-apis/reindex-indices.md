@@ -90,7 +90,7 @@ POST _reindex
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a `task` ID you can use to [manage](#monitor-reindex-tasks) the operation.
 
-For long-running reindexes, prefer async reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
+For long-running reindexes, prefer asynchronous reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
 
 ## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 

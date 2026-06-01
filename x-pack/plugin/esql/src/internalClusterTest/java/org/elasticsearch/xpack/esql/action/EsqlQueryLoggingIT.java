@@ -15,7 +15,10 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.QueryLoggerContext;
 import org.elasticsearch.common.logging.activity.QueryLogging;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ActivityLoggingUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -27,6 +30,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_FILTER;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_INDICES;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_QUERY;
 import static org.elasticsearch.common.logging.activity.QueryLogging.QUERY_FIELD_RESULT_COUNT;
@@ -88,8 +92,19 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         );
     }
 
+    public void testLoggingFilter() throws Exception {
+        int numDocs = setupIndex("index-filter", "192.168.0.1");
+        QueryBuilder filter = new TermQueryBuilder("host", "192.168.0.1");
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM index-filter | LIMIT 100").filter(filter);
+        assertQuery(request, "FROM index-filter | LIMIT 100", numDocs, filter, "index-filter");
+    }
+
     private void assertQuery(String query, long hits) {
-        try (var resp = run(query)) {
+        assertQuery(syncEsqlQueryRequest(query), query, hits, null, "index-*");
+    }
+
+    private void assertQuery(EsqlQueryRequest request, String query, long hits, QueryBuilder filter, String expectedIndices) {
+        try (var resp = run(request)) {
             var message = getMessageData(appender.getLastEventAndReset());
             // When the request was randomly promoted to a PreparedEsqlQueryRequest the logged
             // query will be the plan representation rather than the original query string.
@@ -125,7 +140,12 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
             }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
-            assertThat(message.get(QUERY_FIELD_INDICES), equalTo("index-*"));
+            if (filter != null) {
+                assertThat(message.get(QUERY_FIELD_FILTER), equalTo(QueryLoggerContext.filterToLogString(filter).get()));
+            } else {
+                assertNull(message.get(QUERY_FIELD_FILTER));
+            }
+            assertThat(message.get(QUERY_FIELD_INDICES), equalTo(expectedIndices));
         }
     }
 

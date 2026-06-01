@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import org.elasticsearch.client.Request;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -19,6 +20,10 @@ import org.junit.rules.TestRule;
 import org.junit.runners.model.Statement;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractTelemetryIT extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(AbstractTelemetryIT.class);
@@ -67,5 +72,25 @@ public abstract class AbstractTelemetryIT extends ESRestTestCase {
                 }
             }
         });
+    }
+
+    protected static long longSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return metricSet.samples().get(metricName) instanceof ReceivedTelemetry.ValueSample(Number value) ? value.longValue() : 0L;
+    }
+
+    protected static boolean positiveLongSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
+        return longSample(metricSet, metricName) > 0;
+    }
+
+    protected void assertSdkResourceAttributes(String expectedProjectId, String expectedProjectType, String expectedNodeTier)
+        throws Exception {
+        client().performRequest(new Request("GET", "/_nodes/stats"));
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+        assertBusy(() -> assertNotNull("no resource event observed yet", apmServer().resource()), 10, TimeUnit.SECONDS);
+        Map<String, Object> attrs = apmServer().resource().attributes();
+
+        assertThat("elasticsearch.project.id", attrs.get("elasticsearch.project.id"), is(expectedProjectId));
+        assertThat("elasticsearch.project.type", attrs.get("elasticsearch.project.type"), is(expectedProjectType));
+        assertThat("elasticsearch.node.tier", attrs.get("elasticsearch.node.tier"), is(expectedNodeTier));
     }
 }

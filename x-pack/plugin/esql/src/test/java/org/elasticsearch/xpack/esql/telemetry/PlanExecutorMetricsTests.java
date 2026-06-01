@@ -48,10 +48,12 @@ import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -78,7 +80,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
@@ -208,7 +209,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 DataSourceCapabilities.build(plugins),
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials()
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -313,7 +315,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials()
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -415,7 +418,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials()
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -491,7 +495,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials()
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -553,7 +558,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 capabilities,
                 Settings.EMPTY,
                 blockFactory(),
-                EsExecutors.DIRECT_EXECUTOR_SERVICE
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                new DataSourceCredentials()
             )
         ) {
             var planExecutor = buildPlanExecutor(indexResolver, dataSourceModule);
@@ -659,7 +665,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
-            TEST_PROMQL_FUNCTION_REGISTRY,
+            PromqlFunctionRegistry.INSTANCE,
             TEST_PARSER,
             null
         );

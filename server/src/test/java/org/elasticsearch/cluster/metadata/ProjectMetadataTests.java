@@ -94,7 +94,7 @@ public class ProjectMetadataTests extends ESTestCase {
      * feature flag (snapshot-on, release-off), so assertions must branch on the flag to pass in both states.
      */
     private static String collisionPreamble() {
-        return DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+        return DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
             ? "index, alias, data stream, view, and dataset names need to be unique"
             : "index, alias, data stream, and view names need to be unique";
     }

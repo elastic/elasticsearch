@@ -92,10 +92,7 @@ public class PersistentTasksExecutorFullRestartIT extends ESIntegTestCase {
             equalTo(numberOfTasks)
         );
 
-        assertBusy(() -> {
-            // Make sure the task is removed from the cluster state
-            assertThat(findTasks(internalCluster().clusterService().state(), TestPersistentTasksExecutor.NAME), empty());
-        });
+        awaitClusterState(state -> findTasks(state, TestPersistentTasksExecutor.NAME).isEmpty());
 
     }
 }

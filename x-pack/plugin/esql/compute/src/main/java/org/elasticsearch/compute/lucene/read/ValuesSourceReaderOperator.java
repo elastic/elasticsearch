@@ -366,10 +366,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        long bytesSnapshot = directoryBytesRead.getAsLong();
-        ReleasableIterator<Page> pages = appendBlockArrays(page, valuesReader(docVector));
-        recordBytesRead(bytesSnapshot);
-        return trackBytesRead(pages);
+        return trackBytesRead(appendBlockArrays(page, valuesReader(docVector)));
     }
 
     private ReleasableIterator<Page> trackBytesRead(ReleasableIterator<Page> inner) {
@@ -382,9 +379,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             @Override
             public Page next() {
                 long bytesSnapshot = directoryBytesRead.getAsLong();
-                Page page = inner.next();
-                recordBytesRead(bytesSnapshot);
-                return page;
+                try {
+                    return inner.next();
+                } finally {
+                    recordBytesRead(bytesSnapshot);
+                }
             }
 
             @Override

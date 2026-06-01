@@ -243,6 +243,38 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         }
     }
 
+    /**
+     * Cross-format proof that the self-heal lives below the format boundary: a mid-read connection drop on a
+     * <b>parquet</b> object is recovered exactly like a text segment, because parquet's footer and row-group
+     * reads go through the same {@code StorageObject.newStream(position, length)} path. The reset threshold is
+     * small (the parquet fixture is small); the storage layer re-opens the byte range and resumes, so the read
+     * — and the query — still succeed despite the drop. Parquet never goes through the text coordinator, so
+     * this is covered solely by the storage-layer self-heal.
+     */
+    public void testParquetReadRecoversFromMidReadReset() throws Exception {
+        s3Fixture.loadFixturesFromResources();
+        // A projecting + sorting query reads row-group column data — not just footer metadata, which is all
+        // COUNT(*) would touch — so a read large enough for the mid-body fault to land on is guaranteed.
+        String query = employeesQuery();
+        for (String mode : DISTRIBUTION_MODES) {
+            // Drop the connection after 128 bytes of a parquet column-data read, past the tiny magic / footer-
+            // length reads. The storage layer re-opens the byte range and resumes.
+            faultHandler().setMidBodyResetFault(1, 128, path -> path.endsWith(".parquet"));
+
+            Map<String, Object> result = runQueryWithMode(query, mode);
+            @SuppressWarnings("unchecked")
+            List<List<Object>> values = (List<List<Object>>) result.get("values");
+            assertNotNull(Strings.format("Expected rows after parquet mid-read recovery for mode %s", mode), values);
+            assertFalse(Strings.format("Expected non-empty parquet results after recovery for mode %s", mode), values.isEmpty());
+            assertTrue(
+                Strings.format("Expected the injected mid-read reset to fire for mode %s", mode),
+                faultHandler().remainingFaults() <= 0
+            );
+
+            faultHandler().clearFault();
+        }
+    }
+
     private static byte[] generateNdjson(int rows) {
         StringBuilder sb = new StringBuilder(rows * 90);
         for (int i = 0; i < rows; i++) {

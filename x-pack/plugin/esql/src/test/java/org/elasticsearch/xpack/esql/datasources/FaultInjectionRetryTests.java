@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.net.SocketException;
@@ -30,7 +31,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() <= faultCount) {
-                throw new IOException("503 Service Unavailable");
+                throw new TransientStorageException("503 Service Unavailable", null, true);
             }
             return "data";
         }, "GET_OBJECT", path);
@@ -46,7 +47,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new IOException("503 Service Unavailable");
+            throw new TransientStorageException("503 Service Unavailable", null, true);
         }, "GET_OBJECT", path));
 
         assertTrue(ex.getMessage().contains("503"));
@@ -109,7 +110,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
         String result = policy.execute(() -> {
             calls.incrementAndGet();
             if (faultCounter.decrementAndGet() >= 0) {
-                throw new IOException("503 Service Unavailable");
+                throw new TransientStorageException("503 Service Unavailable", null, true);
             }
             return "success";
         }, "GET_OBJECT", path);
@@ -139,7 +140,7 @@ public class FaultInjectionRetryTests extends ESTestCase {
 
         IOException ex = expectThrows(IOException.class, () -> policy.execute(() -> {
             calls.incrementAndGet();
-            throw new IOException("503 Service Unavailable");
+            throw new TransientStorageException("503 Service Unavailable", null, true);
         }, "GET_OBJECT", path));
 
         assertTrue(ex.getMessage().contains("503"));

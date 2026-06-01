@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-
 import fixture.s3.BlobEntry;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -182,7 +182,11 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
                 (long) rows,
                 ((Number) values.get(0).get(0)).longValue()
             );
-            assertEquals(Strings.format("All injected resets should have been consumed for mode %s", mode), 0, faultHandler().remainingFaults());
+            assertEquals(
+                Strings.format("All injected resets should have been consumed for mode %s", mode),
+                0,
+                faultHandler().remainingFaults()
+            );
 
             faultHandler().clearFault();
         }

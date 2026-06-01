@@ -479,13 +479,13 @@ public class DynamicTemplate implements ToXContentObject {
         if (templateName != null) {
             return templateName.equals(name);
         }
-        if (pathMatch.isEmpty() == false) {
-            if (pathMatch.stream().anyMatch(m -> matchType.matches(m, path)) == false) {
+        for (String match : pathMatch) {
+            if (matchType.matches(match, path) == false) {
                 return false;
             }
         }
-        if (match.isEmpty() == false) {
-            if (match.stream().anyMatch(m -> matchType.matches(m, fieldName)) == false) {
+        for (String match : this.match) {
+            if (matchType.matches(match, fieldName) == false) {
                 return false;
             }
         }
@@ -499,7 +499,14 @@ public class DynamicTemplate implements ToXContentObject {
                 return false;
             }
         }
-        if (Arrays.stream(xContentFieldTypes).noneMatch(xcontentFieldType::equals)) {
+        boolean matchedXContentType = false;
+        for (XContentFieldType type : xContentFieldTypes) {
+            if (type.equals(xcontentFieldType)) {
+                matchedXContentType = true;
+                break;
+            }
+        }
+        if (matchedXContentType == false) {
             return false;
         }
         if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {

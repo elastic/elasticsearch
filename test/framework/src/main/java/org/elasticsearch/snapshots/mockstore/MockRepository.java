@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -601,6 +602,13 @@ public class MockRepository extends FsRepository {
                     deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
+                final var store = blobStore();
+                logger.info(
+                    "---> Deleting path {}",
+                    store instanceof BlobStoreWrapper && ((BlobStoreWrapper) store).delegate instanceof FsBlobStore
+                        ? ((FsBlobStore) ((BlobStoreWrapper) store).delegate).buildPath(path().parent())
+                        : path()
+                );
                 blobStore().blobContainer(path().parent())
                     .deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(path().parts().get(path().parts().size() - 1)));
                 return deleteResult.add(deleteBlobCount, deleteByteCount);

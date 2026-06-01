@@ -1540,6 +1540,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             snapshotExecutor.execute(ActionRunnable.wrap(listener, l -> {
                 try {
+                    logger.info("---> Running task: cleanupUnlinkedShardLevelBlobs");
                     deleteFromContainer(OperationPurpose.SNAPSHOT_DATA, blobContainer(), blobPathsToDelete);
                     l.onResponse(null);
                 } catch (Exception e) {
@@ -1572,6 +1573,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (staleRootBlobs.isEmpty() == false) {
                     staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
                         try (ref) {
+                            logger.info("---> Running task: cleanupUnlinkedRootAndIndicesBlobs");
                             logStaleRootLevelBlobs(newRepositoryData.getGenId() - 1, snapshotIds, staleRootBlobs);
                             deleteFromContainer(OperationPurpose.SNAPSHOT_METADATA, blobContainer(), staleRootBlobs.iterator());
                             for (final var staleRootBlob : staleRootBlobs) {
@@ -1603,11 +1605,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
                         try (ref) {
-                            logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
+                            logger.info(" ---> [{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
                             final var deleteResult = indexEntry.getValue().delete(OperationPurpose.SNAPSHOT_DATA);
                             blobsDeleted.addAndGet(deleteResult.blobsDeleted());
                             bytesDeleted.addAndGet(deleteResult.bytesDeleted());
-                            logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexId);
+                            logger.info("---> [{}] Cleaned up stale index [{}]", metadata.name(), indexId);
                         } catch (IOException e) {
                             logger.warn(() -> format("""
                                 %s index %s is no longer part of any snapshot in the repository, \
@@ -2345,7 +2347,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 @Override
                 public String next() {
                     final String blobName = blobs.next();
-                    logger.trace("[{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
+                    logger.info("---> deleteFromContainer: [{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
                     return blobName;
                 }
             };

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -96,6 +97,7 @@ class ScrollDataExtractor implements DataExtractor {
         clearScroll();
         List<String> scrollIdsToRetry = List.copyOf(failedClearScrollIds);
         failedClearScrollIds.clear();
+        // Second attempt for those same ids before handing off to the factory.
         for (String orphanedScrollId : scrollIdsToRetry) {
             clearScrollLoggingExceptions(orphanedScrollId);
         }
@@ -286,19 +288,33 @@ class ScrollDataExtractor implements DataExtractor {
         scrollId = null;
     }
 
+    /**
+     * Clears a scroll id, logging and optionally queuing for factory retry when clear fails.
+     * <p>
+     * Cross-cluster search (CCS) is inferred from {@link #lastLinkedClusterStates}: if this extractor
+     * has observed remote-cluster metadata during its lifetime (via {@link DataExtractorUtils#preferRicherLinkedClusterStates}),
+     * failed clears are treated as CCS. That snapshot never shrinks when later responses omit cluster metadata,
+     * so it is a lifetime proxy, not a per-scroll-id remote check. Remote scroll contexts can outlive a brief outage
+     * and are queued for retry; local contexts are left to expire without queuing.
+     */
     private void clearScrollLoggingExceptions(String scrollId) {
-        try {
-            innerClearScroll(scrollId);
-        } catch (Exception e) {
-            logger.error(() -> "[" + context.jobId + "] Failed to clear scroll", e);
-            if (scrollId != null) {
-                failedClearScrollIds.add(scrollId);
-            }
+        if (scrollId == null) {
+            return;
+        }
+        if (innerClearScroll(scrollId)) {
+            return;
+        }
+        boolean isCcsScroll = lastLinkedClusterStates.isEmpty() == false;
+        if (isCcsScroll) {
+            logger.info("[{}] CCS scroll context could not be cleared, will retry [{}]", context.jobId, scrollId);
+            failedClearScrollIds.add(scrollId);
+        } else {
+            logger.debug("[{}] Transient scroll clear failure, context will expire on its own [{}]", context.jobId, scrollId);
         }
     }
 
-    private void innerClearScroll(String scrollId) {
-        if (scrollId != null) {
+    private boolean innerClearScroll(String scrollId) {
+        try {
             ClearScrollRequest request = new ClearScrollRequest();
             request.addScrollId(scrollId);
             ClientHelper.executeWithHeaders(
@@ -307,6 +323,10 @@ class ScrollDataExtractor implements DataExtractor {
                 client,
                 () -> client.execute(TransportClearScrollAction.TYPE, request).actionGet()
             );
+            return response.isSucceeded();
+        } catch (Exception e) {
+            logger.debug(() -> Strings.format("[%s] Scroll clear request threw exception [%s]", context.jobId, scrollId), e);
+            return false;
         }
     }
 

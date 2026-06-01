@@ -130,6 +130,15 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/.*.crc'
 }
 
+tasks.named("test").configure {
+  // Arrow debug allocator: catches use-after-free, double-free, and unreleased ArrowBufs
+  // with deterministic stack traces. Kept local rather than in ElasticsearchBaseTestPlugin
+  // so that future JMH / perf-smoke benchmarks in esql-datasource-* modules are not
+  // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
+  // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+}
+
 
 
 interface Injected {

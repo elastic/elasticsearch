@@ -470,14 +470,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo-000002", latest);
 
         latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-baz-000001",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-baz-000003", latest);
     }
@@ -496,14 +496,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
 
         latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo-notthisone-000001",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo-notthisone-000002", latest);
     }
@@ -519,7 +519,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
+            state.getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
     }

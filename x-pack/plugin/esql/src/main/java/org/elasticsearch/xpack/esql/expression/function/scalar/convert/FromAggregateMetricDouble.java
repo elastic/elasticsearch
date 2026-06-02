@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
@@ -201,7 +201,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     public PushedBlockLoaderExpression tryPushToFieldLoading(SearchStats stats) {
         if (field() instanceof FieldAttribute f
             && f.dataType() == AGGREGATE_METRIC_DOUBLE
-            && (f.field() instanceof MultiTypeEsField) == false) {
+            && (f.field() instanceof UnionTypeEsField) == false) {
             var folded = subfieldIndex.fold(FoldContext.small());
             if (folded == null) {
                 throw new IllegalArgumentException("Subfield Index was null");

@@ -115,7 +115,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     private static final String INFERENCE_ID = "openai-endpoint";
     private static final String CLIENT_ID = "client-id";
     private static final String SCOPE = "scope";
-    private static final URI AUTH_URI = URI.create("https://auth.example.com/token");
+    private static final URI TOKEN_URI = URI.create("https://auth.example.com/token");
     private static final String CLIENT_SECRET = "client-secret";
 
     public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
@@ -1038,7 +1038,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         }).when(tokenCache).invalidate(any(), any());
 
         try (var service = createOpenAiService(tokenCache)) {
-            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), TOKEN_URI);
             var model = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
 
             var future = new TestPlainActionFuture<Boolean>();
@@ -1080,7 +1080,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         }).when(tokenCache).invalidate(any(), any());
 
         try (var service = createOpenAiService(tokenCache)) {
-            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), TOKEN_URI);
             var model = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
 
             var future = new TestPlainActionFuture<Boolean>();
@@ -1110,7 +1110,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         var tokenCache = mock(TokenCache.class);
 
         try (var service = createOpenAiService(tokenCache)) {
-            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), TOKEN_URI);
             var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
             var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
 
@@ -1162,8 +1162,8 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         }).when(tokenCache).invalidate(any(), any());
 
         try (var service = createOpenAiService(tokenCache)) {
-            var oldOAuth2Settings = new OpenAiOAuth2Settings("old-client-id", List.of(SCOPE), AUTH_URI);
-            var newOAuth2Settings = new OpenAiOAuth2Settings("new-client-id", List.of(SCOPE), AUTH_URI);
+            var oldOAuth2Settings = new OpenAiOAuth2Settings("old-client-id", List.of(SCOPE), TOKEN_URI);
+            var newOAuth2Settings = new OpenAiOAuth2Settings("new-client-id", List.of(SCOPE), TOKEN_URI);
             var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oldOAuth2Settings, CLIENT_SECRET);
             var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, newOAuth2Settings, CLIENT_SECRET);
 
@@ -1184,7 +1184,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         }).when(tokenCache).invalidate(any(), any());
 
         try (var service = createOpenAiService(tokenCache)) {
-            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), TOKEN_URI);
             var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, "old-secret");
             var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, "new-secret");
 
@@ -1205,8 +1205,8 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         }).when(tokenCache).invalidate(any(), any());
 
         try (var service = createOpenAiService(tokenCache)) {
-            var oldOAuth2Settings = new OpenAiOAuth2Settings("old-client-id", List.of(SCOPE), AUTH_URI);
-            var newOAuth2Settings = new OpenAiOAuth2Settings("new-client-id", List.of(SCOPE), AUTH_URI);
+            var oldOAuth2Settings = new OpenAiOAuth2Settings("old-client-id", List.of(SCOPE), TOKEN_URI);
+            var newOAuth2Settings = new OpenAiOAuth2Settings("new-client-id", List.of(SCOPE), TOKEN_URI);
             var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oldOAuth2Settings, CLIENT_SECRET);
             var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, newOAuth2Settings, CLIENT_SECRET);
 

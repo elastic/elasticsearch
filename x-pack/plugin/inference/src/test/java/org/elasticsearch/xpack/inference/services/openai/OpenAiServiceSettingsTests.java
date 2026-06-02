@@ -70,7 +70,7 @@ public abstract class OpenAiServiceSettingsTests<T extends OpenAiServiceSettings
         return new OpenAiOAuth2Settings(
             OAuth2SettingsTests.INITIAL_TEST_CLIENT_ID,
             OAuth2SettingsTests.INITIAL_TEST_SCOPES,
-            OpenAiOAuth2SettingsTests.INITIAL_TEST_AUTH_URL
+            OpenAiOAuth2SettingsTests.INITIAL_TEST_TOKEN_URL
         );
     }
 
@@ -82,7 +82,7 @@ public abstract class OpenAiServiceSettingsTests<T extends OpenAiServiceSettings
     protected void assertFieldsAfterUpdate(T updatedSettings) {
         assertThat(updatedSettings.oAuth2Settings().clientId(), is(OAuth2SettingsTests.TEST_CLIENT_ID));
         assertThat(updatedSettings.oAuth2Settings().scopes(), is(OAuth2SettingsTests.TEST_SCOPES));
-        assertThat(updatedSettings.oAuth2Settings().authUrl(), is(OpenAiOAuth2SettingsTests.TEST_AUTH_URL));
+        assertThat(updatedSettings.oAuth2Settings().tokenUrl(), is(OpenAiOAuth2SettingsTests.TEST_TOKEN_URL));
     }
 
     public void testFromMap_Request_AllFields_CreatesSettings() {
@@ -119,7 +119,7 @@ public abstract class OpenAiServiceSettingsTests<T extends OpenAiServiceSettings
         assertThat(serviceSettings.oAuth2Settings(), is(notNullValue()));
         assertThat(serviceSettings.oAuth2Settings().clientId(), is(OAuth2SettingsTests.TEST_CLIENT_ID));
         assertThat(serviceSettings.oAuth2Settings().scopes(), is(OAuth2SettingsTests.TEST_SCOPES));
-        assertThat(serviceSettings.oAuth2Settings().authUrl(), is(OpenAiOAuth2SettingsTests.TEST_AUTH_URL));
+        assertThat(serviceSettings.oAuth2Settings().tokenUrl(), is(OpenAiOAuth2SettingsTests.TEST_TOKEN_URL));
     }
 
     private void assertFromMapRequiredFieldsOnly(Map<String, Object> serviceSettingsMap, ConfigurationParseContext context) {
@@ -195,7 +195,7 @@ public abstract class OpenAiServiceSettingsTests<T extends OpenAiServiceSettings
         @Nullable Integer rateLimit,
         @Nullable String clientId,
         @Nullable List<String> scopes,
-        @Nullable URI authUrl
+        @Nullable URI tokenUrl
     ) {
         var map = buildRequiredFieldsServiceSettingsMap(modelId);
         if (url != null) {
@@ -216,8 +216,8 @@ public abstract class OpenAiServiceSettingsTests<T extends OpenAiServiceSettings
         if (scopes != null) {
             map.put(OAuth2Settings.SCOPES_FIELD, scopes);
         }
-        if (authUrl != null) {
-            map.put(OpenAiServiceFields.AUTH_URL, authUrl.toString());
+        if (tokenUrl != null) {
+            map.put(OpenAiServiceFields.TOKEN_URL, tokenUrl.toString());
         }
         return map;
     }

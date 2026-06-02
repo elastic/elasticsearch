@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class OpenAiSecretsFactoryTests extends ESTestCase {
 
     private static final String INFERENCE_ID = "inference-id";
-    private static final URI AUTH_URL = URI.create("https://idp.example.com/token");
+    private static final URI TOKEN_URL = URI.create("https://idp.example.com/token");
     private static final String CLIENT_ID = "client-id";
     private static final List<String> SCOPES = List.of("api");
 
@@ -97,7 +97,7 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
     }
 
     public void testCreateSecretsApplier_OAuth2Secrets_ReturnsOAuth2Applier() {
-        var serviceSettings = serviceSettingsWith(new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, AUTH_URL));
+        var serviceSettings = serviceSettingsWith(new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, TOKEN_URL));
         var secureString = randomSecureStringOfLength(10);
         var secrets = new OpenAiOAuth2SecretsSettings(secureString);
 
@@ -119,7 +119,7 @@ public class OpenAiSecretsFactoryTests extends ESTestCase {
     }
 
     public void testCreateSecretsApplier_ApiKeyWithOAuth2Settings_ThrowsValidation() {
-        var serviceSettings = serviceSettingsWith(new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, AUTH_URL));
+        var serviceSettings = serviceSettingsWith(new OpenAiOAuth2Settings(CLIENT_ID, SCOPES, TOKEN_URL));
         var apiKey = new DefaultSecretSettings(randomSecureStringOfLength(10));
 
         var thrownException = expectThrows(

@@ -35,7 +35,7 @@ public record OpenAiOAuth2Applier(String inferenceId, TokenCache cache, OAuth2To
     ) {
         var fetcher = new OAuth2TokenFetcher(
             inferenceId,
-            oauth2Settings.authUrl(),
+            oauth2Settings.tokenUrl(),
             oauth2Settings.clientId(),
             oauth2Secrets.clientSecret().toString(),
             oauth2Settings.scopes(),

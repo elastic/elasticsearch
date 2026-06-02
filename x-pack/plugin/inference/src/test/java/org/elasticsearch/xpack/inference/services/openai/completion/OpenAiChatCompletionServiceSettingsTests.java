@@ -72,7 +72,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends OpenAiServiceSetti
             TEST_RATE_LIMIT,
             OAuth2SettingsTests.TEST_CLIENT_ID,
             OAuth2SettingsTests.TEST_SCOPES,
-            OpenAiOAuth2SettingsTests.TEST_AUTH_URL
+            OpenAiOAuth2SettingsTests.TEST_TOKEN_URL
         );
     }
 
@@ -196,7 +196,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends OpenAiServiceSetti
             new OpenAiOAuth2Settings(
                 OAuth2SettingsTests.TEST_CLIENT_ID,
                 OAuth2SettingsTests.TEST_SCOPES,
-                OpenAiOAuth2SettingsTests.TEST_AUTH_URL
+                OpenAiOAuth2SettingsTests.TEST_TOKEN_URL
             )
         );
 
@@ -213,7 +213,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends OpenAiServiceSetti
                             {
                                 "client_id": "%s",
                                 "scopes": %s,
-                                "auth_url": "%s",
+                                "token_url": "%s",
                                 "model_id": "%s",
                                 "url": "%s",
                                 "organization_id": "%s",
@@ -225,7 +225,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends OpenAiServiceSetti
                             """,
                         OAuth2SettingsTests.TEST_CLIENT_ID,
                         toJson(OAuth2SettingsTests.TEST_SCOPES, ""),
-                        OpenAiOAuth2SettingsTests.TEST_AUTH_URL,
+                        OpenAiOAuth2SettingsTests.TEST_TOKEN_URL,
                         TEST_MODEL_ID,
                         TEST_URI.toString(),
                         TEST_ORGANIZATION_ID,

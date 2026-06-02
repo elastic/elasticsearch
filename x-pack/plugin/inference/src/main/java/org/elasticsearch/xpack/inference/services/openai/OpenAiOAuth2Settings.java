@@ -30,45 +30,45 @@ import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.OAU
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.AUTH_URL;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.TOKEN_URL;
 
 /**
  * OpenAI-specific OAuth2 service settings: the standard client_credentials fields
- * (client_id, scopes) plus a customer-controlled token endpoint URL ({@code auth_url}).
+ * (client_id, scopes) plus a customer-controlled token endpoint URL ({@code token_url}).
  *
  * <p>All three fields must be supplied together or omitted entirely. Mirrors the
- * shape of {@code AzureOpenAiOAuth2Settings} but with {@code auth_url} replacing
+ * shape of {@code AzureOpenAiOAuth2Settings} but with {@code token_url} replacing
  * Azure's {@code tenant_id}.
  */
 public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
 
     public static final TransportVersion OPENAI_OAUTH2_SETTINGS = TransportVersion.fromName("openai_oauth2_settings");
 
-    public static final String REQUIRED_FIELDS = String.join(", ", OAuth2Settings.REQUIRED_FIELDS, AUTH_URL);
+    public static final String REQUIRED_FIELDS = String.join(", ", OAuth2Settings.REQUIRED_FIELDS, TOKEN_URL);
 
     public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
 
     private final OAuth2Settings oAuth2Settings;
-    private final URI authUrl;
+    private final URI tokenUrl;
 
     public static OpenAiOAuth2Settings fromMap(Map<String, Object> map, ValidationException validationException) {
         var oauth2ServiceSettings = OAuth2Settings.fromMap(map, validationException);
-        var authUrl = extractOptionalUri(map, AUTH_URL, validationException);
+        var tokenUrl = extractOptionalUri(map, TOKEN_URL, validationException);
 
-        var hasAllFields = validateFields(oauth2ServiceSettings, authUrl, validationException);
+        var hasAllFields = validateFields(oauth2ServiceSettings, tokenUrl, validationException);
 
         if (hasAllFields) {
-            return new OpenAiOAuth2Settings(oauth2ServiceSettings.result(), authUrl);
+            return new OpenAiOAuth2Settings(oauth2ServiceSettings.result(), tokenUrl);
         }
         return null;
     }
 
     private static boolean validateFields(
         ValidationResult<OAuth2Settings> oauth2Settings,
-        @Nullable URI authUrl,
+        @Nullable URI tokenUrl,
         ValidationException validationException
     ) {
-        if (authUrl == null) {
+        if (tokenUrl == null) {
             if (oauth2Settings.isUndefined()) {
                 return false;
             }
@@ -76,7 +76,7 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
                 Strings.format(
                     "[%s] all OpenAI OAuth2 fields must be provided together; missing: [%s]",
                     ModelConfigurations.SERVICE_SETTINGS,
-                    AUTH_URL
+                    TOKEN_URL
                 )
             );
             return false;
@@ -93,18 +93,18 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
         return oauth2Settings.isSuccess();
     }
 
-    public OpenAiOAuth2Settings(String clientId, List<String> scopes, URI authUrl) {
-        this(new OAuth2Settings(clientId, scopes), authUrl);
+    public OpenAiOAuth2Settings(String clientId, List<String> scopes, URI tokenUrl) {
+        this(new OAuth2Settings(clientId, scopes), tokenUrl);
     }
 
-    public OpenAiOAuth2Settings(OAuth2Settings oAuth2Settings, URI authUrl) {
+    public OpenAiOAuth2Settings(OAuth2Settings oAuth2Settings, URI tokenUrl) {
         this.oAuth2Settings = Objects.requireNonNull(oAuth2Settings);
-        this.authUrl = Objects.requireNonNull(authUrl);
+        this.tokenUrl = Objects.requireNonNull(tokenUrl);
     }
 
     public OpenAiOAuth2Settings(StreamInput in) throws IOException {
         this.oAuth2Settings = new OAuth2Settings(in);
-        this.authUrl = URI.create(in.readString());
+        this.tokenUrl = URI.create(in.readString());
     }
 
     public String clientId() {
@@ -115,8 +115,8 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
         return oAuth2Settings.scopes();
     }
 
-    public URI authUrl() {
-        return authUrl;
+    public URI tokenUrl() {
+        return tokenUrl;
     }
 
     /**
@@ -146,33 +146,33 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
     }
 
     private static boolean hasAnyOAuth2Fields(Map<String, Object> map) {
-        return OAuth2Settings.hasAnyOAuth2Fields(map) || map.containsKey(AUTH_URL);
+        return OAuth2Settings.hasAnyOAuth2Fields(map) || map.containsKey(TOKEN_URL);
     }
 
     public OpenAiOAuth2Settings updateServiceSettings(Map<String, Object> serviceSettingsMap, ValidationException validationException) {
         var updatedOauth2 = oAuth2Settings.updateServiceSettings(serviceSettingsMap, validationException);
-        var newAuthUrlString = extractOptionalString(
+        var newTokenUrlString = extractOptionalString(
             serviceSettingsMap,
-            AUTH_URL,
+            TOKEN_URL,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var newAuthUrl = newAuthUrlString == null
-            ? this.authUrl
-            : convertToUri(newAuthUrlString, AUTH_URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        return new OpenAiOAuth2Settings(updatedOauth2, newAuthUrl);
+        var newTokenUrl = newTokenUrlString == null
+            ? this.tokenUrl
+            : convertToUri(newTokenUrlString, TOKEN_URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        return new OpenAiOAuth2Settings(updatedOauth2, newTokenUrl);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         oAuth2Settings.writeTo(out);
-        out.writeString(authUrl.toString());
+        out.writeString(tokenUrl.toString());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         oAuth2Settings.toXContent(builder, params);
-        builder.field(AUTH_URL, authUrl.toString());
+        builder.field(TOKEN_URL, tokenUrl.toString());
         return builder;
     }
 
@@ -186,11 +186,11 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         var that = (OpenAiOAuth2Settings) o;
-        return Objects.equals(oAuth2Settings, that.oAuth2Settings) && Objects.equals(authUrl, that.authUrl);
+        return Objects.equals(oAuth2Settings, that.oAuth2Settings) && Objects.equals(tokenUrl, that.tokenUrl);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(oAuth2Settings, authUrl);
+        return Objects.hash(oAuth2Settings, tokenUrl);
     }
 }

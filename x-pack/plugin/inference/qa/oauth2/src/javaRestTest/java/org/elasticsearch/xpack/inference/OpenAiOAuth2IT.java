@@ -190,7 +190,7 @@ public class OpenAiOAuth2IT extends InferenceBaseRestTest {
                 "url": "%s",
                 "client_id": "%s",
                 "scopes": ["api"],
-                "auth_url": "%s",
+                "token_url": "%s",
                 "client_secret": "%s"
               }
             }

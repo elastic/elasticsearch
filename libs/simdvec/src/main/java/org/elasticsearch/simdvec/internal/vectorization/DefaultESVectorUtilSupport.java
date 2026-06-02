@@ -566,7 +566,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         distances[3] = soarDistanceByte(v1, c3, originalResidual, soarLambda, rnorm);
     }
 
-    public static float soarDistanceByte(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+    static float soarDistanceByte(byte[] v1, byte[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
         assert v1.length == centroid.length;
         assert v1.length == originalResidual.length;
         int sqDist = 0;

@@ -9,18 +9,15 @@ package org.elasticsearch.xpack.esql.querylog;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.activity.QueryLoggerContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -139,18 +136,8 @@ public class EsqlLogContext extends QueryLoggerContext {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getStatus().toString()));
     }
 
-    Optional<String> getFilter() {
-        return Optional.ofNullable(filterToLogString(request.filter()));
-    }
-
-    public static String filterToLogString(QueryBuilder filter) {
-        if (filter == null) {
-            return null;
-        }
-        try {
-            return XContentHelper.toXContent(filter, XContentType.JSON, FORMAT_PARAMS, true).utf8ToString();
-        } catch (IOException e) {
-            return null;
-        }
+    @Override
+    protected QueryBuilder queryFilter() {
+        return request.filter();
     }
 }

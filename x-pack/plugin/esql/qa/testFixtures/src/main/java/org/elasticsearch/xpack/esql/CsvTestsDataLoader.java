@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStringArray;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW;
 
 public class CsvTestsDataLoader {
 
@@ -239,6 +240,8 @@ public class CsvTestsDataLoader {
         new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT),
         new TestDataset("dense_vector_arithmetic"),
         new TestDataset("web_logs"),
+        new TestDataset("employees_no_mv", "mapping-default.json", "employees_no_mv.csv").noSubfields(),
+        new TestDataset("mv_sample", "mapping-mv_sample.json", "mv_sample.csv"),
         new TestDataset("colors"),
         new TestDataset("colors_cmyk").withSetting("lookup-settings.json"),
         new TestDataset("base_conversion"),
@@ -276,7 +279,7 @@ public class CsvTestsDataLoader {
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V8),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -322,7 +325,14 @@ public class CsvTestsDataLoader {
         new ViewConfig("view_with_subquery"),
         new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
-        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW))
+        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_early_window", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_downsampled_first_bucket", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
+        new ViewConfig("view_k8s_mixed_subqueries", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS, EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**

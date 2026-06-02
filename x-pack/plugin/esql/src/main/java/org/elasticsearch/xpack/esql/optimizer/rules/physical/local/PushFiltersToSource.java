@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.SplitStats;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -44,8 +45,11 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 
 import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Arrays.asList;
@@ -407,9 +411,11 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         LucenePushdownPredicates pushdownPredicates,
         AttributeMap<Attribute> aliasReplacedBy
     ) {
+        List<Expression> conjuncts = combineFieldExtractRangePairs(splitAnd(condition), pushdownPredicates, aliasReplacedBy);
+
         List<Expression> pushable = new ArrayList<>();
         List<Expression> nonPushable = new ArrayList<>();
-        for (Expression exp : splitAnd(condition)) {
+        for (Expression exp : conjuncts) {
             Expression resExp = aliasReplacedBy.isEmpty()
                 ? exp
                 : exp.transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
@@ -423,5 +429,99 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             }
         }
         return new PushdownClassification(pushable, nonPushable);
+    }
+
+    /**
+     * Pre-combines pairs of {@code field_extract(root, "key") >|>= lo} and
+     * {@code field_extract(root, "key") <|<= hi} conjuncts into a single {@link Range} node so
+     * the closed range can push to a {@code RangeQuery} on the keyed sub-field {@code root.key}.
+     * Single-sided ranges over {@code field_extract} are left untouched: the underlying
+     * {@code KeyedFlattenedFieldType.rangeQuery} requires both bounds, so an open range cannot
+     * be safely pushed.
+     * <p>
+     * Two {@code field_extract} expressions are considered the same LHS when
+     * {@link FieldExtract#tryAsKeyedSubfieldName} returns the same synthetic field name for
+     * both. {@code aliasReplacedBy} is applied to each conjunct before the inspection so the
+     * {@code | EVAL e = field_extract(F, "k") | WHERE e >= "a" AND e <= "z"} shape is folded
+     * identically to writing the {@code field_extract} call inline.
+     * <p>
+     * Runs <em>before</em> classification because the individual halves are not pushable in
+     * isolation; the mirror combiner {@link #combineEligiblePushableToRange} runs <em>after</em>
+     * classification because for indexed {@link Attribute} LHS the individual comparisons are
+     * already pushable.
+     * <p>
+     * Package-private so the unit tests in {@code PushFiltersToSourceTests} can drive it
+     * directly (same pattern as {@link #referencesAnyColumn}).
+     */
+    static List<Expression> combineFieldExtractRangePairs(
+        List<Expression> conjuncts,
+        LucenePushdownPredicates pushdownPredicates,
+        AttributeMap<Attribute> aliasReplacedBy
+    ) {
+        // Holds the BC in its alias-resolved form (so the produced Range references the
+        // underlying field_extract directly, never a ReferenceAttribute alias).
+        record Half(int conjunctIndex, EsqlBinaryComparison resolvedBc) {}
+
+        Map<String, Half> lowerByKeyedName = new LinkedHashMap<>();
+        Map<String, Half> upperByKeyedName = new LinkedHashMap<>();
+
+        for (int i = 0; i < conjuncts.size(); i++) {
+            Expression resolved = aliasReplacedBy.isEmpty()
+                ? conjuncts.get(i)
+                : conjuncts.get(i).transformUp(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r));
+
+            if (resolved instanceof EsqlBinaryComparison bc && bc.right().foldable() && bc.left() instanceof FieldExtract fe) {
+                Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+                if (keyedName.isEmpty()) {
+                    continue;
+                }
+                String name = keyedName.get();
+                if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) {
+                    lowerByKeyedName.putIfAbsent(name, new Half(i, bc));
+                } else if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                    upperByKeyedName.putIfAbsent(name, new Half(i, bc));
+                }
+            }
+        }
+
+        if (lowerByKeyedName.isEmpty() || upperByKeyedName.isEmpty()) {
+            return conjuncts;
+        }
+
+        BitSet consumed = new BitSet(conjuncts.size());
+        List<Expression> additions = new ArrayList<>();
+        for (Map.Entry<String, Half> entry : lowerByKeyedName.entrySet()) {
+            Half lower = entry.getValue();
+            Half upper = upperByKeyedName.get(entry.getKey());
+            if (upper == null) {
+                continue;
+            }
+            consumed.set(lower.conjunctIndex);
+            consumed.set(upper.conjunctIndex);
+            additions.add(
+                new Range(
+                    lower.resolvedBc.source(),
+                    lower.resolvedBc.left(),
+                    lower.resolvedBc.right(),
+                    lower.resolvedBc instanceof GreaterThanOrEqual,
+                    upper.resolvedBc.right(),
+                    upper.resolvedBc instanceof LessThanOrEqual,
+                    lower.resolvedBc.zoneId()
+                )
+            );
+        }
+
+        if (additions.isEmpty()) {
+            return conjuncts;
+        }
+
+        List<Expression> result = new ArrayList<>(conjuncts.size() - additions.size());
+        for (int i = 0; i < conjuncts.size(); i++) {
+            if (consumed.get(i) == false) {
+                result.add(conjuncts.get(i));
+            }
+        }
+        result.addAll(additions);
+        return result;
     }
 }

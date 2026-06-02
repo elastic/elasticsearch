@@ -29,6 +29,11 @@ public abstract class SourceModeLicenseChangeTestCase extends DataStreamLicenseC
         SourceFieldMapper.Mode finalMode();
 
         void rollover() throws IOException;
+
+        /** Return {@code true} to skip this case entirely (e.g. when a required feature flag is not enabled on the cluster). */
+        default boolean skip() {
+            return false;
+        }
     }
 
     protected abstract void licenseChange() throws IOException;
@@ -41,6 +46,9 @@ public abstract class SourceModeLicenseChangeTestCase extends DataStreamLicenseC
         applyInitialLicense();
 
         for (var testCase : cases()) {
+            if (testCase.skip()) {
+                continue;
+            }
             testCase.prepareDataStream();
 
             var indexMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), testCase.dataStreamName(), 0), "index.mode");
@@ -57,6 +65,9 @@ public abstract class SourceModeLicenseChangeTestCase extends DataStreamLicenseC
         licenseChange();
 
         for (var testCase : cases()) {
+            if (testCase.skip()) {
+                continue;
+            }
             testCase.rollover();
 
             var indexMode = (String) getSetting(client(), getDataStreamBackingIndex(client(), testCase.dataStreamName(), 1), "index.mode");

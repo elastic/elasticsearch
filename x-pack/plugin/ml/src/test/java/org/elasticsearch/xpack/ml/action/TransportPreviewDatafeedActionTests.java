@@ -124,8 +124,8 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     }
 
     public void testProjectRoutingRequiresCpsException_ShouldMatchPutDatafeedMessage() {
-        ElasticsearchStatusException exception = TransportPreviewDatafeedAction.projectRoutingRequiresCpsException();
-        assertThat(exception.getMessage(), equalTo("project_routing is only supported in environments that support cross-project calls"));
+        ElasticsearchStatusException exception = DatafeedConfig.projectRoutingRequiresCpsException();
+        assertThat(exception.getMessage(), equalTo(DatafeedConfig.PROJECT_ROUTING_REQUIRES_CPS_MESSAGE));
         assertThat(exception.status(), equalTo(org.elasticsearch.rest.RestStatus.BAD_REQUEST));
     }
 

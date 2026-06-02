@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -175,7 +173,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
             if (previewDatafeedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
-                listener.onFailure(projectRoutingRequiresCpsException());
+                responseHeaderPreservingListener.onFailure(DatafeedConfig.projectRoutingRequiresCpsException());
                 return;
             }
             // Apply cross-project search mode to IndicesOptions before creating the factory
@@ -243,16 +241,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             return cloudCredentialManager.extractCloudManagedCredential(threadContext);
         }
         return null;
-    }
-
-    /**
-     * Visible for testing
-     */
-    static ElasticsearchStatusException projectRoutingRequiresCpsException() {
-        return new ElasticsearchStatusException(
-            "project_routing is only supported in environments that support cross-project calls",
-            RestStatus.BAD_REQUEST
-        );
     }
 
     private void isDateNanos(Client previewClient, DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {

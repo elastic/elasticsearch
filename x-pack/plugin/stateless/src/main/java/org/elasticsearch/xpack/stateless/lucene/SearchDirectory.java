@@ -476,22 +476,16 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
                 // Case 1: file is in the overrides map
                 BlobFileRanges commitFileRanges = commitFilesRangesOverride.get(fileName);
                 if (commitFileRanges == null) {
-                    // Case 2: file already tracked — preserve its existing entry so the timestamp
-                    // originally stamped from the file's originating CC is retained.
                     BlobFileRanges existingRanges = updatedMetadata.get(fileName);
-                    assert existingRanges == null || existingRanges.blobLocation().equals(blobLocationFromCommit)
-                        : "blob location for known file ["
-                            + fileName
-                            + "] changed: existing="
-                            + existingRanges.blobLocation()
-                            + ", commit="
-                            + blobLocationFromCommit;
-                    if (existingRanges != null) {
+                    if (existingRanges != null && existingRanges.blobLocation().equals(blobLocationFromCommit)) {
+                        // Case 2: file already tracked at the same location — preserve its existing entry
+                        // so the timestamp originally stamped from the file's originating CC is retained.
                         commitFileRanges = existingRanges;
                     } else {
-                        // Case 3: not previously tracked. Use newCommit's timestamp only when this file is
-                        // internal to newCommit (i.e., the commit physically wrote it). Files referenced
-                        // from older CCs have no CC context here and report unknown.
+                        // Case 3: not previously tracked, or blob location changed (e.g. file rewritten
+                        // during reshard). Use newCommit's timestamp only when this file is internal to
+                        // newCommit (i.e., the commit physically wrote it). Files referenced from older
+                        // CCs have no CC context here and report unknown.
                         StatelessCompoundCommit.TimestampFieldValueRange ts = null;
                         if (newCommitInternalFiles != null && newCommitInternalFiles.contains(fileName)) {
                             ts = newCommitTimestamp;

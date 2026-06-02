@@ -150,7 +150,7 @@ pivot:
     Reindex: ":Distributed Indexing/Reindex"
     Relevance: ":Search Relevance/Search, :SearchOrg/Relevance"
     Rollup: ":StorageEngine/Rollup"
-    Search: ":Search/Search, :Search Foundations/Search"
+    Search: ":Search Foundations/Search"
     "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
     Security: ":Security/Security"
     SLM: ":Distributed/SLM, :Data Management/ILM+SLM"

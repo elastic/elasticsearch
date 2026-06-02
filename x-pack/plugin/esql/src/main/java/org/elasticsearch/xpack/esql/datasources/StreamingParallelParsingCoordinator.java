@@ -140,6 +140,7 @@ public final class StreamingParallelParsingCoordinator {
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
+                .maxRecordBytes(maxRecordBytes)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -558,6 +559,7 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
                 try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                     while (pages.hasNext()) {
@@ -630,7 +632,7 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
-         * least one record boundary (as determined by {@link SegmentableFormatReader#findLastRecordBoundary}).
+         * least one record boundary (as determined by {@link RecordSplitter#findLastRecordBoundary}).
          * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
          * method avoids splitting in the middle of such a field.
          * <p>

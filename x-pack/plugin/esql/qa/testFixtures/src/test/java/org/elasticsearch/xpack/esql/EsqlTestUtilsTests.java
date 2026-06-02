@@ -175,4 +175,63 @@ public class EsqlTestUtilsTests extends ESTestCase {
         String out = "FROM (ROW emp_no = 1, languages = 5), (ROW emp_no = 2, languages = 10) | SORT emp_no | KEEP emp_no, languages";
         assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
     }
+
+    public void testConvertSubqueryToRemoteIndicesFromOnly() {
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices("FROM employees, (FROM employees_incompatible | KEEP emp_no) | SORT emp_no"),
+            equalTo("FROM *:employees,employees, (FROM *:employees_incompatible,employees_incompatible | KEEP emp_no) | SORT emp_no")
+        );
+    }
+
+    public void testConvertSubqueryToRemoteIndicesTsSubquery() {
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM sample_data, (TS k8s | STATS m=max(rate(network.total_bytes_in)) BY cluster) | KEEP cluster, m"
+            ),
+            equalTo(
+                "FROM *:sample_data,sample_data, (TS *:k8s,k8s | STATS m=max(rate(network.total_bytes_in)) BY cluster) | KEEP cluster, m"
+            )
+        );
+    }
+
+    public void testConvertSubqueryToRemoteIndicesTsSubqueryQuotedIndex() {
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM sample_data, (TS \"k8s-downsampled\" | WHERE @timestamp > \"2025-10-07\") | KEEP cluster"
+            ),
+            equalTo(
+                "FROM *:sample_data,sample_data, (TS \"*:k8s-downsampled,k8s-downsampled\" | WHERE @timestamp > \"2025-10-07\") | KEEP cluster"
+            )
+        );
+    }
+
+    public void testConvertSubqueryToRemoteIndicesBothBranchesTs() {
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM (TS k8s | STATS m=max(rate(network.total_bytes_in))),"
+                    + " (TS \"k8s-downsampled\" | STATS m=max(rate(network.total_bytes_in)))"
+                    + " | KEEP m"
+            ),
+            equalTo(
+                "FROM (TS *:k8s,k8s | STATS m=max(rate(network.total_bytes_in))),"
+                    + " (TS \"*:k8s-downsampled,k8s-downsampled\" | STATS m=max(rate(network.total_bytes_in)))"
+                    + " | KEEP m"
+            )
+        );
+    }
+
+    public void testConvertSubqueryToRemoteIndicesMixedFromAndTs() {
+        assertThat(
+            EsqlTestUtils.convertSubqueryToRemoteIndices(
+                "FROM sample_data, (TS k8s | WHERE @timestamp > \"2025-10-07\"),"
+                    + " (TS \"k8s-downsampled\" | WHERE @timestamp > \"2025-10-07\")"
+                    + " | KEEP cluster"
+            ),
+            equalTo(
+                "FROM *:sample_data,sample_data, (TS *:k8s,k8s | WHERE @timestamp > \"2025-10-07\"),"
+                    + " (TS \"*:k8s-downsampled,k8s-downsampled\" | WHERE @timestamp > \"2025-10-07\")"
+                    + " | KEEP cluster"
+            )
+        );
+    }
 }

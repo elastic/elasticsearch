@@ -44,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
@@ -554,7 +553,7 @@ public class EsqlSession {
     ) {
         // TODO we need to enforce NameId do not change during optimization.
         // Otherwise metadata might not be found when redering result.
-        Map<NameId, Map<String, Object>> bucketMetadata = bucketColumnMetadataEnabled(statement)
+        Map<NameId, Map<String, Object>> bucketMetadata = statement.setting(QuerySettings.COLUMN_METADATA)
             ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
             : Map.of();
         return Maps.merge(
@@ -564,10 +563,6 @@ public class EsqlSession {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })
         );
-    }
-
-    private static boolean bucketColumnMetadataEnabled(EsqlStatement statement) {
-        return statement.setting(QuerySettings.COLUMN_METADATA) && EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled();
     }
 
     private static Versioned<Result> attachMetadataAndVersion(

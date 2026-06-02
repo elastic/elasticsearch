@@ -146,6 +146,16 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertInvalid(setting.name(), of("true"), "Setting [" + setting.name() + "] must be of type BOOLEAN");
         assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 1), "Setting [" + setting.name() + "] must be of type BOOLEAN");
+        assertInvalid(
+            setting.name(),
+            new MapExpression(Source.EMPTY, List.of()),
+            "Setting [" + setting.name() + "] must be of type BOOLEAN"
+        );
+        assertInvalid(
+            setting.name(),
+            new Literal(Source.EMPTY, List.of(true, false), DataType.BOOLEAN),
+            "Setting [" + setting.name() + "] must be a boolean"
+        );
     }
 
     public void testValidate_Approximation() {
@@ -294,6 +304,7 @@ public class QuerySettingsTests extends ESTestCase {
     public static void generateDocs() throws Exception {
         List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
             .stream()
+            .filter(def -> def.snapshotOnly() == false)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 

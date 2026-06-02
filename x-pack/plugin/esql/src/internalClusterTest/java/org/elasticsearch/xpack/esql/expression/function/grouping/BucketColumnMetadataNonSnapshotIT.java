@@ -14,12 +14,13 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Counterpart to {@link BucketColumnMetadataIT} that runs only in release builds, where the
- * {@link EsqlCapabilities.Cap#COLUMN_METADATA_BUCKET} capability is disabled. Verifies that the bucket
+ * {@link EsqlCapabilities.Cap#COLUMN_METADATA_BUCKET_V2} capability is disabled. Verifies that the bucket
  * metadata path is fully gated: no {@code _meta} surfaces on a {@code BUCKET} grouping column.
  */
 public class BucketColumnMetadataNonSnapshotIT extends AbstractEsqlIntegTestCase {
@@ -40,6 +41,14 @@ public class BucketColumnMetadataNonSnapshotIT extends AbstractEsqlIntegTestCase
             """))) {
             assertThat(response.columns().get(1).name(), equalTo("bucket"));
             assertThat(response.columns().get(1).meta(), nullValue());
+        }
+    }
+
+    public void testColumnMetadataSettingRejectedInReleaseBuild() {
+        for (boolean value : new boolean[] { true, false }) {
+            var request = syncEsqlQueryRequest("SET column_metadata=" + value + "; ROW x = 1");
+            Exception e = expectThrows(Exception.class, () -> { try (var r = run(request)) {} });
+            assertThat(e.getMessage(), containsString("Setting [column_metadata] is only available in snapshot builds"));
         }
     }
 }

@@ -36,7 +36,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     @Before
     public void requireBucketMetadataCapability() {
         // The bucket metadata feature is snapshot-only until finalized; non-snapshot builds skip these tests.
-        assumeTrue("requires column_metadata_bucket capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled());
+        assumeTrue("requires column_metadata_bucket_v2 capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.isEnabled());
     }
 
     public void testBucketColumnMetadata() {
@@ -658,7 +658,7 @@ public class BucketColumnMetadataIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testColumnMetadataSettingGate() {
-        assumeTrue("requires column_metadata_setting capability", EsqlCapabilities.Cap.COLUMN_METADATA_SETTING.isEnabled());
+        assumeTrue("requires column_metadata_bucket_v2 capability", EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET_V2.isEnabled());
         client().prepareIndex("dates")
             .setSource("date", "1985-07-09T00:00:00.000Z")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

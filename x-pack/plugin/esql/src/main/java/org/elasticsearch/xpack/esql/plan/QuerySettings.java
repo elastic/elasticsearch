@@ -136,22 +136,22 @@ public class QuerySettings {
         name = "column_metadata",
         type = { "boolean" },
         since = "9.5.0",
-        description = "When enabled, each column in the `_query` response may carry a `_meta` object with namespaced "
-            + "per-column metadata (for example, `bucket` interval for `BUCKET` groupings). Defaults to `false`; "
-            + "must be explicitly opted in."
+        description = "When enabled, column metadata is added to the `_query` response as additional `_meta` properties."
+            + " Defaults to `false`. Currently, only `_meta.bucket` is added for columns corresponding to the `BUCKET` function"
+            + " and contains bucket interval and unit for queries where it can be determined."
     )
     public static final QuerySettingDef<Boolean> COLUMN_METADATA = new QuerySettingDef<>(
         "column_metadata",
         DataType.BOOLEAN,
         false,
         true,
-        false,
+        true,
         (value) -> {
             Object v = Foldables.literalValueOf(value);
             if (v instanceof Boolean b) {
                 return b;
             }
-            throw new IllegalArgumentException("Setting [column_metadata] must be a boolean, got [" + v + "]");
+            throw new IllegalStateException("Setting [column_metadata] must be a boolean, got [" + v + "]");
         },
         Boolean.FALSE
     );

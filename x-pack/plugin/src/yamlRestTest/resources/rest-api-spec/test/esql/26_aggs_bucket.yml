@@ -298,7 +298,7 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket, column_metadata_setting]
+          capabilities: [column_metadata_bucket_v2]
       reason: "BUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
@@ -351,6 +351,17 @@
   - match:    { columns.1.name: number }
   - is_false: columns.1._meta
 
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET column_metadata=?1; FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+          params: [true]
+
+  - match:    { columns.1.name: b }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
 ---
 "BUCKET column metadata in columnar response":
   - requires:
@@ -359,7 +370,7 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket, column_metadata_setting]
+          capabilities: [column_metadata_bucket_v2]
       reason: "BUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:
@@ -393,7 +404,7 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket, column_metadata_setting, approximation_v7]
+          capabilities: [column_metadata_bucket_v2, approximation_v7]
       reason: "BUCKET metadata gated behind SET column_metadata=true; approximation exposes its own metadata. Both must coexist."
 
   - do:
@@ -434,7 +445,7 @@
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [column_metadata_bucket, column_metadata_setting, tbucket]
+          capabilities: [column_metadata_bucket_v2, tbucket]
       reason: "TBUCKET exposes interval metadata on grouping columns, gated behind SET column_metadata=true"
 
   - do:

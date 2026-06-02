@@ -1,6 +1,0 @@
-area: Search
-issues:
- - 146106
-pr: 149323
-summary: Update `RuleQueryBuilder` to eagerly rewrite organic query
-type: bug

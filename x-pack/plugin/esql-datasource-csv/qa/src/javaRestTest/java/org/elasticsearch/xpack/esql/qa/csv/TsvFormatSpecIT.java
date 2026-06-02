@@ -46,8 +46,18 @@ public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
+    // external-basic.csv-spec is dropped for TSV: its multi-value queries (MV_EXPAND / MV_COUNT on the
+    // employees bracket columns) assume brackets parsing, which is no longer the default. Scalar
+    // coverage comes from csv-basic.csv-spec (bracket-free employees twin) and multi-value coverage
+    // from tsv-multivalue.csv-spec. The multifile specs only project scalar columns, so they parse
+    // correctly under the default (tab delimiter — no column misalignment).
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-basic.csv-spec", "/external-multifile.csv-spec", "/external-multifile-resolution.csv-spec");
+        return readExternalSpecTests(
+            "/csv-basic.csv-spec",
+            "/external-multifile.csv-spec",
+            "/external-multifile-resolution.csv-spec",
+            "/tsv-multivalue.csv-spec"
+        );
     }
 }

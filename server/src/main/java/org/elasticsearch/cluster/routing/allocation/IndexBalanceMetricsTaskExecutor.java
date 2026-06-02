@@ -59,7 +59,7 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
 
     /**
      * Dynamic setting controlling whether the index balance metrics task is enabled.
-     * Intended for serverless deployments; defaults to false.
+     * Defaults to {@code false}.
      */
     public static final Setting<Boolean> INDEX_BALANCE_METRICS_ENABLED_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.index_balance_metrics.enabled",
@@ -208,8 +208,6 @@ public final class IndexBalanceMetricsTaskExecutor extends PersistentTasksExecut
         PersistentTasksCustomMetadata.PersistentTask<TaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        assert INDEX_BALANCE_METRICS_ENABLED_SETTING.get(clusterService.getSettings())
-            : "index balance metrics task requires [" + INDEX_BALANCE_METRICS_ENABLED_SETTING.getKey() + "] to be enabled";
         return new Task(
             id,
             type,

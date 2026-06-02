@@ -110,7 +110,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             versionType,
             fetchSourceContext,
             forceSyntheticSource,
-            SplitShardCountSummary.UNSET
+            SplitShardCountSummary.UNSET,
+            false
         );
     }
 
@@ -123,7 +124,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean refresh
     ) throws IOException {
         return doGet(
             id,
@@ -137,6 +139,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             forceSyntheticSource,
             splitShardCountSummary,
+            refresh,
             indexShard::get
         );
     }
@@ -150,7 +153,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
         MultiEngineGet mget,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean refresh
     ) throws IOException {
         return doGet(
             id,
@@ -164,6 +168,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             forceSyntheticSource,
             splitShardCountSummary,
+            refresh,
             mget::get
         );
     }
@@ -180,6 +185,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
         SplitShardCountSummary splitShardCountSummary,
+        boolean refresh,
         BiFunction<Engine.Get, SplitShardCountSummary, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
@@ -222,7 +228,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             } else {
                 missingMetric.inc(System.nanoTime() - now);
             }
-            if (getResult == null || getResult.isExists() == false || realtime) {
+            if (getResult == null || getResult.isExists() == false || realtime || refresh) {
                 if (splitShardCountSummary.equals(SplitShardCountSummary.UNSET)) {
                     // TODO, this should only be possible temporarily, until we've ensured that all callers provide a valid summary.
                     return getResult;
@@ -271,7 +277,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         VersionType versionType,
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource,
-        SplitShardCountSummary splitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary,
+        boolean refresh
     ) throws IOException {
         return doGet(
             id,
@@ -285,6 +292,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             forceSyntheticSource,
             splitShardCountSummary,
+            refresh,
             indexShard::getFromTranslog
         );
     }
@@ -302,6 +310,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fetchSourceContext,
             false,
             SplitShardCountSummary.UNSET,
+            false,
             indexShard::get
         );
     }

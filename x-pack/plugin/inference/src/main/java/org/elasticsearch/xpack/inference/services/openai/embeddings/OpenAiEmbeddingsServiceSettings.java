@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -46,7 +45,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class OpenAiEmbeddingsServiceSettings extends OpenAiServiceSettings implements OpenAiRateLimitServiceSettings {
+public class OpenAiEmbeddingsServiceSettings extends OpenAiServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 

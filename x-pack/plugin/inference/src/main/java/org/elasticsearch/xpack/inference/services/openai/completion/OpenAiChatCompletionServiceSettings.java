@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiOAuth2Settings;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's chat completion models.
  */
-public class OpenAiChatCompletionServiceSettings extends OpenAiServiceSettings implements OpenAiRateLimitServiceSettings {
+public class OpenAiChatCompletionServiceSettings extends OpenAiServiceSettings {
 
     public static final String NAME = "openai_completion_service_settings";
 

@@ -19,6 +19,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.AUTH_URL;
 import static org.hamcrest.Matchers.is;
 
@@ -50,7 +51,16 @@ public class OpenAiOAuth2SettingsTests extends AbstractBWCWireSerializationTestC
 
     @Override
     protected OpenAiOAuth2Settings mutateInstance(OpenAiOAuth2Settings instance) throws IOException {
-        return randomValueOtherThan(instance, OpenAiOAuth2SettingsTests::createRandom);
+        var clientId = instance.clientId();
+        var scopes = instance.scopes();
+        var authUrl = instance.authUrl();
+        switch (randomInt(2)) {
+            case 0 -> clientId = randomValueOtherThan(clientId, () -> randomAlphaOfLength(12));
+            case 1 -> scopes = randomValueOtherThan(scopes, () -> randomList(1, 5, () -> randomAlphaOfLength(10)));
+            case 2 -> authUrl = randomValueOtherThan(authUrl, () -> createUri(randomAlphaOfLength(15)));
+            default -> throw new AssertionError("Illegal randomization branch");
+        }
+        return new OpenAiOAuth2Settings(clientId, scopes, authUrl);
     }
 
     @Override

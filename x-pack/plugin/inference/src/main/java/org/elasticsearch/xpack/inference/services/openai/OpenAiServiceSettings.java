@@ -23,7 +23,7 @@ import java.util.Objects;
  * Base class for OpenAI service settings, containing fields common to all OpenAI service setting types
  * (e.g. completion, embeddings).
  */
-public abstract class OpenAiServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public abstract class OpenAiServiceSettings extends FilteredXContentObject implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     /**
      * Settings common to all OpenAI service setting types. Only OAuth2 for now, but structured so

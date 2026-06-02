@@ -16,12 +16,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -43,6 +45,7 @@ import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -51,7 +54,9 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
+import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
 import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
@@ -61,10 +66,14 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.openai.secrets.OpenAiOAuth2SecretsSettings;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -91,13 +100,23 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class OpenAiServiceTests extends InferenceServiceTestCase {
+
+    private static final String INFERENCE_ID = "openai-endpoint";
+    private static final String CLIENT_ID = "client-id";
+    private static final String SCOPE = "scope";
+    private static final URI AUTH_URI = URI.create("https://auth.example.com/token");
+    private static final String CLIENT_SECRET = "client-secret";
 
     public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
         var sender = createMockSender();
@@ -1007,6 +1026,237 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 XContentType.JSON
             );
         }
+    }
+
+    // stop() tests
+
+    public void testStop_WithOAuth2Settings_InvalidatesTokenCache() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(tokenCache).invalidate(any(), any());
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var model = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
+
+            var future = new TestPlainActionFuture<Boolean>();
+            service.stop(model, future);
+
+            assertTrue(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache).invalidate(eq(new InferenceIdAndProject(INFERENCE_ID, ProjectId.DEFAULT)), any());
+        }
+    }
+
+    public void testStop_WithoutOAuth2Settings_DoesNotInvalidate() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var model = OpenAiEmbeddingsModelTests.createModel(
+                "http://example.com",
+                "org",
+                "api_key",
+                "model_name",
+                null,
+                INFERENCE_ID,
+                TaskType.TEXT_EMBEDDING
+            );
+
+            var future = new TestPlainActionFuture<Boolean>();
+            service.stop(model, future);
+
+            assertTrue(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache, never()).invalidate(any(), any());
+        }
+    }
+
+    public void testStop_WhenInvalidateFails_StillReturnsTrue() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onFailure(new RuntimeException("invalidate failed"));
+            return null;
+        }).when(tokenCache).invalidate(any(), any());
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var model = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
+
+            var future = new TestPlainActionFuture<Boolean>();
+            service.stop(model, future);
+
+            assertTrue(future.actionGet(TEST_REQUEST_TIMEOUT));
+        }
+    }
+
+    public void testStop_WithNonOpenAiModel_DoesNotInvalidate() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var model = mock(Model.class);
+
+            var future = new TestPlainActionFuture<Boolean>();
+            service.stop(model, future);
+
+            assertTrue(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache, never()).invalidate(any(), any());
+        }
+    }
+
+    // onModelUpdated() tests
+
+    public void testOnModelUpdated_NoOAuth2Change_DoesNotInvalidate() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
+            var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, CLIENT_SECRET);
+
+            var future = new TestPlainActionFuture<Void>();
+            service.onModelUpdated(oldModel, newModel, future);
+
+            assertNull(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache, never()).invalidate(any(), any());
+        }
+    }
+
+    public void testOnModelUpdated_NonOAuth2Models_DoesNotInvalidate() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oldModel = OpenAiEmbeddingsModelTests.createModel(
+                "http://example.com",
+                "org",
+                "api_key",
+                "model_name",
+                null,
+                INFERENCE_ID,
+                TaskType.TEXT_EMBEDDING
+            );
+            var newModel = OpenAiEmbeddingsModelTests.createModel(
+                "http://example.com",
+                "org",
+                "api_key",
+                "model_name",
+                null,
+                INFERENCE_ID,
+                TaskType.TEXT_EMBEDDING
+            );
+
+            var future = new TestPlainActionFuture<Void>();
+            service.onModelUpdated(oldModel, newModel, future);
+
+            assertNull(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache, never()).invalidate(any(), any());
+        }
+    }
+
+    public void testOnModelUpdated_OAuth2SettingsChanged_InvalidatesTokenCache() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(tokenCache).invalidate(any(), any());
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oldOAuth2Settings = new OpenAiOAuth2Settings("old-client-id", List.of(SCOPE), AUTH_URI);
+            var newOAuth2Settings = new OpenAiOAuth2Settings("new-client-id", List.of(SCOPE), AUTH_URI);
+            var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oldOAuth2Settings, CLIENT_SECRET);
+            var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, newOAuth2Settings, CLIENT_SECRET);
+
+            var future = new TestPlainActionFuture<Void>();
+            service.onModelUpdated(oldModel, newModel, future);
+
+            assertNull(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache).invalidate(eq(new InferenceIdAndProject(INFERENCE_ID, ProjectId.DEFAULT)), any());
+        }
+    }
+
+    public void testOnModelUpdated_ClientSecretChanged_InvalidatesTokenCache() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onResponse(null);
+            return null;
+        }).when(tokenCache).invalidate(any(), any());
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oAuth2Settings = new OpenAiOAuth2Settings(CLIENT_ID, List.of(SCOPE), AUTH_URI);
+            var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, "old-secret");
+            var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oAuth2Settings, "new-secret");
+
+            var future = new TestPlainActionFuture<Void>();
+            service.onModelUpdated(oldModel, newModel, future);
+
+            assertNull(future.actionGet(TEST_REQUEST_TIMEOUT));
+            verify(tokenCache).invalidate(eq(new InferenceIdAndProject(INFERENCE_ID, ProjectId.DEFAULT)), any());
+        }
+    }
+
+    public void testOnModelUpdated_WhenInvalidateFails_StillCompletes() throws IOException {
+        var tokenCache = mock(TokenCache.class);
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(1);
+            listener.onFailure(new RuntimeException("invalidate failed"));
+            return null;
+        }).when(tokenCache).invalidate(any(), any());
+
+        try (var service = createOpenAiService(tokenCache)) {
+            var oldOAuth2Settings = new OpenAiOAuth2Settings("old-client-id", List.of(SCOPE), AUTH_URI);
+            var newOAuth2Settings = new OpenAiOAuth2Settings("new-client-id", List.of(SCOPE), AUTH_URI);
+            var oldModel = createOAuth2EmbeddingsModel(INFERENCE_ID, oldOAuth2Settings, CLIENT_SECRET);
+            var newModel = createOAuth2EmbeddingsModel(INFERENCE_ID, newOAuth2Settings, CLIENT_SECRET);
+
+            var future = new TestPlainActionFuture<Void>();
+            service.onModelUpdated(oldModel, newModel, future);
+
+            assertNull(future.actionGet(TEST_REQUEST_TIMEOUT));
+        }
+    }
+
+    private OpenAiService createOpenAiService(TokenCache tokenCache) {
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(createMockSender());
+        return new OpenAiService(
+            factory,
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty(),
+            tokenCache,
+            DefaultProjectResolver.INSTANCE
+        );
+    }
+
+    private static OpenAiEmbeddingsModel createOAuth2EmbeddingsModel(
+        String inferenceEntityId,
+        OpenAiOAuth2Settings oAuth2Settings,
+        String clientSecret
+    ) {
+        var serviceSettings = new OpenAiEmbeddingsServiceSettings(
+            "model-id",
+            (URI) null,
+            null,
+            SimilarityMeasure.DOT_PRODUCT,
+            1536,
+            null,
+            false,
+            null,
+            oAuth2Settings
+        );
+        return new OpenAiEmbeddingsModel(
+            inferenceEntityId,
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            serviceSettings,
+            new OpenAiEmbeddingsTaskSettings(null, null),
+            null,
+            new OpenAiOAuth2SecretsSettings(new SecureString(clientSecret.toCharArray())),
+            mock(ThreadPool.class),
+            NoopTokenCache.INSTANCE
+        );
     }
 
     private static OpenAiService createOpenAiService(

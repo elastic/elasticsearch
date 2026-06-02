@@ -1105,18 +1105,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() ? indicesService.captureDirectoryMetrics() : EMPTY_SUPPLIER;
     }
 
-    private static DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta, long workerBytesRead) {
-        DirectoryMetrics delta = metricsDelta.get();
-        if (workerBytesRead == 0L) {
-            return delta;
-        }
-        DirectoryMetrics.Builder workerMetrics = new DirectoryMetrics.Builder();
-        workerMetrics.add(StoreMetrics.NAME, new StoreMetrics(workerBytesRead));
-        return delta.merge(workerMetrics.build());
-    }
-
     private static void setDirectoryMetrics(SearchPhaseResult result, Supplier<DirectoryMetrics> metricsDelta, SearchContext context) {
-        result.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta, context.getWorkerThreadsBytesRead()));
+        DirectoryMetrics delta = metricsDelta.get();
+        long workerBytesRead = context.getWorkerThreadsBytesRead();
+        if (workerBytesRead > 0L) {
+            DirectoryMetrics.Builder workerMetrics = new DirectoryMetrics.Builder();
+            workerMetrics.add(StoreMetrics.NAME, new StoreMetrics(workerBytesRead));
+            delta = delta.merge(workerMetrics.build());
+        }
+        result.setDirectoryMetrics(delta);
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {

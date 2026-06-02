@@ -173,11 +173,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-// todo: Remove test logging
-@TestLogging(
-    reason = "Temporary",
-    value = "org.elasticsearch.indices.recovery.ThrottlingRecoveryService:TRACE,org.elasticsearch.indices.recovery:TRACE"
-)
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 

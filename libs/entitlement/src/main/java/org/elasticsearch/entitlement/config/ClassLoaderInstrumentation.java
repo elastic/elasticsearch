@@ -60,16 +60,25 @@ public class ClassLoaderInstrumentation implements InstrumentationConfig {
             rule.calling(MethodHandles.Lookup::defineClass, byte[].class)
                 .enforce(Policies::createClassLoader)
                 .elseThrow(e -> new IllegalAccessException(e.getMessage()));
-            rule.calling(MethodHandles.Lookup::defineHiddenClass, byte[].class, Boolean.class, MethodHandles.Lookup.ClassOption[].class)
-                .enforce(Policies::createClassLoader)
-                .elseThrow(e -> new IllegalAccessException(e.getMessage()));
-            rule.calling(
-                MethodHandles.Lookup::defineHiddenClassWithClassData,
-                byte[].class,
-                Object.class,
-                Boolean.class,
-                MethodHandles.Lookup.ClassOption[].class
-            ).enforce(Policies::createClassLoader).elseThrow(e -> new IllegalAccessException(e.getMessage()));
+
+            // On Java 17, InnerClassLambdaMetafactory routes every lambda creation through
+            // the public defineHiddenClass and defineHiddenClassWithClassData methods. Applying
+            // create_class_loader checks to these methods on Java 17 would block ordinary lambda
+            // expressions in any component that lacks the entitlement. On Java 21+ the lambda
+            // factory bypasses the public Java method via a native helper, so the checks can
+            // safely apply. We therefore skip these rules on Java 17.
+            if (Runtime.version().feature() >= 21) {
+                rule.calling(MethodHandles.Lookup::defineHiddenClass, byte[].class, Boolean.class, MethodHandles.Lookup.ClassOption[].class)
+                    .enforce(Policies::createClassLoader)
+                    .elseThrow(e -> new IllegalAccessException(e.getMessage()));
+                rule.calling(
+                    MethodHandles.Lookup::defineHiddenClassWithClassData,
+                    byte[].class,
+                    Object.class,
+                    Boolean.class,
+                    MethodHandles.Lookup.ClassOption[].class
+                ).enforce(Policies::createClassLoader).elseThrow(e -> new IllegalAccessException(e.getMessage()));
+            }
         });
     }
 }

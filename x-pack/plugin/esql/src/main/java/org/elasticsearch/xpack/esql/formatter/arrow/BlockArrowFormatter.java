@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.formatter.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.types.Types;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -28,23 +29,19 @@ import java.util.function.BiFunction;
 
 public abstract class BlockArrowFormatter {
 
+    public static final String ESQL_TYPE_METADATA = "elastic:type";
+
     private final FieldType fieldType;
-    private final String esqlType;
 
     protected BlockArrowFormatter(DataType esqlType, Types.MinorType minorType) {
         // Add the exact ESQL type as field metadata
         var outputType = esqlType.outputType();
-        var meta = Map.of("elastic:type", outputType);
+        var meta = Map.of(ESQL_TYPE_METADATA, outputType);
         this.fieldType = new FieldType(true, minorType.getType(), null, meta);
-        this.esqlType = outputType;
     }
 
-    public final String esqlType() {
-        return this.esqlType;
-    }
-
-    public final FieldType arrowFieldType() {
-        return this.fieldType;
+    public Field arrowField(String name) {
+        return new Field(name, fieldType, null);
     }
 
     // Block.nullValuesCount was more efficient but was removed in https://github.com/elastic/elasticsearch/pull/108916

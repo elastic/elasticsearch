@@ -32,14 +32,17 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
@@ -211,17 +214,20 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
         private Schema arrowSchema() {
             return new Schema(response.columns.stream().map(c -> {
-                var fieldType = c.converter.arrowFieldType();
+                var field = c.converter.arrowField(c.name);
                 if (c.multivalued) {
                     // A variable-sized list is a vector of offsets and a child vector of values
                     // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
-                    var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, fieldType.getMetadata());
+                    var fieldType = field.getFieldType();
+                    // Copy the ESQL type metadata at the list level
+                    var listMetadata = Map.of(BlockArrowFormatter.ESQL_TYPE_METADATA, fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+                    var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, listMetadata);
                     // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
-                    var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), null);
+                    var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
                     // The nested vector is named "$data$", following what the Arrow/Java library does.
                     return new Field(c.name, listType, List.of(new Field("$data$", valueType, null)));
                 } else {
-                    return new Field(c.name, fieldType, null);
+                    return field;
                 }
             }).toList());
         }
@@ -362,16 +368,29 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
     }
 
+    private static final BlockArrowFormatter TO_BE_IMPLEMENTED_MARKER = new BlockArrowFormatter(DataType.UNSUPPORTED, MinorType.NULL) {
+        @Override
+        public void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+        }
+    };
+
     /**
      * Converters for every ES|QL type
      */
     static final EnumMap<DataType, BlockArrowFormatter> ESQL_FORMATTERS;
 
+    // DataTypes that don't have an Arrow formatter but should for completeness with other formats
+    // See https://github.com/elastic/elasticsearch/issues/146394
+    static final EnumSet<DataType> TO_BE_IMPLEMENTED_FORMATTERS;
+
     static {
         ESQL_FORMATTERS = new EnumMap<>(DataType.class);
+        TO_BE_IMPLEMENTED_FORMATTERS = EnumSet.noneOf(DataType.class);
         for (var type : DataType.values()) {
             var formatter = formatterForType(type);
-            if (formatter != null) {
+            if (formatter == TO_BE_IMPLEMENTED_MARKER) {
+                TO_BE_IMPLEMENTED_FORMATTERS.add(type);
+            } else if (formatter != null) {
                 ESQL_FORMATTERS.put(type, formatter);
             }
         }
@@ -381,34 +400,27 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      * Converters for every ES|QL type. Returns null if the type is not supported in the output.
      */
     private static BlockArrowFormatter formatterForType(DataType type) {
+        // Explicitly list every unsupported type so that compilation fails when we add a new type and must take care of it.
+        //
         // For reference:
         // - DataType: list of ESQL data types (not all are present in outputs)
+        // - ResponseValueUtils: conversions to a toString-able representation for text output
         // - PositionToXContent: conversions for ESQL JSON output
-        // - EsqlDataTypeConverter: conversions to ESQL datatypes
-        // Missing: multi-valued values
         return switch (type) {
-            case UNSUPPORTED -> new BlockArrowFormatter.AsNull(type);
-            case NULL -> new BlockArrowFormatter.AsNull(type);
+            case UNSUPPORTED, NULL -> new BlockArrowFormatter.AsNull(type);
 
             case BOOLEAN -> new BlockArrowFormatter.AsBoolean(type);
 
-            case INTEGER -> new BlockArrowFormatter.AsInt32(type);
-            case COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
-
-            case LONG -> new BlockArrowFormatter.AsInt64(type);
-            // FIXME: counters: are they signed?
-            case COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
+            case INTEGER, COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
+            case LONG, COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
             case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
 
-            case DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
-            case COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
+            case DOUBLE, COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
-            case KEYWORD -> new BlockArrowFormatter.AsVarChar(type);
-            case TEXT -> new BlockArrowFormatter.AsVarChar(type);
+            case KEYWORD, TEXT -> new BlockArrowFormatter.AsVarChar(type);
 
-            // date: array of int64 milliseconds since epoch
-            // FIXME: is it signed?
             case DATETIME -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPMILLI);
+            case DATE_NANOS -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPNANO);
 
             // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
             // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
@@ -416,10 +428,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
             // geo_point: Keep WKB format (JSON converts to WKT)
-            case GEO_POINT -> new BlockArrowFormatter.AsVarBinary(type);
-            case GEO_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
-            case CARTESIAN_POINT -> new BlockArrowFormatter.AsVarBinary(type);
-            case CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            // FIXME: use GeoArrow
+            case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
 
             // version: convert to string
             case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
@@ -428,31 +438,31 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // TODO: support also CBOR and SMILE with an additional formatting parameter
             case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
 
-            // Explicitly list every unsupported type so that compilation fails when we add a new type and can take care of it.
+            // TODO
+            case DATE_RANGE -> TO_BE_IMPLEMENTED_MARKER;
+            case TSID_DATA_TYPE -> TO_BE_IMPLEMENTED_MARKER;
+            case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
+
+            case AGGREGATE_METRIC_DOUBLE -> TO_BE_IMPLEMENTED_MARKER;
+            case EXPONENTIAL_HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
+            case FLATTENED -> TO_BE_IMPLEMENTED_MARKER;
+            case GEOHASH -> TO_BE_IMPLEMENTED_MARKER;
+            case GEOHEX -> TO_BE_IMPLEMENTED_MARKER;
+            case GEOTILE -> TO_BE_IMPLEMENTED_MARKER;
+            case HISTOGRAM -> TO_BE_IMPLEMENTED_MARKER;
+            case TDIGEST -> TO_BE_IMPLEMENTED_MARKER;
+
+            // Types that should not appear in ESQL outputs
             case SHORT -> null;
             case BYTE -> null;
             case FLOAT -> null;
             case HALF_FLOAT -> null;
             case SCALED_FLOAT -> null;
-
-            case DATE_NANOS -> null;
-            case DATE_RANGE -> null;
-
             case OBJECT -> null;
             case DATE_PERIOD -> null;
             case TIME_DURATION -> null;
-            case GEOHASH -> null;
-            case GEOTILE -> null;
-            case GEOHEX -> null;
             case DOC_DATA_TYPE -> null;
-            case TSID_DATA_TYPE -> null;
             case PARTIAL_AGG -> null;
-            case AGGREGATE_METRIC_DOUBLE -> null;
-            case EXPONENTIAL_HISTOGRAM -> null;
-            case TDIGEST -> null;
-            case HISTOGRAM -> null;
-            case DENSE_VECTOR -> null;
-            case FLATTENED -> null;
         };
     }
 }

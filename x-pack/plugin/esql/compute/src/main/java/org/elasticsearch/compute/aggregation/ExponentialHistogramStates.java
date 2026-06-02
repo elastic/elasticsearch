@@ -374,7 +374,7 @@ public final class ExponentialHistogramStates {
     public static final class SeenSingleState implements AggregatorState {
 
         private final CircuitBreaker breaker;
-        private BreakingExponentialHistogramHolder histogramValue;
+        private CompressedExponentialHistogramHolder histogramValue;
 
         public SeenSingleState(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -387,7 +387,7 @@ public final class ExponentialHistogramStates {
         public void set(ExponentialHistogram histogram) {
             assert histogram != null;
             if (histogramValue == null) {
-                histogramValue = BreakingExponentialHistogramHolder.create(breaker);
+                histogramValue = CompressedExponentialHistogramHolder.create(new HistoBreaker(breaker));
             }
             histogramValue.set(histogram);
         }
@@ -430,7 +430,7 @@ public final class ExponentialHistogramStates {
      */
     public static final class SeenGroupingState implements GroupingAggregatorState {
 
-        private ObjectArray<BreakingExponentialHistogramHolder> histogramValues;
+        private ObjectArray<CompressedExponentialHistogramHolder> histogramValues;
         private final CircuitBreaker breaker;
         private final BigArrays bigArrays;
 
@@ -443,9 +443,9 @@ public final class ExponentialHistogramStates {
         public void set(int groupId, ExponentialHistogram histogramValue) {
             assert histogramValue != null;
             ensureCapacity(groupId);
-            BreakingExponentialHistogramHolder holder = histogramValues.get(groupId);
+            CompressedExponentialHistogramHolder holder = histogramValues.get(groupId);
             if (holder == null) {
-                holder = BreakingExponentialHistogramHolder.create(breaker);
+                holder = CompressedExponentialHistogramHolder.create(new HistoBreaker(breaker));
                 histogramValues.set(groupId, holder);
             }
             holder.set(histogramValue);

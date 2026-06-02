@@ -1,9 +1,6 @@
-import {
-  ClassifiedTest,
-  SOURCE_SET_PATTERNS,
-  toFqcn,
-  toGradleProject,
-} from "../domain";
+import type { ClassifiedTest } from "../domain.ts";
+
+import { SOURCE_SET_PATTERNS, toFqcn, toGradleProject } from "../domain.ts";
 
 export function classifyChangedFiles(files: string[]): ClassifiedTest[] {
   const tests: ClassifiedTest[] = [];

@@ -121,7 +121,7 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         switch (path) {
-                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
+                            case "/v1/metrics" -> OtlpMetricsParser.parse(requestBody).forEach(this::route);
                             case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);

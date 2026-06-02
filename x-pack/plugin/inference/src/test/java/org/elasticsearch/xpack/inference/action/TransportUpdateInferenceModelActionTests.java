@@ -100,6 +100,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final int NEW_OVERLAP_VALUE = 25;
     private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
     private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
+    private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -134,10 +135,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
@@ -158,10 +156,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 

@@ -40,15 +40,12 @@ public class GradleRunner {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println(
-                "Usage: java -jar gradle-runner.jar [--project-dir <dir>] [--gradle-home <dir>] <task> [task...] [-- <gradle-args>]"
-            );
+            System.err.println("Usage: java -jar gradle-runner.jar [--project-dir <dir>] [--gradle-home <dir>] -- <gradle-args>");
             System.exit(1);
         }
 
         File projectDir = null;
         File gradleHome = null;
-        List<String> tasks = new ArrayList<>();
         List<String> gradleArgs = new ArrayList<>();
 
         boolean parsingGradleArgs = false;
@@ -73,12 +70,12 @@ public class GradleRunner {
                     gradleHome = new File(args[i]);
                 }
                 case "--" -> parsingGradleArgs = true;
-                default -> tasks.add(args[i]);
+                default -> gradleArgs.add(args[i]);
             }
         }
 
-        if (tasks.isEmpty()) {
-            System.err.println("No tasks specified");
+        if (gradleArgs.isEmpty()) {
+            System.err.println("No gradle arguments specified");
             System.exit(1);
         }
 
@@ -106,15 +103,11 @@ public class GradleRunner {
         int exitCode = 0;
         try (ProjectConnection connection = connector.connect()) {
             BuildLauncher launcher = connection.newBuild()
-                .forTasks(tasks.toArray(String[]::new))
+                .withArguments(gradleArgs)
                 .setStandardOutput(System.out)
                 .setStandardError(System.err)
                 .withCancellationToken(tokenSource.token())
                 .addProgressListener(tracker, OperationType.TASK, OperationType.TEST);
-
-            if (gradleArgs.isEmpty() == false) {
-                launcher.withArguments(gradleArgs);
-            }
 
             launcher.run();
         } catch (GradleConnectionException e) {

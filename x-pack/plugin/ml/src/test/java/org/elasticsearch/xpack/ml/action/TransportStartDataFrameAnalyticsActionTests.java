@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.Task
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction.TaskExecutor;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -48,7 +50,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -123,6 +128,29 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         assertThat(assignment.getExplanation(), is(emptyString()));
     }
 
+    public void testGetAssignmentGivenLazyStartAtNodeCapShouldFail() {
+        MlMemoryTracker memoryTracker = mock(MlMemoryTracker.class);
+        when(memoryTracker.isRecentlyRefreshed()).thenReturn(true);
+        when(memoryTracker.getDataFrameAnalyticsJobMemoryRequirement(eq(JOB_ID))).thenReturn(ByteSizeValue.ofGb(10).getBytes());
+        when(memoryTracker.getJobMemoryRequirement(anyString(), eq(JOB_ID))).thenReturn(ByteSizeValue.ofGb(10).getBytes());
+
+        Settings settings = Settings.builder()
+            .put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1)
+            .put(MachineLearning.MAX_ML_NODE_SIZE.getKey(), "4gb")
+            .build();
+        TaskExecutor executor = createTaskExecutor(settings, memoryTracker);
+        TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, true);
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
+            .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.CURRENT, MlConfigVersion.CURRENT, trialNodeMemoryBytes)))
+            .build();
+
+        Assignment assignment = executor.getAssignment(params, clusterState.nodes().getAllNodes(), clusterState, ProjectId.DEFAULT);
+        assertThat(assignment.getExecutorNode(), is(nullValue()));
+        assertThat(assignment.getExplanation(), is(not(equalTo(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation()))));
+    }
+
     public void testTooManyDocumentsForAnalysis_FullTrainingPercentBelowLimit() {
         assertFalse(tooManyDocumentsForAnalysis(50_000_000L, 100.0));
     }
@@ -152,6 +180,10 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     }
 
     private static TaskExecutor createTaskExecutor() {
+        return createTaskExecutor(Settings.EMPTY, mock(MlMemoryTracker.class));
+    }
+
+    private static TaskExecutor createTaskExecutor(Settings settings, MlMemoryTracker memoryTracker) {
         ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
@@ -168,18 +200,28 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
         when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
 
         return new TaskExecutor(
-            Settings.EMPTY,
+            settings,
             mock(Client.class),
             clusterService,
             mock(DataFrameAnalyticsManager.class),
             mock(DataFrameAnalyticsAuditor.class),
-            mock(MlMemoryTracker.class),
+            memoryTracker,
             TestIndexNameExpressionResolver.newInstance(),
             mock(XPackLicenseState.class)
         );
     }
 
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion, MlConfigVersion mlConfigVersion) {
+        return createNode(i, isMlNode, nodeVersion, mlConfigVersion, ByteSizeValue.ofGb(1).getBytes());
+    }
+
+    private static DiscoveryNode createNode(
+        int i,
+        boolean isMlNode,
+        Version nodeVersion,
+        MlConfigVersion mlConfigVersion,
+        long machineMemoryBytes
+    ) {
         return DiscoveryNodeUtils.builder("_node_id" + i)
             .name("_node_name" + i)
             .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i))
@@ -187,9 +229,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 isMlNode
                     ? Map.of(
                         "ml.machine_memory",
-                        String.valueOf(ByteSizeValue.ofGb(1).getBytes()),
+                        String.valueOf(machineMemoryBytes),
                         "ml.max_jvm_size",
-                        String.valueOf(ByteSizeValue.ofMb(400).getBytes()),
+                        String.valueOf(machineMemoryBytes / 2),
                         MlConfigVersion.ML_CONFIG_VERSION_NODE_ATTR,
                         mlConfigVersion.toString()
                     )

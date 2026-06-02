@@ -2,5 +2,3 @@
 type: "enhancement"
 area: "search"
 description: "Optimize dense vector dot product computations using explicit SIMD instructions via the Java Vector API."
-
-

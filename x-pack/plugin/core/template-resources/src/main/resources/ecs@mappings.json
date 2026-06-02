@@ -161,7 +161,8 @@
               "*.indicator.first_seen",
               "*.indicator.last_seen",
               "*.indicator.modified_at",
-              "*threat.enrichments.matched.occurred"
+              "*threat.enrichments.matched.occurred",
+              "*.lifecycle.last_activity"
             ],
             "unmatch_mapping_type": "object"
           }

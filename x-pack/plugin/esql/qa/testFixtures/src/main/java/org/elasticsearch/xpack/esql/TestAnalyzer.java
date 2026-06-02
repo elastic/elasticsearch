@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InSubqueryResolver;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -76,11 +78,11 @@ import static org.hamcrest.Matchers.instanceOf;
 public class TestAnalyzer {
     private Configuration configuration = EsqlTestUtils.TEST_CFG;
     private EsqlFunctionRegistry functionRegistry = EsqlTestUtils.TEST_FUNCTION_REGISTRY;
-    private PromqlFunctionRegistry promqlFunctionRegistry = EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
     private AnalysisRegistry analysisRegistry = EsqlTestUtils.TEST_ANALYSIS_REGISTRY;
+  
     private final Map<IndexPattern, IndexResolution> indexResolutions = new HashMap<>();
     private final Map<String, IndexResolution> lookupResolution = new HashMap<>();
-    private final Map<IndexPattern, IndexResolution> lenientResolution = new HashMap<>();
+    private final Map<LinkedIndexPattern, IndexResolution> lenientResolution = new HashMap<>();
     private final EnrichResolution enrichResolution = new EnrichResolution();
     private final InferenceResolution.Builder inferenceResolution = InferenceResolution.builder();
     private UnmappedResolution unmappedResolution = UNMAPPED_FIELDS.defaultValue();
@@ -145,22 +147,25 @@ public class TestAnalyzer {
 
     /**
      * Add a lenient (CPS shadow) resolution entry. The {@code ResolveViewShadow} analyzer rule
-     * looks up entries in {@link AnalyzerContext#optionalLinkedResolution()} by the shadow's full
+     * looks up entries in {@link AnalyzerContext#linkedResolution()} by the shadow's full
      * {@code IndexPattern} (view name + applicable exclusions), so the same view referenced
      * with different exclusion lists can be wired to different results.
      */
-    public TestAnalyzer addLenientShadow(IndexPattern indexPattern, IndexResolution resolution) {
+    public TestAnalyzer addLenientResolution(LinkedIndexPattern indexPattern, IndexResolution resolution) {
         this.lenientResolution.put(indexPattern, resolution);
         return this;
     }
 
     /**
-     * Convenience overload of {@link #addLenientShadow(IndexPattern, IndexResolution)} for the
+     * Convenience overload of {@link #addLenientResolution(LinkedIndexPattern, IndexResolution)} for the
      * common no-exclusion case: keys the entry by an {@link IndexPattern} built from
      * {@code esIndex.name()} (which the test should match the local view name).
      */
-    public TestAnalyzer addLenientShadow(EsIndex esIndex) {
-        return addLenientShadow(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex));
+    public TestAnalyzer addLenientResolution(EsIndex esIndex) {
+        return addLenientResolution(
+            new LinkedIndexPattern(LinkedIndexPattern.Kind.OPTIONAL, new IndexPattern(Source.EMPTY, esIndex.name())),
+            IndexResolution.valid(esIndex)
+        );
     }
 
     /**
@@ -506,15 +511,21 @@ public class TestAnalyzer {
      * Build the analyzer, parse the query, and analyze it.
      */
     public LogicalPlan query(String query, QueryParams params) {
-        return buildAnalyzer().analyze(parseQuery(query, params));
+        return buildAnalyzer().analyze(resolveViewsAndInSubqueries(parseQuery(query, params)));
     }
 
     private LogicalPlan parseQuery(String query, QueryParams params) {
-        var parsed = EsqlTestUtils.TEST_PARSER.parseQuery(query, params);
-        if (views.isEmpty()) {
-            return parsed;
-        }
-        return resolveViews(parsed);
+        return EsqlTestUtils.TEST_PARSER.parseQuery(query, params);
+    }
+
+    /**
+     * Resolves views first, then IN subquery expressions in a single pass — mirroring the production
+     * pipeline in {@code EsqlSession#execute}. Views referenced from inside an IN subquery's plan are
+     * not handled here; that case will be re-enabled when {@code ViewAndInSubqueryResolver} returns.
+     */
+    private LogicalPlan resolveViewsAndInSubqueries(LogicalPlan plan) {
+        LogicalPlan afterViews = views.isEmpty() ? plan : resolveViews(plan);
+        return InSubqueryResolver.resolve(afterViews);
     }
 
     // This most primitive view resolution only works for the simple cases being tested
@@ -607,7 +618,7 @@ public class TestAnalyzer {
     public LogicalPlan statement(String query) {
         var statement = TEST_PARSER.createStatement(query);
         unmappedResolution = statement.setting(QuerySettings.UNMAPPED_FIELDS);
-        var analyzed = buildAnalyzer().analyze(statement.plan());
+        var analyzed = buildAnalyzer().analyze(resolveViewsAndInSubqueries(statement.plan()));
         var failures = new Failures();
         PlanConsistencyChecker.checkPlan(analyzed, failures);
         if (failures.hasFailures()) {
@@ -800,7 +811,7 @@ public class TestAnalyzer {
         return new AnalyzerContext(
             configuration,
             functionRegistry,
-            promqlFunctionRegistry,
+            PromqlFunctionRegistry.INSTANCE,
             analysisRegistry,
             null,
             indexResolutions,

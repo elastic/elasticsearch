@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 72349
+pr: 149506
+summary: Stop retrying shard requests on replicas for non-retriable errors
+type: enhancement

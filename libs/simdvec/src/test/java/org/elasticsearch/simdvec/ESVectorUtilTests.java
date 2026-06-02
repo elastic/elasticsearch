@@ -439,6 +439,23 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertEquals(expected, result, deltaEps);
     }
 
+    public void testSoarDistanceByte() {
+        int size = random().nextInt(128, 512);
+        var vector = new byte[size];
+        var centroid = new byte[size];
+        var preResidual = new float[size];
+        random().nextBytes(vector);
+        random().nextBytes(centroid);
+        for (int i = 0; i < size; ++i) {
+            preResidual[i] = random().nextFloat();
+        }
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat() + 0.01f; // avoid division by near-zero
+        var expected = defaultedProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
+        var result = panamaProvider.getVectorUtilSupport().soarDistance(vector, centroid, preResidual, soarLambda, rnorm);
+        assertEquals(expected, result, Math.abs(expected) * 1e-5f + 1e-3f);
+    }
+
     public void testQuantizeVectorWithIntervals() {
         int vectorSize = randomIntBetween(1, 2048);
         float[] vector = new float[vectorSize];
@@ -519,6 +536,40 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, expectedDistances);
         panamaProvider.getVectorUtilSupport().soarDistanceBulk(query, v0, v1, v2, v3, diff, soarLambda, rnorm, panamaDistances);
         assertArrayEquals(expectedDistances, panamaDistances, deltaEps);
+    }
+
+    public void testSoarDistanceBulkByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] query = randomByteArrayOfLength(vectorSize);
+        byte[] c0 = randomByteArrayOfLength(vectorSize);
+        byte[] c1 = randomByteArrayOfLength(vectorSize);
+        byte[] c2 = randomByteArrayOfLength(vectorSize);
+        byte[] c3 = randomByteArrayOfLength(vectorSize);
+        float[] diff = generateRandomVector(vectorSize);
+        float soarLambda = random().nextFloat();
+        float rnorm = random().nextFloat(10);
+        float[] expectedDistances = new float[4];
+        float[] panamaDistances = new float[4];
+        defaultedProvider.getVectorUtilSupport().soarDistanceBulk(query, c0, c1, c2, c3, diff, soarLambda, rnorm, expectedDistances);
+        panamaProvider.getVectorUtilSupport().soarDistanceBulk(query, c0, c1, c2, c3, diff, soarLambda, rnorm, panamaDistances);
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expectedDistances[i], panamaDistances[i], Math.abs(expectedDistances[i]) * 1e-5f + 1e-3f);
+        }
+    }
+
+    public void testLinearCombinationByte() {
+        int vectorSize = randomIntBetween(1, 2048);
+        byte[] src = randomByteArrayOfLength(vectorSize);
+        float[] destDefault = generateRandomVector(vectorSize);
+        float[] destPanama = new float[vectorSize];
+        System.arraycopy(destDefault, 0, destPanama, 0, vectorSize);
+        float scaleSrc = random().nextFloat() * 2 - 1;
+        float scaleDest = random().nextFloat() * 2 - 1;
+        defaultedProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, scaleDest, destDefault);
+        panamaProvider.getVectorUtilSupport().linearCombination(scaleSrc, src, scaleDest, destPanama);
+        for (int i = 0; i < vectorSize; i++) {
+            assertEquals(destDefault[i], destPanama[i], Math.abs(destDefault[i]) * 1e-6f + 1e-6f);
+        }
     }
 
     public void testPackAsBinary() {

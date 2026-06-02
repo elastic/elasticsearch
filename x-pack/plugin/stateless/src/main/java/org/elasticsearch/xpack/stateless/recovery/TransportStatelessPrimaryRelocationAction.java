@@ -70,7 +70,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -121,7 +121,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsService hollowShardsService;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private final RecoveryMetricsCollector recoveryMetricsCollector;
+    private final StatelessRecoveryMetricsCollector recoveryMetricsCollector;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -134,7 +134,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsService hollowShardsService,
         HollowShardsMetrics hollowShardsMetrics,
-        RecoveryMetricsCollector recoveryMetricsCollector
+        StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -581,7 +581,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     private Engine ensureIndexTierAllowedEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
-        if (engine instanceof IndexEngine indexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
+        if (engine instanceof IndexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
             return engine;
         } else if (engine == null) {
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);

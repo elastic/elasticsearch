@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -75,10 +76,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-        // In PromQL, queries never fail due to a field not being mapped, instead an empty result is returned.
-        if (plan instanceof PromqlCommand) {
-            return resolve(plan, false);
-        }
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);
@@ -238,20 +235,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      * again. That's what this method does.
      */
     private static LogicalPlan refreshPlan(LogicalPlan plan, Set<UnresolvedAttribute> maybeNowResolvableAttributes) {
+        Map<UnresolvedAttribute, UnresolvedAttribute> oldAttributesToNewAttributes = new HashMap<>();
         Function<UnresolvedAttribute, UnresolvedAttribute> refresh = ua -> {
-            if (maybeNowResolvableAttributes.remove(ua)) {
+            if (maybeNowResolvableAttributes.contains(ua)) {
                 // Besides clearing the message, we need to refresh the nameId to avoid equality with the previous plan.
                 // (A `new UnresolvedAttribute(ua.source(), ua.name())` would save an allocation, but is problematic with subtypes.)
-                ua = (ua.withId(new NameId())).withUnresolvedMessage(null);
+                return oldAttributesToNewAttributes.computeIfAbsent(ua, u -> (u.withId(new NameId())).withUnresolvedMessage(null));
             }
             return ua;
         };
         var refreshed = plan.transformExpressionsOnlyUp(UnresolvedAttribute.class, refresh);
-        // transformExpressionsOnlyUp does not descend into the promqlPlan
-        // The promqlPlan is a separate tree and its children may contain UnresolvedAttribute expressions
-        if (refreshed instanceof PromqlCommand promql && maybeNowResolvableAttributes.isEmpty() == false) {
-            refreshed = promql.withPromqlPlan(promql.promqlPlan().transformExpressionsDown(UnresolvedAttribute.class, refresh));
-        }
         return refreshed.transformDown(Fork.class, ResolveUnmapped::patchFork);
     }
 

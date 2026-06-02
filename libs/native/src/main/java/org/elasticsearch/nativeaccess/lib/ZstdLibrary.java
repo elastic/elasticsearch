@@ -42,6 +42,23 @@ public non-sealed interface ZstdLibrary extends NativeLibrary {
     long decompress(ByteBuffer dst, int dstOffset, int dstSize, ByteBuffer src, int srcOffset, int srcSize);
 
     /**
+     * One-shot heap {@code byte[]} decompress variant — the Panama equivalent of the
+     * {@code com.github.luben.zstd.Zstd.decompress(byte[], byte[])} one-shot API. Bound with
+     * {@code LinkerHelperUtil.critical()} since this is a flat downcall (no embedded struct), so
+     * the heap segments can be passed directly without an off-heap staging copy. Returns the
+     * libzstd byte count (or an error code observable via {@link #isError(long)}).
+     */
+    long decompress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize);
+
+    /**
+     * One-shot heap {@code byte[]} compress variant at the given compression {@code level}. The
+     * caller is responsible for sizing {@code dst} to at least {@link #compressBound(int)} bytes
+     * for {@code srcSize}; the returned value is the actual compressed length, or an error code
+     * observable via {@link #isError(long)}. Bound with {@code LinkerHelperUtil.critical()}.
+     */
+    long compress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level);
+
+    /**
      * Create a streaming decompression context ({@code ZSTD_DStream*}) for incremental decompression
      * of one or more concatenated zstd frames. The returned handle must be closed to release native
      * resources; it is single-threaded by contract.

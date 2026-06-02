@@ -101,6 +101,48 @@ public final class Zstd {
         return (int) ret;
     }
 
+    /**
+     * One-shot heap {@code byte[]} decompress for callers that already hold the full compressed
+     * frame in a Java array (e.g. parquet-mr's {@code BytesInputDecompressor#decompress(BytesInput,int)}).
+     * Equivalent to {@code com.github.luben.zstd.Zstd.decompress(byte[], byte[])} but routed through
+     * Panama FFI's {@code critical(true)} downcall — the heap segments are passed through directly
+     * without an off-heap staging copy. Returns the number of decompressed bytes actually written
+     * into {@code dst[dstOffset .. dstOffset+dstSize)}.
+     */
+    public int decompress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize) {
+        Objects.requireNonNull(dst, "Null destination buffer");
+        Objects.requireNonNull(src, "Null source buffer");
+        checkRange("Destination", dstOffset, dstSize, dst.length);
+        checkRange("Source", srcOffset, srcSize, src.length);
+        long ret = zstdLib.decompress(dst, dstOffset, dstSize, src, srcOffset, srcSize);
+        if (zstdLib.isError(ret)) {
+            throw new IllegalArgumentException(zstdLib.getErrorName(ret));
+        } else if (ret < 0 || ret > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Integer overflow? ret=" + ret);
+        }
+        return (int) ret;
+    }
+
+    /**
+     * One-shot heap {@code byte[]} compress at the given zstd compression {@code level}. The caller
+     * must size {@code dst} to at least {@link #compressBound(int)} bytes for {@code srcSize};
+     * Parquet's {@code BytesInputCompressor} sizes its output buffer based on libzstd's worst case.
+     * Returns the actual compressed length written into {@code dst[dstOffset .. dstOffset+returned)}.
+     */
+    public int compress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level) {
+        Objects.requireNonNull(dst, "Null destination buffer");
+        Objects.requireNonNull(src, "Null source buffer");
+        checkRange("Destination", dstOffset, dstSize, dst.length);
+        checkRange("Source", srcOffset, srcSize, src.length);
+        long ret = zstdLib.compress(dst, dstOffset, dstSize, src, srcOffset, srcSize, level);
+        if (zstdLib.isError(ret)) {
+            throw new IllegalArgumentException(zstdLib.getErrorName(ret));
+        } else if (ret < 0 || ret > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Integer overflow? ret=" + ret);
+        }
+        return (int) ret;
+    }
+
     private static void checkRange(String label, int offset, int size, int capacity) {
         // The (offset > capacity - size) form avoids the (offset + size > capacity) overflow
         // that could otherwise wrap around when offset + size exceeds Integer.MAX_VALUE.

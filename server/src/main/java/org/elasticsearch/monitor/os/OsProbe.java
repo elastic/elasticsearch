@@ -74,7 +74,7 @@ public class OsProbe {
     private static final Method getFreeSwapSpaceSize;
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
-    private static final Method getSystemCpuLoad;
+    private static final Method getCpuLoad;
     private static final Method getAvailableProcessors;
 
     static {
@@ -83,7 +83,7 @@ public class OsProbe {
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
-        getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getCpuLoad = getMethod("getCpuLoad");
         getAvailableProcessors = getMethod("getAvailableProcessors");
     }
 
@@ -302,7 +302,15 @@ public class OsProbe {
     }
 
     public static short getSystemCpuPercent() {
-        return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
+        return Probes.scaleToPercent(Probes.getLoad(getCpuLoad, osMxBean));
+    }
+
+    /**
+     * Returns the system CPU usage as a value in range [0.0, 1.0]. May return a negative value if the CPU load information is not
+     * available.
+     */
+    public static double getCpuLoad() {
+        return Probes.getLoad(getCpuLoad, osMxBean);
     }
 
     public static int getAvailableProcessors() {

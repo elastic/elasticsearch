@@ -645,3 +645,6 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleIT
   method: testUpdateDownsampleSamplingMode
   issue: https://github.com/elastic/elasticsearch/issues/150478
+- class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
+  method: testLegacyFormatInferenceIdUpdate
+  issue: https://github.com/elastic/elasticsearch/issues/150481

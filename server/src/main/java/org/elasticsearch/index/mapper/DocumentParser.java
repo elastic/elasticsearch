@@ -548,9 +548,12 @@ public final class DocumentParser {
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
-        } else {
-            parseObjectDynamic(context, currentFieldName);
-        }
+        } else if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+            && context.parent().hasMappedFieldsWithPrefix(currentFieldName)) {
+                parseObjectOrNested(context.createFlattenContext(currentFieldName));
+            } else {
+                parseObjectDynamic(context, currentFieldName);
+            }
         context.setImmediateXContentParent(prev);
     }
 

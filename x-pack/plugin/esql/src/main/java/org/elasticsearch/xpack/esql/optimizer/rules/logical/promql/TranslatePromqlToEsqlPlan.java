@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -711,9 +710,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         // exclusions).
         var translation = synthesizedAttributes.translateLeaf(pathExclusions);
 
-        // Only concrete dimension fields can be excluded from the `_timeseries` grouping; non-dimension labels are dropped.
-        List<Attribute> excludedDimensions = dimensionAttributes(translation.excludedDimensions());
-        boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || excludedDimensions.isEmpty() == false;
+        boolean needsTimeSeriesGrouping = hasTSGrouping(translation.groupings()) || translation.excludedDimensions().isEmpty() == false;
         // TranslateTimeSeriesAggregate splits this node into two phases, replacing inner
         // TimeSeriesAggregateFunctions (e.g. LastOverTime) with references to phase-1 results.
         // The phase-2 expression must remain a valid AggregateFunction inside the Aggregate node.
@@ -735,7 +732,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
         aggregates.add(ctx.stepAttr());
 
         if (needsTimeSeriesGrouping) {
-            var function = new TimeSeriesWithout(source, new ArrayList<Expression>(excludedDimensions));
+            var function = new TimeSeriesWithout(source, new ArrayList<>(new ArrayList<Expression>(translation.excludedDimensions())));
             var expression = function.createNamedExpression();
             groupings.add(expression);
             aggregates.add(expression.toAttribute());
@@ -762,11 +759,6 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {
         return groupings.stream().anyMatch(attribute -> MetadataAttribute.isTimeSeriesAttributeName(attribute.name()));
-    }
-
-    /** Keep only concrete dimension fields; non-dimension labels cannot be excluded from the {@code _timeseries} grouping. */
-    private static List<Attribute> dimensionAttributes(List<Attribute> attributes) {
-        return attributes.stream().filter(a -> a instanceof FieldAttribute fa && fa.isDimension()).toList();
     }
 
     /** Outer aggregation over an already-aggregated child. */

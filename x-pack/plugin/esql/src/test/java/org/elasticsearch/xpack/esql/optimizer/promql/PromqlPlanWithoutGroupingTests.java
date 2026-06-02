@@ -55,6 +55,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -87,6 +88,28 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
             .orElse(null);
         assertNotNull(timeSeriesMetadata);
         assertThat(timeSeriesMetadata.excludedFields(), hasItem("pod"));
+    }
+
+    /**
+     * Regression for #149793: {@code without(label)} must exclude the label by name even when it does not resolve to a
+     * dimension {@link org.elasticsearch.xpack.esql.core.expression.FieldAttribute}. Before the fix, the dimension-only
+     * filter silently dropped such exclusions, so labels like Prometheus {@code instance} were retained in the
+     * {@code _timeseries} output. Here {@code event} is a mapped non-dimension field, exercising that path.
+     */
+    public void testWithoutExcludesNonDimensionLabelByName() {
+        var plan = logicalOptimizerWithLatestVersion.optimize(
+            planPromql("PROMQL index=k8s step=1h result=(sum without (pod, event) (network.bytes_in))", false)
+        );
+
+        var timeSeriesMetadata = plan.collect(EsRelation.class)
+            .stream()
+            .flatMap(relation -> relation.output().stream())
+            .filter(TimeSeriesMetadataAttribute.class::isInstance)
+            .map(TimeSeriesMetadataAttribute.class::cast)
+            .findFirst()
+            .orElse(null);
+        assertNotNull(timeSeriesMetadata);
+        assertThat(timeSeriesMetadata.excludedFields(), hasItems("pod", "event"));
     }
 
     public void testWithoutGroupingSurvivesDataNodePlanSerialization() {

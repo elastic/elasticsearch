@@ -563,9 +563,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/150217
 - class: org.elasticsearch.test.rest.yaml.RcsCcsVectorsYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/150217
-- class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
-  method: testChangingCapacity_DoesNotRejectsOverflowTasks_BecauseOfQueueFull
-  issue: https://github.com/elastic/elasticsearch/issues/150226
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testTermInSetQueryWithSyntheticIds
   issue: https://github.com/elastic/elasticsearch/issues/150229

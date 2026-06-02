@@ -403,6 +403,8 @@ FROM my-index-000001,cluster*:my-index-*,-cluster_three:my-index-000001
 | LIMIT 10
 ```
 
+The two forms have different semantics: `-my_cluster:*` is a *cluster-level* exclusion that requires the cluster to have been included by a preceding expression (`-cluster_three:*` on its own is rejected), while `-my_cluster:<my_index>` is an *index-level* exclusion equivalent to `my_cluster:-<my_index>` and may appear standalone.
+
 
 ## Skipping problematic remote clusters [ccq-skip-unavailable-clusters]
 

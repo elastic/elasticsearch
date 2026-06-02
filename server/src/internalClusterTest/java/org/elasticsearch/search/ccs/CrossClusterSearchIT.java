@@ -753,10 +753,22 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
 
     public void testNegativeRemoteIndexNameBeforeInclusionIsAccepted() throws Exception {
         String remoteIndex = (String) setupTwoClusters().get("remote.index");
+        boolean minimizeRoundtrips = randomBoolean();
+
+        SearchRequest controlRequest = new SearchRequest(REMOTE_CLUSTER + ":*");
+        controlRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+        controlRequest.allowPartialSearchResults(false);
+        controlRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
         SearchRequest searchRequest = new SearchRequest("-" + REMOTE_CLUSTER + ":prod", REMOTE_CLUSTER + ":*");
-        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(5000));
+
+        final long[] controlTotalHits = new long[1];
+        assertResponse(client(LOCAL_CLUSTER).search(controlRequest), controlResponse -> {
+            controlTotalHits[0] = Objects.requireNonNull(controlResponse.getHits().getTotalHits()).value();
+        });
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);
             Clusters clusters = response.getClusters();
@@ -767,6 +779,7 @@ public class CrossClusterSearchIT extends AbstractCrossClusterSearchTestCase {
             assertNotNull(remoteClusterSearchInfo);
             assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
             assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo("-prod,*"));
+            assertThat(Objects.requireNonNull(response.getHits().getTotalHits()).value(), equalTo(controlTotalHits[0]));
             for (var hit : response.getHits()) {
                 assertThat(hit.getIndex(), equalTo(remoteIndex));
             }

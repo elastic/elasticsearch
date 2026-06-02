@@ -223,6 +223,7 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                     } else {
                         // an index exclusion like -remote:logs is syntactic sugar for including the cluster but excluding the index,
                         // so we need to add the cluster to the list of included clusters
+                        assert indexName.startsWith("-") == false : "index name should not start with - but was [" + indexName + "]";
                         everIncluded.addAll(clusters);
                         for (String clusterName : clusters) {
                             perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add("-" + indexName);

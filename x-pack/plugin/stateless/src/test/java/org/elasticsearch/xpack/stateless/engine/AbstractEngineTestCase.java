@@ -100,6 +100,8 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
+import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -408,16 +410,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+                ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
@@ -425,6 +431,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     super.close();
                 } finally {
                     searchConfig.getStore().decRef();
+                    IOUtils.close(reshardSearchFilters);
                 }
             }
         };
@@ -547,23 +554,27 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+                ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment);
+                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment, reshardSearchFilters);
                 }
             }
         };

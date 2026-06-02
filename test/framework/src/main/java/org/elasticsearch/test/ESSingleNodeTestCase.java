@@ -64,7 +64,9 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -125,8 +127,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @Override
-    public void setUp() throws Exception {
+    public final void setUp() throws Exception {
+        // do not override setUp, use an @Before
         super.setUp();
+    }
+
+    @Before
+    public final void startTestNode() throws Exception {
         // the seed has to be created regardless of whether it will be used or not, for repeatability
         long seed = random().nextLong();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
@@ -137,14 +144,19 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     @Override
-    public void tearDown() throws Exception {
+    public final void tearDown() throws Exception {
+        // do not override tearDown, use an @After
+        super.tearDown();
+    }
+
+    @After
+    public final void stopTestNode() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         awaitIndexShardCloseAsyncTasks();
         ensureNoInitializingShards();
         ensureAllFreeContextActionsAreConsumed();
 
         ensureAllContextsReleased(getInstanceFromNode(SearchService.class));
-        super.tearDown();
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {

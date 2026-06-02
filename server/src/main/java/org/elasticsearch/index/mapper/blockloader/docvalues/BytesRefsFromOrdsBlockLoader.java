@@ -65,7 +65,15 @@ public class BytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValues
 
         // If the value is singleton, then we can skip reading offsets altogether
         if (readInArrayOrder && dv.singleton() == null) {
-            TrackingSortedDocValues offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            TrackingSortedDocValues offsets;
+            try {
+                offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            } catch (Exception e) {
+                // We already reserved breaker space for the doc values above. If acquiring the offsets companion fails (ex. circuit
+                // breaker) we must release that reservation here, otherwise it leaks.
+                Releasables.close(dv.set());
+                throw e;
+            }
             if (offsets != null) {
                 return new ArrayOrder(dv.set(), offsets);
             }

@@ -491,7 +491,6 @@ public class TransportWriteActionTests extends ESTestCase {
 
             testAction.shardOperationOnPrimary(task, request, indexShard, future);
             mockLog.assertAllExpectationsMatched();
-            assertThat(testAction.getIndexingPressure().stats().getTotalCancelledOps(), is(1L));
             assertThat(taskSubmitted.get(), is(0));
             assertThat(taskExecuted.get(), is(0));
         }
@@ -520,7 +519,6 @@ public class TransportWriteActionTests extends ESTestCase {
             waitForCancellation.countDown();
 
             mockLog.awaitAllExpectationsMatched();
-            assertThat(testAction.getIndexingPressure().stats().getTotalCancelledOps(), is(2L));
             // Task submitted.
             assertThat(taskSubmitted.get(), is(1));
             // Task is cancelled.
@@ -640,10 +638,6 @@ public class TransportWriteActionTests extends ESTestCase {
                 }
                 return replicaResult;
             });
-        }
-
-        protected IndexingPressure getIndexingPressure() {
-            return this.indexingPressure;
         }
     }
 

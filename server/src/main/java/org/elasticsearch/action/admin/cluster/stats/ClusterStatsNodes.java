@@ -800,7 +800,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long highWaterMarkSplits = 0;
             long largeOpsRejections = 0;
             long totalLargeRejectedOpsBytes = 0;
-            long totalCancelledOps = 0;
+
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {
@@ -828,7 +828,6 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     highWaterMarkSplits += nodeStatIndexingPressureStats.getHighWaterMarkSplits();
                     largeOpsRejections += nodeStatIndexingPressureStats.getLargeOpsRejections();
                     totalLargeRejectedOpsBytes += nodeStatIndexingPressureStats.getTotalLargeRejectedOpsBytes();
-                    totalCancelledOps += nodeStatIndexingPressureStats.getTotalCancelledOps();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -855,8 +854,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 lowWaterMarkSplits,
                 highWaterMarkSplits,
                 largeOpsRejections,
-                totalLargeRejectedOpsBytes,
-                totalCancelledOps
+                totalLargeRejectedOpsBytes
             );
         }
 

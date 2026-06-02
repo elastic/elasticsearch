@@ -108,7 +108,6 @@ public class IndexingPressure implements IndexingPressureMonitor {
     private final AtomicLong totalCoordinatingRequests = new AtomicLong(0);
     private final AtomicLong totalPrimaryOps = new AtomicLong(0);
     private final AtomicLong totalReplicaOps = new AtomicLong(0);
-    private final AtomicLong totalCancelledOps = new AtomicLong(0);
 
     private final AtomicLong coordinatingRejections = new AtomicLong(0);
     private final AtomicLong primaryRejections = new AtomicLong(0);
@@ -414,10 +413,6 @@ public class IndexingPressure implements IndexingPressureMonitor {
         }
     }
 
-    public void markPrimaryOperationCancelled() {
-        this.totalCancelledOps.incrementAndGet();
-    }
-
     private void updatePrimaryOperationsAndBytes(int operations, long bytes, boolean forceExecution, boolean operationExpansionTracking) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
@@ -599,8 +594,7 @@ public class IndexingPressure implements IndexingPressureMonitor {
             lowWaterMarkSplits.get(),
             highWaterMarkSplits.get(),
             largeOpsRejections.get(),
-            totalRejectedLargeOpsBytes.get(),
-            totalCancelledOps.get()
+            totalRejectedLargeOpsBytes.get()
         );
     }
 

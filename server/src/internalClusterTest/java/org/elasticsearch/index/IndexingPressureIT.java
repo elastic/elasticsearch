@@ -121,7 +121,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
         final MockTransportService primaryTransportService = (MockTransportService) primaryService;
 
         TaskManager taskManager = internalCluster().getInstance(TransportService.class, primaryName).getTaskManager();
-        IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, primaryName);
 
         AtomicReference<ReplicationTask> replicationTask = new AtomicReference<>();
         final CountDownLatch waitForPreSubmissionTaskCancellation = new CountDownLatch(1);
@@ -136,7 +135,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
             TransportShardBulkAction.ACTION_NAME + "[p]",
             (handler, request, channel, task) -> {
                 assertThat(task, instanceOf(ReplicationTask.class));
-                assertThat(indexingPressure.stats().getTotalCancelledOps(), is(0L));
                 replicationTask.set((ReplicationTask) task);
                 taskManager.cancel(replicationTask.get(), "presubmission-cancellation", () -> {});
                 assertThat(((ReplicationTask) task).isCancelled(), is(true));
@@ -168,7 +166,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             mockLog.awaitAllExpectationsMatched();
             BulkResponse bulkResponse = cancelledFuture.actionGet();
-            assertThat(indexingPressure.stats().getTotalCancelledOps(), is(1L));
 
             Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
 
@@ -247,7 +244,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             mockLog.awaitAllExpectationsMatched();
             BulkResponse bulkResponse = postSubmissionCancelledFuture.actionGet();
-            assertThat(indexingPressure.stats().getTotalCancelledOps(), is(2L));
 
             Iterator<BulkItemResponse> iterator = bulkResponse.iterator();
 

@@ -19,8 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.action.bulk.IncrementalBulkService.CANCELLABLE_BULK_OPERATIONS;
-
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     private static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = TransportVersion.fromName(
@@ -58,7 +56,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long currentCoordinatingOps;
     private final long currentPrimaryOps;
     private final long currentReplicaOps;
-    private final long totalCancelledOps;
 
     public IndexingPressureStats(StreamInput in) throws IOException {
         totalCombinedCoordinatingAndPrimaryBytes = in.readVLong();
@@ -99,12 +96,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             largeOpsRejections = -1L;
             totalLargeRejectedOpsBytes = -1L;
         }
-
-        if (in.getTransportVersion().supports(CANCELLABLE_BULK_OPERATIONS)) {
-            totalCancelledOps = in.readVLong();
-        } else {
-            totalCancelledOps = -1L;
-        }
     }
 
     public IndexingPressureStats(
@@ -131,8 +122,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long lowWaterMarkSplits,
         long highWaterMarkSplits,
         long largeOpsRejections,
-        long totalRejectedLargeOpsBytes,
-        long totalCancelledOps
+        long totalRejectedLargeOpsBytes
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -161,7 +151,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.highWaterMarkSplits = highWaterMarkSplits;
         this.largeOpsRejections = largeOpsRejections;
         this.totalLargeRejectedOpsBytes = totalRejectedLargeOpsBytes;
-        this.totalCancelledOps = totalCancelledOps;
     }
 
     @Override
@@ -192,10 +181,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().supports(MAX_OPERATION_SIZE_REJECTIONS_ADDED)) {
             out.writeVLong(largeOpsRejections);
             out.writeVLong(totalLargeRejectedOpsBytes);
-        }
-
-        if (out.getTransportVersion().supports(CANCELLABLE_BULK_OPERATIONS)) {
-            out.writeVLong(totalCancelledOps);
         }
     }
 
@@ -293,10 +278,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     public long getTotalLargeRejectedOpsBytes() {
         return totalLargeRejectedOpsBytes;
-    }
-
-    public long getTotalCancelledOps() {
-        return totalCancelledOps;
     }
 
     private static final String COMBINED = "combined_coordinating_and_primary";

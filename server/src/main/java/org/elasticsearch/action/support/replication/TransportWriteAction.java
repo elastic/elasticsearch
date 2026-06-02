@@ -250,7 +250,6 @@ public abstract class TransportWriteAction<
                     request.shardId
                 )
             );
-            indexingPressure.markPrimaryOperationCancelled();
             return;
         }
 
@@ -265,7 +264,6 @@ public abstract class TransportWriteAction<
                             request.shardId
                         )
                     );
-                    indexingPressure.markPrimaryOperationCancelled();
                     return;
                 }
 

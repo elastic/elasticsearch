@@ -152,53 +152,29 @@ class RetryableStorageObject implements StorageObject {
             retryPolicy.notifySuccess();
             listener.onResponse(result);
         }, e -> {
-            boolean isThrottle = RetryPolicy.isThrottlingError(e);
-            int effectiveMaxRetries = isThrottle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
-
-            if (isThrottle) {
-                retryPolicy.notifyThrottled();
-            }
-
-            if (retryPolicy.isRetryable(e) && attempt < effectiveMaxRetries) {
-                retryCounters.addRetry();
-                long delay = retryPolicy.delayMillis(attempt, isThrottle);
-                long budgetMs = retryPolicy.maxTotalDurationMs();
-                if (budgetMs > 0) {
-                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-                    if (elapsedMs + delay > budgetMs) {
-                        logger.debug(
-                            "aborting async retry for [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
-                            delegate.path(),
-                            elapsedMs,
-                            delay,
-                            budgetMs
-                        );
-                        listener.onFailure(e);
-                        return;
-                    }
-                }
-                logger.debug(
-                    "retrying async read for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
-                    delegate.path(),
-                    isThrottle ? "throttle" : "transient",
-                    attempt + 1,
-                    effectiveMaxRetries,
-                    delay,
-                    e.getMessage()
-                );
-                executor.execute(() -> {
-                    try {
-                        Thread.sleep(delay);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        listener.onFailure(new IOException("Retry interrupted", ie));
-                        return;
-                    }
-                    readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1, startNanos);
-                });
-            } else {
+            RetryPolicy.RetryDecision decision = retryPolicy.decide(e, attempt, startNanos);
+            if (decision.retry() == false) {
                 listener.onFailure(e);
+                return;
             }
+            retryCounters.addRetry();
+            logger.debug(
+                "retrying async read for [{}] (attempt [{}], delay [{}]ms): [{}]",
+                delegate.path(),
+                attempt + 1,
+                decision.delayMillis(),
+                e.getMessage()
+            );
+            executor.execute(() -> {
+                try {
+                    Thread.sleep(decision.delayMillis());
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    listener.onFailure(new IOException("Retry interrupted", ie));
+                    return;
+                }
+                readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1, startNanos);
+            });
         }));
     }
 
@@ -276,23 +252,22 @@ class RetryableStorageObject implements StorageObject {
         }
 
         private void reopenOrThrow(IOException e) throws IOException {
-            boolean throttle = RetryPolicy.isThrottlingError(e);
-            int maxAttempts = throttle ? retryPolicy.throttleMaxRetries() : retryPolicy.maxRetries();
-            if (retryPolicy.isRetryable(e) == false || failuresSinceProgress >= maxAttempts || totalResumes >= MAX_TOTAL_RESUMES) {
+            if (totalResumes >= MAX_TOTAL_RESUMES) {
                 throw e;
             }
             if (episodeStartNanos == 0) {
                 episodeStartNanos = System.nanoTime();
             }
-            long delay = retryPolicy.delayMillis(failuresSinceProgress, throttle);
-            long budgetMs = retryPolicy.maxTotalDurationMs();
-            if (budgetMs > 0 && (System.nanoTime() - episodeStartNanos) / 1_000_000 + delay > budgetMs) {
+            // One shared decision: classify, apply the per-episode budget (failuresSinceProgress, which resets on
+            // byte progress), feed adaptive backoff on a throttle, and check the episode time budget.
+            RetryPolicy.RetryDecision decision = retryPolicy.decide(e, failuresSinceProgress, episodeStartNanos);
+            if (decision.retry() == false) {
                 throw e;
             }
             closeQuietly(current);
-            if (delay > 0) {
+            if (decision.delayMillis() > 0) {
                 try {
-                    Thread.sleep(delay);
+                    Thread.sleep(decision.delayMillis());
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw new IOException("interrupted while waiting to resume read of " + delegate.path(), ie);
@@ -303,11 +278,10 @@ class RetryableStorageObject implements StorageObject {
             totalResumes++;
             long resumeFrom = position + delivered;
             logger.debug(
-                "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]/[{}]): [{}]",
+                "resuming read of [{}] from byte [{}] after transient fault (attempt [{}]): [{}]",
                 delegate.path(),
                 resumeFrom,
                 failuresSinceProgress,
-                maxAttempts,
                 e.getMessage()
             );
             // Re-open the undelivered tail THROUGH the open-retry loop, so a transient failure to re-open the

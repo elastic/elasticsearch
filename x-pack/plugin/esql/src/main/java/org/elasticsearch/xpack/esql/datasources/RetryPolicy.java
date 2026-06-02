@@ -185,6 +185,36 @@ class RetryPolicy {
         return maxTotalDurationMs;
     }
 
+    /** Whether a fault warrants a retry, and the backoff to wait first. */
+    record RetryDecision(boolean retry, long delayMillis) {
+        static final RetryDecision GIVE_UP = new RetryDecision(false, 0L);
+    }
+
+    /**
+     * The shared retry decision used by every retry driver — sync {@link #execute}, async reads, and the
+     * mid-read resume. Classifies the fault, applies the throttle-vs-normal budget against {@code attempt}
+     * (retries already made), feeds the adaptive backoff on a throttle, and checks the total-time budget against
+     * {@code startNanos}. Returns the backoff to wait before retrying, or {@link RetryDecision#GIVE_UP}. Having
+     * one decision point keeps every driver's classification/budget/backoff identical (the throttle signal that
+     * used to drift between hand-rolled loops cannot diverge here).
+     */
+    RetryDecision decide(Throwable e, int attempt, long startNanos) {
+        boolean isThrottle = isThrottlingError(e);
+        boolean isTransient = isThrottle || isTransientStorageError(e);
+        int effectiveMaxRetries = isThrottle ? throttleMaxRetries : maxRetries;
+        if (isTransient == false || attempt >= effectiveMaxRetries) {
+            return RetryDecision.GIVE_UP;
+        }
+        if (isThrottle && adaptiveBackoff != null) {
+            adaptiveBackoff.onThrottled();
+        }
+        long delay = delayMillis(attempt, isThrottle);
+        if (maxTotalDurationMs > 0 && (System.nanoTime() - startNanos) / 1_000_000 + delay > maxTotalDurationMs) {
+            return RetryDecision.GIVE_UP;
+        }
+        return new RetryDecision(true, delay);
+    }
+
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path) throws IOException {
         return execute(operation, operationName, path, () -> {});
     }
@@ -211,46 +241,21 @@ class RetryPolicy {
                 }
                 return result;
             } catch (IOException e) {
-                boolean isThrottle = isThrottlingError(e);
-                boolean isTransient = isThrottle || isTransientStorageError(e);
-                int effectiveMaxRetries = isThrottle ? throttleMaxRetries : maxRetries;
-
-                if (isTransient == false || attempt >= effectiveMaxRetries) {
+                RetryDecision decision = decide(e, attempt, startNanos);
+                if (decision.retry() == false) {
                     throw e;
                 }
-
-                if (isThrottle && adaptiveBackoff != null) {
-                    adaptiveBackoff.onThrottled();
-                }
-
-                long delay = delayMillis(attempt, isThrottle);
-                if (maxTotalDurationMs > 0) {
-                    long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
-                    if (elapsedMs + delay > maxTotalDurationMs) {
-                        logger.debug(
-                            "aborting retry for [{}] on [{}]: elapsed [{}]ms + delay [{}]ms exceeds budget [{}]ms",
-                            operationName,
-                            path,
-                            elapsedMs,
-                            delay,
-                            maxTotalDurationMs
-                        );
-                        throw e;
-                    }
-                }
                 logger.debug(
-                    "retrying [{}] for [{}] after {} failure (attempt [{}]/[{}], delay [{}]ms): [{}]",
+                    "retrying [{}] for [{}] after transient failure (attempt [{}], delay [{}]ms): [{}]",
                     operationName,
                     path,
-                    isThrottle ? "throttle" : "transient",
                     attempt + 1,
-                    effectiveMaxRetries,
-                    delay,
+                    decision.delayMillis(),
                     e.getMessage()
                 );
                 onRetry.run();
                 try {
-                    Thread.sleep(delay);
+                    Thread.sleep(decision.delayMillis());
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
                     throw e;
@@ -263,12 +268,6 @@ class RetryPolicy {
     void notifySuccess() {
         if (adaptiveBackoff != null) {
             adaptiveBackoff.onSuccess();
-        }
-    }
-
-    void notifyThrottled() {
-        if (adaptiveBackoff != null) {
-            adaptiveBackoff.onThrottled();
         }
     }
 

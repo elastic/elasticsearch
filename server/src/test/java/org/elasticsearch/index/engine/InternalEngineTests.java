@@ -1199,7 +1199,11 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L)); // no refresh; just read from translog
 
         if (randomBoolean()) {
-            indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
+            // Use the single-op index path directly: this test asserts realtime GET is served from the translog, which
+            // requires a tracked translog location. The batch path stores a null location (it cannot read a single op
+            // back from a Translog.IndexBatch record), so routing through indexDoc here would force a refresh instead.
+            // TODO: move back to indexDoc after batches support realtime get
+            engine.index(indexForDoc(createParsedDoc("1", null)));
         }
         try (
             Engine.GetResult get = engine.get(
@@ -1266,7 +1270,9 @@ public class InternalEngineTests extends EngineTestCase {
         }
         assertThat("no refresh, just read from translog or in-memory segment", engine.lastRefreshedCheckpoint(), equalTo(0L));
 
-        indexDoc(engine, indexForDoc(createParsedDoc("1", null)));
+        // Single-op index path: the GET below asserts a translog read + in-memory segment build, which the batch path
+        // does not support (it stores a null translog location).
+        engine.index(indexForDoc(createParsedDoc("1", null)));
         try (
             Engine.GetResult get = engine.get(
                 new Engine.Get(true, true, "1"),

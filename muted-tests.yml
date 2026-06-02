@@ -608,9 +608,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
   method: testExplicitMetrics
   issue: https://github.com/elastic/elasticsearch/issues/150302
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testRenameBucketColumnHasNoMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/150311
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356

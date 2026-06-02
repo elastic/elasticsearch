@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -25,6 +31,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class RangeStorageObjectTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private static final byte[] FILE_BYTES = "Hello, World! This is test data for range reads.".getBytes(StandardCharsets.UTF_8);
 
@@ -219,12 +234,12 @@ public class RangeStorageObjectTests extends ESTestCase {
         RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         Executor directExecutor = Runnable::run;
 
-        range.readBytesAsync(0, 6, directExecutor, new ActionListener<>() {
+        range.readBytesAsync(0, 6, FACTORY, directExecutor, new ActionListener<>() {
             @Override
-            public void onResponse(ByteBuffer byteBuffer) {
+            public void onResponse(DirectReadBuffer byteBuffer) {
                 result.set(byteBuffer);
                 latch.countDown();
             }
@@ -236,10 +251,11 @@ public class RangeStorageObjectTests extends ESTestCase {
         });
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
-        ByteBuffer buf = result.get();
-        byte[] bytes = new byte[buf.remaining()];
-        buf.get(bytes);
-        assertEquals("World!", new String(bytes, StandardCharsets.UTF_8));
+        try (DirectReadBuffer drb = result.get()) {
+            byte[] bytes = new byte[drb.buffer().remaining()];
+            drb.buffer().get(bytes);
+            assertEquals("World!", new String(bytes, StandardCharsets.UTF_8));
+        }
     }
 
     public void testReadBytesAsyncWithTargetBufferAdjustsPosition() throws Exception {

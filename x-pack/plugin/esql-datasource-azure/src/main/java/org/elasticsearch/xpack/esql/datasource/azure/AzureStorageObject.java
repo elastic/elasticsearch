@@ -15,14 +15,15 @@ import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
@@ -116,10 +117,43 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             }
             return stream;
         } catch (Exception e) {
-            throw classify(e, "Failed to read object from");
+            throw throwReadFailure("Failed to read object from", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
+    }
+
+    /**
+     * Maps a failure from the Azure blob client into the exception to surface to ES|QL. A retryable
+     * transport status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may
+     * succeed on retry); any other failure becomes an {@link IOException}, which the external source
+     * operator classifies as a client-class 400. Returns (never throws) so both the synchronous and
+     * async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof BlobStorageException bse && ExternalUnavailableException.isRetryableStatus(bse.getStatusCode())) {
+            boolean throttling = ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+            return new ExternalUnavailableException(
+                throttling,
+                cause,
+                "Azure store unavailable reading [{}] (HTTP {})",
+                path,
+                bse.getStatusCode()
+            );
+        }
+        return new IOException(context + " " + path, cause);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, Throwable cause) throws IOException {
+        Exception mapped = mapReadFailure(context, cause);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
     }
 
     @Override
@@ -143,30 +177,10 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
                 // contract for an open-ended read past the end is an empty stream.
                 return InputStream.nullInputStream();
             }
-            throw classify(e, "Range request failed for");
+            throw throwReadFailure("Range request failed for", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, toEnd ? 0L : length);
         }
-    }
-
-    /**
-     * Types transient/throttle Azure failures so the provider-agnostic retry layer classifies them like S3/GCS;
-     * 4xx and other failures surface as a plain IOException and are not retried.
-     */
-    private IOException classify(Exception e, String operation) {
-        if (e instanceof BlobStorageException bse) {
-            int status = bse.getStatusCode();
-            if (status == 404) {
-                return new IOException("Object not found: " + path, e);
-            }
-            if (status == 503 || status == 429) {
-                return new TransientStorageException(operation + " " + path, e, true);
-            }
-            if (status >= 500) {
-                return new TransientStorageException(operation + " " + path, e, false);
-            }
-        }
-        return new IOException(operation + " " + path, e);
     }
 
     @Override
@@ -250,9 +264,15 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (blobAsyncClient == null) {
-            super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, factory, executor, listener);
             return;
         }
 
@@ -264,16 +284,29 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
+
+        int len = Math.toIntExact(length);
+        final DirectReadBuffer drb;
+        try {
+            drb = factory.allocate(len);
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
 
         BlobRange range = new BlobRange(position, length);
         long startNanos = System.nanoTime();
         blobAsyncClient.downloadWithResponse(range, null, null, false)
             .flatMapMany(response -> response.getValue())
-            .reduce(ByteBuffer.allocateDirect(Math.toIntExact(length)), (acc, buf) -> {
-                if (buf.remaining() > acc.remaining()) {
+            .reduce(drb.buffer(), (acc, chunk) -> {
+                if (chunk.remaining() > acc.remaining()) {
                     throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
                 }
-                acc.put(buf);
+                acc.put(chunk);
                 return acc;
             })
             .map(buffer -> {
@@ -284,11 +317,23 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
             .whenComplete((buffer, error) -> {
                 if (error != null) {
                     counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // Release eagerly on the failure path so the breaker charge does not outlive
+                    // the failed request.
+                    drb.close();
                     Throwable cause = error.getCause() != null ? error.getCause() : error;
-                    listener.onFailure(cause instanceof Exception e ? e : new RuntimeException(cause));
+                    listener.onFailure(mapReadFailure("Failed to read bytes from", cause));
                 } else {
                     counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
-                    listener.onResponse(buffer);
+                    try {
+                        listener.onResponse(drb);
+                    } catch (Exception e) {
+                        try {
+                            drb.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
                 }
             });
     }

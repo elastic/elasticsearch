@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
@@ -137,46 +140,76 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
-        readBytesAsyncWithRetry(position, length, executor, listener, 0, System.nanoTime());
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
+        readBytesAsyncWithRetry(position, length, factory, executor, listener, 0, System.nanoTime());
     }
 
     private void readBytesAsyncWithRetry(
         long position,
         long length,
+        DirectBufferFactory factory,
         Executor executor,
-        ActionListener<ByteBuffer> listener,
+        ActionListener<DirectReadBuffer> listener,
         int attempt,
         long startNanos
     ) {
-        delegate.readBytesAsync(position, length, executor, ActionListener.wrap(result -> {
-            retryPolicy.notifySuccess();
-            listener.onResponse(result);
-        }, e -> {
-            RetryPolicy.RetryDecision decision = retryPolicy.decide(e, attempt, startNanos);
-            if (decision.retry() == false) {
-                listener.onFailure(e);
-                return;
-            }
-            retryCounters.addRetry();
-            logger.debug(
-                "retrying async read for [{}] (attempt [{}], delay [{}]ms): [{}]",
-                delegate.path(),
-                attempt + 1,
-                decision.delayMillis(),
-                e.getMessage()
-            );
-            executor.execute(() -> {
+        delegate.readBytesAsync(position, length, factory, executor, new ActionListener<>() {
+            @Override
+            public void onResponse(DirectReadBuffer result) {
+                retryPolicy.notifySuccess();
+                // Do NOT route a throw from listener.onResponse into onFailure — that would
+                // trigger retry logic or double-complete the downstream listener. Propagate
+                // the exception directly so the caller's uncaught-exception handler deals with it.
                 try {
-                    Thread.sleep(decision.delayMillis());
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    listener.onFailure(new IOException("Retry interrupted", ie));
+                    listener.onResponse(result);
+                } catch (Exception e) {
+                    // listener.onResponse threw before consuming the buffer; release it so the
+                    // breaker reservation does not outlive the failed delivery.
+                    try {
+                        result.close();
+                    } catch (Exception closeEx) {
+                        e.addSuppressed(closeEx);
+                    }
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // One shared decision point (classify, budget, backoff) for every driver. The delegate has
+                // already released its DirectReadBuffer on the failure path, so a retry simply allocates a
+                // fresh one via the factory on the next attempt — nothing to release here.
+                RetryPolicy.RetryDecision decision = retryPolicy.decide(e, attempt, startNanos);
+                if (decision.retry() == false) {
+                    listener.onFailure(e);
                     return;
                 }
-                readBytesAsyncWithRetry(position, length, executor, listener, attempt + 1, startNanos);
-            });
-        }));
+                retryCounters.addRetry();
+                logger.debug(
+                    "retrying async read for [{}] (attempt [{}], delay [{}]ms): [{}]",
+                    delegate.path(),
+                    attempt + 1,
+                    decision.delayMillis(),
+                    e.getMessage()
+                );
+                executor.execute(() -> {
+                    try {
+                        Thread.sleep(decision.delayMillis());
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        listener.onFailure(new IOException("Retry interrupted", ie));
+                        return;
+                    }
+                    readBytesAsyncWithRetry(position, length, factory, executor, listener, attempt + 1, startNanos);
+                });
+            }
+        });
     }
 
     @Override
@@ -246,15 +279,17 @@ class RetryableStorageObject implements StorageObject {
                         episodeStartNanos = 0;
                     }
                     return n;
-                } catch (IOException e) {
+                } catch (IOException | ExternalUnavailableException e) {
+                    // A raw transport fault surfaces as an IOException; a provider's typing wrapper re-types a
+                    // mid-read status fault as the unchecked ExternalUnavailableException. Both drive a resume.
                     reopenOrThrow(e);
                 }
             }
         }
 
-        private void reopenOrThrow(IOException e) throws IOException {
+        private void reopenOrThrow(Exception e) throws IOException {
             if (totalResumes >= MAX_TOTAL_RESUMES) {
-                throw e;
+                throw rethrow(e);
             }
             if (episodeStartNanos == 0) {
                 episodeStartNanos = System.nanoTime();
@@ -263,7 +298,7 @@ class RetryableStorageObject implements StorageObject {
             // byte progress), feed adaptive backoff on a throttle, and check the episode time budget.
             RetryPolicy.RetryDecision decision = retryPolicy.decide(e, failuresSinceProgress, episodeStartNanos);
             if (decision.retry() == false) {
-                throw e;
+                throw rethrow(e);
             }
             closeQuietly(current);
             if (decision.delayMillis() > 0) {
@@ -327,6 +362,19 @@ class RetryableStorageObject implements StorageObject {
             } catch (IOException ignored) {
                 // best-effort: discarding this stream to re-open a fresh range
             }
+        }
+
+        /**
+         * Rethrows the caught fault preserving its type, on the give-up path. The resume loop only ever catches an
+         * {@link IOException} (raw transport) or the unchecked {@link ExternalUnavailableException} (a typed status
+         * fault), so the cast is safe. Declares a return type so callers can write {@code throw rethrow(e)} and the
+         * compiler sees an exit.
+         */
+        private static RuntimeException rethrow(Exception e) throws IOException {
+            if (e instanceof IOException io) {
+                throw io;
+            }
+            return (RuntimeException) e;
         }
     }
 }

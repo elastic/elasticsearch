@@ -17,8 +17,8 @@ import com.azure.core.http.HttpResponse;
 import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,7 +27,7 @@ import java.nio.charset.Charset;
 
 /**
  * Verifies that {@link AzureTransientTypingInputStream} re-types a mid-read fault into a
- * {@link TransientStorageException} so the provider-agnostic resume loop engages.
+ * {@link ExternalUnavailableException} so the provider-agnostic resume loop engages.
  * <p>
  * The Azure {@code BlobInputStream} never lets a {@link BlobStorageException} escape the stream:
  * {@code dispatchRead} catches it and rethrows it wrapped in a plain {@link IOException} (its cause). These tests
@@ -40,26 +40,26 @@ public class AzureTransientTypingInputStreamTests extends ESTestCase {
 
     public void testMidReadBlobStorageException503RetypedAsThrottling() throws IOException {
         AzureTransientTypingInputStream wrapped = new AzureTransientTypingInputStream(faultingStream(blobStorageException(503)), PATH);
-        TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
         assertTrue("a 503 surfaced mid-read is throttling", e.throttling());
     }
 
     public void testMidReadBlobStorageException429RetypedAsThrottling() throws IOException {
         AzureTransientTypingInputStream wrapped = new AzureTransientTypingInputStream(faultingStream(blobStorageException(429)), PATH);
-        TransientStorageException e = expectThrows(TransientStorageException.class, () -> wrapped.read(new byte[8], 0, 8));
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> wrapped.read(new byte[8], 0, 8));
         assertTrue("a 429 surfaced mid-read is throttling", e.throttling());
     }
 
     public void testMidReadBlobStorageException500IsTransientNotThrottling() throws IOException {
         AzureTransientTypingInputStream wrapped = new AzureTransientTypingInputStream(faultingStream(blobStorageException(500)), PATH);
-        TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
         assertFalse("500 mid-read is transient but not throttling", e.throttling());
     }
 
     public void testMidReadPlainTransportIOExceptionIsTransientNotThrottling() throws IOException {
         // A transport drop with no BlobStorageException cause is still re-typed transient so the resume engages.
         AzureTransientTypingInputStream wrapped = new AzureTransientTypingInputStream(faultingStream(null), PATH);
-        TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, wrapped::read);
         assertFalse("a plain transport IOException is transient but not throttling", e.throttling());
     }
 

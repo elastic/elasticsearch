@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
@@ -240,7 +240,9 @@ class RetryPolicy {
                     adaptiveBackoff.onSuccess();
                 }
                 return result;
-            } catch (IOException e) {
+            } catch (IOException | ExternalUnavailableException e) {
+                // ExternalUnavailableException is an unchecked QlException (it maps to a 503), so it is caught
+                // explicitly alongside the checked transport IOExceptions; both flow through the one decision point.
                 RetryDecision decision = decide(e, attempt, startNanos);
                 if (decision.retry() == false) {
                     throw e;
@@ -283,7 +285,7 @@ class RetryPolicy {
     private static boolean isThrottlingSingleCause(Throwable t) {
         // Throttling (HTTP 429 / 503 / SlowDown) is classified by the provider from the status code and flagged
         // on the typed exception; it is no longer inferred from message text.
-        return t instanceof TransientStorageException tse && tse.throttling();
+        return t instanceof ExternalUnavailableException eue && eue.throttling();
     }
 
     private static boolean isTransientStorageError(Throwable t) {
@@ -297,7 +299,9 @@ class RetryPolicy {
 
     private static boolean isTransientSingleCause(Throwable t) {
         // Typed signal from a storage provider: it classified this fault by type/status (no message sniffing).
-        if (t instanceof TransientStorageException) {
+        // Every retryable remote-store status (5xx/429/timeout) is mapped to ExternalUnavailableException at the
+        // provider boundary, so the retry layer keys on the type, not the HTTP status or the message.
+        if (t instanceof ExternalUnavailableException) {
             return true;
         }
         // ConnectException is a SocketException subtype, so it must be checked FIRST: a failure to (re)connect
@@ -315,7 +319,7 @@ class RetryPolicy {
         if (t instanceof SocketTimeoutException || t instanceof SocketException || t instanceof InterruptedIOException) {
             return true;
         }
-        // HTTP-status transients (500 / 503 / 429) reach here only as a typed TransientStorageException raised
+        // HTTP-status transients (500 / 503 / 429) reach here only as a typed ExternalUnavailableException raised
         // by the provider (the layer that has the status code), which is already handled above; a bare throwable
         // (no transient type, no JDK transport type) is treated as a real error.
         return false;

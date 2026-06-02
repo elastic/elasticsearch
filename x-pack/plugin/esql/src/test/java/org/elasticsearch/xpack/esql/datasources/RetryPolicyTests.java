@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.net.ConnectException;
@@ -70,13 +70,13 @@ public class RetryPolicyTests extends ESTestCase {
         RetryPolicy policy = RetryPolicy.DEFAULT;
         // Providers classify transient transport faults and retryable server responses (500 / 503 / 429) by
         // type and status code, then raise this typed marker; the retry layer reacts to the type, not text.
-        assertTrue(policy.isRetryable(new TransientStorageException("transient transport fault", null)));
-        assertTrue(policy.isRetryable(new TransientStorageException("throttled", null, true)));
+        assertTrue(policy.isRetryable(new ExternalUnavailableException("transient transport fault", (Throwable) null)));
+        assertTrue(policy.isRetryable(new ExternalUnavailableException(true, "throttled")));
     }
 
     public void testWrappedTransientMarkerIsRetryable() {
         RetryPolicy policy = RetryPolicy.DEFAULT;
-        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new TransientStorageException("transient", null))));
+        assertTrue(policy.isRetryable(new RuntimeException("wrapper", new ExternalUnavailableException("transient", (Throwable) null))));
     }
 
     public void testNonTransientErrorIsNotRetryable() {
@@ -253,7 +253,7 @@ public class RetryPolicyTests extends ESTestCase {
 
         String result = policy.execute(() -> {
             if (calls.incrementAndGet() <= 6) {
-                throw new TransientStorageException("throttled", null, true);
+                throw new ExternalUnavailableException(true, "throttled");
             }
             return "ok";
         }, "test", path);
@@ -289,11 +289,11 @@ public class RetryPolicyTests extends ESTestCase {
     public void testIsThrottlingErrorClassification() {
         // Throttling is decided by the provider (from the HTTP status) and flagged on the typed marker; it is
         // no longer inferred from message text. The throttling marker is recognized through the cause chain.
-        assertTrue(RetryPolicy.isThrottlingError(new TransientStorageException("throttled", null, true)));
-        assertTrue(RetryPolicy.isThrottlingError(new RuntimeException("wrapper", new TransientStorageException("throttled", null, true))));
+        assertTrue(RetryPolicy.isThrottlingError(new ExternalUnavailableException(true, "throttled")));
+        assertTrue(RetryPolicy.isThrottlingError(new RuntimeException("wrapper", new ExternalUnavailableException(true, "throttled"))));
 
         // A plain transient marker is retryable but not throttling.
-        assertFalse(RetryPolicy.isThrottlingError(new TransientStorageException("transient transport", null, false)));
+        assertFalse(RetryPolicy.isThrottlingError(new ExternalUnavailableException(false, "transient transport")));
         assertFalse(RetryPolicy.isThrottlingError(new SocketTimeoutException("timeout")));
         assertFalse(RetryPolicy.isThrottlingError(new ConnectException("refused")));
         assertFalse(RetryPolicy.isThrottlingError(new IOException("Service Unavailable")));

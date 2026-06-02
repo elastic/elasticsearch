@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -104,7 +106,13 @@ public class RetryableStorageObjectTests extends ESTestCase {
         }
 
         @Override
-        public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
             throw new UnsupportedOperationException();
         }
 
@@ -229,7 +237,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             400,
-            new TransientStorageException("mid-read drop", new IOException("premature end of body"))
+            new ExternalUnavailableException("mid-read drop", new IOException("premature end of body"))
         );
 
         RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
@@ -337,13 +345,17 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             0,
-            new TransientStorageException("persistent drop", new IOException("premature end of body")),
+            new ExternalUnavailableException("persistent drop", new IOException("premature end of body")),
             true
         );
 
         RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
         try (InputStream in = obj.newStream(0, payload.length)) {
-            expectThrows(IOException.class, in::readAllBytes);
+            // The injected transient fault is an ExternalUnavailableException; on budget exhaustion the resume
+            // loop rethrows the ORIGINAL fault preserving its type, so the give-up surfaces as that EUE (not an
+            // IOException). A non-transient give-up (see testRangeReadPropagatesNonTransientMidReadError) still
+            // surfaces as the original IOException.
+            expectThrows(ExternalUnavailableException.class, in::readAllBytes);
         }
         // Initial open + 2 retries (the budget), then it gives up.
         assertEquals("re-opened up to the retry budget then gave up", 3, delegate.openCount());
@@ -365,7 +377,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
             StoragePath.of("s3://bucket/key"),
             payload,
             150,
-            new TransientStorageException("flaky drop", new IOException("premature end of body")),
+            new ExternalUnavailableException("flaky drop", new IOException("premature end of body")),
             true
         );
 
@@ -386,15 +398,18 @@ public class RetryableStorageObjectTests extends ESTestCase {
         private final StoragePath path;
         private final byte[] payload;
         private final int failAfterBytes;
-        private final IOException midReadFailure;
+        // The injected mid-read fault is either a checked transport IOException (e.g. SocketException) or the
+        // unchecked ExternalUnavailableException raised by a provider's typing wrapper, so it is typed as the
+        // common Exception supertype here and rethrown preserving its concrete type in FailingAfterNStream.
+        private final Exception midReadFailure;
         private final boolean alwaysFail;
         private int opens = 0;
 
-        MidReadFailingStorageObject(StoragePath path, byte[] payload, int failAfterBytes, IOException midReadFailure) {
+        MidReadFailingStorageObject(StoragePath path, byte[] payload, int failAfterBytes, Exception midReadFailure) {
             this(path, payload, failAfterBytes, midReadFailure, false);
         }
 
-        MidReadFailingStorageObject(StoragePath path, byte[] payload, int failAfterBytes, IOException midReadFailure, boolean alwaysFail) {
+        MidReadFailingStorageObject(StoragePath path, byte[] payload, int failAfterBytes, Exception midReadFailure, boolean alwaysFail) {
             this.path = path;
             this.payload = payload;
             this.failAfterBytes = failAfterBytes;
@@ -520,23 +535,35 @@ public class RetryableStorageObjectTests extends ESTestCase {
         }
     }
 
-    /** Delivers up to {@code failAfter} bytes of {@code data}, then throws {@code failure} on the next read. */
+    /**
+     * Delivers up to {@code failAfter} bytes of {@code data}, then throws {@code failure} on the next read. The
+     * fault is either a checked transport {@link IOException} or the unchecked {@link ExternalUnavailableException}
+     * raised by a provider's mid-read typing wrapper; {@link #throwFailure()} rethrows it preserving its concrete
+     * type, so the resume loop classifies it exactly as it would in production.
+     */
     private static final class FailingAfterNStream extends InputStream {
         private final byte[] data;
         private final int failAfter;
-        private final IOException failure;
+        private final Exception failure;
         private int pos = 0;
 
-        FailingAfterNStream(byte[] data, int failAfter, IOException failure) {
+        FailingAfterNStream(byte[] data, int failAfter, Exception failure) {
             this.data = data;
             this.failAfter = failAfter;
             this.failure = failure;
         }
 
+        private int throwFailure() throws IOException {
+            if (failure instanceof IOException io) {
+                throw io;
+            }
+            throw (RuntimeException) failure;
+        }
+
         @Override
         public int read() throws IOException {
             if (pos >= failAfter) {
-                throw failure;
+                return throwFailure();
             }
             return pos < data.length ? data[pos++] & 0xFF : -1;
         }
@@ -544,7 +571,7 @@ public class RetryableStorageObjectTests extends ESTestCase {
         @Override
         public int read(byte[] b, int off, int len) throws IOException {
             if (pos >= failAfter) {
-                throw failure;
+                return throwFailure();
             }
             if (pos >= data.length) {
                 return -1;

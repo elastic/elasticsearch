@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -18,7 +18,7 @@ import java.io.InputStream;
 
 /**
  * Wraps a GCS object-read stream so a fault <em>while reading the body</em> surfaces as a typed
- * {@link TransientStorageException} the provider-agnostic resume loop can act on.
+ * {@link ExternalUnavailableException} the provider-agnostic resume loop can act on.
  * <p>
  * The GCS {@code ReadChannel} does not let a {@link StorageException} escape the stream: its {@code read}
  * ({@code BaseStorageReadChannel.read}) catches the {@link StorageException} and rethrows it wrapped in a plain
@@ -56,10 +56,10 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
         }
     }
 
-    private TransientStorageException type(IOException e) {
+    private ExternalUnavailableException type(IOException e) {
         // The throttle status lives on the cause (the StorageException the ReadChannel wrapped); absent that, a
         // mid-read transport fault is still transient, just not throttling.
-        boolean throttling = e.getCause() instanceof StorageException se && (se.getCode() == 503 || se.getCode() == 429);
-        return new TransientStorageException("transient read failure for " + path, e, throttling);
+        boolean throttling = e.getCause() instanceof StorageException se && ExternalUnavailableException.isThrottlingStatus(se.getCode());
+        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
     }
 }

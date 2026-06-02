@@ -11,8 +11,8 @@ import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.io.InputStream;
 
 /**
  * Wraps an S3 object-read stream so that any failure <em>while reading raw bytes</em> is surfaced as a
- * typed {@link TransientStorageException} rather than a bare {@link IOException} or AWS {@link SdkException}.
+ * typed {@link ExternalUnavailableException} rather than a bare {@link IOException} or AWS {@link SdkException}.
  * <p>
  * At this layer there is no parsing — the bytes are an opaque object range — so a read failure here is
  * almost always a transport fault (connection reset, premature end of body, read timeout, aborted stream).
@@ -59,11 +59,11 @@ final class TransientTypingInputStream extends FilterInputStream implements Abor
         }
     }
 
-    private TransientStorageException wrap(Exception e) {
+    private ExternalUnavailableException wrap(Exception e) {
         // A mid-body read fault is a transport fault (the request already succeeded), so it is always transient;
         // flag throttling for the rare 503/429 surfaced during the body read so it shares the throttle budget.
-        boolean throttling = e instanceof S3Exception s3e && (s3e.statusCode() == 503 || s3e.statusCode() == 429);
-        return new TransientStorageException("transient read failure for " + path, e, throttling);
+        boolean throttling = e instanceof S3Exception s3e && ExternalUnavailableException.isThrottlingStatus(s3e.statusCode());
+        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
     }
 
     @Override

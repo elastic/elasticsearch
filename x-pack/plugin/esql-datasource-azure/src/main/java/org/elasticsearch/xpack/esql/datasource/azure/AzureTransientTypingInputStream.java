@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import com.azure.storage.blob.models.BlobStorageException;
 
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
-import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -18,7 +18,7 @@ import java.io.InputStream;
 
 /**
  * Wraps an Azure blob-read stream so a fault <em>while reading the body</em> surfaces as a typed
- * {@link TransientStorageException} the provider-agnostic resume loop can act on.
+ * {@link ExternalUnavailableException} the provider-agnostic resume loop can act on.
  * <p>
  * The Azure {@code BlobInputStream} does not let a {@link BlobStorageException} escape the stream: its
  * {@code dispatchRead} catches the {@link BlobStorageException} and rethrows it wrapped in a plain
@@ -55,10 +55,11 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
         }
     }
 
-    private TransientStorageException type(IOException e) {
+    private ExternalUnavailableException type(IOException e) {
         // The throttle status lives on the cause (the BlobStorageException the stream wrapped); absent that, a
         // mid-read transport fault is still transient, just not throttling.
-        boolean throttling = e.getCause() instanceof BlobStorageException bse && (bse.getStatusCode() == 503 || bse.getStatusCode() == 429);
-        return new TransientStorageException("transient read failure for " + path, e, throttling);
+        boolean throttling = e.getCause() instanceof BlobStorageException bse
+            && ExternalUnavailableException.isThrottlingStatus(bse.getStatusCode());
+        return new ExternalUnavailableException(throttling, e, "transient read failure for [{}]", path);
     }
 }

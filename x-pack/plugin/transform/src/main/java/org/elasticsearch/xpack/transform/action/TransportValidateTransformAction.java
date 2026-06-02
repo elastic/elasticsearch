@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
     private final Settings nodeSettings;
     private final SourceDestValidator sourceDestValidator;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportValidateTransformAction(
@@ -60,7 +62,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         ClusterService clusterService,
         Settings settings,
         IngestService ingestService,
-        TransformServices transformServices
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -79,6 +82,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             License.OperationMode.BASIC.description()
         );
         this.crossProjectModeDecider = transformServices.crossProjectModeDecider();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -101,7 +105,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             }
         }
 
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         var config = request.getConfig();
         var function = FunctionFactory.create(config);

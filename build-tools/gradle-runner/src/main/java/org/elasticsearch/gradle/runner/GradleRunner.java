@@ -115,6 +115,12 @@ public class GradleRunner {
             exitCode = EXIT_RUNNER_ERROR;
         }
 
+        // Kill any remaining worker processes after the build has finished and the daemon
+        // has had a chance to collect results and upload the build scan.
+        if (canceller.isCancelled()) {
+            BuildCanceller.killRemainingWorkers();
+        }
+
         writeStatusReport(tracker, projectDir);
 
         if (GcpPreemptionWatchdog.isPreempted()) {

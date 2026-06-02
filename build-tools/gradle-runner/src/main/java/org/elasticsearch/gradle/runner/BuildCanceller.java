@@ -20,16 +20,14 @@ import java.util.List;
 
 /**
  * Reacts to a {@link GcpPreemptionWatchdog} signal by cancelling the Gradle build via the
- * Tooling API's {@link CancellationTokenSource} and force-killing all descendant processes.
+ * Tooling API's {@link CancellationTokenSource}, writing marker files for the build scan
+ * script, and — after the build finishes — cleaning up any remaining worker processes.
  *
- * <p>Two layers:
- * <ol>
- *   <li><b>{@link CancellationTokenSource#cancel()}</b>: tells Gradle's task executor to
- *       stop dispatching new work (equivalent to Ctrl+C from the CLI).</li>
- *   <li><b>Force-kill all descendant processes</b>: every child JVM spawned by the build
- *       (test workers, compiler daemons) is destroyed immediately via
- *       {@link ProcessHandle#destroyForcibly()}.</li>
- * </ol>
+ * <p>The cancellation token tells Gradle to stop scheduling new tasks and interrupt running
+ * work. Worker processes are <em>not</em> killed immediately: the daemon needs them alive
+ * to collect results and finalize the build scan. After {@code launcher.run()} returns
+ * (i.e. the daemon has finished all {@code buildFinished} hooks and uploaded the scan),
+ * {@link #killRemainingWorkers()} should be called to mop up any stragglers.
  */
 public final class BuildCanceller {
 
@@ -46,8 +44,10 @@ public final class BuildCanceller {
 
     /**
      * Registers this canceller as a listener on the preemption watchdog. When preemption
-     * is detected, the build is cancelled, a marker file is written for the build scan
-     * script to read, and descendant worker processes are killed.
+     * is detected, marker files are written and the build is cancelled via the cancellation
+     * token. Worker processes are intentionally left alive so the daemon can collect their
+     * results and finalize the build scan; call {@link #killRemainingWorkers()} after
+     * {@code launcher.run()} returns.
      */
     public void install() {
         GcpPreemptionWatchdog.onPreempted(() -> {
@@ -55,7 +55,6 @@ public final class BuildCanceller {
             writeMarkerFile();
             writePreemptionExitFile();
             cancelBuild();
-            killDescendantProcesses();
         });
     }
 
@@ -112,14 +111,17 @@ public final class BuildCanceller {
     }
 
     /**
-     * Force-kills worker processes spawned by the Gradle daemon (test workers, compiler
-     * daemons) without killing the daemon itself. The daemon must stay alive so it can
-     * process the cancellation token, finalize the build scan, and shut down cleanly.
+     * Force-kills any worker processes still alive after the build has finished. Call this
+     * after {@code launcher.run()} returns to clean up stragglers — test workers or compiler
+     * daemons that didn't exit when the cancellation token fired.
+     *
+     * <p>Must not be called during the preemption callback: the daemon needs workers alive
+     * to collect results and finalize the build scan.
      *
      * <p>Our direct children are Gradle daemon processes; their children are the workers
      * we want to kill.
      */
-    private static void killDescendantProcesses() {
+    public static void killRemainingWorkers() {
         List<ProcessHandle> workers = ProcessHandle.current().children().flatMap(ProcessHandle::children).toList();
         if (workers.isEmpty()) {
             System.out.println("[gcp-preemption-watchdog] no worker processes found");

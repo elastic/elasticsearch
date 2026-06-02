@@ -216,7 +216,6 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         }
     }
 
-
     /**
      * End-to-end regression for the idle/connection reset on an already-open external segment stream. Unlike
      * {@link #testMultiSegmentNdjsonReadRecoversFromConnectionReset} (which resets at stream-open, where the

@@ -92,11 +92,13 @@ final class ClassicHistogramQuantileStates {
     }
 
     /**
-     * Estimates a quantile from classic histogram buckets using PromQL {@code histogram_quantile} semantics:
-     * coalesce duplicate bounds, repair non-monotonic counts, then linearly interpolate within the target bucket.
+     * Estimates a quantile from pre-aggregated classic histogram buckets using PromQL {@code histogram_quantile}
+     * semantics: repair non-monotonic counts, then linearly interpolate within the target bucket.
+     * <p>
+     * Callers must pass at most one bucket per exact upper bound.
      *
      * @param quantile fraction in {@code [0, 1]}; out-of-range and NaN inputs follow PromQL edge-case rules
-     * @param inputBuckets cumulative buckets sorted by upper bound, ending with {@code +Inf}
+     * @param inputBuckets pre-aggregated cumulative buckets ending with {@code +Inf}; the method sorts them by upper bound
      * @return the interpolated estimate, or {@link Double#NaN} when the histogram cannot produce one
      */
     static double bucketQuantile(double quantile, List<Bucket> inputBuckets) {
@@ -115,11 +117,11 @@ final class ClassicHistogramQuantileStates {
 
         List<Bucket> buckets = new ArrayList<>(inputBuckets);
         buckets.sort(Comparator.comparingDouble(Bucket::upperBound));
+        assert hasDistinctUpperBounds(buckets) : "histogram buckets must be pre-aggregated by upper bound";
         if (Double.isInfinite(buckets.getLast().upperBound()) == false || buckets.getLast().upperBound() < 0) {
             return Double.NaN;
         }
 
-        buckets = coalesceBuckets(buckets);
         ensureMonotonicAndIgnoreSmallDeltas(buckets, SMALL_DELTA_TOLERANCE);
 
         if (buckets.size() < 2) {
@@ -153,6 +155,21 @@ final class ClassicHistogramQuantileStates {
     }
 
     /**
+     * Returns whether the buckets have already been pre-aggregated by exact upper bound.
+     */
+    private static boolean hasDistinctUpperBounds(List<Bucket> buckets) {
+        long previousKey = Double.doubleToLongBits(buckets.getFirst().upperBound());
+        for (int i = 1; i < buckets.size(); i++) {
+            long currentKey = Double.doubleToLongBits(buckets.get(i).upperBound());
+            if (previousKey == currentKey) {
+                return false;
+            }
+            previousKey = currentKey;
+        }
+        return true;
+    }
+
+    /**
      * Returns the index of the first bucket whose cumulative count is at least {@code rank}, excluding the
      * sentinel {@code +Inf} bucket at the end of the list.
      */
@@ -169,25 +186,6 @@ final class ClassicHistogramQuantileStates {
                 low = mid + 1;
             }
         }
-        return result;
-    }
-
-    /**
-     * Merges buckets that share the same upper bound by summing their cumulative counts.
-     */
-    private static List<Bucket> coalesceBuckets(List<Bucket> buckets) {
-        List<Bucket> result = new ArrayList<>(buckets.size());
-        Bucket previous = buckets.getFirst();
-        for (int i = 1; i < buckets.size(); i++) {
-            Bucket bucket = buckets.get(i);
-            if (bucket.upperBound() == previous.upperBound()) {
-                previous = new Bucket(previous.upperBound(), previous.count() + bucket.count());
-            } else {
-                result.add(previous);
-                previous = bucket;
-            }
-        }
-        result.add(previous);
         return result;
     }
 

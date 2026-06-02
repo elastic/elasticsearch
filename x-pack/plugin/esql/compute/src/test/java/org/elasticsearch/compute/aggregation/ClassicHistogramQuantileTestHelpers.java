@@ -19,6 +19,7 @@ import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOp
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
 
@@ -129,7 +130,33 @@ final class ClassicHistogramQuantileTestHelpers {
     }
 
     static double expectedQuantile(double quantile, List<Bucket> buckets) {
-        return ClassicHistogramQuantileStates.bucketQuantile(quantile, buckets);
+        List<Bucket> sortedBuckets = new ArrayList<>(buckets);
+        sortedBuckets.sort(Comparator.comparingDouble(Bucket::upperBound));
+        return ClassicHistogramQuantileStates.bucketQuantile(quantile, coalesceBuckets(sortedBuckets));
+    }
+
+    /**
+     * Merges buckets that share the same upper bound by summing their cumulative counts before calling
+     * {@link ClassicHistogramQuantileStates#bucketQuantile}. The production state does the same merge as raw and
+     * intermediate buckets are added, so the quantile helper can assert that its input is already pre-aggregated.
+     */
+    private static List<Bucket> coalesceBuckets(List<Bucket> buckets) {
+        if (buckets.isEmpty()) {
+            return buckets;
+        }
+        List<Bucket> result = new ArrayList<>(buckets.size());
+        Bucket previous = buckets.getFirst();
+        for (int i = 1; i < buckets.size(); i++) {
+            Bucket bucket = buckets.get(i);
+            if (bucket.upperBound() == previous.upperBound()) {
+                previous = new Bucket(previous.upperBound(), previous.count() + bucket.count());
+            } else {
+                result.add(previous);
+                previous = bucket;
+            }
+        }
+        result.add(previous);
+        return result;
     }
 
     static List<Bucket> canonicalHistogram() {

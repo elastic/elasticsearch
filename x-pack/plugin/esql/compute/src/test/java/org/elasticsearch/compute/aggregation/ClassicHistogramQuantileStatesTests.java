@@ -81,12 +81,15 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         assertThat(ClassicHistogramQuantileStates.bucketQuantile(quantile, monotonicBuckets), closeTo(2.00000000000025, 1e-15));
     }
 
-    public void testBucketQuantileCoalescesDuplicateBounds() {
-        List<Bucket> duplicateBoundBuckets = List.of(new Bucket(1.0, 1.0), new Bucket(1.0, 1.0), new Bucket(Double.POSITIVE_INFINITY, 2.0));
-        List<Bucket> coalescedBuckets = List.of(new Bucket(1.0, 2.0), new Bucket(Double.POSITIVE_INFINITY, 2.0));
-
-        assertBucketQuantileMatchesMonotonicVariant(0.5, duplicateBoundBuckets, coalescedBuckets);
-        assertThat(ClassicHistogramQuantileStates.bucketQuantile(0.5, coalescedBuckets), equalTo(0.5));
+    public void testBucketQuantileAssertsDuplicateBounds() {
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> ClassicHistogramQuantileStates.bucketQuantile(
+                0.5,
+                List.of(new Bucket(1.0, 1.0), new Bucket(1.0, 1.0), new Bucket(Double.POSITIVE_INFINITY, 2.0))
+            )
+        );
+        assertThat(e.getMessage(), equalTo("histogram buckets must be pre-aggregated by upper bound"));
     }
 
     public void testBucketQuantileSortsUnsortedBuckets() {
@@ -293,6 +296,20 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
             assertThat(breaker.getUsed(), equalTo(afterFirst));
         }
         assertThat(breaker.getUsed(), equalTo(0L));
+    }
+
+    public void testSingleStateMergingEqualBoundsSumsCounts() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+
+        try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
+            state.add(1.0, 1.0);
+            state.add(1.0, 2.0);
+            state.add(Double.POSITIVE_INFINITY, 3.0);
+            try (DoubleBlock result = (DoubleBlock) state.evaluateFinal(driverContext)) {
+                assertThat(result.getDouble(0), equalTo(0.5));
+            }
+        }
     }
 
     public void testSingleStateCrankyCircuitBreaker() {

@@ -11,7 +11,6 @@ import io.netty.channel.ChannelOption;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
@@ -122,7 +121,11 @@ public final class S3StorageProvider implements StorageProvider {
         } else if (config != null && config.hasCredentials()) {
             credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
         } else {
-            credentialsProvider = DefaultCredentialsProvider.create();
+            // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+            throw new IllegalArgumentException(
+                "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
+                    + "or WITH (auth = 'none') for public buckets"
+            );
         }
         builder.credentialsProvider(credentialsProvider);
 
@@ -229,7 +232,7 @@ public final class S3StorageProvider implements StorageProvider {
     private String credentialHint() {
         if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
             return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...') or set AWS environment variables";
+                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...')";
         }
         return "";
     }

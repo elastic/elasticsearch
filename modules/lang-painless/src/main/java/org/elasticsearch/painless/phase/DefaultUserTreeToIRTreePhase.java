@@ -271,13 +271,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
     protected ClassNode irClassNode;
 
-    /**
-     * Attaches per-loop safety mechanisms. Opted-in contexts get both {@link IRCCancellationCheck}
-     * (cancellation path) and {@link IRDMaxLoopCounter} (legacy fallback when no runnable is
-     * bound at runtime). Non-opted-in contexts get only the legacy counter (unchanged).
-     * Static functions (lambdas that don't capture {@code this}) cannot call
-     * {@code _getCancellationCheck()} and therefore only receive the legacy counter.
-     */
     protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
         if (scriptScope.getScriptClassInfo().supportsCancellation() && irFunctionNode.hasCondition(IRCStatic.class) == false) {
             irFunctionNode.attachCondition(IRCCancellationCheck.class);
@@ -1428,12 +1421,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
-        // For typed static lambdas in cancellation-aware scripts: inject the script receiver as a
-        // synthetic first capture so the lambda body shares the script's persistent $cancelPoll
-        // counter and can fetch the cancel Runnable via _getCancellationCheck(). The enclosing
-        // function exposes itself as "#scriptThis" (compiler-internal namespace, matching the
-        // other "#"-prefixed bookkeeping locals); the lambda receives it as a parameter of the
-        // script base class type and uses it the same way an instance method would use "this".
         boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
             && scriptScope.getScriptClassInfo().supportsCancellation()
             && scriptScope.hasDecoration(userLambdaNode, TargetType.class);
@@ -1916,13 +1903,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
-            // Pre-decide at IR construction time whether this def call's method name and arity
-            // might resolve to a @script_aware augmentation. The lookup's key set is built
-            // once at script-engine startup and is empty for non-cancellation-aware contexts, so
-            // the condition is only attached in scripts that could benefit from it; gating on the
-            // user-visible argument count additionally skips def calls whose arity can never match
-            // a cancellation-aware overload. The bytecode phase further gates on the enclosing
-            // function having a cached #cancelRunnable.
             if (scriptScope.getPainlessLookup()
                 .hasAnnotationAwareMethod(
                     ScriptAwareAnnotation.class,
@@ -1961,11 +1941,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irInvokeCallNode.addArgumentNode(constantNode);
             }
 
-            // For @script_aware augmentations, fold the prefix into the call's leading
-            // arg position instead of letting BinaryImpl evaluate it before the InvokeCallNode.
-            // visitInvokeCall pushes scriptThis first, then iterates argumentNodes — with the
-            // prefix at args[0] the resulting stack is [scriptThis, receiver, ...userArgs],
-            // matching the script-first augmentation signature without needing a swap.
             boolean cancellationAware = method.annotations().containsKey(ScriptAwareAnnotation.class);
             if (cancellationAware) {
                 irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
@@ -1981,8 +1956,6 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irExpressionNode = irInvokeCallNode;
 
             if (cancellationAware) {
-                // The prefix is part of argumentNodes now, so no BinaryImpl wrapping; the
-                // InvokeCallNode stands alone as the expression node for this user call.
                 if (userCallNode.isNullSafe()) {
                     NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(irExpressionNode.getLocation());
                     irNullSafeSubNode.setChildNode(irExpressionNode);

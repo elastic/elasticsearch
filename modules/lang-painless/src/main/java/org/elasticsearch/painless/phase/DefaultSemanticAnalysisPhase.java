@@ -2383,10 +2383,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, LastSource.class);
         visit(userBlockNode, lambdaScope);
 
-        // A static lambda in a cancellation-aware script needs the script receiver captured so its
-        // body can fetch _getCancellationCheck() and decrement $cancelPoll — the same wire effect as
-        // a lambda that calls an instance method. Reuse the instance-capture machinery to push the
-        // script receiver as a synthetic leading capture in that case too.
         boolean needsScriptCapture = lambdaScope.usesInstanceMethod() || scriptScope.getScriptClassInfo().supportsCancellation();
 
         if (needsScriptCapture) {
@@ -2500,8 +2496,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     isInstanceReference
                 );
 
-                // create() captures the script receiver for a @script_aware augmentation reference;
-                // mark the node so the construction site pushes it via the instance-capture path.
                 if (ref.isScriptAware) {
                     semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
                 }
@@ -2560,9 +2554,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         false
                     );
 
-                    // create() captures the script receiver for a @script_aware augmentation
-                    // reference; mark the node so the IR phase pushes the script receiver ahead of
-                    // the bound capture at the construction site.
                     if (ref.isScriptAware) {
                         semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
                     }
@@ -3334,10 +3325,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             semanticScope.setCondition(userCallNode, DynamicInvocation.class);
 
-            // A def call whose name/arity might resolve to a @script_aware augmentation will push the
-            // script receiver, so the enclosing function/lambda must be able to supply it (i.e. have
-            // the script as `this`). Flag it like an instance-method use so any enclosing lambda
-            // captures the script.
             if (semanticScope.getScriptScope()
                 .getPainlessLookup()
                 .hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, userArgumentsSize)) {
@@ -3347,8 +3334,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             Objects.requireNonNull(method);
             semanticScope.getScriptScope().markNonDeterministic(method.annotations().containsKey(NonDeterministicAnnotation.class));
 
-            // A statically-resolved @script_aware augmentation needs the script receiver pushed, so
-            // the enclosing function/lambda must supply it as `this`; flag it like an instance-method use.
             if (method.annotations().containsKey(ScriptAwareAnnotation.class)) {
                 semanticScope.setUsesInstanceMethod();
             }

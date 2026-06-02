@@ -248,23 +248,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (needsCancelPollField) {
             classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.CANCEL_POLL_FIELD, "I", null, null).visitEnd();
 
-            // Generate `void _pollCancellation()`, which performs one persistent-counter decrement and
-            // cancellation check against $cancelPoll — the same operation the compiler emits inline at
-            // loop back-edges. @script_aware augmentations (which run in a separate class and
-            // cannot touch the private field) call it once per iteration so their polling decrements
-            // the SAME counter as the rest of the script rather than a private copy. No-op when no
-            // cancellation runnable is bound, matching the runtime behavior of the inline loop guards.
             MethodWriter pollCancellation = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, WriterConstants.POLL_CANCELLATION);
             pollCancellation.visitCode();
             Label noRunnable = new Label();
-            // Runnable cancel = _getCancellationCheck(); if (cancel == null) return;
-            // The runnable lives in local slot 1 (slot 0 is `this`, the only parameter).
             pollCancellation.loadThis();
             pollCancellation.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
             pollCancellation.visitVarInsn(Opcodes.ASTORE, 1);
             pollCancellation.visitVarInsn(Opcodes.ALOAD, 1);
             pollCancellation.ifNull(noRunnable);
-            // `this` is the generated class, so it is the scriptThis instance (slot 0).
             writePersistentCancellationDecrement(pollCancellation, 0, 1);
             pollCancellation.mark(noRunnable);
             pollCancellation.returnValue();
@@ -354,14 +345,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // For opted-in functions: expose the script receiver under "#scriptThis" (an instance method
-        // already has it at slot 0; a static lambda receives it as a synthetic first parameter), then
-        // cache _getCancellationCheck() in #cancelRunnable and apply an entry-time persistent-counter
-        // decrement so function calls (not just loop back-edges) count toward the next cancellation
-        // poll. The counter lives in $cancelPoll on the script instance so it accumulates across
-        // execute() invocations and is shared between the script body and any static lambdas it
-        // dispatches to. When the runnable is null the entry decrement is skipped and the loop
-        // guards fall through to the legacy per-function loop counter unchanged.
         boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
         boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
@@ -369,14 +352,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (cancellation || staticCancellation) {
             Variable scriptThis;
             if (cancellation) {
-                // Instance method: ASTORE `this` into a "#scriptThis" slot so nested static lambdas
-                // can find it via IRDCaptureNames (which looks up names verbatim).
                 scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
                 methodWriter.loadThis();
                 methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
             } else {
-                // Static lambda: "#scriptThis" was already registered by the parameter-name loop
-                // above as the first parameter (slot 0), declared with the script base class type.
                 scriptThis = writeScope.getInternalVariable("scriptThis");
             }
 
@@ -407,29 +386,14 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.endMethod();
     }
 
-    /** Per-iteration guard for for/while/do-while. See {@link #writeBranchedLoopGuard}. */
     private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
         writeBranchedLoopGuard(writeScope, methodWriter, location, true);
     }
 
-    /**
-     * Per-iteration guard for for-each. Same as {@link #writeLoopGuard} for opted-in functions;
-     * emits nothing for non-opted-in (preserves historical for-each-uncovered behavior so
-     * existing filter/ingest/etc. scripts iterating large collections aren't broken).
-     */
     private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
         writeBranchedLoopGuard(writeScope, methodWriter, location, false);
     }
 
-    /**
-     * Shared loop-guard emission. Opted-in functions (instance methods with
-     * {@link IRCCancellationCheck} and static lambdas with {@link IRCStaticCancellationCheck})
-     * emit {@code if (cancelRunnable != null) persistentDecrement() else writeLoopCounter} so the
-     * inactive counter pays no per-iteration cost (important: an int counter pre-set to
-     * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in functions
-     * emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is false — used
-     * by for-each).
-     */
     private static void writeBranchedLoopGuard(
         WriteScope writeScope,
         MethodWriter methodWriter,
@@ -475,28 +439,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.mark(end);
     }
 
-    /**
-     * Decrements the persistent {@link WriterConstants#CANCEL_POLL_FIELD} on the script instance
-     * (loaded from the {@code #scriptThis} local) and, when it reaches zero, invokes the
-     * cancellation runnable and resets the counter.  The caller must have already verified that
-     * the runnable is non-null.  A {@code CHECKCAST} to {@link WriterConstants#CLASS_TYPE} is
-     * emitted before each field access because the static-lambda parameter is declared with the
-     * script base class type rather than the generated class type.
-     */
     private static void writePersistentCancellationDecrement(MethodWriter methodWriter, int scriptThisSlot, int runnableSlot) {
         Label skip = new Label();
 
-        // --scriptThis.$cancelPoll; if ($cancelPoll > 0) skip;
         loadScriptInstance(methodWriter, scriptThisSlot);
         loadScriptInstance(methodWriter, scriptThisSlot);
         methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.push(-1);
         methodWriter.math(MethodWriter.ADD, Type.INT_TYPE);
-        methodWriter.dupX1();  // [newVal, scriptThis, newVal] — copy int below the object ref
+        methodWriter.dupX1();
         methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.ifZCmp(MethodWriter.GT, skip);
 
-        // counter reached zero: run the cancellation check and reset
         methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
         methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
         loadScriptInstance(methodWriter, scriptThisSlot);
@@ -506,12 +460,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.mark(skip);
     }
 
-    /**
-     * Loads the script instance from {@code #scriptThis} and downcasts to the generated class so
-     * subsequent {@code GETFIELD}/{@code PUTFIELD} of {@link WriterConstants#CANCEL_POLL_FIELD}
-     * verify.  The cast is a no-op for instance methods (the slot already holds the generated
-     * class) and a real downcast for static lambdas (the slot type is the script base class).
-     */
     private static void loadScriptInstance(MethodWriter methodWriter, int scriptThisSlot) {
         methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
         methodWriter.checkCast(WriterConstants.CLASS_TYPE);
@@ -1856,14 +1804,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         // add an Object class as a placeholder type for the receiver
         typeParameters.add(Object.class);
 
-        // If the method name/arity might resolve to a @script_aware augmentation (decided during IR
-        // construction), push the script receiver ahead of user args and prefix the recipe with 'S'.
-        // The script-aware overload always takes the leading PainlessScript, so the push is
-        // unconditional here; loadThis() yields the script because any function that can reach a
-        // script-aware call has it as `this` (an instance method, or a lambda that captured it).
-        // Def.lookupMethod peels the prefix at link time and either passes the slot through (the
-        // resolved method is script-aware) or drops it via MethodHandles.dropArguments (a user class
-        // shadowing the method name).
         boolean pushScriptThis = irInvokeCallDefNode.hasCondition(IRCScriptAware.class);
         if (pushScriptThis) {
             methodWriter.loadThis();
@@ -1937,13 +1877,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(MethodWriter.getType(irInvokeCallNode.getBox()));
         }
 
-        // @script_aware augmentations resolved to the cancellation-aware overload have
-        // signature `method(PainlessScript, receiver, ...userArgs)` — script-first so method
-        // refs can reuse FunctionRef.withSyntheticScriptCapture (which prepends at position 0).
-        // For these, visitCall folds the prefix into argumentNodes[0] and skips the usual
-        // BinaryImpl wrapping; we push the script receiver here, then the regular arg loop
-        // visits the prefix and user args in order, producing
-        // [scriptThis, receiver, ...userArgs] at invokeStatic.
         if (irInvokeCallNode.getMethod().annotations().containsKey(ScriptAwareAnnotation.class)) {
             methodWriter.loadThis();
         }

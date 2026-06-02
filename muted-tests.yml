@@ -648,3 +648,6 @@ tests:
 - class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
   method: testTransformRollingUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/150442
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictMappedAndUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150446

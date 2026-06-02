@@ -377,7 +377,14 @@ public class DataSourceModuleTests extends ESTestCase {
 
     private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {
         DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
-        return new DataSourceModule(plugins, capabilities, settings, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return new DataSourceModule(
+            plugins,
+            capabilities,
+            settings,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials()
+        );
     }
 
     /**

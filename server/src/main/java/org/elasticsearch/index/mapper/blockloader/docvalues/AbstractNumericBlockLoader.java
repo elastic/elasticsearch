@@ -11,10 +11,10 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
@@ -27,14 +27,16 @@ import java.io.IOException;
 /**
  * Shared base for the numeric-family block loaders.
  * <p>
- * Exposes three nested reader shapes produced by {@link #reader}:
+ * {@link #reader} picks one of three reader shapes for the segment. Each shape is supplied by the concrete loader through an abstract
+ * hook so that the per-document loop lives in a type-specific {@code read} method that the JIT compiles monomorphically; a single shared
+ * loop would see every numeric type and go megamorphic.
  * <ul>
- *     <li>{@link Singleton} — single-valued numeric doc values; can use the {@code tryDirectRead} fast path</li>
+ *     <li>{@link Singleton} — single-valued numeric doc values/li>
  *     <li>{@link Sorted} — multi-valued in natural (sorted) order</li>
  *     <li>{@link ArrayOrder} — multi-valued in index-time arrival order via a companion offsets field</li>
  * </ul>
  */
-public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> extends BlockDocValuesReader.DocValuesBlockLoader {
+public abstract class AbstractNumericBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     protected final String fieldName;
     protected final String readerName;
@@ -59,100 +61,67 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
 
         // If the value is singleton, then we can skip reading offsets altogether
         if (readInArrayOrder && dv.singleton() == null) {
-            TrackingSortedDocValues offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            TrackingSortedDocValues offsets;
+            try {
+                offsets = TrackingSortedDocValues.get(breaker, context, FieldArrayContext.offsetsFieldName(fieldName));
+            } catch (Exception e) {
+                // We already reserved breaker space for the doc values above. If acquiring the offsets companion fails (ex. circuit
+                // breaker) we must release that reservation here, otherwise it leaks.
+                Releasables.close(dv.sorted());
+                throw e;
+            }
             if (offsets != null) {
-                return new ArrayOrder<>(this, readerName, dv.sorted(), offsets);
+                return arrayOrderReader(dv.sorted(), offsets);
             }
         }
 
         // Doc values are single-valued
         if (dv.singleton() != null) {
-            return new Singleton<>(this, readerName, dv.singleton());
+            return singletonReader(dv.singleton());
         }
 
         // Otherwise, doc values are multi-valued but without offsets
         return sortedReader(dv.sorted());
     }
 
-    /**
-     * Builds the reader for multi-valued, sorted-order doc values. The default returns a vanilla {@link Sorted}; multi-value reduction
-     * loaders (Mv max/min) override this hook to inject a custom {@link Sorted} subclass with reduction logic.
-     */
-    protected ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues) {
-        return new Sorted<>(this, readerName, docValues);
+    protected abstract ColumnAtATimeReader singletonReader(TrackingNumericDocValues docValues);
+
+    protected abstract ColumnAtATimeReader sortedReader(TrackingSortedNumericDocValues docValues);
+
+    protected abstract ColumnAtATimeReader arrayOrderReader(TrackingSortedNumericDocValues values, TrackingSortedDocValues offsets);
+
+    @Override
+    public String toString() {
+        return readerName + "[" + fieldName + "]";
     }
 
-    /** Allocates the typed reader-side builder. */
-    protected abstract B newBuilder(BlockFactory factory, int expectedCount);
-
-    /** Appends a single non-null value, converting from the raw {@code long} bits stored in the doc values. */
-    protected abstract void appendValue(B builder, long rawValue);
-
     /**
-     * Optional fast path through {@link BlockLoader.OptionalColumnAtATimeReader#tryRead} for single-valued reads. Default returns
-     * {@code null} to skip the fast path.
+     * Each subclass overrides {@code read} in full: the per-doc append is the hot path, so a shared loop would see every type and go
+     * megamorphic. Unlike {@link ArrayOrder} there is no type-independent work to hoist into a base {@code read}.
      */
-    protected BlockLoader.Block tryDirectRead(
-        BlockLoader.OptionalColumnAtATimeReader direct,
-        BlockFactory factory,
-        Docs docs,
-        int offset,
-        boolean nullsFiltered
-    ) throws IOException {
-        return null;
-    }
+    public abstract static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
 
-    public static final class Singleton<B extends BlockLoader.Builder> extends BlockDocValuesReader
-        implements
-            BlockDocValuesReader.NumericDocValuesAccessor {
-
-        private final AbstractNumericBlockLoader<B> loader;
         private final String name;
-        private final TrackingNumericDocValues numericDocValues;
+        protected final TrackingNumericDocValues numericDocValues;
 
-        Singleton(AbstractNumericBlockLoader<B> loader, String name, TrackingNumericDocValues numericDocValues) {
+        protected Singleton(String name, TrackingNumericDocValues numericDocValues) {
             super(null);
-            this.loader = loader;
             this.name = name + ".Singleton";
             this.numericDocValues = numericDocValues;
         }
 
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
-            // Attempt a fast path through OptionalColumnAtATimeReader
-            if (numericDocValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block result = loader.tryDirectRead(direct, factory, docs, offset, nullsFiltered);
-                if (result != null) {
-                    return result;
-                }
-            }
-
-            try (B builder = loader.newBuilder(factory, docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (numericDocValues.docValues().advanceExact(doc)) {
-                        loader.appendValue(builder, numericDocValues.docValues().longValue());
-                    } else {
-                        builder.appendNull();
-                    }
-                }
-                return builder.build();
-            }
-        }
-
-        @Override
-        public int docId() {
+        public final int docId() {
             return numericDocValues.docValues().docID();
         }
 
         @Override
-        public NumericDocValues numericDocValues() {
+        public final NumericDocValues numericDocValues() {
             return numericDocValues.docValues();
         }
 
         @Override
-        public String toString() {
+        public final String toString() {
             return name;
         }
 
@@ -162,50 +131,19 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
         }
     }
 
-    public static class Sorted<B extends BlockLoader.Builder> extends BlockDocValuesReader {
+    /**
+     * Each subclass overrides {@code read} in full rather than sharing a base loop: the {@code MvMin}/{@code MvMax} reducers extend this
+     * with their own {@code read}, and like {@link Singleton} there is little type-independent work to hoist.
+     */
+    public abstract static class Sorted extends BlockDocValuesReader {
 
-        private final AbstractNumericBlockLoader<B> loader;
         private final String name;
         protected final TrackingSortedNumericDocValues values;
 
-        protected Sorted(AbstractNumericBlockLoader<B> loader, String name, TrackingSortedNumericDocValues values) {
+        protected Sorted(String name, TrackingSortedNumericDocValues values) {
             super(null);
-            this.loader = loader;
             this.name = name + ".Sorted";
             this.values = values;
-        }
-
-        @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
-            try (B builder = loader.newBuilder(factory, docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    readSortedDoc(docs.get(i), builder);
-                }
-                return builder.build();
-            }
-        }
-
-        protected void readSortedDoc(int doc, B builder) throws IOException {
-            if (values.docValues().advanceExact(doc) == false) {
-                builder.appendNull();
-                return;
-            }
-            int count = values.docValues().docValueCount();
-            if (count == 1) {
-                loader.appendValue(builder, values.docValues().nextValue());
-                return;
-            }
-            builder.beginPositionEntry();
-            for (int v = 0; v < count; v++) {
-                loader.appendValue(builder, values.docValues().nextValue());
-            }
-            builder.endPositionEntry();
-        }
-
-        /** Convenience pass-through used by Mv-fused subclasses that override {@link #readSortedDoc}. */
-        protected final void appendValue(B builder, long rawValue) {
-            loader.appendValue(builder, rawValue);
         }
 
         @Override
@@ -224,34 +162,28 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
         }
     }
 
-    static final class ArrayOrder<B extends BlockLoader.Builder> extends BlockDocValuesReader {
+    abstract static class ArrayOrder<B extends Builder> extends BlockDocValuesReader {
 
-        private final AbstractNumericBlockLoader<B> loader;
         private final String name;
-        private final TrackingSortedNumericDocValues values;
-        private final TrackingSortedDocValues offsets;
-        private final Sorted<B> sortedFallback;
-
+        protected final TrackingSortedNumericDocValues values;
+        protected final TrackingSortedDocValues offsets;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
 
-        ArrayOrder(
-            AbstractNumericBlockLoader<B> loader,
-            String name,
-            TrackingSortedNumericDocValues values,
-            TrackingSortedDocValues offsets
-        ) {
+        protected ArrayOrder(String name, TrackingSortedNumericDocValues values, TrackingSortedDocValues offsets) {
             super(null);
-            this.loader = loader;
             this.name = name + ".ArrayOrder";
             this.values = values;
             this.offsets = offsets;
-            this.sortedFallback = new Sorted<>(loader, name, values);
         }
 
+        /**
+         * The shared {@code read} loop, the offsets decode, the all-null handling, and the per-doc value materialization live here; the
+         * per-type subclass supplies only the builder, the sorted fallback, and the {@link #emit} loop so the value-append stays in
+         * type-specific code and compiles monomorphically rather than going through a megamorphic callback.
+         */
         @Override
-        public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-            throws IOException {
-            try (B builder = loader.newBuilder(factory, docs.count() - offset)) {
+        public final Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            try (B builder = newBuilder(factory, docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     readDoc(docs.get(i), builder);
                 }
@@ -264,25 +196,34 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
 
             // no offsets were recorded - fallback to the sorted path
             if (offsetToOrd == null) {
-                sortedFallback.readSortedDoc(docId, builder);
+                readSortedFallback(docId, builder);
                 return;
             }
 
+            SortedNumericDocValues docValues = values.docValues();
             // no values arrived (all slots null) — emit a single null position
-            if (values.docValues().advanceExact(docId) == false) {
+            if (docValues.advanceExact(docId) == false) {
                 assert OffsetsAwareBlockLoaderHelper.allNulls(offsetToOrd);
                 builder.appendNull();
                 return;
             }
 
-            // materialize the per-doc values once so we can index into them by ord
+            // Offsets are encoded against a unique collection of entries, but for numerics, the underlying doc values
+            // (SortedNumericDocValuesField) does not dedupe, it just sorts. Hence, we must dedupe ourselves.
             int count = values.docValues().docValueCount();
             long[] materialized = new long[count];
+            int duplicates = 0;
             for (int i = 0; i < count; i++) {
-                materialized[i] = values.docValues().nextValue();
+                long value = values.docValues().nextValue();
+                // since the values are in sorted order, to detect a duplicate compare the current value against the previous one
+                if (i > 0 && value == materialized[i - duplicates - 1]) {
+                    duplicates++;
+                    continue;
+                }
+                materialized[i - duplicates] = value;
             }
 
-            OffsetsAwareBlockLoaderHelper.emit(offsetToOrd, builder, ord -> loader.appendValue(builder, materialized[ord]));
+            emit(offsetToOrd, builder, materialized);
         }
 
         @Override
@@ -298,7 +239,24 @@ public abstract class AbstractNumericBlockLoader<B extends BlockLoader.Builder> 
 
         @Override
         public void close() {
-            Releasables.close(values, offsets, sortedFallback);
+            // sortedFallback wraps `values` and owns no other resources, so closing it would double-release `values`.
+            Releasables.close(values, offsets);
         }
+
+        /**
+         * Creates the type-specific builder sized for the block.
+         */
+        protected abstract B newBuilder(BlockFactory factory, int count);
+
+        /**
+         * Emits the doc in natural (sorted) order when no offsets were recorded for it, delegating to the type's sorted reader.
+         */
+        protected abstract void readSortedFallback(int docId, B builder) throws IOException;
+
+        /**
+         * Appends the doc's values in arrival order, indexing into {@code materialized} by ord. Kept in the subclass so the append is
+         * monomorphic; use {@link OffsetsAwareBlockLoaderHelper#countNonNull} to pick the position shape before appending.
+         */
+        protected abstract void emit(int[] offsetToOrd, B builder, long[] materialized) throws IOException;
     }
 }

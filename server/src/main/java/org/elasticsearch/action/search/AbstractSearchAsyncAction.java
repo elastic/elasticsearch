@@ -445,9 +445,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     /**
-     * Executed once for every {@link ShardId} that fails terminally — either all available shard copies have been exhausted, or a
-     * non-retriable exception (such as a {@link org.elasticsearch.rest.RestStatus#BAD_REQUEST} error) was received and retrying on another
-     * copy would be pointless.
+     * Executed once for every {@link ShardId} that fails terminally — either all available shard copies have been exhausted, or the
+     * exception is classified as non-retriable by {@link TransportActions#isRetriableShardLevelException}.
      *
      * @param shardIndex the shard index that failed
      * @param shardTarget the failing shard target

@@ -18,6 +18,7 @@ import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -56,7 +57,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
 
     @BeforeClass
     public static void randomizeColumnar() {
-        columnarEnabled = randomBoolean();
+        columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
     }
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()

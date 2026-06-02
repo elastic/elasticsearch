@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -672,5 +673,23 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             // TODO doubles currently disable pruning, can we re-enable?
             new SortShortcutSupport(this::minimalMapping, this::writeField, false)
         );
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        double scalingFactor = 100.0;
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "scaled_float").field("scaling_factor", scalingFactor).endObject())
+        ).documentMapper();
+
+        // Pick raw ints then divide by the scaling factor so values already lie on the scaled grid — no quantization loss.
+        double v1 = randomIntBetween(0, 100_000) / scalingFactor;
+        double v2 = randomIntBetween(0, 100_000) / scalingFactor;
+        double v3 = randomIntBetween(0, 100_000) / scalingFactor;
+
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 }

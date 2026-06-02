@@ -59,7 +59,7 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: Cannot convert from all original types of partially-unmapped field [foo]' }
+  - contains: { error.reason: 'line 1:70: [foo] is loaded as [KEYWORD] where unmapped, but [TO_DEGREES(foo)] does not accept [KEYWORD]' }
 ---
 'to_radians on punk field':
   - do:
@@ -72,7 +72,7 @@ setup:
   - match: { status: 400 }
   - match: { error.type: verification_exception }
   - contains: { error.reason: 'Found 1 problem' }
-  - contains: { error.reason: 'line 1:70: Cannot convert from all original types of partially-unmapped field [foo]' }
+  - contains: { error.reason: 'line 1:70: [foo] is loaded as [KEYWORD] where unmapped, but [TO_RADIANS(foo)] does not accept [KEYWORD]' }
 ---
 'aggregate_metric_double cast on fully unmapped field':
   - do:

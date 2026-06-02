@@ -123,6 +123,7 @@ public record TestConfiguration(
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
     static final ParseField FLAT_VECTOR_THRESHOLD = new ParseField("flat_vector_threshold");
     static final ParseField DIRECTORY_TYPE_FIELD = new ParseField("directory_type");
+
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
      * We configure the Java heap size for this tool in {@code build.gradle}; currently we default to 16GB, so in that case
@@ -419,6 +420,7 @@ public record TestConfiguration(
         private int secondaryClusterSize = -1;
         private int flatIndexThreshold = -1; // use format's default threshold
         private String directoryType = "default";
+
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
          * disabled by default (writer flushes by RAM usage).

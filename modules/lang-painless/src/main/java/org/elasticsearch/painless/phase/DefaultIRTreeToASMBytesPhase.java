@@ -388,17 +388,12 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.endMethod();
     }
 
-    private static void writeBranchedLoopGuard(
-        WriteScope writeScope,
-        MethodWriter methodWriter,
-        Location location,
-        boolean legacyForNonOptedIn
-    ) {
+    private static void writeBranchedLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location, boolean legacy) {
         Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
         Variable loop = writeScope.getInternalVariable("loop");
 
         if (cancelRunnable == null) {
-            if (legacyForNonOptedIn && loop != null) {
+            if (legacy && loop != null) {
                 methodWriter.writeLoopCounter(loop.getSlot(), location);
             }
             return;

@@ -245,37 +245,39 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             )
         );
 
-        ActionListener<Model> modelValidatingListener = listener.delegateFailureAndWrap((delegate, model) -> {
+        ActionListener<Model> existingUsesListener = storeModelListener.delegateFailureAndWrap((delegate, model) -> {
+            // Execute in another thread because checking for existing uses requires reading from indices
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> checkForExistingUsesOfInferenceId(metadata, model, delegate));
+        });
+
+        ActionListener<Model> modelValidatingListener = existingUsesListener.delegateFailureAndWrap((delegate, model) -> {
             if (skipValidationAndStart) {
-                storeModelListener.onResponse(model);
+                delegate.onResponse(model);
             } else {
-                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service)
-                    .validate(service, model, timeout, storeModelListener);
+                ModelValidatorBuilder.buildModelValidator(model.getTaskType(), service).validate(service, model, timeout, delegate);
             }
         });
 
-        ActionListener<Model> existingUsesListener = listener.delegateFailureAndWrap((delegate, model) -> {
-            // Execute in another thread because checking for existing uses requires reading from indices
-            threadPool.executor(UTILITY_THREAD_POOL_NAME)
-                .execute(() -> checkForExistingUsesOfInferenceId(metadata, model, modelValidatingListener));
-        });
-
-        service.parseRequestConfig(inferenceEntityId, taskType, config, existingUsesListener);
+        service.parseRequestConfig(inferenceEntityId, taskType, config, modelValidatingListener);
     }
 
     private void checkForExistingUsesOfInferenceId(Metadata metadata, Model model, ActionListener<Model> modelValidatingListener) {
-        Set<String> inferenceEntityIdSet = Set.of(model.getInferenceEntityId());
-        Set<String> indicesWithIncompatibleMappings = findIndicesWithIncompatibleMappings(model, metadata, inferenceEntityIdSet);
+        try {
+            Set<String> inferenceEntityIdSet = Set.of(model.getInferenceEntityId());
+            Set<String> indicesWithIncompatibleMappings = findIndicesWithIncompatibleMappings(model, metadata, inferenceEntityIdSet);
 
-        if (indicesWithIncompatibleMappings.isEmpty()) {
-            modelValidatingListener.onResponse(model);
-        } else {
-            modelValidatingListener.onFailure(
-                new ElasticsearchStatusException(
-                    buildErrorString(model.getInferenceEntityId(), indicesWithIncompatibleMappings),
-                    RestStatus.BAD_REQUEST
-                )
-            );
+            if (indicesWithIncompatibleMappings.isEmpty()) {
+                modelValidatingListener.onResponse(model);
+            } else {
+                modelValidatingListener.onFailure(
+                    new ElasticsearchStatusException(
+                        buildErrorString(model.getInferenceEntityId(), indicesWithIncompatibleMappings),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        } catch (Exception ex) {
+            modelValidatingListener.onFailure(ex);
         }
     }
 

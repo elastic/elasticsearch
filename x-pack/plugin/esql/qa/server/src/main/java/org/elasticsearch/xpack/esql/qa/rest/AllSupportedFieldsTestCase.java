@@ -292,6 +292,10 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
                 "Cluster has nodes that do not support columnar index modes",
                 minVersion().supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
             );
+            assumeTrue(
+                "Cluster has nodes that default to low-cardinality doc values in columnar index modes",
+                clusterHasFeature("mapper.keyword.columnar_default_high_cardinality")
+            );
         }
         if (supportsNodeAssignment()) {
             for (Map.Entry<String, NodeInfo> e : localNodeToInfo().entrySet()) {

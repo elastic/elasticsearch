@@ -354,7 +354,20 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         try {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {
+            // These clients and their connection state are static and shared by every suite that extends this base class.
+            // Reset them all so that a sibling suite running later in the same JVM re-initializes against its own freshly
+            // started cluster, rather than reusing these now-closed clients (or stale flags) via the searchClient == null
+            // guard in initSearchClient().
+            searchClient = null;
+            adminSearchClient = null;
+            searchYamlTestClient = null;
             clusterHosts = null;
+            isRemoteConfigured.set(false);
+            isCombinedComputed.set(false);
+            API_KEY_MAP_REF.set(null);
+            combinedTestFeatureServiceRef.set(null);
+            combinedOsSetRef.set(null);
+            combinedNodeVersionsRef.set(null);
         }
     }
 }

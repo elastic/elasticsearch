@@ -276,7 +276,7 @@ public class SparseFileTracker {
             if (range.start() < lastEarlierRange.end) {
                 boolean unclaimed = false;
                 if (lastEarlierRange.isPending()) {
-                    if (lastEarlierRange.claimed == false && range.start() < range.end()) {
+                    if (lastEarlierRange.claimed == false) {
                         // Split at range.start() so the gap we return starts within range
                         final Range[] partsAtStart = splitRange(lastEarlierRange, range.start());
                         // partsAtStart[0] = [lastEarlierRange.start, range.start()) — outside range, not added

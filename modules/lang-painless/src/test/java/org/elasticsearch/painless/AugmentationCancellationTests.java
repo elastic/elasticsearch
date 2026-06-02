@@ -161,13 +161,12 @@ public class AugmentationCancellationTests extends ScriptTestCase {
     }
 
     /**
-     * Method reference to a {@code @script_aware} augmentation.  With the script-first
-     * signature, {@code FunctionRef.withSyntheticScriptCapture} prepends the script class at
-     * factoryMethodType position 0 — matching the augmentation's first parameter directly —
-     * and the construction site pushes the script receiver via the existing
-     * {@code IRCInstanceCapture} bytecode path.  Pass {@code list::each} as a Painless local
-     * function argument typed {@code Function<Consumer, Object>} so the FunctionRef takes
-     * effect; the augmentation still polls the runnable from inside its driver loop.
+     * Method reference to a {@code @script_aware} augmentation.  {@code FunctionRef.create} detects
+     * the annotation and prepends a synthetic {@code PainlessScript} factory capture (matching the
+     * augmentation's actual leading parameter type), and the construction site pushes the script
+     * receiver via the {@code IRCInstanceCapture} bytecode path.  Pass {@code l::each} as a typed
+     * {@code Function<Consumer, Object>} argument so the FunctionRef takes effect; the augmentation
+     * polls the runnable from inside its driver loop.
      */
     public void testEachAugmentationMethodRefFiresCancelRunnable() {
         StringBuilder source = new StringBuilder("void populate(List l) {");
@@ -192,6 +191,38 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         ScriptException ex = expectThrows(ScriptException.class, script::execute);
         assertEquals("cancelled-methodref", ex.getCause().getMessage());
         assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Isolates the method-ref augmentation's own poll from the consumer.  The consumer is a method
+     * reference to a non-{@code @script_aware} method ({@code out::add}), which is compiled as a
+     * plain delegate with no per-entry cancellation poll of its own.  So the only thing that can
+     * fire the runnable is {@code each}'s internal per-element {@code _pollCancellation()} — proving
+     * the {@code l::each} method reference actually threaded the script into the augmentation, rather
+     * than cancellation merely coming from a Painless-lambda consumer's entry poll.
+     */
+    public void testEachMethodRefAugmentationPollsIndependentlyOfConsumer() {
+        StringBuilder source = new StringBuilder("void populate(List l) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" l.add(").append(i).append(");");
+        }
+        source.append("} ");
+        source.append("def apply(Function f, Consumer arg) { return f.apply(arg); } ");
+        source.append("List l = new ArrayList(); populate(l); ");
+        // out::add is a non-script-aware method ref → no entry poll, so each() is the sole poller.
+        source.append("List out = new ArrayList(); apply(l::each, out::add);");
+
+        ScriptedMetricAggContexts.InitScript script = compileInit(source.toString());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-methodref-each");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-methodref-each", ex.getCause().getMessage());
+        assertTrue("each() augmentation poll should fire independently of the consumer", callCount.get() >= 1);
     }
 
     public void testEachAugmentationWithUserCapture() {

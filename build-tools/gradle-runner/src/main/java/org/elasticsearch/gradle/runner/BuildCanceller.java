@@ -14,6 +14,8 @@ import org.gradle.tooling.CancellationTokenSource;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -51,6 +53,7 @@ public final class BuildCanceller {
         GcpPreemptionWatchdog.onPreempted(() -> {
             cancelled = true;
             writeMarkerFile();
+            writePreemptionExitFile();
             cancelBuild();
             killDescendantProcesses();
         });
@@ -80,6 +83,31 @@ public final class BuildCanceller {
             }
         } catch (IOException e) {
             System.err.println("[gcp-preemption-watchdog] failed to write marker file: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Writes the preemption exit code to {@code /tmp/gradle-preemption-exit-<jobId>} so that
+     * the Buildkite {@code post-command} hook can re-exit with it. Written immediately on
+     * preemption detection so the file exists even if the VM is killed before the build finishes.
+     */
+    private static void writePreemptionExitFile() {
+        String envCode = System.getenv("GCP_PREEMPTION_EXIT_CODE");
+        int exitCode = 47;
+        if (envCode != null) {
+            try {
+                exitCode = Integer.parseInt(envCode);
+            } catch (NumberFormatException e) {
+                // fall through to default
+            }
+        }
+        String jobId = System.getenv("BUILDKITE_JOB_ID");
+        Path exitFile = Path.of("/tmp", "gradle-preemption-exit-" + (jobId != null ? jobId : "local"));
+        try {
+            Files.writeString(exitFile, Integer.toString(exitCode));
+            System.out.println("[gcp-preemption-watchdog] preemption exit code written to " + exitFile);
+        } catch (IOException e) {
+            System.err.println("[gcp-preemption-watchdog] failed to write preemption exit file: " + e.getMessage());
         }
     }
 

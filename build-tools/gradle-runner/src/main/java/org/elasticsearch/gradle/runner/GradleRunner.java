@@ -17,9 +17,6 @@ import org.gradle.tooling.ProjectConnection;
 import org.gradle.tooling.events.OperationType;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -129,7 +126,6 @@ public class GradleRunner {
                     + "; exiting with code "
                     + preemptionExitCode
             );
-            writePreemptionExitFile(preemptionExitCode);
             System.exit(preemptionExitCode);
         }
 
@@ -143,22 +139,6 @@ public class GradleRunner {
             report.writeTo(reportFile);
         } catch (Exception e) {
             System.err.println("Failed to write task status report: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Writes the preemption exit code to {@code /tmp/gradle-preemption-exit-<jobId>} so that
-     * the Buildkite {@code post-command} hook can re-exit with it for jobs that don't use
-     * the runner's own exit code directly.
-     */
-    private static void writePreemptionExitFile(int exitCode) {
-        String jobId = System.getenv("BUILDKITE_JOB_ID");
-        Path exitFile = Path.of("/tmp", "gradle-preemption-exit-" + (jobId != null ? jobId : "local"));
-        try {
-            Files.writeString(exitFile, Integer.toString(exitCode));
-            System.out.println("[gcp-preemption-watchdog] preemption exit code written to " + exitFile);
-        } catch (IOException e) {
-            System.err.println("[gcp-preemption-watchdog] failed to write preemption exit file: " + e.getMessage());
         }
     }
 

@@ -68,13 +68,6 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
      */
     private static final class TokenCountingTokenFilter extends TokenFilter {
 
-        /**
-         * Only record metrics for field values producing at least this many tokens.
-         * Fields below this threshold are not interesting for determining a safe enforcement limit
-         * and skipping them avoids the overhead of recording on every field value.
-         */
-        private static final int RECORDING_THRESHOLD = 1000;
-
         private final TokenCountingMetrics metrics;
         private int count;
 
@@ -92,9 +85,7 @@ public final class TokenCountingAnalyzer extends AnalyzerWrapper {
         @Override
         public boolean incrementToken() throws IOException {
             if (input.incrementToken() == false) {
-                if (count >= RECORDING_THRESHOLD) {
-                    metrics.recordTokenCount(count);
-                }
+                metrics.recordTokenCount(count);
                 return false;
             }
             count++;

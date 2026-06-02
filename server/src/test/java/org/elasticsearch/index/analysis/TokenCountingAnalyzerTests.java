@@ -36,9 +36,9 @@ public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
     @Override
     public void testFieldHasValueWithEmptyFieldInfos() {}
 
-    public void testRecordsTokenCountAboveThreshold() throws IOException {
+    public void testRecordsTokenCount() throws IOException {
         var metrics = createTestMapperMetrics().tokenCountingMetrics();
-        int tokenCount = randomIntBetween(1000, 2000);
+        int tokenCount = randomIntBetween(1, 2000);
         String input = IntStream.range(0, tokenCount).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
 
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
@@ -59,12 +59,13 @@ public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
 
     public void testRecordsPerFieldValue() throws IOException {
         var metrics = createTestMapperMetrics().tokenCountingMetrics();
+        int firstCount = randomIntBetween(1, 500);
+        int secondCount = randomIntBetween(1, 500);
 
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {
             TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, metrics);
 
-            // First field value: 1001 tokens (above threshold)
-            String input1 = IntStream.range(0, 1001).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
+            String input1 = IntStream.range(0, firstCount).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
             try (TokenStream ts = analyzer.tokenStream("field", input1)) {
                 ts.reset();
                 while (ts.incrementToken()) {
@@ -73,8 +74,8 @@ public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
                 ts.end();
             }
 
-            // Second field value (same field name, reused components): 1500 tokens (above threshold)
-            String input2 = IntStream.range(0, 1500).mapToObj(i -> "term" + i).collect(Collectors.joining(" "));
+            // Second field value (same field name, reused components)
+            String input2 = IntStream.range(0, secondCount).mapToObj(i -> "term" + i).collect(Collectors.joining(" "));
             try (TokenStream ts = analyzer.tokenStream("field", input2)) {
                 ts.reset();
                 while (ts.incrementToken()) {
@@ -86,32 +87,12 @@ public class TokenCountingAnalyzerTests extends MapperServiceTestCase {
 
         var measurements = telemetryPlugin.getLongHistogramMeasurement(TokenCountingMetrics.FIELD_TOKEN_COUNT);
         assertEquals(2, measurements.size());
-        assertEquals(1001, measurements.get(0).getLong());
-        assertEquals(1500, measurements.get(1).getLong());
-    }
-
-    public void testDoesNotRecordBelowThreshold() throws IOException {
-        var metrics = createTestMapperMetrics().tokenCountingMetrics();
-        // 999 tokens — below the 1000 threshold
-        String input = IntStream.range(0, 999).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
-
-        try (StandardAnalyzer delegate = new StandardAnalyzer()) {
-            TokenCountingAnalyzer analyzer = new TokenCountingAnalyzer(delegate, metrics);
-            try (TokenStream ts = analyzer.tokenStream("field", input)) {
-                ts.reset();
-                while (ts.incrementToken()) {
-                    // consume
-                }
-                ts.end();
-            }
-        }
-
-        var measurements = telemetryPlugin.getLongHistogramMeasurement(TokenCountingMetrics.FIELD_TOKEN_COUNT);
-        assertEquals(0, measurements.size());
+        assertEquals(firstCount, measurements.get(0).getLong());
+        assertEquals(secondCount, measurements.get(1).getLong());
     }
 
     public void testNoopMetricsDoesNotRecord() throws IOException {
-        int tokenCount = randomIntBetween(1000, 2000);
+        int tokenCount = randomIntBetween(1, 100);
         String input = IntStream.range(0, tokenCount).mapToObj(i -> "word" + i).collect(Collectors.joining(" "));
 
         try (StandardAnalyzer delegate = new StandardAnalyzer()) {

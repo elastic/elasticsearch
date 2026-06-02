@@ -61,13 +61,25 @@ public class NdJsonSchemaInferrer {
     private final List<FieldInfo> fields = new ArrayList<>();
     private int lineCount = 0;
 
-    private NdJsonSchemaInferrer() {}
+    private final DateFormatter dateFormatter;
+
+    private NdJsonSchemaInferrer(DateFormatter dateFormatter) {
+        this.dateFormatter = dateFormatter != null ? dateFormatter : DATE_FORMATTER;
+    }
 
     /**
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      */
     public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        return new NdJsonSchemaInferrer().doInferSchema(inputStream, maxLines);
+        return new NdJsonSchemaInferrer(null).doInferSchema(inputStream, maxLines);
+    }
+
+    /**
+     * Infers schema using a custom datetime formatter for string-to-datetime detection.
+     * When {@code datetimeFormatter} is null, falls back to {@link #DATE_FORMATTER}.
+     */
+    public static List<Attribute> inferSchema(InputStream inputStream, int maxLines, DateFormatter datetimeFormatter) throws IOException {
+        return new NdJsonSchemaInferrer(datetimeFormatter).doInferSchema(inputStream, maxLines);
     }
 
     private List<Attribute> doInferSchema(InputStream inputStream, int maxLines) throws IOException {
@@ -120,7 +132,7 @@ public class NdJsonSchemaInferrer {
         return attributes;
     }
 
-    private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
+    private void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
             throw new NdJsonParseException(parser, "Expected JSON object");
@@ -135,7 +147,7 @@ public class NdJsonSchemaInferrer {
         }
     }
 
-    private static void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
+    private void inferValueSchema(JsonParser parser, FieldInfo field) throws IOException {
         switch (parser.currentToken()) {
             case START_ARRAY -> {
                 field.isArray = true;
@@ -148,7 +160,7 @@ public class NdJsonSchemaInferrer {
             case VALUE_STRING -> {
                 String text = parser.getText();
                 // All-digit strings (e.g. book ids) must not be inferred as years / partial dates.
-                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && DATE_FORMATTER.tryParse(text) != null) {
+                if (field.types.contains(DataType.KEYWORD) == false && isLikelyDateString(text) && dateFormatter.tryParse(text) != null) {
                     field.addType(DataType.DATETIME);
                 } else {
                     field.addType(DataType.KEYWORD);

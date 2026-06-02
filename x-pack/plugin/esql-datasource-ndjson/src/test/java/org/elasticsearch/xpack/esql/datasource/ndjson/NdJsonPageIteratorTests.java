@@ -1765,6 +1765,49 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         assertSame(reader, reader.withConfig(Map.of()));
     }
 
+    public void testWithConfigDatetimeFormatInvalidIsRejected() {
+        NdJsonFormatReader reader = new NdJsonFormatReader(Settings.EMPTY, blockFactory);
+        expectThrows(IllegalArgumentException.class, () -> reader.withConfig(Map.of("datetime_format", "not-a-valid-!!format!!")));
+    }
+
+    /**
+     * Schema inference with a custom datetime format: strings matching the custom pattern are
+     * inferred as DATETIME, not KEYWORD.
+     */
+    public void testDatetimeFormatSchemaInference() throws IOException {
+        String ndjson = "{\"ts\":\"25/12/2023 10:30:00\",\"id\":1}\n" + "{\"ts\":\"01/01/2024 00:00:00\",\"id\":2}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss")
+        );
+        var metadata = reader.metadata(object);
+        var schema = metadata.schema();
+        var tsAttr = schema.stream().filter(a -> a.name().equals("ts")).findFirst().orElseThrow();
+        assertEquals(DataType.DATETIME, tsAttr.dataType());
+    }
+
+    /**
+     * End-to-end: NDJSON with a custom datetime_format is decoded into epoch-millis values that
+     * match the expected instant for the given pattern.
+     */
+    public void testDatetimeFormatDecoding() throws IOException {
+        String ndjson = "{\"ts\":\"25/12/2023 10:30:00\",\"id\":1}\n";
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+        var reader = (NdJsonFormatReader) new NdJsonFormatReader(Settings.EMPTY, blockFactory).withConfig(
+            Map.of("datetime_format", "dd/MM/yyyy HH:mm:ss")
+        );
+        var ctx = FormatReadContext.builder().projectedColumns(List.of("ts")).batchSize(10).errorPolicy(ErrorPolicy.STRICT).build();
+        try (var iterator = reader.read(object, ctx)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertFalse(iterator.hasNext());
+            LongBlock tsBlock = page.getBlock(0);
+            assertEquals(1, tsBlock.getPositionCount());
+            long expected = Instant.parse("2023-12-25T10:30:00Z").toEpochMilli();
+            assertEquals(expected, tsBlock.getLong(0));
+        }
+    }
+
     public void testDefaultErrorPolicyIsStrictLikeOtherFormats() {
         assertEquals(ErrorPolicy.STRICT, new NdJsonFormatReader(Settings.EMPTY, blockFactory).defaultErrorPolicy());
     }

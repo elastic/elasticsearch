@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
@@ -66,7 +67,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy,
         NdJsonReaderCounters counters,
-        int maxRecordBytes
+        int maxRecordBytes,
+        DateFormatter datetimeFormatter
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         Check.isTrue(counters != null, "counters must not be null");
@@ -90,6 +92,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 data,
                 0,
                 data.length,
+                datetimeFormatter,
                 resolvedAttributes,
                 projectedColumns,
                 batchSize,
@@ -101,6 +104,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         } else {
             this.pageDecoder = new NdJsonPageDecoder(
                 inputStream,
+                datetimeFormatter,
                 resolvedAttributes,
                 projectedColumns,
                 batchSize,

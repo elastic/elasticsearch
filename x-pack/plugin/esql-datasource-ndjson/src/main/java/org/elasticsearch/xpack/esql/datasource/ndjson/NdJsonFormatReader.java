@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -32,6 +33,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
+import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,21 +79,23 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
     static final String CONFIG_SEGMENT_SIZE = "segment_size";
+    static final String CONFIG_DATETIME_FORMAT = "datetime_format";
 
     /** Keys recognised by {@link #withConfigTrackingConsumedKeys(Map)}. */
-    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE);
+    static final Set<String> RECOGNIZED_KEYS = Set.of(CONFIG_SCHEMA_SAMPLE_SIZE, CONFIG_SEGMENT_SIZE, CONFIG_DATETIME_FORMAT);
 
     private final BlockFactory blockFactory;
     private final Settings settings;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
     private final long segmentSizeBytes;
+    private final DateFormatter datetimeFormatter;
     // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
     // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
     private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings));
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), null);
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -103,18 +107,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         BlockFactory blockFactory,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
-        long segmentSizeBytes
+        long segmentSizeBytes,
+        DateFormatter datetimeFormatter
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.segmentSizeBytes = segmentSizeBytes;
+        this.datetimeFormatter = datetimeFormatter;
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
+        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes, datetimeFormatter);
     }
 
     @Override
@@ -125,9 +131,12 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
-        FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
-            ? this
-            : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        DateFormatter newDatetimeFormatter = parseDatetimeFormat(config.get(CONFIG_DATETIME_FORMAT), datetimeFormatter);
+        FormatReader result = (newSampleSize == schemaSampleSize
+            && newSegmentSize == segmentSizeBytes
+            && newDatetimeFormatter == datetimeFormatter)
+                ? this
+                : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize, newDatetimeFormatter);
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -143,7 +152,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             if (needsFullSchemaSupplement(attributes)) {
                 List<Attribute> inferred;
                 try (var stream = openForSchemaInference(object, skipFirstLine)) {
-                    inferred = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+                    inferred = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize, datetimeFormatter);
                 }
                 return mergeInferredWithPreferred(inferred, attributes);
             }
@@ -151,7 +160,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
 
         try (var stream = openForSchemaInference(object, skipFirstLine)) {
-            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+            return NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize, datetimeFormatter);
         }
     }
 
@@ -296,6 +305,17 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         return bytes;
     }
 
+    private static DateFormatter parseDatetimeFormat(Object value, DateFormatter baseline) {
+        if (value == null || value.toString().isEmpty()) {
+            return baseline;
+        }
+        try {
+            return DateFormatter.forPattern(value.toString()).withZone(ZoneOffset.UTC);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid datetime_format [" + value + "]: " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public SourceMetadata metadata(StorageObject object) throws IOException {
         InputStream stream = object.newStream();
@@ -304,7 +324,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // a Closeable lets try-with-resources attach any abort-time error as a suppressed
         // exception on the primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
-            List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
+            List<Attribute> schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize, datetimeFormatter);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
         }
     }
@@ -362,7 +382,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             effectiveSchema,
             errorPolicy,
             counters,
-            context.maxRecordBytes()
+            context.maxRecordBytes(),
+            datetimeFormatter
         );
     }
 

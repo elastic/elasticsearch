@@ -17,6 +17,7 @@ import com.fasterxml.jackson.core.io.JsonEOFException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -98,6 +99,7 @@ public class NdJsonPageDecoder implements Closeable {
     private final NdJsonReaderCounters counters;
     private long totalRowCount;
     private long errorCount;
+    private final DateFormatter datetimeFormatter;
 
     /**
      * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
@@ -119,6 +121,7 @@ public class NdJsonPageDecoder implements Closeable {
 
     NdJsonPageDecoder(
         InputStream input,
+        DateFormatter datetimeFormatter,
         List<Attribute> attributes,
         List<String> projectedColumns,
         int batchSize,
@@ -138,6 +141,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            datetimeFormatter,
             counters,
             NdJsonUtils.JSON_FACTORY
         );
@@ -153,6 +157,7 @@ public class NdJsonPageDecoder implements Closeable {
         byte[] data,
         int offset,
         int length,
+        DateFormatter datetimeFormatter,
         List<Attribute> attributes,
         List<String> projectedColumns,
         int batchSize,
@@ -172,6 +177,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            datetimeFormatter,
             counters,
             NdJsonUtils.JSON_FACTORY
         );
@@ -203,6 +209,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            null,
             new NdJsonReaderCounters(),
             factory
         );
@@ -219,6 +226,7 @@ public class NdJsonPageDecoder implements Closeable {
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
         String sourceLocation,
+        DateFormatter datetimeFormatter,
         NdJsonReaderCounters counters,
         JsonFactory factory
     ) throws IOException {
@@ -244,6 +252,7 @@ public class NdJsonPageDecoder implements Closeable {
         Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
         this.counters = counters;
+        this.datetimeFormatter = datetimeFormatter != null ? datetimeFormatter : NdJsonSchemaInferrer.DATE_FORMATTER;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["
@@ -829,7 +838,7 @@ public class NdJsonPageDecoder implements Closeable {
                 }
                 case DATETIME -> {
                     try {
-                        var millis = NdJsonSchemaInferrer.DATE_FORMATTER.parseMillis(parser.getValueAsString());
+                        var millis = datetimeFormatter.parseMillis(parser.getValueAsString());
                         ((LongBlock.Builder) blockBuilder).appendLong(millis);
                     } catch (Exception e) {
                         unexpectedValue(blockBuilder, parser, inArray);

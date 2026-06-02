@@ -860,6 +860,120 @@ public class RestIndexActionIT extends ESIntegTestCase {
         assertThat(deleteResponsePath.evaluate("result"), equalTo("deleted"));
     }
 
+    public void testSliceRequirementAndValidationForExplain() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        Request createEnabled = new Request("PUT", "/slice-explain-enabled");
+        createEnabled.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": true,
+                "number_of_shards": 1
+              }
+            }""");
+        getRestClient().performRequest(createEnabled);
+
+        Request indexEnabled = new Request("POST", "/slice-explain-enabled/_doc/1");
+        indexEnabled.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        indexEnabled.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexEnabled);
+        getRestClient().performRequest(new Request("POST", "/slice-explain-enabled/_refresh"));
+
+        Request explainMissingSlice = new Request("GET", "/slice-explain-enabled/_explain/1");
+        explainMissingSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException missingSliceException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(explainMissingSlice)
+        );
+        String missingSliceResponse = Streams.copyToString(
+            new InputStreamReader(missingSliceException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(missingSliceResponse, containsString("[_slice] is required when [index.slice.enabled] is true"));
+
+        Request explainWithRouting = new Request("GET", "/slice-explain-enabled/_explain/1");
+        explainWithRouting.addParameter("routing", "r1");
+        explainWithRouting.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException routingException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(explainWithRouting)
+        );
+        String routingResponse = Streams.copyToString(
+            new InputStreamReader(routingException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(routingResponse, containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(routingResponse, containsString("use [_slice] instead"));
+
+        Request explainWithSlice = new Request("GET", "/slice-explain-enabled/_explain/1");
+        explainWithSlice.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        explainWithSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        Response explainResponse = getRestClient().performRequest(explainWithSlice);
+        ObjectPath explainObjectPath = ObjectPath.createFromResponse(explainResponse);
+        assertThat(explainObjectPath.evaluate("matched"), equalTo(true));
+
+        Request explainWithWrongSlice = new Request("GET", "/slice-explain-enabled/_explain/1");
+        explainWithWrongSlice.addParameter(SliceIndexing.PARAM_NAME, "s2");
+        explainWithWrongSlice.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        Response wrongSliceResponse = getRestClient().performRequest(explainWithWrongSlice);
+        ObjectPath wrongSliceObjectPath = ObjectPath.createFromResponse(wrongSliceResponse);
+        assertThat(wrongSliceObjectPath.evaluate("matched"), equalTo(false));
+
+        Request createDisabled = new Request("PUT", "/slice-explain-disabled");
+        createDisabled.setJsonEntity("""
+            {
+              "settings": {
+                "index.slice.enabled": false
+              }
+            }""");
+        getRestClient().performRequest(createDisabled);
+
+        Request indexDisabled = new Request("POST", "/slice-explain-disabled/_doc/1");
+        indexDisabled.setJsonEntity("""
+            {
+              "field": "value"
+            }""");
+        getRestClient().performRequest(indexDisabled);
+        getRestClient().performRequest(new Request("POST", "/slice-explain-disabled/_refresh"));
+
+        Request explainWithSliceOnDisabled = new Request("GET", "/slice-explain-disabled/_explain/1");
+        explainWithSliceOnDisabled.addParameter(SliceIndexing.PARAM_NAME, "s1");
+        explainWithSliceOnDisabled.setJsonEntity("""
+            {
+              "query": {
+                "match_all": {}
+              }
+            }""");
+        ResponseException disabledSliceException = expectThrows(
+            ResponseException.class,
+            () -> getRestClient().performRequest(explainWithSliceOnDisabled)
+        );
+        String disabledSliceResponse = Streams.copyToString(
+            new InputStreamReader(disabledSliceException.getResponse().getEntity().getContent(), UTF_8)
+        );
+        assertThat(disabledSliceResponse, containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
     public void testSliceRejectedForGetAndDeleteWhenSettingDisabled() throws Exception {
         assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         Request create = new Request("PUT", "/slice-get-delete-disabled");

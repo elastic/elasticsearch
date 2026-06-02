@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.aggregation.DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator;
-import org.elasticsearch.compute.aggregation.DeltaOnlyHistogramMergeOverTimeTDigestAggregator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -69,6 +67,16 @@ public class DeltaOnlyHistogramMergeOverTimeTests extends AbstractAggregationTes
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
+    @Override
+    public void testGroupingAggregate() {
+        if (testCase.extra() == IllegalArgumentException.class) {
+            Exception e = expectThrows(IllegalArgumentException.class, super::testGroupingAggregate);
+            assertThat(e.getMessage(), Matchers.notNullValue());
+            return;
+        }
+        super.testGroupingAggregate();
+    }
+
     private static TestCaseSupplier makeSupplier(
         TestCaseSupplier.TypedDataSupplier fieldSupplier,
         RateTests.TemporalityParameter temporality
@@ -109,12 +117,7 @@ public class DeltaOnlyHistogramMergeOverTimeTests extends AbstractAggregationTes
                                     + "Invalid temporality value: [gotcha], expected [cumulative] or [delta]"
                             );
                     } else if (temporality == RateTests.TemporalityParameter.CUMULATIVE) {
-                        String cumulativeWarning = fieldTypedData.type() == DataType.TDIGEST
-                            ? DeltaOnlyHistogramMergeOverTimeTDigestAggregator.CUMULATIVE_UNSUPPORTED_WARNING
-                            : DeltaOnlyHistogramMergeOverTimeExponentialHistogramAggregator.CUMULATIVE_UNSUPPORTED_WARNING;
-                        return result.withWarning(
-                            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                        ).withWarning("Line 1:1: java.lang.IllegalArgumentException: " + cumulativeWarning);
+                        return result.withExtra(IllegalArgumentException.class);
                     }
                 }
                 return result;

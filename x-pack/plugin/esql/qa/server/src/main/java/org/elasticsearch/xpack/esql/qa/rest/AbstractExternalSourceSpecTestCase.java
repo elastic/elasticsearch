@@ -125,6 +125,27 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
      * (fileName, groupName, testName, lineNumber, testCase, instructions, format, storageBackend).
      */
     protected static List<Object[]> readExternalSpecTestsWithFormats(List<String> formats, String... specPatterns) throws Exception {
+        return readExternalSpecTestsWithExtraParam(formats, specPatterns);
+    }
+
+    /**
+     * Load csv-spec files and cross-product each test with all codecs and storage backends.
+     * Returns parameter arrays suitable for a {@code @ParametersFactory} constructor with 8 arguments:
+     * (fileName, groupName, testName, lineNumber, testCase, instructions, codecName, storageBackend).
+     * Identical shape to {@link #readExternalSpecTestsWithFormats}; the separate name documents the
+     * intent of the extra column ("codec" vs. "format") at the call site.
+     */
+    protected static List<Object[]> readExternalSpecTestsWithCodecs(List<String> codecs, String... specPatterns) throws Exception {
+        return readExternalSpecTestsWithExtraParam(codecs, specPatterns);
+    }
+
+    /**
+     * Shared cross-product helper used by {@link #readExternalSpecTestsWithFormats} and
+     * {@link #readExternalSpecTestsWithCodecs}. Builds the cross product on the un-expanded base tuple
+     * (so the resulting array is always {@code (baseTest..., extraParam, backend)}) rather than splicing
+     * into a tuple that already has the backend appended.
+     */
+    private static List<Object[]> readExternalSpecTestsWithExtraParam(List<String> extraParams, String... specPatterns) throws Exception {
         List<URL> urls = new ArrayList<>();
         for (String pattern : specPatterns) {
             urls.addAll(classpathResources(pattern));
@@ -136,12 +157,12 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         List<Object[]> baseTests = SpecReader.readScriptSpec(urls, specParser());
         List<Object[]> parameterizedTests = new ArrayList<>();
         for (Object[] baseTest : baseTests) {
-            for (String format : formats) {
+            for (String extra : extraParams) {
                 for (StorageBackend backend : BACKENDS) {
                     int baseLength = baseTest.length;
                     Object[] parameterizedTest = new Object[baseLength + 2];
                     System.arraycopy(baseTest, 0, parameterizedTest, 0, baseLength);
-                    parameterizedTest[baseLength] = format;
+                    parameterizedTest[baseLength] = extra;
                     parameterizedTest[baseLength + 1] = backend;
                     parameterizedTests.add(parameterizedTest);
                 }
@@ -329,6 +350,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     }
 
     /**
+     * Override to change the base directory within the resource tree where multi-file split fixtures
+     * live (template {@code {{x_multifile_split}}}). Defaults to {@code "multifile_split"}. Subclasses
+     * testing codec-compressed multi-file fixtures override this to point at codec-specific directories
+     * (e.g. {@code "multifile_split-gzip"}).
+     */
+    protected String multifileSplitDir() {
+        return "multifile_split";
+    }
+
+    /**
      * Override to specify a reader implementation for the EXTERNAL query.
      * When non-null, a {@code "reader": "<name>"} parameter is injected into the WITH clause.
      *
@@ -430,6 +461,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     /** Suffix that triggers multi-file glob resolution */
     private static final String MULTIFILE_SUFFIX = "_multifile";
+    /** Suffix that triggers multi-file split glob resolution (same schema, split from a single file) */
+    private static final String MULTIFILE_SPLIT_SUFFIX = "_multifile_split";
     /** Suffix that triggers multi-file UBN glob resolution (divergent schemas across files) */
     private static final String MULTIFILE_UBN_SUFFIX = "_multifile_ubn";
     /**
@@ -455,6 +488,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         } else if (templateName.endsWith(MULTIFILE_UBN_SUFFIX)) {
             // UBN multi-file template: employees_multifile_ubn -> multifile_ubn/*.<format>
             relativePath = "multifile_ubn/*." + format;
+        } else if (templateName.endsWith(MULTIFILE_SPLIT_SUFFIX)) {
+            // Same-schema multi-file split: employees_multifile_split -> multifile_split/*.<format>.
+            // Subclasses testing codec-compressed multi-file fixtures override multifileSplitDir() to
+            // route to codec-specific directories (e.g. "multifile_split-gzip").
+            relativePath = multifileSplitDir() + "/*." + format;
         } else if (templateName.endsWith(MULTIFILE_SUFFIX)) {
             // Multi-file template: employees_multifile -> multifile/*.parquet
             relativePath = "multifile/*." + format;

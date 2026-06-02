@@ -130,6 +130,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -176,6 +177,7 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+import static org.elasticsearch.index.IndexVersions.SHARD_OBLIVIOUS_SLICING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_RESULT;
 
@@ -2222,7 +2224,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
 
         if (source.slice() != null) {
-            context.sliceBuilder(source.slice());
+            // Slices of indices created prior to SHARD_OBLIVIOUS_SLICING always slice based on shard
+            // but this only works if the number of shards doesn't change between slices. Since resharding breaks
+            // that assumption, resharding is gated on a SHARD_OBLIVIOUS_SLICING index version, after which
+            // we disable shard-based slicing for scrolls. We keep it on for PITs since those are documented
+            // to require sharing across slices for consistency*.
+            // *Reindex with manual slicing has switched to PITs with separate PITs per slice, but it takes care
+            // of disabling the optimization itself in that case.
+            if (searchExecutionContext.indexVersionCreated().before(SHARD_OBLIVIOUS_SLICING)) {
+                context.sliceBuilder(SliceBuilder.withShardOptimization(source.slice()));
+            } else {
+                context.sliceBuilder(
+                    context.request().scroll() != null ? SliceBuilder.withoutShardOptimization(source.slice()) : source.slice()
+                );
+            }
         }
 
         if (source.storedFields() != null) {

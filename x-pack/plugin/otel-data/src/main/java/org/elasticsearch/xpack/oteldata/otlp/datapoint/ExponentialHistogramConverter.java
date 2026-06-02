@@ -168,6 +168,12 @@ public class ExponentialHistogramConverter {
             }
             bucketsScratch.writeBuckets(builder);
             writeSummaryStatistics(dataPoint, builder);
+        } else if (dataPoint.getCount() > 0) {
+            bucketsScratch.clear();
+            double value = dataPoint.hasSum() ? dataPoint.getSum() / dataPoint.getCount() : 0.0;
+            bucketsScratch.append(value, dataPoint.getCount());
+            bucketsScratch.writeBuckets(builder);
+            writeSummaryStatistics(dataPoint, builder);
         }
         builder.endObject();
     }

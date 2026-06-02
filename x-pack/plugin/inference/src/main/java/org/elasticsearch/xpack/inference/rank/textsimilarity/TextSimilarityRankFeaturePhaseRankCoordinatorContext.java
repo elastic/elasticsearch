@@ -10,13 +10,15 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.ArrayList;
@@ -25,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
@@ -101,9 +104,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
                 List<String> inferenceInputs = Arrays.stream(featureDocs).flatMap(featureDoc -> featureDoc.featureData.stream()).toList();
-                InferenceAction.Request inferenceRequest = generateRequest(inferenceInputs);
+                RerankAction.Request inferenceRequest = generateRequest(inferenceInputs);
                 try {
-                    executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
+                    executeAsyncWithOrigin(client, INFERENCE_ORIGIN, RerankAction.INSTANCE, inferenceRequest, inferenceListener);
                 } finally {
                     inferenceRequest.decRef();
                 }
@@ -136,18 +139,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         return docs.toArray(RankFeatureDoc[]::new);
     }
 
-    protected InferenceAction.Request generateRequest(List<String> docFeatures) {
-        return new InferenceAction.Request(
-            TaskType.RERANK,
+    protected RerankAction.Request generateRequest(List<String> docFeatures) {
+        return new RerankAction.Request(
             inferenceId,
-            inferenceText,
-            null,
-            null,
-            docFeatures,
-            Map.of(),
-            InputType.INTERNAL_SEARCH,
-            TIMEOUT_NOT_DETERMINED,
-            false
+            new RerankRequest(fromStringList(docFeatures), InferenceString.ofText(inferenceText), null, null, null),
+            TIMEOUT_NOT_DETERMINED
         );
     }
 

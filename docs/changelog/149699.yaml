@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 149501
+pr: 149699
+summary: "Query approximation: fix chained STATS verification for FORKed queries"
+type: bug

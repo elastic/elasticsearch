@@ -23,7 +23,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkSparse;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * JDK-22+ implementation for Int7 OSQ query-time scorers.
@@ -42,9 +41,6 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         float additionalCorrection,
         int quantizedComponentSum
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         if (quantizedQuery.length != values.getVectorByteLength()) {
             throw new IllegalArgumentException(
                 "quantized query length " + quantizedQuery.length + " differs from vector byte length " + values.getVectorByteLength()

@@ -29,7 +29,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -79,6 +78,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
@@ -490,7 +490,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 this,
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD,
-                indexSettings.getMode().isColumnar(),
+                indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters().multiValue()
             );
             return new KeywordFieldMapper(
@@ -619,7 +619,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexVersion = builder.indexSettings.getIndexVersionCreated();
             this.readInArrayOrder = builder.offsetsFieldName != null
                 && builder.docValuesParameters().multiValue()
-                && builder.indexSettings.getMode().isColumnar();
+                && builder.indexSettings.getMode().isStrictColumnar();
         }
 
         public KeywordFieldType(String name) {
@@ -806,16 +806,19 @@ public final class KeywordFieldMapper extends FieldMapper {
                     indexedValueForSearch(value).utf8ToString(),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
-                    transpositions
+                    transpositions,
+                    context
                 );
             } else {
-                return new FuzzyQuery(
+                return FuzzyQueries.create(
                     new Term(name(), indexedValueForSearch(value)),
                     fuzziness.asDistance(BytesRefs.toString(value)),
                     prefixLength,
                     maxExpansions,
                     transpositions,
-                    MultiTermQuery.DOC_VALUES_REWRITE
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    context,
+                    name()
                 );
             }
         }
@@ -1419,19 +1422,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (shouldRecordOffset(context)) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
-    }
-
-    private boolean shouldRecordOffset(DocumentParserContext context) {
-        return offsetsFieldName != null && context.isImmediateParentAnArray()
-        // canAddIgnoreField is for source_keep_mode
-            && (context.canAddIgnoredField() || (docValuesParameters.multiValue() && indexSettings.getMode().isColumnar()));
     }
 
     @Override

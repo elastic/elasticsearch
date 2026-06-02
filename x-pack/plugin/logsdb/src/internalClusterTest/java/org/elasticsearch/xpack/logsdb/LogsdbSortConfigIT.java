@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Sort;
@@ -109,8 +110,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "pattern_text"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword"
                   }
                 }
               }
@@ -189,8 +189,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword"
                   }
                 }
               }
@@ -247,8 +246,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
                     "type": "keyword"
                   },
                   "test_id": {
-                    "type": "text",
-                    "store": true
+                    "type": "keyword"
                   }
                 }
               }
@@ -527,13 +525,15 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
 
             var segment = segments.getFirst();
             var reader = segment.reader();
-            var storedFields = reader.storedFields();
+            SortedSetDocValues dvs = reader.getSortedSetDocValues("test_id");
+            assertNotNull(dvs);
 
             int expectedDocIdx = 0;
 
             for (int docId = 0; docId < reader.maxDoc(); docId++) {
                 String expectedId = orderedDocs[expectedDocIdx++].id;
-                String actualId = storedFields.document(docId).get("test_id");
+                assertTrue(dvs.advanceExact(docId));
+                String actualId = dvs.lookupOrd(dvs.nextOrd()).utf8ToString();
                 assertEquals(expectedId, actualId);
             }
         }

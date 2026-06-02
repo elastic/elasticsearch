@@ -355,6 +355,12 @@ public class ApproximationVerifier {
         Holder<Boolean> hasGrouping = new Holder<>();
         Holder<Boolean> preservesRows = new Holder<>(true);
 
+        // Holds the first encountered exception. If a `ChainedStatsVerificationException` is
+        // encountered, that is thrown immediately, because it leads to a non-approximable query
+        // regardless of the rest of the plan. Otherwise, the first exception is thrown, meaning
+        // this branch cannot be approximated, but other branches possibly can.
+        Holder<VerificationException> verificationException = new Holder<>();
+
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
             return null;
         }
@@ -362,11 +368,13 @@ public class ApproximationVerifier {
         logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
                 if (LIMITING_COMMANDS.contains(plan.getClass())) {
-                    throw new VerificationException(
-                        "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
-                        plan.source().source().getLineNumber(),
-                        plan.source().source().getColumnNumber(),
-                        plan.sourceText()
+                    verificationException.setIfAbsent(
+                        new VerificationException(
+                            "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
+                            plan.source().source().getLineNumber(),
+                            plan.source().source().getColumnNumber(),
+                            plan.sourceText()
+                        )
                     );
                 }
                 if (plan instanceof Aggregate aggregate) {
@@ -377,21 +385,27 @@ public class ApproximationVerifier {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
                             // TODO: ideally just return aggregate function from the source
-                            throw new VerificationException(
-                                "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
-                                aggFn.source().source().getLineNumber(),
-                                aggFn.source().source().getColumnNumber(),
-                                aggFn.sourceText()
+                            verificationException.setIfAbsent(
+                                new VerificationException(
+                                    "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
+                                    aggFn.source().source().getLineNumber(),
+                                    aggFn.source().source().getColumnNumber(),
+                                    aggFn.sourceText()
+                                )
                             );
                         }
                         if (aggFn.dataType().isNumeric() == false) {
-                            throw new VerificationException(
-                                "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
-                                aggFn.source().source().getLineNumber(),
-                                aggFn.source().source().getColumnNumber(),
-                                aggFn.sourceText(),
-                                aggFn.dataType()
+                            verificationException.setIfAbsent(
+                                new VerificationException(
+                                    "line {}:{}: approximation not supported: "
+                                        + "aggregation function [{}] must return a numeric value; got [{}]",
+                                    aggFn.source().source().getLineNumber(),
+                                    aggFn.source().source().getColumnNumber(),
+                                    aggFn.sourceText(),
+                                    aggFn.dataType()
+                                )
                             );
+
                         }
                     });
                 } else if (plan instanceof LeafPlan == false) {
@@ -406,6 +420,10 @@ public class ApproximationVerifier {
                 }
             }
         });
+
+        if (verificationException.get() != null) {
+            throw verificationException.get();
+        }
 
         return new QueryProperties(hasGrouping.get(), preservesRows.get(), null);
     }

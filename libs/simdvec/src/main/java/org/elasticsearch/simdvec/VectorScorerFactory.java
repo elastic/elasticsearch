@@ -31,7 +31,7 @@ public interface VectorScorerFactory {
     ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
     /**
-     * Create a new {@link ES940OSQVectorsScorer} for the given {@link IndexInput} and explicit int4 disk format.
+     * Create a new {@link ES940OSQVectorsScorer} for the given {@link IndexInput} and explicit packed-vs-striped disk layout.
      * The input should be unwrapped before calling this method. If the input is
      * still a {@code FilterIndexInput} that does not implement
      * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
@@ -45,7 +45,7 @@ public interface VectorScorerFactory {
         int dimension,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException;
 
     /**

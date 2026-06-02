@@ -48,12 +48,10 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         }
 
         if (source == ValueSource.DOC_VALUES) {
-            // Sorted
-            var resultList = ((List<Object>) value).stream()
-                .map(v -> convert(v, nullValue, fieldMapping, source))
-                .filter(Objects::nonNull)
-                .sorted()
-                .toList();
+            // Columnar index modes preserve arrival order via offsets; standard mode returns doc values sorted.
+            boolean preserveOrder = params.indexMode().isColumnar();
+            var stream = ((List<Object>) value).stream().map(v -> convert(v, nullValue, fieldMapping, source)).filter(Objects::nonNull);
+            var resultList = preserveOrder ? stream.toList() : stream.sorted().toList();
             return maybeFoldList(resultList);
         }
 

@@ -330,7 +330,8 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| STATS sample = SAMPLE(gender, 5)"
+    "FROM sample_data\n| STATS sample_messages = SAMPLE(message, 3)",
+    "FROM sample_data\n| STATS sample_messages = SAMPLE(message, 2) BY client_ip\n| SORT client_ip"
   ],
   "preview" : false,
   "snapshot_only" : false

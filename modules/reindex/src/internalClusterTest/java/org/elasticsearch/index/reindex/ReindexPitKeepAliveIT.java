@@ -136,7 +136,7 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
         final ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices(source).setDestIndex(dest);
         reindexRequest.setScroll(TimeValue.timeValueMinutes(randomIntBetween(0, 5)));
 
-        BulkByScrollResponse reindexResponse = client().execute(ReindexAction.INSTANCE, reindexRequest).actionGet();
+        BulkByPaginatedSearchResponse reindexResponse = client().execute(ReindexAction.INSTANCE, reindexRequest).actionGet();
         assertThat(reindexResponse.getSearchFailures().size(), equalTo(0));
         assertThat(reindexResponse.getBulkFailures().size(), equalTo(0));
         assertThat(reindexResponse.getCreated(), equalTo((long) numDocs));

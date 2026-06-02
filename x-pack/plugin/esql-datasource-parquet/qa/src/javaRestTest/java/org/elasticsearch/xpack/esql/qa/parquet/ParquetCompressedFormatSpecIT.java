@@ -75,6 +75,6 @@ public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTes
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(CODECS, "/external-basic.csv-spec");
+        return readExternalSpecTestsWithCodecs(CODECS, "/external-basic.csv-spec", "/external-multivalue.csv-spec");
     }
 }

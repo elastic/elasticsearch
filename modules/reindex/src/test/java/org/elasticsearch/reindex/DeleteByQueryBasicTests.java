@@ -24,7 +24,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
@@ -315,7 +315,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             enableIndexBlock("test", SETTING_READ_ONLY_ALLOW_DELETE);
             if (diskAllocationDeciderEnabled) {
                 // Fire off the delete-by-query first
-                final ActionFuture<BulkByScrollResponse> deleteByQueryResponse = deleteByQuery().source("test")
+                final ActionFuture<BulkByPaginatedSearchResponse> deleteByQueryResponse = deleteByQuery().source("test")
                     .filter(QueryBuilders.matchAllQuery())
                     .refresh(true)
                     .execute();
@@ -417,7 +417,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
     }
 
     public void testMissingSources() {
-        BulkByScrollResponse response = updateByQuery().source("missing-index-*")
+        BulkByPaginatedSearchResponse response = updateByQuery().source("missing-index-*")
             .refresh(true)
             .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .get();

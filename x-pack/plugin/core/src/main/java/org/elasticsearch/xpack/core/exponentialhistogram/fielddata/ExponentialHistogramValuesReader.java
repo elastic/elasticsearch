@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.io.IOException;
@@ -65,6 +66,8 @@ public interface ExponentialHistogramValuesReader {
      * @return the maximum of the values in the histogram for the current document
      */
     double maxValue() throws IOException;
+
+    DocIdSetIterator docIdIterator();
 
     // TODO: add accessors for min/max/sum which don't load the entire histogram
 }

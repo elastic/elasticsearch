@@ -33,7 +33,7 @@ final class CsvRecordSplitter implements RecordSplitter {
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
+        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             return findNextRecordBoundaryQuotedFieldsOnly(stream);
         }
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
@@ -45,7 +45,7 @@ final class CsvRecordSplitter implements RecordSplitter {
     /**
      * Override the SPI default for the QuotedFieldsOnly path so the streaming segmentator gets a
      * single-pass answer instead of dispatching the per-record scanner once per record.
-     * Bracket-comma MVC stays on the forward scanner because the bracket-region state machine
+     * Bracket MVC stays on the forward scanner because the bracket-region state machine
      * (depth, leading-whitespace gating, mark limit) is non-trivial to fold into a single pass.
      */
     @Override
@@ -54,7 +54,7 @@ final class CsvRecordSplitter implements RecordSplitter {
             return -1;
         }
         Objects.checkFromIndexSize(offset, length, buf.length);
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
+        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             return findLastRecordBoundaryQuotedFieldsOnly(buf, offset, length);
         }
         return findLastRecordBoundaryByForwardScan(buf, offset, length);
@@ -173,7 +173,7 @@ final class CsvRecordSplitter implements RecordSplitter {
     }
 
     /**
-     * Record boundary scan for comma-delimited CSV with bracket MVC. Newlines inside {@code [..]} or quoted fields
+     * Record boundary scan for delimited text (CSV or TSV) with bracket MVC. Newlines inside {@code [..]} or quoted fields
      * must not end the record. Quote opening follows RFC 4180 - only at field start, optionally preceded by whitespace
      * - so stray {@code "} chars in unquoted cells do not trigger multi-line gluing or pathological segment splits.
      */

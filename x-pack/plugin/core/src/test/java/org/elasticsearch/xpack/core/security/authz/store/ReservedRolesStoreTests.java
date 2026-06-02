@@ -3996,8 +3996,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
-        assertNoAccessAllowed(role, "traces-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
-        assertNoAccessAllowed(role, "logs-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
         // Check application privileges
         assertThat(
             role.application()
@@ -4085,8 +4083,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
-        assertNoAccessAllowed(role, "traces-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
-        assertNoAccessAllowed(role, "logs-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
 
         // Check application privileges
         assertThat(

@@ -61,7 +61,9 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction
     private final Expression timestamp;
     private final Expression temporality;
 
-    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.TIME_SERIES_AGGREGATE,
+    @FunctionInfo(
+        returnType = { "exponential_histogram", "tdigest" },
+        type = FunctionType.TIME_SERIES_AGGREGATE,
         briefSummary = "Merges histogram field values over a time window."
     )
     public HistogramMergeOverTime(

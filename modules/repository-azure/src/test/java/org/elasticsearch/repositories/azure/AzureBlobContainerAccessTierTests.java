@@ -9,11 +9,10 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.storage.blob.models.AccessTier;
-
 import fixture.azure.AzureHttpHandler;
 import fixture.azure.MockAzureBlobStore;
 
+import com.azure.storage.blob.models.AccessTier;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpServer;

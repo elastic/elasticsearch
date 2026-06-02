@@ -457,31 +457,58 @@ public class TransportMultiSearchActionTests extends ESTestCase {
     }
 
     public void testEstimateShardFailures() throws Exception {
-        ShardSearchFailure failure = new ShardSearchFailure(new RuntimeException("shard failure message"));
+        RuntimeException cause = new RuntimeException("shard failure message");
+        ShardSearchFailure failure = new ShardSearchFailure(cause);
         SearchResponse withFailure = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).shardFailures(failure).build();
         SearchResponse withoutFailure = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).build();
         try {
             long withBytes = TransportMultiSearchAction.estimateActualBytes(withFailure);
             long withoutBytes = TransportMultiSearchAction.estimateActualBytes(withoutFailure);
 
-            // The failure estimate must be strictly larger.
             assertThat(withBytes, greaterThan(withoutBytes));
 
-            // The exact delta matches what CountingStreamOutput reports for the failure array.
-            long expectedFailureBytes;
-            try (CountingStreamOutput out = new CountingStreamOutput()) {
-                out.setTransportVersion(TransportVersion.current());
-                out.writeArray(new ShardSearchFailure[] { failure });
-                expectedFailureBytes = out.position();
-            }
-            assertThat(
-                withBytes - withoutBytes,
-                equalTo(TransportMultiSearchAction.SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * expectedFailureBytes)
-            );
+            // Exact delta: per-failure overhead + structural exception bytes + reason String.
+            // reason() is ExceptionsHelper.stackTrace(cause) — the full formatted stack trace,
+            // stored as a distinct String on the heap regardless of what's in the cause chain.
+            // estimateExceptionBytes depends on actual stack depth at test time, so we call it
+            // directly rather than hardcoding a frame count.
+            long expectedDelta = TransportMultiSearchAction.PER_SHARD_FAILURE_OVERHEAD + TransportMultiSearchAction.estimateExceptionBytes(
+                cause
+            ) + 32L + failure.reason().length();
+            assertThat(withBytes - withoutBytes, equalTo(expectedDelta));
         } finally {
             withFailure.decRef();
             withoutFailure.decRef();
         }
+    }
+
+    public void testEstimateShardFailuresScaleWithStackDepth() {
+        // Verify that deeper stack traces produce larger estimates — the structural estimator
+        // charges PER_STACK_FRAME_BYTES per frame, so depth should drive the delta.
+        // Both exceptions share the same message so the only delta is the frame count.
+        RuntimeException shallow = new RuntimeException("same message for both");
+        StackTraceElement[] shortTrace = { new StackTraceElement("com.example.Foo", "bar", "Foo.java", 1) };
+        shallow.setStackTrace(shortTrace);
+
+        RuntimeException deep = new RuntimeException("same message for both");
+        StackTraceElement[] longTrace = new StackTraceElement[50];
+        for (int i = 0; i < longTrace.length; i++) {
+            longTrace[i] = new StackTraceElement("com.example.Class" + i, "method", "Class.java", i);
+        }
+        deep.setStackTrace(longTrace);
+
+        long shallowBytes = TransportMultiSearchAction.estimateExceptionBytes(shallow);
+        long deepBytes = TransportMultiSearchAction.estimateExceptionBytes(deep);
+
+        assertThat(deepBytes, greaterThan(shallowBytes));
+        // Delta should be exactly (50 - 1) frames × PER_STACK_FRAME_BYTES
+        // plus the difference in array ref slots (49 × 4 B) and array header (same for both).
+        long expectedFrameDelta = (long) (longTrace.length - shortTrace.length) * (TransportMultiSearchAction.PER_STACK_FRAME_BYTES + 4); // +4
+                                                                                                                                          // for
+                                                                                                                                          // array
+                                                                                                                                          // ref
+                                                                                                                                          // slot
+        assertThat(deepBytes - shallowBytes, equalTo(expectedFrameDelta));
     }
 
     public void testEstimateSuggest() throws Exception {

@@ -123,18 +123,34 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
     /**
      * Multiplier applied to wire-serialised byte counts (from {@link #tryCountSerializedBytes})
-     * to approximate coordinator heap. The heap form of structured objects is typically 2–5×
-     * larger than the wire form: exceptions carry {@code StackTraceElement[]} arrays (~80 B per
-     * frame), suggest and profile nodes carry Java collection overhead, and highlight
-     * {@link Text} objects add object shells beyond their string content. Using 2× is a
-     * conservative lower bound within the safe over-estimate range for circuit-breaker purposes.
+     * to approximate coordinator heap for suggest, profile, CCS cluster metadata, and highlight
+     * fields. These structures carry Java collection nodes and object shells beyond their wire
+     * content. Using 2× is a conservative lower bound.
      * <p>
-     * Residual OOM risk: responses dominated by deep stack traces (many shard failures with
-     * 50+ frame traces) or large profile trees may reach 4–5× wire size on heap. In those cases
-     * this multiplier under-estimates, and the REQUEST breaker may not trip until the parent
-     * real-memory breaker intervenes.
+     * Shard failures are NOT sized with this factor; they use {@link #estimateExceptionBytes}
+     * directly so that {@code StackTraceElement} depth and cause chains are measured structurally.
      */
     static final long SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR = 2L;
+
+    /**
+     * Heap cost of a single {@link StackTraceElement} (64-bit JVM, compressed oops), including
+     * the object shell (~48 B on Java 9+ with classLoaderName/moduleName/moduleVersion fields)
+     * plus the class-name {@code String} shell and backing array, sized conservatively as if the
+     * string is <em>not</em> interned. Class names are often interned by the JVM bootstrap
+     * class loader, but shard failures from hot-deploy plugins or OSGi bundles may hold
+     * non-interned strings. Method and file-name strings are smaller and absorbed by the flat
+     * constant.
+     */
+    static final long PER_STACK_FRAME_BYTES = 200L;
+
+    /**
+     * Fixed overhead per {@link ShardSearchFailure} entry: the failure object shell (~32 B),
+     * its {@link org.elasticsearch.search.SearchShardTarget} reference and shell (~120 B), plus
+     * padding. Does not include the exception or its stack trace (sized by
+     * {@link #estimateExceptionBytes}) or the {@code reason()} string (sized separately as
+     * {@code 32 + reason.length()}).
+     */
+    static final long PER_SHARD_FAILURE_OVERHEAD = 160L;
 
     private final int allocatedProcessors;
     private final ClusterService clusterService;
@@ -248,14 +264,21 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      *       are already on the request breaker from query-phase reduce and are not counted again here.
      *       A {@code top_hits} aggregation embeds hits in the agg tree, so the same document bytes may be
      *       counted both there and in top-level hits — a known over-estimate.</li>
-     *   <li>Shard failures, suggest results ({@link Suggest}), profile results
-     *       ({@link SearchProfileResults}), CCS clusters metadata ({@link SearchResponse.Clusters}),
-     *       highlight fragments ({@link HighlightField}), and explanations
-     *       ({@link org.apache.lucene.search.Explanation}) — each serialised via
-     *       {@link CountingStreamOutput} then multiplied by {@link #SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR}
-     *       to account for Java object overhead beyond the wire bytes (e.g. {@code StackTraceElement[]}
-     *       arrays in exceptions, collection nodes in suggest/profile structures).
-     *       CCS clusters are only counted when per-cluster tracking is active
+     *   <li>Shard failures — sized structurally via {@link #estimateExceptionBytes} per cause chain
+     *       plus {@link #PER_SHARD_FAILURE_OVERHEAD} per entry, plus the {@code reason()} string
+     *       ({@link ShardSearchFailure#reason()}, which holds the full formatted stack trace as
+     *       {@link org.elasticsearch.ExceptionsHelper#stackTrace ExceptionsHelper.stackTrace}).
+     *       This charges for {@code StackTraceElement} arrays proportional to actual stack depth
+     *       and treats class-name strings as non-interned (conservative). Wire serialisation is
+     *       not used here because wire bytes can be smaller than heap for deep stacks with
+     *       non-interned strings (plugin/OSGi class loaders).</li>
+     *   <li>Suggest results ({@link Suggest}), profile results ({@link SearchProfileResults}),
+     *       CCS clusters metadata ({@link SearchResponse.Clusters}), highlight fragments
+     *       ({@link HighlightField}), and explanations ({@link org.apache.lucene.search.Explanation})
+     *       — each serialised via {@link CountingStreamOutput} then multiplied by
+     *       {@link #SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR} to account for Java object overhead
+     *       beyond wire bytes (collection nodes in suggest/profile structures, Text shells in
+     *       highlights). CCS clusters are only counted when per-cluster tracking is active
      *       ({@link SearchResponse.Clusters#hasClusterObjects()} is true); for non-CCS searches the
      *       Clusters object holds only three integers already absorbed by {@link #BASE_RESPONSE_OVERHEAD}.
      *       For CCS, per-cluster {@link ShardSearchFailure} entries may overlap with top-level shard
@@ -286,12 +309,15 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         }
 
         ShardSearchFailure[] failures = response.getShardFailures();
-        if (failures.length > 0) {
-            bytes += SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR * tryCountSerializedBytes(
-                counter,
-                out -> out.writeArray(failures),
-                "msearch circuit breaker: failed to estimate shard failure bytes"
-            );
+        for (ShardSearchFailure failure : failures) {
+            bytes += PER_SHARD_FAILURE_OVERHEAD + estimateExceptionBytes(failure.getCause());
+            // reason() is ExceptionsHelper.stackTrace(e) — the full stack trace as a formatted String.
+            // It duplicates information in the cause but is a distinct heap object and can be large
+            // for deep stacks, so it must be counted explicitly.
+            String reason = failure.reason();
+            if (reason != null) {
+                bytes += 32L + reason.length();
+            }
         }
 
         Suggest suggest = response.getSuggest();
@@ -346,6 +372,39 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             logger.warn(logMessage, e);
             return 0L;
         }
+    }
+
+    /**
+     * Estimates coordinator heap for a {@link Throwable} and its full cause/suppressed chain.
+     * Covers the exception object shell, {@code StackTraceElement[]} array, per-frame cost
+     * ({@link #PER_STACK_FRAME_BYTES}), and the unique message {@code String}.
+     * <p>
+     * Class-name strings in {@code StackTraceElement} are treated as <em>non-interned</em>
+     * (conservative upper bound); in practice the JVM often interns them, so this over-estimates
+     * for standard class-loader paths while correctly sizing failures from hot-deploy code.
+     * The message string is always unique (never interned) and is charged at its character count.
+     * <p>
+     * Recursion terminates at {@code null} cause; suppressed exceptions are each walked fully.
+     * Real JVMs cap cause-chain depth at ~1000 frames before throwing
+     * {@link StackOverflowError}; shard failure chains are shallow (typically 2–4 levels).
+     */
+    static long estimateExceptionBytes(Throwable t) {
+        if (t == null) {
+            return 0L;
+        }
+        long bytes = 96L; // exception object shell (header + fields + padding)
+        StackTraceElement[] trace = t.getStackTrace();
+        bytes += 16L + (long) trace.length * 4; // StackTraceElement[] array header + ref slots
+        bytes += (long) trace.length * PER_STACK_FRAME_BYTES;
+        String msg = t.getMessage();
+        if (msg != null) {
+            bytes += 32L + msg.length(); // unique message String shell + chars
+        }
+        bytes += estimateExceptionBytes(t.getCause());
+        for (Throwable suppressed : t.getSuppressed()) {
+            bytes += estimateExceptionBytes(suppressed);
+        }
+        return bytes;
     }
 
     /**

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.FixForMultiProject;
@@ -159,7 +158,7 @@ public class ElasticsearchMappings {
     }
 
     /**
-     * @deprecated Use {@link #addDocMappingIfMissing(String, CheckedSupplier, Client, ClusterState, ProjectId, TimeValue, ActionListener, int)}
+     * @deprecated Use {@link #addDocMappingIfMissing(String, CheckedSupplier, Client, ProjectMetadata, TimeValue, ActionListener, int)}
      * instead.
      */
     @Deprecated(forRemoval = true)
@@ -180,21 +179,12 @@ public class ElasticsearchMappings {
         String alias,
         CheckedSupplier<String, IOException> mappingSupplier,
         Client client,
-        ClusterState state,
-        ProjectId projectId,
+        ProjectMetadata projectMetadata,
         TimeValue masterNodeTimeout,
         ActionListener<Boolean> listener,
         int minVersion
     ) {
-        doAddDocMappingIfMissing(
-            alias,
-            mappingSupplier,
-            client,
-            state.metadata().getProject(projectId),
-            masterNodeTimeout,
-            listener,
-            minVersion
-        );
+        doAddDocMappingIfMissing(alias, mappingSupplier, client, projectMetadata, masterNodeTimeout, listener, minVersion);
     }
 
     private static void doAddDocMappingIfMissing(

@@ -170,9 +170,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             client,
-            ProjectId.DEFAULT,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
             listener
@@ -211,9 +210,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             client,
-            ProjectId.DEFAULT,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
             listener
@@ -239,9 +237,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         );
 
         MlIndexAndAlias.installIndexTemplateIfRequired(
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             client,
-            ProjectId.DEFAULT,
             notificationsTemplate,
             TimeValue.timeValueMinutes(1),
             listener
@@ -450,8 +447,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            csBuilder.build(),
-            ProjectId.DEFAULT
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
     }
@@ -474,16 +470,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            state,
-            ProjectId.DEFAULT
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo-000002", latest);
 
         latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-baz-000001",
             TestIndexNameExpressionResolver.newInstance(),
-            state,
-            ProjectId.DEFAULT
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-baz-000003", latest);
     }
@@ -502,16 +496,14 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            state,
-            ProjectId.DEFAULT
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
 
         latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo-notthisone-000001",
             TestIndexNameExpressionResolver.newInstance(),
-            state,
-            ProjectId.DEFAULT
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo-notthisone-000002", latest);
     }
@@ -527,8 +519,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var latest = MlIndexAndAlias.latestIndexMatchingBaseName(
             ".ml-anomalies-custom-foo",
             TestIndexNameExpressionResolver.newInstance(),
-            state,
-            ProjectId.DEFAULT
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT)
         );
         assertEquals(".ml-anomalies-custom-foo", latest);
     }
@@ -557,8 +548,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
         var request = MlIndexAndAlias.addResultsIndexRolloverAliasActions(
             aliasRequestBuilder,
             newIndex,
-            csBuilder.build(),
-            ProjectId.DEFAULT,
+            csBuilder.build().getMetadata().getProject(ProjectId.DEFAULT),
             Arrays.asList(currentIndices)
         );
         var actions = request.request().getAliasActions();
@@ -638,9 +628,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
-            clusterState,
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT),
             TestIndexNameExpressionResolver.newInstance(),
-            ProjectId.DEFAULT,
             TEST_INDEX_PREFIX,
             TEST_INDEX_ALIAS,
             TimeValue.timeValueSeconds(30),

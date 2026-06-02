@@ -503,11 +503,8 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         assertThat(deepBytes, greaterThan(shallowBytes));
         // Delta should be exactly (50 - 1) frames × PER_STACK_FRAME_BYTES
         // plus the difference in array ref slots (49 × 4 B) and array header (same for both).
-        long expectedFrameDelta = (long) (longTrace.length - shortTrace.length) * (TransportMultiSearchAction.PER_STACK_FRAME_BYTES + 4); // +4
-                                                                                                                                          // for
-                                                                                                                                          // array
-                                                                                                                                          // ref
-                                                                                                                                          // slot
+        // +4 per frame for the array ref slot in StackTraceElement[]
+        long expectedFrameDelta = (long) (longTrace.length - shortTrace.length) * (TransportMultiSearchAction.PER_STACK_FRAME_BYTES + 4);
         assertThat(deepBytes - shallowBytes, equalTo(expectedFrameDelta));
     }
 

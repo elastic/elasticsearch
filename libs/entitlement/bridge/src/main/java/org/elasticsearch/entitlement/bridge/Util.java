@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import java.util.Optional;
 import java.util.Set;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
@@ -23,30 +24,25 @@ public class Util {
      */
     public static final Class<?> NO_CLASS = new Object() {}.getClass();
 
-    /**
-     * Initialized here (in {@code Util}, which is loaded early as part of the {@code java.base} patch,
-     * before {@code defineHiddenClass} is instrumented) so that creating the {@link StackWalker} cannot
-     * re-enter the entitlement system.  If this field lived in {@link CallerFinder}, its lazy
-     * initialization would occur during the first entitlement check, when the instrumented
-     * {@code defineHiddenClass} might recursively trigger another check before {@link CallerFinder}
-     * finishes loading — causing a {@link ClassCircularityError}.
-     */
-    static final StackWalker WALKER = StackWalker.getInstance(Set.of(RETAIN_CLASS_REFERENCE, SHOW_HIDDEN_FRAMES));
+    private static final Set<String> skipInternalPackages = Set.of("java.lang.invoke", "java.lang.reflect", "jdk.internal.reflect");
 
     /**
      * Why would we write this instead of using {@link StackWalker#getCallerClass()}?
      * Because that method throws {@link IllegalCallerException} if called from the "outermost frame",
      * which includes at least some cases of a method called from a native frame.
-     * <p>
-     * The actual stack walking is delegated to {@link CallerFinder} to avoid class-loading
-     * circularity; see that class's Javadoc for the full explanation.
      *
      * @return the class that called the method which called this; or {@link #NO_CLASS} from the outermost frame.
      */
     @SuppressWarnings("unused") // Called reflectively from InstrumenterImpl
     public static Class<?> getCallerClass() {
-        Class<?> result = CallerFinder.findCaller(WALKER);
-        return result != null ? result : NO_CLASS;
+        Optional<Class<?>> callerClassIfAny = StackWalker.getInstance(Set.of(RETAIN_CLASS_REFERENCE, SHOW_HIDDEN_FRAMES))
+            .walk(
+                frames -> frames.skip(2) // Skip this method and its caller
+                    .filter(frame -> skipInternalPackages.contains(frame.getDeclaringClass().getPackageName()) == false)
+                    .findFirst()
+                    .map(StackWalker.StackFrame::getDeclaringClass)
+            );
+        return callerClassIfAny.orElse(NO_CLASS);
     }
 
 }

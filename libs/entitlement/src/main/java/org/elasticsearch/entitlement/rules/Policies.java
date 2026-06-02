@@ -29,108 +29,8 @@ import java.util.Set;
  * for various system operations that require entitlement checks. Each method returns
  * a {@link CheckMethod} that can be used in entitlement rule definitions to enforce
  * security policies on sensitive operations.
- * <p>
- * <strong>Java 17 lambda re-entrancy note:</strong> On Java 17, the JVM creates lambda
- * implementation classes via {@link java.lang.invoke.MethodHandles.Lookup#defineHiddenClass},
- * which is instrumented by the entitlement system.  If a lambda class were created
- * <em>during</em> an entitlement check, it would trigger a recursive check, which would
- * try to create the same lambda class again — causing infinite recursion and
- * {@link StackOverflowError}.
- * <p>
- * To prevent this, every zero-capture check method in this class is stored as a
- * {@code private static final} constant.  The constant is initialized when this class is
- * first loaded, which happens during rule registration — before
- * {@link org.elasticsearch.entitlement.initialization.DynamicInstrumentation#initialize}
- * makes {@code defineHiddenClass} instrumented.  Subsequent calls return the existing
- * instance without creating any new hidden class.
- * <p>
- * Check methods that <em>do</em> capture state (e.g. {@link #entitlementForUrl},
- * {@link #fileRead(java.nio.file.Path)}) must create a fresh lambda on each call;
- * they are safe because any {@code defineHiddenClass} triggered for their lambda class
- * resolves to a trivially-allowed caller (entitlement infrastructure is in
- * {@code SYSTEM_LAYER_MODULES}) and returns immediately without further lambda creation.
  */
 public class Policies {
-
-    // -----------------------------------------------------------------------
-    // Zero-capture constants — initialized when this class is first loaded,
-    // which is before defineHiddenClass is instrumented.
-    // -----------------------------------------------------------------------
-
-    private static final CheckMethod EMPTY = (callingClass, policyChecker) -> {};
-
-    private static final CheckMethod ALL_NETWORK_ACCESS = (callingClass, policyChecker) -> policyChecker.checkAllNetworkAccess(
-        callingClass
-    );
-
-    private static final CheckMethod CHANGE_FILES_HANDLING = (callingClass, policyChecker) -> policyChecker.checkChangeFilesHandling(
-        callingClass
-    );
-
-    private static final CheckMethod CHANGE_JVM_GLOBAL_STATE = (callingClass, policyChecker) -> policyChecker.checkChangeJVMGlobalState(
-        callingClass
-    );
-
-    private static final CheckMethod CHANGE_NETWORK_HANDLING = (callingClass, policyChecker) -> policyChecker.checkChangeNetworkHandling(
-        callingClass
-    );
-
-    private static final CheckMethod CREATE_CLASS_LOADER = (callingClass, policyChecker) -> policyChecker.checkCreateClassLoader(
-        callingClass
-    );
-
-    private static final CheckMethod CREATE_TEMP_FILE = (callingClass, policyChecker) -> policyChecker.checkCreateTempFile(callingClass);
-
-    private static final CheckMethod EXIT_VM = (callingClass, policyChecker) -> policyChecker.checkExitVM(callingClass);
-
-    private static final CheckMethod FILE_DESCRIPTOR_READ = (callingClass, policyChecker) -> policyChecker.checkFileDescriptorRead(
-        callingClass
-    );
-
-    private static final CheckMethod FILE_DESCRIPTOR_WRITE = (callingClass, policyChecker) -> policyChecker.checkFileDescriptorWrite(
-        callingClass
-    );
-
-    private static final CheckMethod GET_FILE_ATTRIBUTE_VIEW = (callingClass, policyChecker) -> policyChecker.checkGetFileAttributeView(
-        callingClass
-    );
-
-    private static final CheckMethod INBOUND_NETWORK_ACCESS = (callingClass, policyChecker) -> policyChecker.checkInboundNetworkAccess(
-        callingClass
-    );
-
-    private static final CheckMethod LOADING_NATIVE_LIBRARIES = (callingClass, policyChecker) -> policyChecker.checkLoadingNativeLibraries(
-        callingClass
-    );
-
-    private static final CheckMethod LOGGING_FILE_HANDLER = (callingClass, policyChecker) -> policyChecker.checkLoggingFileHandler(
-        callingClass
-    );
-
-    private static final CheckMethod MANAGE_THREADS = (callingClass, policyChecker) -> policyChecker.checkManageThreadsEntitlement(
-        callingClass
-    );
-
-    private static final CheckMethod OUTBOUND_NETWORK_ACCESS = (callingClass, policyChecker) -> policyChecker.checkOutboundNetworkAccess(
-        callingClass
-    );
-
-    private static final CheckMethod READ_STORE_ATTRIBUTES = (callingClass, policyChecker) -> policyChecker.checkReadStoreAttributes(
-        callingClass
-    );
-
-    private static final CheckMethod SET_HTTPS_CONNECTION_PROPERTIES = (callingClass, policyChecker) -> policyChecker
-        .checkSetHttpsConnectionProperties(callingClass);
-
-    private static final CheckMethod START_PROCESS = (callingClass, policyChecker) -> policyChecker.checkStartProcess(callingClass);
-
-    private static final CheckMethod WRITE_STORE_ATTRIBUTES = (callingClass, policyChecker) -> policyChecker.checkWriteStoreAttributes(
-        callingClass
-    );
-
-    // -----------------------------------------------------------------------
-    // Factory methods
-    // -----------------------------------------------------------------------
 
     /**
      * Returns a no-op check method that performs no entitlement checks.
@@ -138,7 +38,7 @@ public class Policies {
      * @return a check method that does nothing
      */
     public static CheckMethod empty() {
-        return EMPTY;
+        return (callingClass, policyChecker) -> {};
     }
 
     /**
@@ -147,7 +47,7 @@ public class Policies {
      * @return a check method that verifies entitlement for all network access
      */
     public static CheckMethod allNetworkAccess() {
-        return ALL_NETWORK_ACCESS;
+        return (callingClass, policyChecker) -> policyChecker.checkAllNetworkAccess(callingClass);
     }
 
     /**
@@ -156,7 +56,7 @@ public class Policies {
      * @return a check method that verifies entitlement for changing file handling
      */
     public static CheckMethod changeFilesHandling() {
-        return CHANGE_FILES_HANDLING;
+        return (callingClass, policyChecker) -> policyChecker.checkChangeFilesHandling(callingClass);
     }
 
     /**
@@ -165,7 +65,7 @@ public class Policies {
      * @return a check method that verifies entitlement for changing JVM global state
      */
     public static CheckMethod changeJvmGlobalState() {
-        return CHANGE_JVM_GLOBAL_STATE;
+        return (callingClass, policyChecker) -> policyChecker.checkChangeJVMGlobalState(callingClass);
     }
 
     /**
@@ -174,7 +74,7 @@ public class Policies {
      * @return a check method that verifies entitlement for changing network handling
      */
     public static CheckMethod changeNetworkHandling() {
-        return CHANGE_NETWORK_HANDLING;
+        return (callingClass, policyChecker) -> policyChecker.checkChangeNetworkHandling(callingClass);
     }
 
     /**
@@ -183,7 +83,7 @@ public class Policies {
      * @return a check method that verifies entitlement for creating class loaders
      */
     public static CheckMethod createClassLoader() {
-        return CREATE_CLASS_LOADER;
+        return (callingClass, policyChecker) -> policyChecker.checkCreateClassLoader(callingClass);
     }
 
     /**
@@ -192,7 +92,7 @@ public class Policies {
      * @return a check method that verifies entitlement for creating temporary files
      */
     public static CheckMethod createTempFile() {
-        return CREATE_TEMP_FILE;
+        return (callingClass, policyChecker) -> policyChecker.checkCreateTempFile(callingClass);
     }
 
     /**
@@ -221,7 +121,7 @@ public class Policies {
      * @return a check method that verifies entitlement for exiting the VM
      */
     public static CheckMethod exitVM() {
-        return EXIT_VM;
+        return (callingClass, policyChecker) -> policyChecker.checkExitVM(callingClass);
     }
 
     /**
@@ -230,7 +130,7 @@ public class Policies {
      * @return a check method that verifies entitlement for file descriptor reads
      */
     public static CheckMethod fileDescriptorRead() {
-        return FILE_DESCRIPTOR_READ;
+        return (callingClass, policyChecker) -> policyChecker.checkFileDescriptorRead(callingClass);
     }
 
     /**
@@ -239,7 +139,7 @@ public class Policies {
      * @return a check method that verifies entitlement for file descriptor writes
      */
     public static CheckMethod fileDescriptorWrite() {
-        return FILE_DESCRIPTOR_WRITE;
+        return (callingClass, policyChecker) -> policyChecker.checkFileDescriptorWrite(callingClass);
     }
 
     /**
@@ -330,7 +230,7 @@ public class Policies {
      * @return a check method that verifies entitlement for getting file attribute views
      */
     public static CheckMethod getFileAttributeView() {
-        return GET_FILE_ATTRIBUTE_VIEW;
+        return (callingClass, policyChecker) -> policyChecker.checkGetFileAttributeView(callingClass);
     }
 
     /**
@@ -339,7 +239,7 @@ public class Policies {
      * @return a check method that verifies entitlement for inbound network access
      */
     public static CheckMethod inboundNetworkAccess() {
-        return INBOUND_NETWORK_ACCESS;
+        return (callingClass, policyChecker) -> policyChecker.checkInboundNetworkAccess(callingClass);
     }
 
     /**
@@ -348,7 +248,7 @@ public class Policies {
      * @return a check method that verifies entitlement for loading native libraries
      */
     public static CheckMethod loadingNativeLibraries() {
-        return LOADING_NATIVE_LIBRARIES;
+        return (callingClass, policyChecker) -> policyChecker.checkLoadingNativeLibraries(callingClass);
     }
 
     /**
@@ -357,7 +257,7 @@ public class Policies {
      * @return a check method that verifies entitlement for logging file handlers
      */
     public static CheckMethod loggingFileHandler() {
-        return LOGGING_FILE_HANDLER;
+        return (callingClass, policyChecker) -> policyChecker.checkLoggingFileHandler(callingClass);
     }
 
     /**
@@ -366,7 +266,7 @@ public class Policies {
      * @return a check method that verifies entitlement for managing threads
      */
     public static CheckMethod manageThreads() {
-        return MANAGE_THREADS;
+        return (callingClass, policyChecker) -> policyChecker.checkManageThreadsEntitlement(callingClass);
     }
 
     /**
@@ -375,7 +275,7 @@ public class Policies {
      * @return a check method that verifies entitlement for outbound network access
      */
     public static CheckMethod outboundNetworkAccess() {
-        return OUTBOUND_NETWORK_ACCESS;
+        return (callingClass, policyChecker) -> policyChecker.checkOutboundNetworkAccess(callingClass);
     }
 
     /**
@@ -384,7 +284,7 @@ public class Policies {
      * @return a check method that verifies entitlement for reading store attributes
      */
     public static CheckMethod readStoreAttributes() {
-        return READ_STORE_ATTRIBUTES;
+        return (callingClass, policyChecker) -> policyChecker.checkReadStoreAttributes(callingClass);
     }
 
     /**
@@ -393,7 +293,7 @@ public class Policies {
      * @return a check method that verifies entitlement for setting HTTPS connection properties
      */
     public static CheckMethod setHttpsConnectionProperties() {
-        return SET_HTTPS_CONNECTION_PROPERTIES;
+        return (callingClass, policyChecker) -> policyChecker.checkSetHttpsConnectionProperties(callingClass);
     }
 
     /**
@@ -402,7 +302,7 @@ public class Policies {
      * @return a check method that verifies entitlement for starting processes
      */
     public static CheckMethod startProcess() {
-        return START_PROCESS;
+        return (callingClass, policyChecker) -> policyChecker.checkStartProcess(callingClass);
     }
 
     /**
@@ -431,7 +331,7 @@ public class Policies {
      * @return a check method that verifies entitlement for writing store attributes
      */
     public static CheckMethod writeStoreAttributes() {
-        return WRITE_STORE_ATTRIBUTES;
+        return (callingClass, policyChecker) -> policyChecker.checkWriteStoreAttributes(callingClass);
     }
 
     /**

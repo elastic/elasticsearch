@@ -11,7 +11,6 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.InstrumentationRegistry;
-import org.elasticsearch.entitlement.bridge.Util;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
@@ -157,26 +156,8 @@ public class EntitlementInitialization {
         }
     }
 
-    /**
-     * On Java 17, loading {@link org.elasticsearch.entitlement.bridge.CallerFinder} for the first time
-     * inside an already-instrumented {@code defineHiddenClass} call causes a {@link ClassCircularityError}:
-     * {@code CallerFinder}'s static initializer can trigger further class loading that re-enters
-     * {@code defineHiddenClass} (via lambda creation in JDK internals), which calls
-     * {@link Util#getCallerClass()}, which tries to initialize {@code CallerFinder} again — but it is
-     * already being initialized by the same thread.
-     * <p>
-     * Calling {@link Util#getCallerClass()} once here, before instrumentation is wired up, forces both
-     * {@code Util} and {@code CallerFinder} to be fully initialized in a safe context where
-     * {@code defineHiddenClass} is not yet instrumented, so any incidental lambda creation cannot
-     * re-enter the entitlement system.
-     */
-    private static void preloadCallerFinder() {
-        Util.getCallerClass();
-    }
-
     static void initInstrumentation(Instrumentation instrumentation) throws Exception {
         preloadProtectionDomainSupport();
-        preloadCallerFinder();
 
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
         if (verifyBytecode) {

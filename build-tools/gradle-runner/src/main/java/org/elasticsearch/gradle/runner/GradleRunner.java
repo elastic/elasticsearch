@@ -10,21 +10,30 @@
 package org.elasticsearch.gradle.runner;
 
 import org.gradle.tooling.BuildLauncher;
+import org.gradle.tooling.CancellationTokenSource;
 import org.gradle.tooling.GradleConnectionException;
 import org.gradle.tooling.GradleConnector;
 import org.gradle.tooling.ProjectConnection;
+import org.gradle.tooling.events.OperationType;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A wrapper around the Gradle Tooling API that executes Gradle tasks in a
- * child build and exits with the build's result code. This provides a
- * programmatic entry point for CI tooling that needs to monitor task and
- * test status beyond what the CLI offers.
+ * A wrapper around the Gradle Tooling API that executes Gradle tasks in a child build,
+ * monitors task and test status, handles GCP Spot VM preemption gracefully, and exits
+ * with the appropriate exit code.
+ *
+ * <p>When {@code GCP_PREEMPTION_WATCHDOG=true} is set, the runner polls the GCP metadata
+ * server for preemption signals. On preemption, it cancels the build via the Tooling API's
+ * cancellation token, force-kills descendant processes, writes a status report, and exits
+ * with a configurable preemption exit code (default 47).
  */
 public class GradleRunner {
+
+    private static final int EXIT_BUILD_FAILURE = 1;
+    private static final int EXIT_RUNNER_ERROR = 2;
 
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -72,11 +81,23 @@ public class GradleRunner {
 
         if (projectDir == null) {
             projectDir = new File(System.getProperty("user.dir"));
+        } else {
+            projectDir = projectDir.getAbsoluteFile();
         }
+
+        GcpPreemptionWatchdog.start();
+
+        CancellationTokenSource tokenSource = GradleConnector.newCancellationTokenSource();
+        BuildCanceller canceller = new BuildCanceller(tokenSource);
+        canceller.install();
+
+        TaskTracker tracker = new TaskTracker(canceller);
 
         GradleConnector connector = GradleConnector.newConnector().forProjectDirectory(projectDir);
         if (gradleHome != null) {
             connector.useInstallation(gradleHome);
+        } else {
+            connector.useBuildDistribution();
         }
 
         int exitCode = 0;
@@ -84,7 +105,9 @@ public class GradleRunner {
             BuildLauncher launcher = connection.newBuild()
                 .forTasks(tasks.toArray(String[]::new))
                 .setStandardOutput(System.out)
-                .setStandardError(System.err);
+                .setStandardError(System.err)
+                .withCancellationToken(tokenSource.token())
+                .addProgressListener(tracker, OperationType.TASK, OperationType.TEST);
 
             if (gradleArgs.isEmpty() == false) {
                 launcher.withArguments(gradleArgs);
@@ -92,13 +115,49 @@ public class GradleRunner {
 
             launcher.run();
         } catch (GradleConnectionException e) {
-            exitCode = 1;
+            exitCode = EXIT_BUILD_FAILURE;
         } catch (Exception e) {
             System.err.println("Gradle runner failed: " + e.getMessage());
             e.printStackTrace(System.err);
-            exitCode = 2;
+            exitCode = EXIT_RUNNER_ERROR;
+        }
+
+        writeStatusReport(tracker, projectDir);
+
+        if (GcpPreemptionWatchdog.isPreempted()) {
+            int preemptionExitCode = getPreemptionExitCode();
+            boolean hadRealFailures = canceller.isCancelled() && tracker.hadFailuresBeforePreemption();
+            System.out.println(
+                "[gcp-preemption-watchdog] build was preempted"
+                    + (hadRealFailures ? " (had failures before preemption)" : "")
+                    + "; exiting with code "
+                    + preemptionExitCode
+            );
+            System.exit(preemptionExitCode);
         }
 
         System.exit(exitCode);
+    }
+
+    private static void writeStatusReport(TaskTracker tracker, File projectDir) {
+        try {
+            File reportFile = new File(projectDir, "build/task-status.json");
+            StatusReport report = tracker.buildReport();
+            report.writeTo(reportFile);
+        } catch (Exception e) {
+            System.err.println("Failed to write task status report: " + e.getMessage());
+        }
+    }
+
+    private static int getPreemptionExitCode() {
+        String envCode = System.getenv("GCP_PREEMPTION_EXIT_CODE");
+        if (envCode != null) {
+            try {
+                return Integer.parseInt(envCode);
+            } catch (NumberFormatException e) {
+                // fall through to default
+            }
+        }
+        return 47;
     }
 }

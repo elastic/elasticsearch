@@ -202,6 +202,8 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
         }
 
         private static BytesRef extractTsid(BytesRef id) {
+            // The synthetic id is Uid-encoded, possibly with a 0xfd escape prefix, so we need to skip that prefix
+            // when extracting the tsid. See TsidExtractingIdFieldMapper#writeSyntheticId
             final int escapeBytes = id.length > 0 && Byte.toUnsignedInt(id.bytes[id.offset]) >= Uid.BASE64_ESCAPE ? 1 : 0;
             if (id.length > Long.BYTES + Integer.BYTES + escapeBytes) {
                 return TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id);

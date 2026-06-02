@@ -187,7 +187,7 @@ import static org.elasticsearch.search.rank.feature.RankFeatureShardPhase.EMPTY_
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
 
-    public static final Supplier<DirectoryMetrics> EMPTY_SUPPLIER = () -> DirectoryMetrics.EMPTY;
+    private static final Supplier<DirectoryMetrics> EMPTY_SUPPLIER = () -> DirectoryMetrics.EMPTY;
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING = Setting.positiveTimeSetting(

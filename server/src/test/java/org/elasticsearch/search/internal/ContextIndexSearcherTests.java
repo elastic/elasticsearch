@@ -101,10 +101,8 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectScorerAndBitSet;
@@ -855,7 +853,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 assertBusy(() -> {
                     long parallelBytes = (caller.getBytesRead() - before) + storeMetricsAwareExecutor.workerBytesRead();
                     assertThat(parallelBytes, greaterThan(0L));
-                    assertEquals(parallelBytes, equalTo(sequentialBytes));
+                    assertEquals(parallelBytes, sequentialBytes);
                 });
             }
         } finally {
@@ -884,7 +882,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
     }
 
     private void indexDocsWithVectors(Directory directory) throws IOException {
-        try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
+        try (RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             final int numDocs = randomIntBetween(800, 1000);
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -892,11 +890,8 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 document.add(new TextField("p_field", "value", Field.Store.NO));
                 document.add(new KnnFloatVectorField("float_vector", new float[] { randomFloat(), randomFloat(), randomFloat() }));
                 iw.addDocument(document);
-                // create more than one segment
-                if (i % 100 == 0) {
-                    iw.commit();
-                }
             }
+            iw.commit();
         }
     }
 

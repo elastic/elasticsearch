@@ -346,16 +346,7 @@ public class IRDecorations {
         }
     }
 
-    /**
-     * Marker on a def call node whose user-visible method name and arity might resolve to a
-     * {@code @script_aware} augmentation in the lookup.  At bytecode emission the compiler pushes
-     * {@code aload 0} (the script receiver) ahead of user args and prefixes the recipe with
-     * {@code 'S'} so {@code Def.lookupMethod} routes the call through the script-aware augmentation
-     * overload.  The match is necessarily an over-approximation — the receiver class, and therefore
-     * the resolved method, is unknown at compile time — so the runtime drops the extra slot via
-     * {@code MethodHandles.dropArguments} when the resolved method turns out not to be script-aware
-     * (e.g. a user class shadowing the method name).
-     */
+    /** marks a def call that might resolve to a {@code @script_aware} augmentation so the script receiver is pushed */
     public static class IRCScriptAware implements IRCondition {
 
         private IRCScriptAware() {
@@ -371,11 +362,7 @@ public class IRDecorations {
         }
     }
 
-    /**
-     * Marker that opts a function into the cancellation-aware loop guard (vs. the legacy
-     * {@link IRDMaxLoopCounter}). Attached when the script base class overrides
-     * {@code _getCancellationCheck()}.
-     */
+    /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
     public static class IRCCancellationCheck implements IRCondition {
 
         private IRCCancellationCheck() {
@@ -383,14 +370,7 @@ public class IRDecorations {
         }
     }
 
-    /**
-     * Marker for static synthetic lambda functions in cancellation-aware scripts.
-     * Static lambdas have no implicit receiver, so the script instance is injected as a
-     * synthetic first parameter ({@code #scriptThis}) captured from the enclosing scope.
-     * The lambda body uses it to fetch the cancel {@code Runnable} via
-     * {@code _getCancellationCheck()} and to share the script's persistent
-     * {@code $cancelPoll} counter, identical to the {@link IRCCancellationCheck} path.
-     */
+    /** like {@link IRCCancellationCheck} but for static lambdas, which receive the script as a synthetic {@code #scriptThis} parameter */
     public static class IRCStaticCancellationCheck implements IRCondition {
 
         private IRCStaticCancellationCheck() {

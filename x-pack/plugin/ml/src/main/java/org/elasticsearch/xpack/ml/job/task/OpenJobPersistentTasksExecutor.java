@@ -150,7 +150,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             params.getJobId(),
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
-            job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes,
+            JobNodeSelector.effectiveMaxLazyNodes(maxLazyMLNodes, job.allowLazyOpen()),
             node -> nodeFilter(node, job)
         );
         Assignment assignment = jobNodeSelector.selectNode(

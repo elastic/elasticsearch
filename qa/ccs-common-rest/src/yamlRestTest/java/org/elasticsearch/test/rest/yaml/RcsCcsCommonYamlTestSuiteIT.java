@@ -350,7 +350,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @AfterClass
-    public static void closeSearchClients() throws IOException {
+    public static void resetSearchClientState() throws IOException {
         try {
             IOUtils.close(searchClient, adminSearchClient);
         } finally {

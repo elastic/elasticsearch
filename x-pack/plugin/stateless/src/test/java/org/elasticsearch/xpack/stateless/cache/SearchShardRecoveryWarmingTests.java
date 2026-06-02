@@ -119,6 +119,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 StatelessCompoundCommit commit,
                 BlobStoreCacheDirectory directory,
                 @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                @Nullable Map<BlobFile, Long> timestampsPerBlob,
                 boolean preWarmForIdLookup,
                 ActionListener<Void> listener
             ) {
@@ -368,7 +369,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
             ShardId shardId = new ShardId("idx", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
             ShardRouting self = state.routingTable(DEFAULT_PROJECT_ID).shardRoutingTable(shardId).replicaShards().get(0);
             PlainActionFuture<Void> resume = new PlainActionFuture<>();
-            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, resume);
+            service.warmCacheForSearchShardRecovery(state, mockIndexShard(self), null, null, null, null, resume);
             assertTrue(resume.isDone());
         }
     }
@@ -399,6 +400,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), randomNonNegativeLong()),
                 resumeFuture
             );
             safeGet(resumeFuture);
@@ -426,6 +428,7 @@ public class SearchShardRecoveryWarmingTests extends ESTestCase {
                 null,
                 null,
                 Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), 1L),
+                Map.of(new BlobFile("test-blob", new PrimaryTermAndGeneration(0, -1)), randomNonNegativeLong()),
                 resume
             );
             assertTrue(resume.isDone());

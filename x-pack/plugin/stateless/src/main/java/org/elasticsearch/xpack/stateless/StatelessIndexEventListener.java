@@ -24,7 +24,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.NoOpEngine;
@@ -450,10 +449,11 @@ class StatelessIndexEventListener implements IndexEventListener {
                 searchDirectory.updateLatestUploadedBcc(lastUploaded);
                 searchDirectory.updateLatestCommitInfo(compoundCommit.primaryTermAndGeneration(), nodeId);
 
-                SubscribableListener.<Tuple<Map<String, BlobFileRanges>, Map<BlobFile, Long>>>newForked(l2 -> {
+                SubscribableListener.<SearchRecoveryWarmingInputs>newForked(l2 -> {
                     if (useInternalFilesReplicatedContentForSearchShards) {
                         Map<String, BlobFileRanges> blobFileRanges = ConcurrentCollections.newConcurrentMap();
                         Map<BlobFile, Long> offsetsToWarm = ConcurrentCollections.newConcurrentMap();
+                        Map<BlobFile, Long> timestampsPerBlob = ConcurrentCollections.newConcurrentMap();
                         ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                             compoundCommit.commitFiles(),
                             batchedCompoundCommit,
@@ -469,20 +469,24 @@ class StatelessIndexEventListener implements IndexEventListener {
                                         referencedCompoundCommit.referencedInternalFiles()
                                     )
                                 );
-                                offsetsToWarm.compute(
-                                    referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile(),
-                                    (blobFile, maxOffsetToWarm) -> {
-                                        var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
-                                        return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
-                                    }
+                                var bccBlobFile = referencedCompoundCommit.statelessCompoundCommitReference().bccBlobFile();
+                                offsetsToWarm.compute(bccBlobFile, (blobFile, maxOffsetToWarm) -> {
+                                    var offset = warmingService.byteRangeToWarmForCC(referencedCompoundCommit).end();
+                                    return maxOffsetToWarm == null ? offset : Math.max(maxOffsetToWarm, offset);
+                                });
+                                long ccTimestamp = BlobFileRanges.midpointMillis(
+                                    referencedCompoundCommit.statelessCompoundCommitReference()
+                                        .compoundCommit()
+                                        .getTimestampFieldValueRange()
                                 );
+                                timestampsPerBlob.merge(bccBlobFile, ccTimestamp, BlobFileRanges::mostRecentKnownTimestamp);
                             },
-                            l2.map(aVoid -> new Tuple<>(blobFileRanges, offsetsToWarm))
+                            l2.map(aVoid -> new SearchRecoveryWarmingInputs(blobFileRanges, offsetsToWarm, timestampsPerBlob))
                         );
                     } else {
                         l2.onResponse(null);
                     }
-                }).addListener(l.delegateFailureAndWrap((l3, blobFileRangesAndOffsetsToWarm) -> {
+                }).addListener(l.delegateFailureAndWrap((l3, warmingInputs) -> {
                     final var resumeRecovery = new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void unused) {
@@ -497,8 +501,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         }
                     };
 
-                    if (blobFileRangesAndOffsetsToWarm != null) {
-                        searchDirectory.updateCommit(compoundCommit, blobFileRangesAndOffsetsToWarm.v1());
+                    if (warmingInputs != null) {
+                        searchDirectory.updateCommit(compoundCommit, warmingInputs.blobFileRanges());
                     } else {
                         searchDirectory.updateCommit(compoundCommit);
                     }
@@ -507,13 +511,20 @@ class StatelessIndexEventListener implements IndexEventListener {
                         indexShard,
                         compoundCommit,
                         searchDirectory,
-                        blobFileRangesAndOffsetsToWarm != null ? blobFileRangesAndOffsetsToWarm.v2() : null,
+                        warmingInputs != null ? warmingInputs.offsetsToWarm() : null,
+                        warmingInputs != null ? warmingInputs.timestampsPerBlob() : null,
                         resumeRecovery
                     );
                 }));
             })
         );
     }
+
+    private record SearchRecoveryWarmingInputs(
+        Map<String, BlobFileRanges> blobFileRanges,
+        Map<BlobFile, Long> offsetsToWarm,
+        Map<BlobFile, Long> timestampsPerBlob
+    ) {}
 
     @Override
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {

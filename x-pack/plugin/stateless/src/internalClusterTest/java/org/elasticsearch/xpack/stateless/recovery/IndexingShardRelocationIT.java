@@ -1088,6 +1088,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, Long> timestampsPerBlob,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {
@@ -1095,7 +1096,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                     // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
                     // warmed afterward.
                     var subscribableListener = new SubscribableListener<Void>();
-                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, false, subscribableListener);
+                    super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, false, subscribableListener);
                     safeAwait(subscribableListener);
                     subscribableListener.addListener(listener);
                 }

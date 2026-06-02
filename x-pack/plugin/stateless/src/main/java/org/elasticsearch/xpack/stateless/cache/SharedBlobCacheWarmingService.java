@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -119,7 +120,7 @@ public class SharedBlobCacheWarmingService {
     private record BlobRegion(BlobFile blob, int region) {}
 
     /** Range of a blob to warm in cache, with a listener to complete once it is warmed **/
-    private record BlobRange(BlobLocation blobLocation, long position, long length, ActionListener<Void> listener)
+    private record BlobRange(BlobLocation blobLocation, long position, long length, long timestampMillis, ActionListener<Void> listener)
         implements
             Comparable<BlobRange> {
 
@@ -151,15 +152,16 @@ public class SharedBlobCacheWarmingService {
          * Adds a range to warm in cache for the current blob region, returning {@code true} if a warming task must be created to warm the
          * range.
          *
-         * @param blobLocation  the blob location of the file
-         * @param position      the position in the blob where warming must start
-         * @param length        the length of bytes to warm
-         * @param listener      the listener to complete once the range is warmed
+         * @param blobLocation   the blob location of the file
+         * @param position       the position in the blob where warming must start
+         * @param length         the length of bytes to warm
+         * @param timestampMillis the representative data timestamp to stamp on the warmed cache region for this file
+         * @param listener       the listener to complete once the range is warmed
          * @return {@code true} if a warming task must be created to warm the range, {@code false} otherwise
          */
-        private boolean add(BlobLocation blobLocation, long position, long length, ActionListener<Void> listener) {
+        private boolean add(BlobLocation blobLocation, long position, long length, long timestampMillis, ActionListener<Void> listener) {
             maxBlobLength.accumulateAndGet(blobLocation.offset() + blobLocation.fileLength(), Math::max);
-            queue.add(new BlobRange(blobLocation, position, length, listener));
+            queue.add(new BlobRange(blobLocation, position, length, timestampMillis, listener));
             return counter.incrementAndGet() == 1;
         }
     }
@@ -602,7 +604,7 @@ public class SharedBlobCacheWarmingService {
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, false, listener);
+        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, null, false, listener);
     }
 
     public void warmCacheForShardRecoveryOrUnhollowing(
@@ -614,7 +616,7 @@ public class SharedBlobCacheWarmingService {
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
-        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, listener);
+        warmCache(type, indexShard, commit, directory, endOffsetsToWarm, null, preWarmForIdLookup, listener);
     }
 
     /**
@@ -631,6 +633,7 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+        @Nullable Map<BlobFile, Long> timestampsPerBlob,
         ActionListener<Void> resumeRecoveryListener
     ) {
         SearchRecoveryTimeout plan = endOffsetsToWarm != null
@@ -643,11 +646,12 @@ public class SharedBlobCacheWarmingService {
                 commit,
                 directory,
                 endOffsetsToWarm,
+                timestampsPerBlob,
                 false,
                 searchRecoveryWarmingListener(plan.timeout(), plan.timeoutContext(), indexShard, resumeRecoveryListener)
             );
         } else {
-            warmCache(Type.SEARCH, indexShard, commit, directory, endOffsetsToWarm, false, ActionListener.noop());
+            warmCache(Type.SEARCH, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, false, ActionListener.noop());
             resumeRecoveryListener.onResponse(null);
         }
     }
@@ -658,6 +662,7 @@ public class SharedBlobCacheWarmingService {
         StatelessCompoundCommit commit,
         BlobStoreCacheDirectory directory,
         @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+        @Nullable Map<BlobFile, Long> timestampsPerBlob,
         boolean preWarmForIdLookup,
         ActionListener<Void> listener
     ) {
@@ -700,7 +705,7 @@ public class SharedBlobCacheWarmingService {
                         }
                     }).<Void>andThen((l2, offsetsToWarmFinal) -> {
                         if (searchOfflineWarmingEnabled) {
-                            warmBlobOffsets(indexShard, offsetsToWarmFinal, l2);
+                            warmBlobOffsets(indexShard, offsetsToWarmFinal, timestampsPerBlob, l2);
                         } else {
                             l2.onResponse(null);
                         }
@@ -887,18 +892,29 @@ public class SharedBlobCacheWarmingService {
     }
 
     // protected for tests
-    protected void warmBlobOffsets(IndexShard indexShard, Map<BlobFile, Long> offsetsToWarmPerBlobFile, ActionListener<Void> listener) {
+    protected void warmBlobOffsets(
+        IndexShard indexShard,
+        Map<BlobFile, Long> offsetsToWarmPerBlobFile,
+        @Nullable Map<BlobFile, Long> timestampsPerBlobFile,
+        ActionListener<Void> listener
+    ) {
         try (RefCountingListener listeners = new RefCountingListener(listener)) {
             for (var offsetsToWarm : offsetsToWarmPerBlobFile.entrySet()) {
                 // Warm from the start of the blob through the computed end. We used to skip the first cache region, assuming
                 // readReferencedCompoundCommitsUsingCache had fully populated it; header-sized reads can leave gaps in that region,
                 // so searches can miss until the full range is forced into cache (see RecoveryWarmer#shouldSkipLocationWarming for SEARCH).
                 if (offsetsToWarm.getValue() > 0) {
+                    // Offline byte-range warming resolves the timestamp at the blob level (an approximation): we stamp the warmed range
+                    // with the most recent timestamp among the compound commits that contribute to this blob.
+                    long timestampMillis = timestampsPerBlobFile == null
+                        ? SharedBlobCacheService.UNKNOWN_TIMESTAMP
+                        : timestampsPerBlobFile.getOrDefault(offsetsToWarm.getKey(), SharedBlobCacheService.UNKNOWN_TIMESTAMP);
                     warmBlobByteRange(
                         Type.SEARCH,
                         indexShard,
                         offsetsToWarm.getKey(),
                         ByteRange.of(0, offsetsToWarm.getValue()),
+                        timestampMillis,
                         listeners.acquire()
                     );
                 }
@@ -911,6 +927,7 @@ public class SharedBlobCacheWarmingService {
         IndexShard indexShard,
         BlobFile blobFile,
         ByteRange byteRangeToWarm,
+        long timestampMillis,
         ActionListener<Void> listener
     ) {
         final Store store = indexShard.store();
@@ -924,6 +941,7 @@ public class SharedBlobCacheWarmingService {
                     warmingRun,
                     blobFile,
                     byteRangeToWarm,
+                    timestampMillis,
                     store::isClosing,
                     BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
                     ActionListener.runAfter(listener, store::decRef)
@@ -1081,17 +1099,18 @@ public class SharedBlobCacheWarmingService {
             final int regionSize = cacheService.getRegionSize();
             final int startRegion = cacheService.getRegion(start);
             final int endRegion = cacheService.getEndingRegion(end);
+            final long timestampMillis = directory.getTimestampMillis(fileName);
 
             if (startRegion == endRegion) {
                 BlobRegion blobRegion = new BlobRegion(location.blobFile(), startRegion);
-                enqueueLocation(blobRegion, location, start, length, listener);
+                enqueueLocation(blobRegion, location, start, length, timestampMillis, listener);
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
                         // adjust the position & length to the region
                         var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                         BlobRegion blobRegion = new BlobRegion(location.blobFile(), r);
-                        enqueueLocation(blobRegion, location, range.start(), range.length(), listeners.acquire());
+                        enqueueLocation(blobRegion, location, range.start(), range.length(), timestampMillis, listeners.acquire());
                     }
                 }
             }
@@ -1155,6 +1174,7 @@ public class SharedBlobCacheWarmingService {
             BlobLocation blobLocation,
             long position,
             long length,
+            long timestampMillis,
             ActionListener<Void> listener
         ) {
             if (shouldSkipLocationWarming(position)) {
@@ -1164,7 +1184,7 @@ public class SharedBlobCacheWarmingService {
             }
 
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
-            if (blobRanges.add(blobLocation, position, length, listener)) {
+            if (blobRanges.add(blobLocation, position, length, timestampMillis, listener)) {
                 scheduleWarmingTask(new WarmingTask(blobRanges));
             }
         }
@@ -1253,11 +1273,13 @@ public class SharedBlobCacheWarmingService {
     private class BlobByteRangeWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
         private final BlobFile blobFile;
         private final ByteRange byteRangeToWarm;
+        private final long timestampMillis;
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
             BlobFile blobFile,
             ByteRange byteRangeToWarm,
+            long timestampMillis,
             Supplier<Boolean> isStoreClosing,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
@@ -1265,10 +1287,11 @@ public class SharedBlobCacheWarmingService {
             super(warmingRun, isStoreClosing, directory, listener);
             this.blobFile = blobFile;
             this.byteRangeToWarm = byteRangeToWarm;
+            this.timestampMillis = timestampMillis;
         }
 
         void run() {
-            scheduleWarmingTask(new WarmBlobByteRangeTask(blobFile, byteRangeToWarm, listeners.acquire()));
+            scheduleWarmingTask(new WarmBlobByteRangeTask(blobFile, byteRangeToWarm, timestampMillis, listeners.acquire()));
         }
 
         @Override
@@ -1494,6 +1517,7 @@ public class SharedBlobCacheWarmingService {
                             StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
                         ),
                         fetchExecutor,
+                        item.timestampMillis(),
                         l.map(ignored -> null)
                     );
                 });
@@ -1549,11 +1573,13 @@ public class SharedBlobCacheWarmingService {
             protected final BlobFile blobFile;
             // protected for tests
             protected final ByteRange byteRangeToWarm;
+            private final long timestampMillis;
             private final ActionListener<Void> listener;
 
-            WarmBlobByteRangeTask(BlobFile blobFile, ByteRange byteRangeToWarm, ActionListener<Void> listener) {
+            WarmBlobByteRangeTask(BlobFile blobFile, ByteRange byteRangeToWarm, long timestampMillis, ActionListener<Void> listener) {
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.byteRangeToWarm = byteRangeToWarm;
+                this.timestampMillis = timestampMillis;
                 this.listener = listener;
                 logger.trace("{} {}: scheduled {} {}", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm);
             }
@@ -1585,6 +1611,7 @@ public class SharedBlobCacheWarmingService {
                     totalBytesCopied::addAndGet,
                     warmByteRangeThrottledTaskRunner.asExecutor(),
                     true,
+                    timestampMillis,
                     l
                 );
             }

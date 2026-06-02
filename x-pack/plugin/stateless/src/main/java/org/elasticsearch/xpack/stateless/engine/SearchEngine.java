@@ -252,6 +252,7 @@ public class SearchEngine extends Engine {
                 searchDirectory.getShardId(),
                 statelessSharedBlobCacheService,
                 searchDirectory::getCacheBlobReaderForPreFetching,
+                searchDirectory::getTimestampMillis,
                 config.getThreadPool(),
                 prefetchExecutor,
                 clusterSettings,

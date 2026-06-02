@@ -778,6 +778,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                     StatelessCompoundCommit commit,
                     BlobStoreCacheDirectory directory,
                     @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+                    @Nullable Map<BlobFile, Long> timestampsPerBlob,
                     boolean preWarmForIdLookup,
                     ActionListener<Void> listener
                 ) {

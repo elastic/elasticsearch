@@ -457,6 +457,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 lastCommit,
                 fakeNode.searchDirectory,
                 null,
+                null,
                 false,
                 refillCacheCompletionListener
             );
@@ -620,6 +621,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 fakeNode.warmingService.warmBlobOffsets(
                     indexShard,
                     Map.of(new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration()), endOffset),
+                    null,
                     warmListener
                 );
                 safeGet(warmListener);
@@ -803,7 +805,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
             BlobFile blobFile = new BlobFile(vbcc.getBlobName(), vbcc.getPrimaryTermAndGeneration());
             PlainActionFuture<Void> warmListener = new PlainActionFuture<>();
-            fakeNode.warmingService.warmBlobOffsets(indexShard, Map.of(blobFile, vbcc.getTotalSizeInBytes()), warmListener);
+            fakeNode.warmingService.warmBlobOffsets(indexShard, Map.of(blobFile, vbcc.getTotalSizeInBytes()), null, warmListener);
             safeGet(warmListener);
 
             // throttle limit is clamped to 1, so we should never see more than one fetch from the blob store at a time
@@ -968,6 +970,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 frozenBcc.lastCompoundCommit(),
                 fakeNode.searchDirectory,
                 null,
+                null,
                 false,
                 refillCacheCompletionListener
             );
@@ -1036,6 +1039,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
                 Map.of(), // don't do any warming besides the regular shard recovery kind
+                null,
                 false,
                 future
             );
@@ -1089,6 +1093,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     commit,
                     node.indexingDirectory.getBlobStoreCacheDirectory(),
                     null,
+                    null,
                     false,
                     future
                 );
@@ -1100,6 +1105,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                     anyLong(),
                     any(),
                     any(),
+                    anyLong(),
                     anyActionListener()
                 );
 
@@ -1151,6 +1157,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
                 Map.of(), // don't do any warming besides the regular shard recovery kind
+                null,
                 false,
                 future
             );
@@ -1162,6 +1169,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 anyLong(),
                 any(),
                 any(),
+                anyLong(),
                 anyActionListener()
             );
 
@@ -1216,6 +1224,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 indexShard,
                 commit,
                 node.indexingDirectory.getBlobStoreCacheDirectory(),
+                null,
                 null,
                 preWarmRequested,
                 future

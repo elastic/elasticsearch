@@ -136,6 +136,13 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return blobFileRanges != null ? blobFileRanges.getPosition(pos, length) : pos;
     }
 
+    public long getTimestampMillis(String fileName) {
+        var blobFileRanges = currentMetadata.get(fileName);
+        return blobFileRanges != null
+            ? BlobFileRanges.midpointMillis(blobFileRanges.timestampRange())
+            : SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+    }
+
     StatelessSharedBlobCacheService getCacheService() {
         return cacheService;
     }
@@ -316,7 +323,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
             // blob length (with padding added).
             blobFileRanges.fileOffset() + blobFileRanges.fileLength(),
             // todo: time-source
-            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime)
+            new CacheMissHandler(metricsHolder.singleThreaded(), System::nanoTime),
+            BlobFileRanges.midpointMillis(blobFileRanges.timestampRange())
         );
     }
 

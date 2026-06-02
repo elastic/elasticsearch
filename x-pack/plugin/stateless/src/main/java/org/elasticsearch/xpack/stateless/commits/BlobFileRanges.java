@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.commits;
 
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 
@@ -178,6 +179,23 @@ public class BlobFileRanges {
             );
         }
         return blobFileRanges;
+    }
+
+    public static long midpointMillis(@Nullable StatelessCompoundCommit.TimestampFieldValueRange range) {
+        if (range == null) {
+            return SharedBlobCacheService.UNKNOWN_TIMESTAMP;
+        }
+        return range.midpointMillis();
+    }
+
+    public static long mostRecentKnownTimestamp(long timestampMillisA, long timestampMillisB) {
+        if (timestampMillisA == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return timestampMillisB;
+        }
+        if (timestampMillisB == SharedBlobCacheService.UNKNOWN_TIMESTAMP) {
+            return timestampMillisA;
+        }
+        return Math.max(timestampMillisA, timestampMillisB);
     }
 
     public boolean hasReplicatedRanges() {

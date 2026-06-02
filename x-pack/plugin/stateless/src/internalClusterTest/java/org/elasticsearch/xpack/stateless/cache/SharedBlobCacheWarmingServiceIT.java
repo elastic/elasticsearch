@@ -1416,6 +1416,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            @Nullable Map<BlobFile, Long> timestampsPerBlob,
             ActionListener<Void> resumeRecoveryListener
         ) {
             if (awaitWarmingForSearchRecovery) {
@@ -1428,6 +1429,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     commit,
                     directory,
                     endOffsetsToWarm,
+                    timestampsPerBlob,
                     false,
                     searchRecoveryWarmingListener(
                         TimeValue.timeValueMinutes(1),
@@ -1443,6 +1445,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
                     commit,
                     directory,
                     endOffsetsToWarm,
+                    timestampsPerBlob,
                     resumeRecoveryListener
                 );
             }
@@ -1523,6 +1526,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             StatelessCompoundCommit commit,
             BlobStoreCacheDirectory directory,
             @Nullable Map<BlobFile, Long> endOffsetsToWarm,
+            @Nullable Map<BlobFile, Long> timestampsPerBlob,
             boolean preWarmForIdLookup,
             ActionListener<Void> listener
         ) {
@@ -1535,7 +1539,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             for (Consumer<Type> beforeWarmingStartsListener : beforeWarmingStartsListeners) {
                 beforeWarmingStartsListener.accept(type);
             }
-            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, preWarmForIdLookup, wrappedListener);
+            super.warmCache(type, indexShard, commit, directory, endOffsetsToWarm, timestampsPerBlob, preWarmForIdLookup, wrappedListener);
         }
     }
 

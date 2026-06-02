@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -153,7 +154,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             () -> credentialManager,
             delegateClient,
             xContentRegistry(),
-            mock(DatafeedConfigProvider.class)
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -201,7 +203,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             () -> credentialManager,
             client,
             xContentRegistry(),
-            mock(DatafeedConfigProvider.class)
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -252,7 +255,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             () -> credentialManager,
             client,
             xContentRegistry(),
-            mock(DatafeedConfigProvider.class)
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");
@@ -306,7 +310,8 @@ public class CredentialTransitionsTests extends ESTestCase {
             () -> credentialManager,
             client,
             xContentRegistry(),
-            mock(DatafeedConfigProvider.class)
+            mock(DatafeedConfigProvider.class),
+            new CrossProjectModeDecider(Settings.EMPTY)
         );
 
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("df", "job");

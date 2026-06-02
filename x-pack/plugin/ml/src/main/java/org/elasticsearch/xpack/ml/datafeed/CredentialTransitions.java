@@ -21,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
@@ -90,6 +91,7 @@ public final class CredentialTransitions {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedConfigProvider datafeedConfigProvider;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     public CredentialTransitions(
         AnomalyDetectionAuditor auditor,
@@ -97,7 +99,8 @@ public final class CredentialTransitions {
         Supplier<CloudCredentialManager> credentialManagerSupplier,
         Client client,
         NamedXContentRegistry xContentRegistry,
-        DatafeedConfigProvider datafeedConfigProvider
+        DatafeedConfigProvider datafeedConfigProvider,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.auditor = auditor;
         this.apiKeyServiceSupplier = apiKeyServiceSupplier;
@@ -105,6 +108,7 @@ public final class CredentialTransitions {
         this.client = client;
         this.xContentRegistry = xContentRegistry;
         this.datafeedConfigProvider = datafeedConfigProvider;
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     public static Intent decideForUpdate(TransitionContext ctx) {
@@ -367,19 +371,20 @@ public final class CredentialTransitions {
         @Nullable CloudCredential carriedCredential,
         ActionListener<Void> listener
     ) {
+        DatafeedConfig effectiveConfig = DatafeedConfig.withCrossProjectModeIfEnabled(config, crossProjectModeDecider);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0);
-        QueryBuilder query = config.getParsedQuery(xContentRegistry);
+        QueryBuilder query = effectiveConfig.getParsedQuery(xContentRegistry);
         if (query != null) {
             sourceBuilder.query(query);
         }
-        if (config.getRuntimeMappings() != null && config.getRuntimeMappings().isEmpty() == false) {
-            sourceBuilder.runtimeMappings(config.getRuntimeMappings());
+        if (effectiveConfig.getRuntimeMappings() != null && effectiveConfig.getRuntimeMappings().isEmpty() == false) {
+            sourceBuilder.runtimeMappings(effectiveConfig.getRuntimeMappings());
         }
-        SearchRequest searchRequest = new SearchRequest(config.getIndices().toArray(String[]::new)).indicesOptions(
-            config.getIndicesOptions()
+        SearchRequest searchRequest = new SearchRequest(effectiveConfig.getIndices().toArray(String[]::new)).indicesOptions(
+            effectiveConfig.getIndicesOptions()
         ).source(sourceBuilder);
-        if (config.getProjectRouting() != null) {
-            searchRequest.setProjectRouting(config.getProjectRouting());
+        if (effectiveConfig.getProjectRouting() != null) {
+            searchRequest.setProjectRouting(effectiveConfig.getProjectRouting());
         }
         final CloudCredentialManager credentialManager = credentialManagerSupplier.get();
         final ThreadContext threadContext = client.threadPool().getThreadContext();

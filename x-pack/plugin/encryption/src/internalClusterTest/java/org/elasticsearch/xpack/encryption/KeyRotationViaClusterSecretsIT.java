@@ -171,6 +171,70 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
         assertThat("raw JSON for the encryption custom must not contain a 'bytes' field", customSlice, not(containsString("\"bytes\"")));
     }
 
+    public void testNewEncryptionAfterRotation() throws Exception {
+        String master = internalCluster().getMasterName();
+        FileSettingsService fss = internalCluster().getInstance(FileSettingsService.class, master);
+        assertBusy(() -> assertTrue(fss.watching()));
+
+        long version = fileSettingsVersionCounter.incrementAndGet();
+        CountDownLatch applied = fileSettingsAppliedLatch(master, version);
+        writeFileSettingsJson(master, encryptionPasswordsJson(version, INITIAL_PASSWORD, ROTATED_PASSWORD, ROTATED_PASSWORD_ID));
+        assertTrue("file-settings update was not applied within 30s", applied.await(30, TimeUnit.SECONDS));
+
+        assertBusy(() -> assertThat(metadataOnMaster().getPasswordId(), equalTo(ROTATED_PASSWORD_ID)), 30, TimeUnit.SECONDS);
+
+        // Data encrypted after the rotation must be decryptable on every node
+        EncryptedData postRotationBlob = masterEncryptionService().encrypt("post-rotation-payload".getBytes(StandardCharsets.UTF_8));
+        for (String nodeName : internalCluster().getNodeNames()) {
+            EncryptionService svc = internalCluster().getInstance(EncryptionService.class, nodeName);
+            assertEquals(
+                "node [" + nodeName + "] must decrypt post-rotation blob",
+                "post-rotation-payload",
+                new String(svc.decrypt(postRotationBlob), StandardCharsets.UTF_8)
+            );
+        }
+    }
+
+    public void testOldPasswordRemovableAfterRotation() throws Exception {
+        String master = internalCluster().getMasterName();
+        FileSettingsService fss = internalCluster().getInstance(FileSettingsService.class, master);
+        assertBusy(() -> assertTrue(fss.watching()));
+
+        // Encrypt before rotation so we can verify it's still readable afterwards
+        EncryptedData preRotationBlob = masterEncryptionService().encrypt("pre-rotation-payload".getBytes(StandardCharsets.UTF_8));
+
+        // Rotate to v2 (both passwords present so the rewrap can read the old wrapped bytes)
+        long version1 = fileSettingsVersionCounter.incrementAndGet();
+        CountDownLatch applied1 = fileSettingsAppliedLatch(master, version1);
+        writeFileSettingsJson(master, encryptionPasswordsJson(version1, INITIAL_PASSWORD, ROTATED_PASSWORD, ROTATED_PASSWORD_ID));
+        assertTrue("rotation file-settings update was not applied within 30s", applied1.await(30, TimeUnit.SECONDS));
+
+        assertBusy(() -> assertThat(metadataOnMaster().getPasswordId(), equalTo(ROTATED_PASSWORD_ID)), 30, TimeUnit.SECONDS);
+
+        EncryptedData postRotationBlob = masterEncryptionService().encrypt("post-rotation-payload".getBytes(StandardCharsets.UTF_8));
+
+        // Drop v1 — only v2 remains
+        long version2 = fileSettingsVersionCounter.incrementAndGet();
+        CountDownLatch applied2 = fileSettingsAppliedLatch(master, version2);
+        writeFileSettingsJson(master, rotatedPasswordOnlyJson(version2));
+        assertTrue("v1-removal file-settings update was not applied within 30s", applied2.await(30, TimeUnit.SECONDS));
+
+        // Pre- and post-rotation blobs must still be decryptable on every node after v1 is removed
+        for (String nodeName : internalCluster().getNodeNames()) {
+            EncryptionService svc = internalCluster().getInstance(EncryptionService.class, nodeName);
+            assertEquals(
+                "node [" + nodeName + "] must decrypt pre-rotation blob after v1 password removal",
+                "pre-rotation-payload",
+                new String(svc.decrypt(preRotationBlob), StandardCharsets.UTF_8)
+            );
+            assertEquals(
+                "node [" + nodeName + "] must decrypt post-rotation blob after v1 password removal",
+                "post-rotation-payload",
+                new String(svc.decrypt(postRotationBlob), StandardCharsets.UTF_8)
+            );
+        }
+    }
+
     private Map<String, Object> projectEncryptionKeyFromClusterStateApi() throws IOException {
         ObjectPath path = ObjectPath.createFromResponse(performClusterStateMetadataRequest());
         Map<String, Object> pek = path.evaluate("metadata." + ProjectEncryptionKeyMetadata.TYPE);
@@ -227,6 +291,31 @@ public class KeyRotationViaClusterSecretsIT extends ESIntegTestCase {
         };
         cs.addListener(selfRef[0]);
         return latch;
+    }
+
+    private static String rotatedPasswordOnlyJson(long version) {
+        return Strings.format(
+            """
+                {
+                    "metadata": {
+                        "version": "%s",
+                        "compatibility": "8.4.0"
+                    },
+                    "state": {
+                        "cluster_secrets": {
+                            "string_secrets": {
+                                "%s": "%s",
+                                "%s": "%s"
+                            }
+                        }
+                    }
+                }""",
+            version,
+            ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + ROTATED_PASSWORD_ID,
+            ROTATED_PASSWORD,
+            ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY,
+            ROTATED_PASSWORD_ID
+        );
     }
 
     private static String encryptionPasswordsJson(long version, String v1Password, String v2Password, String activePasswordId) {

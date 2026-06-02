@@ -289,7 +289,9 @@ class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.Projec
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(keys, StreamOutput::writeString, (o, e) -> e.writeTo(o));
         out.writeString(activeKeyId);
-        out.writeString(passwordId);
+        if (out.getTransportVersion().supports(PRIMARY_ENCRYPTION_KEY_AT_REST)) {
+            out.writeString(passwordId);
+        }
         out.writeMap(handlerKeyIds, StreamOutput::writeString, StreamOutput::writeString);
     }
 

@@ -23,13 +23,14 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.Closeable;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
-
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
+import java.util.Set;
 
 /**
  * Owns the in-memory cache of the project encryption key (PEK) material and serves it to {@link AesGcmEncryptionService}.
@@ -86,13 +87,17 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
     void reload(Settings settings) {
         this.cachedSettings = ProjectEncryptionKeyPasswordSettings.cloneSettings(settings);
         KeyCache snapshot = cache;
-        if (snapshot == KeyCache.EMPTY || snapshot.decryptedKeys.isEmpty()) {
+        if (snapshot == KeyCache.EMPTY || (snapshot.decryptedKeys.isEmpty() && snapshot.lockedKeyIds.isEmpty())) {
             return;
         }
         if (ProjectEncryptionKeyPasswordSettings.hasPassword(this.cachedSettings, snapshot.passwordId)) {
+            if (snapshot.lockedKeyIds.isEmpty() == false) {
+                cache = new KeyCache(snapshot.activeKeyId, snapshot.passwordId, snapshot.encryptedKeys, snapshot.decryptedKeys, Set.of());
+                logger.debug("project encryption key locked keys cleared after secure settings reload");
+            }
             return;
         }
-        cache = new KeyCache(snapshot.activeKeyId, snapshot.passwordId, snapshot.encryptedKeys, Map.of());
+        cache = new KeyCache(snapshot.activeKeyId, snapshot.passwordId, snapshot.encryptedKeys, Map.of(), Set.of());
         logger.debug("project encryption key cache invalidated after secure settings reload");
     }
 
@@ -133,7 +138,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
             encryptedKeys.put(keyId, metadata.getEncryptedKey(keyId));
         }
         // The passwordId may have changed, or even if it hasn't the cluster-state update may have rewrapped entries (password rotation).
-        this.cache = new KeyCache(metadata.getActiveKeyId(), metadata.getPasswordId(), Map.copyOf(encryptedKeys), Map.of());
+        this.cache = new KeyCache(metadata.getActiveKeyId(), metadata.getPasswordId(), Map.copyOf(encryptedKeys), Map.of(), Set.of());
         logger.debug(
             "project encryption key cache updated: activeKeyId={}, passwordId={}",
             metadata.getActiveKeyId(),
@@ -167,6 +172,10 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         if (decrypted != null) {
             return decrypted;
         }
+        if (snapshot.lockedKeyIds.contains(keyId)) {
+            // Already failed for this cache snapshot; skip PBKDF2 until the cache is reset by a reload or cluster-state change.
+            return null;
+        }
         EncryptedData encrypted = snapshot.encryptedKeys.get(keyId);
         if (encrypted == null) {
             return null;
@@ -178,6 +187,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
                     ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX,
                     snapshot.passwordId
                 );
+                installLocked(snapshot, keyId);
                 return null;
             }
             byte[] plaintext;
@@ -188,6 +198,7 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
                     () -> "project encryption key unwrap failed for keyId [" + keyId + "] under password id [" + snapshot.passwordId + "]",
                     e
                 );
+                installLocked(snapshot, keyId);
                 return null;
             }
             try {
@@ -212,16 +223,36 @@ class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider
         }
         Map<String, SecretKey> newDecrypted = new HashMap<>(current.decryptedKeys);
         newDecrypted.put(keyId, secretKey);
-        cache = new KeyCache(current.activeKeyId, current.passwordId, current.encryptedKeys, Map.copyOf(newDecrypted));
+        cache = new KeyCache(
+            current.activeKeyId,
+            current.passwordId,
+            current.encryptedKeys,
+            Map.copyOf(newDecrypted),
+            current.lockedKeyIds
+        );
+    }
+
+    private synchronized void installLocked(KeyCache snapshotAtUnwrap, String keyId) {
+        KeyCache current = cache;
+        if (current.encryptedKeys != snapshotAtUnwrap.encryptedKeys) {
+            return;
+        }
+        if (current.lockedKeyIds.contains(keyId)) {
+            return;
+        }
+        Set<String> newLocked = new HashSet<>(current.lockedKeyIds);
+        newLocked.add(keyId);
+        cache = new KeyCache(current.activeKeyId, current.passwordId, current.encryptedKeys, current.decryptedKeys, Set.copyOf(newLocked));
     }
 
     private record KeyCache(
         @Nullable String activeKeyId,
         @Nullable String passwordId,
         Map<String, EncryptedData> encryptedKeys,
-        Map<String, SecretKey> decryptedKeys
+        Map<String, SecretKey> decryptedKeys,
+        Set<String> lockedKeyIds
     ) {
-        static final KeyCache EMPTY = new KeyCache(null, null, Map.of(), Map.of());
+        static final KeyCache EMPTY = new KeyCache(null, null, Map.of(), Map.of(), Set.of());
 
         KeyCache {
             assert activeKeyId == null || encryptedKeys.containsKey(activeKeyId);

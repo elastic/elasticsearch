@@ -59,8 +59,8 @@ class ProjectEncryptionKeyHealthIndicatorService implements HealthIndicatorServi
         NAME,
         "missing_password",
         "The active password id is set, but no matching secure setting was found.",
-        "Provision the matching cluster.state.encryption.password.<id> in the keystore (stateful) or operator file settings (serverless),"
-            + " then call POST /_nodes/reload_secure_settings.",
+        "Provision the matching cluster.state.encryption.password.<id> in the keystore (stateful) or operator file settings (serverless)."
+            + " If the password was added to the keystore call POST /_nodes/reload_secure_settings (stateful).",
         HELP_URL
     );
     static final Diagnosis.Definition UNDECRYPTABLE_DEFINITION = new Diagnosis.Definition(

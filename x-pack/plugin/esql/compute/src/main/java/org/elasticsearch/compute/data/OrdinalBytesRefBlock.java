@@ -15,6 +15,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * A {@link BytesRefBlock} consists of a pair: an {@link IntBlock} for ordinals and a {@link BytesRefVector} for the dictionary.
@@ -108,33 +109,90 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
 
     @Override
     public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
-        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
-        // may reappear when hashing the dictionary in BlockHash.
-        // TODO: merge this BytesRefArrayBlock#filter
         final OrdinalBytesRefVector vector = asVector();
         if (vector != null) {
             return vector.filter(mayContainDuplicates, positions).asBlock();
         }
-        BytesRef scratch = new BytesRef();
-        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
-            for (int pos : positions) {
-                if (isNull(pos)) {
-                    builder.appendNull();
-                    continue;
-                }
-                int valueCount = getValueCount(pos);
-                int first = getFirstValueIndex(pos);
-                if (valueCount == 1) {
-                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
-                } else {
-                    builder.beginPositionEntry();
-                    for (int c = 0; c < valueCount; c++) {
-                        builder.appendBytesRef(getBytesRef(first + c, scratch));
-                    }
-                    builder.endPositionEntry();
+        // Preserve the ordinal encoding through filter so downstream consumers (BytesRefBlockHash, etc.)
+        // keep the dictionary fast path. Dictionary entries that are no longer referenced are dropped,
+        // because every consumer of OrdinalBytesRefBlock hashes the entire dictionary unconditionally.
+        final int dictSize = bytes.getPositionCount();
+        final int[] remap = new int[dictSize];
+        Arrays.fill(remap, -1);
+        // keptOrds[i] is the original dictionary index that compacted to position i.
+        final int[] keptOrds = new int[dictSize];
+        int kept = 0;
+        // totalValues sums the (non-null) value count across the filtered positions so we can
+        // measure dictionary density on the same scale isDense() uses elsewhere (which counts
+        // total values, not positions, to handle multivalues correctly).
+        int totalValues = 0;
+        for (int p : positions) {
+            if (ordinals.isNull(p)) {
+                continue;
+            }
+            int valueCount = ordinals.getValueCount(p);
+            int first = ordinals.getFirstValueIndex(p);
+            totalValues += valueCount;
+            for (int c = 0; c < valueCount; c++) {
+                int ord = ordinals.getInt(first + c);
+                if (remap[ord] == -1) {
+                    remap[ord] = kept;
+                    keptOrds[kept] = ord;
+                    kept++;
                 }
             }
-            return builder.mvOrdering(mvOrdering()).build();
+        }
+        if (isDense(totalValues, kept) == false) {
+            // Compacted dictionary would not be dense enough to pay for the per-row indirection
+            // downstream. Materialize a plain BytesRefBlock instead.
+            return materializeFiltered(positions);
+        }
+        if (kept == dictSize) {
+            // Fast path: every dictionary entry is still referenced. Share the dictionary
+            // and only filter the ordinals; no remap needed.
+            IntBlock filteredOrds = ordinals.filter(mayContainDuplicates, positions);
+            OrdinalBytesRefBlock result = null;
+            try {
+                result = new OrdinalBytesRefBlock(filteredOrds, bytes);
+                bytes.incRef();
+                return result;
+            } finally {
+                if (result == null) {
+                    filteredOrds.close();
+                }
+            }
+        }
+        BytesRefVector newDict = null;
+        IntBlock newOrds = null;
+        OrdinalBytesRefBlock result = null;
+        try {
+            newDict = compactDictionary(bytes, keptOrds, kept, blockFactory());
+            try (IntBlock.Builder ordsBuilder = blockFactory().newIntBlockBuilder(positions.length)) {
+                for (int p : positions) {
+                    if (ordinals.isNull(p)) {
+                        ordsBuilder.appendNull();
+                        continue;
+                    }
+                    int valueCount = ordinals.getValueCount(p);
+                    int first = ordinals.getFirstValueIndex(p);
+                    if (valueCount == 1) {
+                        ordsBuilder.appendInt(remap[ordinals.getInt(first)]);
+                    } else {
+                        ordsBuilder.beginPositionEntry();
+                        for (int c = 0; c < valueCount; c++) {
+                            ordsBuilder.appendInt(remap[ordinals.getInt(first + c)]);
+                        }
+                        ordsBuilder.endPositionEntry();
+                    }
+                }
+                newOrds = ordsBuilder.mvOrdering(mvOrdering()).build();
+            }
+            result = new OrdinalBytesRefBlock(newOrds, newDict);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(newDict, newOrds);
+            }
         }
     }
 
@@ -162,6 +220,44 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
             }
         }
         return result;
+    }
+
+    private BytesRefBlock materializeFiltered(int[] positions) {
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBytesRef(getBytesRef(first, scratch));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBytesRef(getBytesRef(first + c, scratch));
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.mvOrdering(mvOrdering()).build();
+        }
+    }
+
+    /**
+     * Builds a new dictionary {@link BytesRefVector} containing only the entries listed in {@code keptOrds[0..kept)},
+     * preserving their order. Shared between {@link OrdinalBytesRefBlock#filter} and {@link OrdinalBytesRefVector#filter}.
+     */
+    static BytesRefVector compactDictionary(BytesRefVector source, int[] keptOrds, int kept, BlockFactory blockFactory) {
+        BytesRef scratch = new BytesRef();
+        try (BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(kept)) {
+            for (int k = 0; k < kept; k++) {
+                builder.appendBytesRef(source.getBytesRef(keptOrds[k], scratch));
+            }
+            return builder.build();
+        }
     }
 
     @Override

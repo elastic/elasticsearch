@@ -16,6 +16,7 @@ import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * A {@link BytesRefVector} consists of a pair: an {@link IntVector} for ordinals and a {@link BytesRefVector} for the dictionary.
@@ -105,9 +106,66 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
 
     @Override
     public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
-        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
-        // may reappear when hashing the dictionary in BlockHash.
-        final BytesRef scratch = new BytesRef();
+        // Preserve the ordinal encoding through filter so downstream consumers (BytesRefBlockHash, etc.)
+        // keep the dictionary fast path. Dictionary entries that are no longer referenced are dropped,
+        // because every consumer of OrdinalBytesRefVector hashes the entire dictionary unconditionally.
+        final int dictSize = bytes.getPositionCount();
+        final int[] remap = new int[dictSize];
+        Arrays.fill(remap, -1);
+        // keptOrds[i] is the original dictionary index that compacted to position i.
+        final int[] keptOrds = new int[dictSize];
+        int kept = 0;
+        for (int p : positions) {
+            int ord = ordinals.getInt(p);
+            if (remap[ord] == -1) {
+                remap[ord] = kept;
+                keptOrds[kept] = ord;
+                kept++;
+            }
+        }
+        if (OrdinalBytesRefBlock.isDense(positions.length, kept) == false) {
+            // Compacted dictionary would not be dense enough to pay for the per-row indirection
+            // downstream (and would not serialize via SERIALIZE_BLOCK_ORDINAL either). Materialize
+            // a plain BytesRefVector instead so consumers take their fastest non-ordinal path.
+            return materializeFiltered(positions);
+        }
+        if (kept == dictSize) {
+            // Fast path: every dictionary entry is still referenced. Share the dictionary
+            // and only filter the ordinals; no remap needed.
+            IntVector filteredOrds = ordinals.filter(mayContainDuplicates, positions);
+            OrdinalBytesRefVector result = null;
+            try {
+                result = new OrdinalBytesRefVector(filteredOrds, bytes);
+                bytes.incRef();
+                return result;
+            } finally {
+                if (result == null) {
+                    filteredOrds.close();
+                }
+            }
+        }
+        BytesRefVector newDict = null;
+        IntVector newOrds = null;
+        OrdinalBytesRefVector result = null;
+        try {
+            newDict = OrdinalBytesRefBlock.compactDictionary(bytes, keptOrds, kept, blockFactory());
+            try (IntVector.Builder ordsBuilder = blockFactory().newIntVectorFixedBuilder(positions.length)) {
+                for (int p : positions) {
+                    ordsBuilder.appendInt(remap[ordinals.getInt(p)]);
+                }
+                newOrds = ordsBuilder.build();
+            }
+            result = new OrdinalBytesRefVector(newOrds, newDict);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(newDict, newOrds);
+            }
+        }
+    }
+
+    private BytesRefVector materializeFiltered(int[] positions) {
+        BytesRef scratch = new BytesRef();
         try (BytesRefVector.Builder builder = blockFactory().newBytesRefVectorBuilder(positions.length)) {
             for (int p : positions) {
                 builder.appendBytesRef(getBytesRef(p, scratch));

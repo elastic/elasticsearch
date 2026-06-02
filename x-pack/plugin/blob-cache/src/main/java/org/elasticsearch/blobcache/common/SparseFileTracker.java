@@ -310,7 +310,7 @@ public class SparseFileTracker {
      *   <li>Listeners at thresholds {@code > splitPoint} require both halves to complete, so each is gated by a small
      *       {@link RefCountingListener} that waits for A to reach {@code splitPoint} and B to reach the original threshold.
      *       The B-side ref is added to the upper half's future now so that a subsequent split of B will pick it up via
-     *       {@link ProgressListenableActionFuture#stealListeners()} and redistribute it correctly.</li>
+     *       {@link ProgressListenableActionFuture#getAndClearListeners()} and redistribute it correctly.</li>
      * </ul>
      *
      * @param existing   the unclaimed pending range to split; must satisfy {@code existing.start < splitPoint < existing.end}
@@ -340,7 +340,7 @@ public class SparseFileTracker {
         // RefCountingListener gates each one on A reaching splitPoint AND B reaching the original threshold.
         // Adding the B-side ref to completionListenerB now (not lazily) means a subsequent split of B will
         // pick it up via stealListeners and correctly redistribute it.
-        for (var pal : existing.completionListener.stealListeners()) {
+        for (var pal : existing.completionListener.getAndClearListeners()) {
             final long threshold = pal.position();
             if (threshold <= splitPoint) {
                 completionListenerA.addListener(pal.listener(), threshold);

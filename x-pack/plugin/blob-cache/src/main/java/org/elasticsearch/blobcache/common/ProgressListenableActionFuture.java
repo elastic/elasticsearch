@@ -242,8 +242,10 @@ class ProgressListenableActionFuture extends PlainActionFuture<Long> {
      * <p>
      * After this call the old future has no listeners. Callers are responsible for ensuring the old future is never completed.
      */
-    synchronized List<PositionAndListener> stealListeners() {
+    synchronized List<PositionAndListener> getAndClearListeners() {
         assert completed == false;
+        // ensure this object fails if completion is attempted.
+        this.completed = true;
         final List<PositionAndListener> stolen = this.listeners;
         this.listeners = null;
         return stolen != null ? stolen : List.of();

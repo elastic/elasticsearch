@@ -620,7 +620,6 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        boolean injectScript = annotations.containsKey(ScriptAwareAnnotation.class);
         if (annotations.containsKey(ScriptAwareAnnotation.class) && augmentedClass == null) {
             throw lookupException(
                 "[@%s] requires the whitelist line to declare an augmentation class for method [[%s], [%s], %s]",
@@ -633,9 +632,10 @@ public final class PainlessLookupBuilder {
 
         int typeParametersSize = typeParameters.size();
         int augmentedParameterOffset = augmentedClass == null ? 0 : 1;
-        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + (injectScript ? 1 : 0));
+        int scriptParameterOffset = annotations.containsKey(ScriptAwareAnnotation.class) ? 1 : 0;
+        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + scriptParameterOffset);
 
-        if (injectScript) {
+        if (scriptParameterOffset == 1) {
             javaTypeParameters.add(PainlessScript.class);
         }
 
@@ -697,7 +697,7 @@ public final class PainlessLookupBuilder {
             } catch (NoSuchMethodException nsme) {
                 throw lookupException(
                     nsme,
-                    injectScript
+                    scriptParameterOffset == 1
                         ? "[@"
                             + ScriptAwareAnnotation.NAME
                             + "] requires augmented class [%4$s] to declare an overload of method [[%1$s], [%2$s], %3$s] "

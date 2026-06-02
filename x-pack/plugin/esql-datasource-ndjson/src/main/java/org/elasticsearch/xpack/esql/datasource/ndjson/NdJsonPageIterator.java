@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -84,6 +85,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             try (InputStream toClose = inputStream) {
                 data = toClose.readAllBytes();
             }
+            data = enforceMaxRecordBytes(data, errorPolicy, recordSplitter);
             this.pageDecoder = new NdJsonPageDecoder(
                 data,
                 0,
@@ -108,6 +110,52 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 counters
             );
         }
+    }
+
+    private static byte[] enforceMaxRecordBytes(byte[] data, ErrorPolicy errorPolicy, NdJsonRecordSplitter recordSplitter)
+        throws IOException {
+        ByteArrayOutputStream filtered = null;
+        int recordStart = 0;
+        for (int i = 0; i < data.length; i++) {
+            byte b = data[i];
+            if (b == '\n' || b == '\r') {
+                int boundary = i;
+                if (b == '\r' && i + 1 < data.length && data[i + 1] == '\n') {
+                    boundary = ++i;
+                }
+                filtered = copyOrSkipRecord(data, recordStart, boundary + 1, filtered, errorPolicy, recordSplitter);
+                recordStart = boundary + 1;
+            }
+        }
+        if (recordStart < data.length) {
+            filtered = copyOrSkipRecord(data, recordStart, data.length, filtered, errorPolicy, recordSplitter);
+        }
+        return filtered == null ? data : filtered.toByteArray();
+    }
+
+    private static ByteArrayOutputStream copyOrSkipRecord(
+        byte[] data,
+        int recordStart,
+        int recordEnd,
+        ByteArrayOutputStream filtered,
+        ErrorPolicy errorPolicy,
+        NdJsonRecordSplitter recordSplitter
+    ) throws IOException {
+        int recordBytes = recordEnd - recordStart;
+        if (recordBytes > recordSplitter.maxRecordBytes()) {
+            if (errorPolicy.isStrict()) {
+                throw recordSplitter.recordTooLargeException();
+            }
+            if (filtered == null) {
+                filtered = new ByteArrayOutputStream(data.length);
+                filtered.write(data, 0, recordStart);
+            }
+            return filtered;
+        }
+        if (filtered != null) {
+            filtered.write(data, recordStart, recordBytes);
+        }
+        return filtered;
     }
 
     /**

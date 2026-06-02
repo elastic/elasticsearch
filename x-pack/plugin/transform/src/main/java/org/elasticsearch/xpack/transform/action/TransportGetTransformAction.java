@@ -93,7 +93,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         RemainingTime remainingTime = RemainingTime.from(Instant::now, request.timeout());
 

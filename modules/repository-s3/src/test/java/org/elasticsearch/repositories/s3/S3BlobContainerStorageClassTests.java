@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpHandler;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import com.sun.net.httpserver.HttpServer;
 
@@ -41,8 +42,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
-
-import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -190,7 +189,8 @@ public class S3BlobContainerStorageClassTests extends ESTestCase {
         final S3BlobContainer container = buildContainer(
             getRandomAllowedStorageClassString(),
             getRandomAllowedStorageClassString(),
-            fallbackStorageClass);
+            fallbackStorageClass
+        );
 
         final String blobName = randomIdentifier();
 

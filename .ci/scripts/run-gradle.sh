@@ -45,7 +45,7 @@ set -e
 RUNNER_JAR="build-tools/gradle-runner/build/libs/gradle-runner.jar"
 if [[ ! -f "$RUNNER_JAR" ]]; then
   echo "--- Building gradle-runner"
-  ./gradlew --console=plain :build-tools:gradle-runner:jar
+  ./gradlew --no-scan --console=plain :build-tools:gradle-runner:jar
 fi
 
 # Pass TESTS_SEED as Java system property if available
@@ -58,4 +58,5 @@ fi
 # Strip "./gradlew" from GRADLEW to get the default flags
 GRADLEW_ARGS="${GRADLEW#./gradlew }"
 
+echo "--- Running gradle tasks"
 java -jar "$RUNNER_JAR" -- $GRADLEW_ARGS -S --max-workers=$MAX_WORKERS $TESTS_SEED_PARAM ${EXTRA_GRADLE_ARGS:-} "$@"

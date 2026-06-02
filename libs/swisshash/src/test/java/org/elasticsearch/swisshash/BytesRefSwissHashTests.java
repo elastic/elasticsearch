@@ -80,7 +80,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
         BytesRef scratch = new BytesRef();
 
-        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0L));
 
             for (int i = 0; i < v.length; i++) {
@@ -187,7 +187,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
         Exception e = expectThrows(CircuitBreakingException.class, () -> {
-            try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
+            try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker)) {
                 for (int i = 0; i < v.length; i++) {
                     hash.add(v[i]);
                 }
@@ -204,7 +204,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
 
-        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker)) {
             long firstId = addType.add(hash, value);
             assertTrue(firstId >= 0);
 
@@ -220,7 +220,7 @@ public class BytesRefSwissHashTests extends ESTestCase {
         TestRecycler recycler = new TestRecycler();
         CircuitBreaker breaker = new NoopCircuitBreaker("test");
         BigArrays bigArrays = new MockBigArrays(recycler, ByteSizeValue.ofBytes(Long.MAX_VALUE));
-        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker, bigArrays)) {
+        try (BytesRefSwissHash hash = new BytesRefSwissHash(recycler, breaker)) {
             assertThat(hash.size(), equalTo(0L));
             assertFalse(hash.iterator().next());
         }

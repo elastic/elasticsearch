@@ -13,6 +13,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,8 +35,9 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
     private static final int HALF_PAGE_SIZE = PageCacheRecycler.PAGE_SIZE_IN_BYTES / 2;
     static long MAX_INT_OFFSET = Integer.MAX_VALUE - 1024; // package level for testing
-
-    private final BigArrays bigArrays;
+    static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("BytesRefArray");
+    private CircuitBreaker breaker;
+    private final PageCacheRecycler recycler;
     private final Bytes bytes;
     private final long maxIntOffset;
     private final long initialCapacity;
@@ -46,17 +49,18 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     private LongOffsets longOffsets;
 
     public BytesRefArray(long initialCapacity, BigArrays bigArrays) {
-        this(initialCapacity, bigArrays, 0L);
+        this(initialCapacity, bigArrays.breaker(), bigArrays.recycler(), 0L);
     }
 
-    public BytesRefArray(long initialCapacity, BigArrays bigArrays, long byteHint) {
-        this.bigArrays = bigArrays;
+    public BytesRefArray(long initialCapacity, CircuitBreaker breaker, PageCacheRecycler recycler, long byteHint) {
+        this.recycler = (recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler);
+        this.breaker = (breaker == null ? NOOP_BREAKER : breaker);
         this.maxIntOffset = MAX_INT_OFFSET;
         this.initialCapacity = initialCapacity;
         boolean success = false;
         try {
             final long initialBytes = byteHint > 0 ? byteHint : initialCapacity * 3;
-            bytes = new Bytes(bigArrays, initialBytes);
+            bytes = new Bytes(this.breaker, this.recycler, initialBytes);
             success = true;
         } finally {
             if (success == false) {
@@ -66,14 +70,19 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     public BytesRefArray(StreamInput in, BigArrays bigArrays) throws IOException {
-        this.bigArrays = bigArrays;
+        this(in, bigArrays.breaker(), bigArrays.recycler());
+    }
+
+    public BytesRefArray(StreamInput in, CircuitBreaker breaker, PageCacheRecycler recycler) throws IOException {
+        this.recycler = (recycler == null ? PageCacheRecycler.NON_RECYCLING_INSTANCE : recycler);
+        this.breaker = (breaker == null ? NOOP_BREAKER : breaker);
         this.maxIntOffset = MAX_INT_OFFSET;
         boolean success = false;
         try {
             size = in.readVLong();
             this.initialCapacity = size;
             long numOffsets = size + 1;
-            intOffsets = new IntOffsets(bigArrays, (int) Math.min(numOffsets, Integer.MAX_VALUE));
+            intOffsets = new IntOffsets(this.breaker, this.recycler, (int) Math.min(numOffsets, Integer.MAX_VALUE));
             long offset = 0;
             for (long i = 0; i < numOffsets; i++) {
                 long next = in.readVLong();
@@ -82,7 +91,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             }
             lastOffset = getOffset(size);
             long sizeOfBytes = in.readVLong();
-            bytes = new Bytes(bigArrays, sizeOfBytes);
+            bytes = new Bytes(this.breaker, this.recycler, sizeOfBytes);
             bytes.readFrom(in, sizeOfBytes);
             success = true;
         } finally {
@@ -134,7 +143,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
                 return;
             }
             if (longOffsets == null) {
-                longOffsets = new LongOffsets(bigArrays, 16);
+                longOffsets = new LongOffsets(breaker, recycler, 16);
             }
             longOffsets.append(newOffset);
             return;
@@ -147,14 +156,14 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
     }
 
     private void transitionFixedLengthToOffsets(long newOffset) {
-        intOffsets = new IntOffsets(bigArrays, (int) Math.min(initialCapacity + 1, Integer.MAX_VALUE));
+        intOffsets = new IntOffsets(breaker, recycler, (int) Math.min(initialCapacity + 1, Integer.MAX_VALUE));
         for (long i = 0; i <= size; i++) {
             long off = (long) fixedLength * i;
             if (off <= maxIntOffset) {
                 intOffsets.append((int) off);
             } else {
                 if (longOffsets == null) {
-                    longOffsets = new LongOffsets(bigArrays, 16);
+                    longOffsets = new LongOffsets(breaker, recycler, 16);
                 }
                 longOffsets.append(off);
             }
@@ -164,7 +173,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             intOffsets.append((int) newOffset);
         } else {
             if (longOffsets == null) {
-                longOffsets = new LongOffsets(bigArrays, 16);
+                longOffsets = new LongOffsets(breaker, recycler, 16);
             }
             longOffsets.append(newOffset);
         }
@@ -259,6 +268,24 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         return used;
     }
 
+    /**
+     * Assigns a new circuit breaker. All accounted memory will be released from the new breaker
+     * on {@link #close()} instead of the original breaker.
+     */
+    public void changeBreaker(CircuitBreaker newBreaker) {
+        if (newBreaker == this.breaker) {
+            return;
+        }
+        bytes.breaker = newBreaker;
+        if (intOffsets != null) {
+            intOffsets.breaker = newBreaker;
+        }
+        if (longOffsets != null) {
+            longOffsets.breaker = newBreaker;
+        }
+        this.breaker = newBreaker;
+    }
+
     static final class IntOffsets implements BigArray {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntOffsets.class);
         private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
@@ -267,7 +294,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(INTS_PER_PAGE);
         private static final int PAGE_MASK = INTS_PER_PAGE - 1;
 
-        private final BigArrays bigArrays;
+        private CircuitBreaker breaker;
         private final PageCacheRecycler recycler;
         private Recycler.V<?>[] caches;
         byte[][] pages;
@@ -276,19 +303,18 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         int posInPage;
         long size;
 
-        IntOffsets(BigArrays bigArrays, long initialCapacity) {
-            this.bigArrays = bigArrays;
-            PageCacheRecycler r = bigArrays.recycler();
-            this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        IntOffsets(CircuitBreaker breaker, PageCacheRecycler recycler, long initialCapacity) {
+            this.breaker = breaker;
+            this.recycler = recycler;
             final int numPages = Math.toIntExact(Math.max(1, (initialCapacity + INTS_PER_PAGE - 1) / INTS_PER_PAGE));
-            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + estimateUseByPagesArray(numPages), "BytesRefArray#IntOffsets");
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V[numPages];
             boolean success = false;
             try {
                 if (initialCapacity < INTS_PER_PAGE) {
                     final int initialBytes = Math.max(1, (int) initialCapacity) * Integer.BYTES;
-                    bigArrays.adjustBreaker(initialBytes, false);
+                    breaker.addEstimateBytesAndMaybeBreak(initialBytes, "BytesRefArray#IntOffsets");
                     pages[0] = currentPage = new byte[initialBytes];
                     pageCount = 1;
                 } else {
@@ -306,28 +332,28 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             byte[] oldPage = pages[0];
             final int newSize = ArrayUtil.oversize((int) size + 1, Integer.BYTES) * Integer.BYTES;
             if (newSize >= PageCacheRecycler.INT_PAGE_SIZE / 2) {
-                bigArrays.adjustBreaker(PAGE_SIZE, false);
+                breaker.addEstimateBytesAndMaybeBreak(PAGE_SIZE, "BytesRefArray#IntOffsets");
                 Recycler.V<byte[]> newPage = recycler.bytePage(false);
                 caches[0] = newPage;
                 currentPage = pages[0] = newPage.v();
             } else {
-                bigArrays.adjustBreaker(newSize, false);
+                breaker.addEstimateBytesAndMaybeBreak(newSize, "BytesRefArray#IntOffsets");
                 currentPage = pages[0] = new byte[newSize];
             }
             System.arraycopy(oldPage, 0, currentPage, 0, posInPage);
-            bigArrays.adjustBreaker(-oldPage.length, true);
+            breaker.addWithoutBreaking(-oldPage.length);
         }
 
         private byte[] grabNextPage() {
             if (pageCount >= pages.length) {
                 final int oldSize = pages.length;
                 int newSize = ArrayUtil.oversize(pageCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-                bigArrays.adjustBreaker(estimateUseByPagesArray(newSize), false);
+                breaker.addEstimateBytesAndMaybeBreak(estimateUseByPagesArray(newSize), "BytesRefArray#IntOffsets");
                 pages = Arrays.copyOf(pages, newSize);
                 caches = Arrays.copyOf(caches, newSize);
-                bigArrays.adjustBreaker(-estimateUseByPagesArray(oldSize), true);
+                breaker.addWithoutBreaking(-estimateUseByPagesArray(oldSize));
             }
-            bigArrays.adjustBreaker(PAGE_SIZE, false);
+            breaker.addEstimateBytesAndMaybeBreak(PAGE_SIZE, "BytesRefArray#IntOffsets");
             Recycler.V<byte[]> page = recycler.bytePage(false);
             caches[pageCount] = page;
             byte[] v = page.v();
@@ -370,7 +396,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            breaker.addWithoutBreaking(-ramBytesUsed());
         }
 
         @Override
@@ -387,7 +413,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(LONGS_PER_PAGE);
         private static final int PAGE_MASK = LONGS_PER_PAGE - 1;
 
-        private final BigArrays bigArrays;
+        private CircuitBreaker breaker;
         private final PageCacheRecycler recycler;
         private Recycler.V<?>[] caches;
         byte[][] pages;
@@ -396,12 +422,11 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         int posInPage;
         long size;
 
-        LongOffsets(BigArrays bigArrays, long initialCapacity) {
-            this.bigArrays = bigArrays;
-            PageCacheRecycler r = bigArrays.recycler();
-            this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        LongOffsets(CircuitBreaker breaker, PageCacheRecycler recycler, long initialCapacity) {
+            this.breaker = breaker;
+            this.recycler = recycler;
             int numPages = Math.toIntExact(Math.max(1, (initialCapacity + LONGS_PER_PAGE - 1) / LONGS_PER_PAGE));
-            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), true);
+            breaker.addWithoutBreaking(SHALLOW_SIZE + estimateUseByPagesArray(numPages));
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V[numPages];
             boolean success = false;
@@ -419,12 +444,12 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             if (pageCount >= pages.length) {
                 final int oldSize = pages.length;
                 final int newSize = ArrayUtil.oversize(pageCount + 1, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-                bigArrays.adjustBreaker(estimateUseByPagesArray(newSize), false);
+                breaker.addEstimateBytesAndMaybeBreak(estimateUseByPagesArray(newSize), "BytesRefArray#LongOffsets");
                 pages = Arrays.copyOf(pages, newSize);
                 caches = Arrays.copyOf(caches, newSize);
-                bigArrays.adjustBreaker(-estimateUseByPagesArray(oldSize), true);
+                breaker.addWithoutBreaking(-estimateUseByPagesArray(oldSize));
             }
-            bigArrays.adjustBreaker(PAGE_SIZE, false);
+            breaker.addEstimateBytesAndMaybeBreak(PAGE_SIZE, "BytesRefArray#LongOffsets");
             Recycler.V<byte[]> page = recycler.bytePage(false);
             caches[pageCount] = page;
             byte[] v = page.v();
@@ -463,7 +488,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            breaker.addWithoutBreaking(-ramBytesUsed());
         }
     }
 
@@ -473,7 +498,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
         private static final int PAGE_MASK = PAGE_SIZE - 1;
 
-        private final BigArrays bigArrays;
+        private CircuitBreaker breaker;
         private final PageCacheRecycler recycler;
 
         private Recycler.V<?>[] caches;
@@ -484,19 +509,18 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
         private WeakReference<byte[]> cachedScratch = new WeakReference<>(null);
         private final BytesRef scratch = new BytesRef();
 
-        public Bytes(BigArrays bigArrays, long initialSize) {
-            this.bigArrays = bigArrays;
-            PageCacheRecycler r = bigArrays.recycler();
-            this.recycler = r != null ? r : PageCacheRecycler.NON_RECYCLING_INSTANCE;
+        public Bytes(CircuitBreaker breaker, PageCacheRecycler recycler, long initialSize) {
+            this.breaker = breaker;
+            this.recycler = recycler;
             int numPages = Math.max(1, (int) ((initialSize + PAGE_SIZE - 1) >> PAGE_SHIFT));
-            bigArrays.adjustBreaker(SHALLOW_SIZE + estimateUseByPagesArray(numPages), false);
+            breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE + estimateUseByPagesArray(numPages), "BytesRefArray#Bytes");
             this.pages = new byte[numPages][];
             this.caches = new Recycler.V[numPages];
             boolean success = false;
             try {
                 if (initialSize < HALF_PAGE_SIZE) {
                     final int bytesLength = Math.max(1, (int) initialSize);
-                    bigArrays.adjustBreaker(bytesLength, false);
+                    breaker.addEstimateBytesAndMaybeBreak(bytesLength, "BytesRefArray#Bytes");
                     pages[0] = currentPage = new byte[bytesLength];
                     pageCount = 1;
                 } else {
@@ -514,32 +538,32 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             byte[] oldPage = pages[0];
             final int newSize = ArrayUtil.oversize((int) Math.min(minSize, PAGE_SIZE), Integer.BYTES) * Integer.BYTES;
             if (newSize >= PageCacheRecycler.INT_PAGE_SIZE / 2) {
-                bigArrays.adjustBreaker(PAGE_SIZE, false);
+                breaker.addEstimateBytesAndMaybeBreak(PAGE_SIZE, "BytesRefArray#Bytes");
                 Recycler.V<byte[]> newPage = recycler.bytePage(false);
                 caches[0] = newPage;
                 currentPage = pages[0] = newPage.v();
             } else {
-                bigArrays.adjustBreaker(newSize, false);
+                breaker.addEstimateBytesAndMaybeBreak(newSize, "BytesRefArray#Bytes");
                 currentPage = pages[0] = new byte[newSize];
             }
             System.arraycopy(oldPage, 0, currentPage, 0, currentPagePos);
-            bigArrays.adjustBreaker(-oldPage.length, true);
+            breaker.addWithoutBreaking(-oldPage.length);
         }
 
         private void grow(int minSize) {
             final int oldSize = pages.length;
             int newSize = ArrayUtil.oversize(minSize, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
-            bigArrays.adjustBreaker(estimateUseByPagesArray(newSize), false);
+            breaker.addEstimateBytesAndMaybeBreak(estimateUseByPagesArray(newSize), "BytesRefArray#Bytes");
             pages = Arrays.copyOf(pages, newSize);
             caches = Arrays.copyOf(caches, newSize);
-            bigArrays.adjustBreaker(-estimateUseByPagesArray(oldSize), true);
+            breaker.addWithoutBreaking(-estimateUseByPagesArray(oldSize));
         }
 
         private byte[] grabNextPage() {
             if (pageCount >= pages.length) {
                 grow(pageCount + 1);
             }
-            bigArrays.adjustBreaker(PAGE_SIZE, false);
+            breaker.addEstimateBytesAndMaybeBreak(PAGE_SIZE, "BytesRefArray#Bytes");
             Recycler.V<byte[]> page = recycler.bytePage(false);
             caches[pageCount] = page;
             byte[] v = page.v();
@@ -721,7 +745,7 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             for (int i = 0; i < pageCount; i++) {
                 Releasables.close(caches[i]);
             }
-            bigArrays.adjustBreaker(-ramBytesUsed(), true);
+            breaker.addWithoutBreaking(-ramBytesUsed());
         }
     }
 
@@ -730,4 +754,5 @@ public final class BytesRefArray extends AbstractRefCounted implements Accountab
             (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) RamUsageEstimator.NUM_BYTES_OBJECT_REF * arrayLength
         );
     }
+
 }

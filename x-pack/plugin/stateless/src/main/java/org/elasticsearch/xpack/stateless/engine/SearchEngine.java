@@ -1053,10 +1053,6 @@ public class SearchEngine extends Engine {
         }
     }
 
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
-    }
-
     @Override
     public SearcherSupplier acquireSearcherSupplier(
         Function<Searcher, Searcher> wrapper,

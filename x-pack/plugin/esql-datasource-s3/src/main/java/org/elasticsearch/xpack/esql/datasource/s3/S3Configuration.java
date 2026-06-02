@@ -22,8 +22,9 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * <ul>
  *   <li>Access key + secret key (static credentials)</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>Default credentials (IAM role, instance profile) when no explicit credentials are provided</li>
  * </ul>
+ * The node's ambient credentials (IAM role, instance profile, environment) are never used: a data source
+ * must carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  */
 public class S3Configuration extends FileDataSourceConfiguration {
 

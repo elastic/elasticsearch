@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1436,6 +1435,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private int rowPositionSlot = -1;
         /**
+         * Parallel to {@link #projectedIdx}: the {@link SyntheticColumns.Kind} at slots whose
+         * {@code projectedIdx[i] < 0} (i.e. slots with no backing CSV source column), {@code null}
+         * elsewhere. Dispatch sites that distinguish synthetic kinds switch on this enum without a
+         * {@code default} case so the compiler enforces exhaustiveness when a new kind is added to
+         * {@link SyntheticColumns.Kind}.
+         */
+        private SyntheticColumns.Kind[] syntheticKinds;
+        /**
          * Per-record token emitted into the {@code _rowPosition} slot. Advances once per record read
          * (accepted or rejected) so a record's value is stable regardless of acceptance. For a
          * single-split read this is the file-global record index; multi-split CSV needs a file-global
@@ -1734,16 +1741,23 @@ public class CsvFormatReader implements SegmentableFormatReader {
             } else if (projectedColumns.isEmpty()) {
                 columnCount = 0;
                 projectedIdx = new int[0];
+                syntheticKinds = new SyntheticColumns.Kind[0];
             } else {
                 columnCount = projectedColumns.size();
                 projectedIdx = new int[columnCount];
+                syntheticKinds = new SyntheticColumns.Kind[columnCount];
                 for (int c = 0; c < columnCount; c++) {
                     String colName = projectedColumns.get(c);
-                    if (ColumnExtractor.ROW_POSITION_COLUMN.equals(colName)) {
-                        // Synthetic per-record token, not a CSV source column. Sentinel -1 source
-                        // index; the convert paths fill this slot from csvRowCounter.
+                    SyntheticColumns.Kind kind = SyntheticColumns.kindOf(colName);
+                    if (kind != null) {
+                        // No backing CSV source column; the convert paths fill this slot from a
+                        // per-kind value source. projectedIdx stays as the kind-agnostic "no
+                        // source column here" sentinel; syntheticKinds carries the discriminator.
                         projectedIdx[c] = -1;
-                        rowPositionSlot = c;
+                        syntheticKinds[c] = kind;
+                        if (kind == SyntheticColumns.Kind.ROW_POSITION) {
+                            rowPositionSlot = c;
+                        }
                         continue;
                     }
                     int index = -1;
@@ -1762,9 +1776,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
             projectedTypes = new DataType[columnCount];
             projectedAttrs = new Attribute[columnCount];
             for (int i = 0; i < columnCount; i++) {
-                if (projectedIdx[i] < 0) {
-                    projectedTypes[i] = DataType.LONG;
-                    projectedAttrs[i] = SyntheticColumns.newRowPositionAttribute();
+                SyntheticColumns.Kind kind = syntheticKinds[i];
+                if (kind != null) {
+                    // Exhaustive arrow-switch with no default case: when a new Kind member is
+                    // added, this site fails to compile until an explicit arm is written.
+                    switch (kind) {
+                        case ROW_POSITION -> {
+                            projectedTypes[i] = kind.dataType();
+                            projectedAttrs[i] = SyntheticColumns.newAttribute(kind);
+                        }
+                    }
                     continue;
                 }
                 Attribute attr = schema.get(projectedIdx[i]);

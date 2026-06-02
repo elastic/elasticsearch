@@ -1247,14 +1247,20 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * the batch, {@code [batchStartRow, batchStartRow + rowCount)}. Never null. This is the
          * opaque, split-invariant per-record token the producer pipeline renders as
          * {@code _file.record_ref} / composes into {@code _id}.
+         *
+         * <p>Direct array fill + {@link BlockFactory#newLongArrayVector} rather than
+         * {@link LongVector.Builder#appendLong}: the values are a known-size arithmetic sequence,
+         * so we skip the builder's per-element method-call overhead and finalization copy. The
+         * tight primitive loop is SIMD-vectorizable; circuit-breaker accounting is preserved by
+         * {@code newLongArrayVector}.
          */
         private Block buildRowPositionBlock(int rowCount) {
-            try (LongVector.Builder builder = blockFactory.newLongVectorBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    builder.appendLong(batchStartRow + i);
-                }
-                return builder.build().asBlock();
+            long[] values = new long[rowCount];
+            long base = batchStartRow;
+            for (int i = 0; i < rowCount; i++) {
+                values[i] = base + i;
             }
+            return blockFactory.newLongArrayVector(values, rowCount).asBlock();
         }
 
         /**

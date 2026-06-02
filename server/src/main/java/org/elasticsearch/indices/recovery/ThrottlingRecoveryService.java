@@ -9,7 +9,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -35,7 +34,6 @@ import java.util.function.Consumer;
  * which can be dynamically updated. If limit is increased, pending tasks will be dispatched up to the new limit.
  * If limit decreases, no tasks will be canceled, and we will let running tasks finish.
  */
-// todo: Cleanup logging. Some logging will be useful, but currently it's too much
 public final class ThrottlingRecoveryService {
     /**
      * Controls the number of concurrent recoveries allowed on target node.
@@ -73,7 +71,7 @@ public final class ThrottlingRecoveryService {
      */
     public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
         logger.trace(
-            "--> enqueue recovery: recoverySource: [{}], shardId: [{}]",
+            "enqueue recovery: recoverySource: [{}], shardId: [{}]",
             recoveryState.getRecoverySource(),
             recoveryState.getShardId()
         );
@@ -96,34 +94,27 @@ public final class ThrottlingRecoveryService {
     private void fillSlots() {
         int current;
         while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && !pendingRecoveries.isEmpty()) {
-            logger.trace("--> try to dispatch on current [{}]", current);
             if (runningRecoveries.compareAndSet(current, current + 1)) {
                 RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
                     logger.trace(
-                        "--> dispatch recovery: recoverySource: [{}], shardId: [{}]",
+                        "dispatch recovery: recoverySource: [{}], shardId: [{}]",
                         nextTask.recoveryState.getRecoverySource(),
                         nextTask.recoveryState.getShardId()
                     );
                     executor.execute(nextTask);
                 } else {
-                    logger.trace("--> nothing in queue when looked again, try again");
                     runningRecoveries.decrementAndGet();
                 }
-            } else {
-                logger.trace("--> failed in CAS, try again");
             }
-            logger.trace("--> end of loop, try again");
         }
-        logger.trace("--> exit dispatch, pendingSize: [{}], running: [{}]", pendingRecoveries.size(), current);
     }
 
     private void closeAndFillSlots(RecoveryTask recoveryTask) {
         logger.trace(
-            "--> close recovery: recoverySource: [{}], shardId: [{}], stackTrace: [{}]",
+            "close recovery: recoverySource: [{}], shardId: [{}]",
             recoveryTask.recoveryState.getRecoverySource(),
-            recoveryTask.recoveryState.getShardId(),
-            ExceptionsHelper.stackTrace(new RuntimeException("trace"))
+            recoveryTask.recoveryState.getShardId()
         );
         int current = runningRecoveries.decrementAndGet();
         assert current >= 0 : "negative number of running recoveries " + current;
@@ -131,11 +122,9 @@ public final class ThrottlingRecoveryService {
     }
 
     private void setMaxConcurrentRecoveries(Integer newMaxConcurrentRecoveries) {
-        logger.info("--> set max concurrent recoveries to [{}]", newMaxConcurrentRecoveries);
         int oldMax = this.maxConcurrentRecoveries;
         this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
         if (oldMax < newMaxConcurrentRecoveries) {
-            logger.info("--> call dispatch from settings update");
             fillSlots();
         }
     }
@@ -165,7 +154,7 @@ public final class ThrottlingRecoveryService {
         }
 
         @Override
-        protected void doRun() throws Exception {
+        protected void doRun() {
             task.accept(listener);
         }
     }

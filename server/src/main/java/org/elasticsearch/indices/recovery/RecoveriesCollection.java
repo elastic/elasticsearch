@@ -111,55 +111,52 @@ public class RecoveriesCollection {
      * @return newly created RecoveryTarget
      */
     public RecoveryTarget resetRecovery(final long recoveryId) {
-        RecoveryTarget oldRecoveryTarget = null;
-        RecoveryTarget newRecoveryTarget = null;
+        RecoveryTarget oldRecoveryTarget;
+        RecoveryTarget newRecoveryTarget;
 
-        try {
-            synchronized (onGoingRecoveries) {
-                // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
-                // cancelRecoveriesForShard whenever the old recovery target is picked up
-                oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
-                if (oldRecoveryTarget == null) {
-                    return null;
-                }
-                oldRecoveryTarget.indexShard().recoveryStats().decCurrentAsTarget();
-                newRecoveryTarget = oldRecoveryTarget.retryCopy();
-                startRecoveryInternal(newRecoveryTarget);
-            }
-            notifyRecoverySchedulingListeners();
-
-            // Closes the current recovery target
-            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
-            if (successfulReset) {
-                logger.trace(
-                    "{} restarted recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                return newRecoveryTarget;
-            } else {
-                logger.trace(
-                    "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
-                    newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(),
-                    newRecoveryTarget.recoveryId(),
-                    oldRecoveryTarget.recoveryId()
-                );
-                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+        synchronized (onGoingRecoveries) {
+            // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
+            // cancelRecoveriesForShard whenever the old recovery target is picked up
+            oldRecoveryTarget = onGoingRecoveries.remove(recoveryId);
+            if (oldRecoveryTarget == null) {
                 return null;
             }
+            oldRecoveryTarget.indexShard().recoveryStats().decCurrentAsTarget();
+            newRecoveryTarget = oldRecoveryTarget.retryCopy();
+            startRecoveryInternal(newRecoveryTarget);
+        }
+        notifyRecoverySchedulingListeners();
+
+        boolean successfulReset;
+        try {
+            // Closes the current recovery target
+            successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
         } catch (Exception e) {
-            if (newRecoveryTarget != null) {
-                failRecovery(
-                    newRecoveryTarget.recoveryId(),
-                    new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
-                    true
-                );
-            } else {
-                oldRecoveryTarget.fail(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);
-            }
+            failRecovery(
+                newRecoveryTarget.recoveryId(),
+                new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e),
+                true
+            );
+            return null;
+        }
+        if (successfulReset) {
+            logger.trace(
+                "{} restarted recovery from {}, id [{}], previous id [{}]",
+                newRecoveryTarget.shardId(),
+                newRecoveryTarget.sourceNode(),
+                newRecoveryTarget.recoveryId(),
+                oldRecoveryTarget.recoveryId()
+            );
+            return newRecoveryTarget;
+        } else {
+            logger.trace(
+                "{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                newRecoveryTarget.shardId(),
+                newRecoveryTarget.sourceNode(),
+                newRecoveryTarget.recoveryId(),
+                oldRecoveryTarget.recoveryId()
+            );
+            cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
             return null;
         }
     }

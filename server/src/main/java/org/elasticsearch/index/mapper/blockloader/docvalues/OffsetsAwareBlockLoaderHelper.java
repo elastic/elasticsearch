@@ -79,6 +79,20 @@ final class OffsetsAwareBlockLoaderHelper {
     }
 
     /**
+     * Counts the non-null slots in {@code offsetToOrd}. Callers use this to choose the position shape (null / lone value / multi-value)
+     * before appending, so the value-append loop can stay in type-specific code and compile monomorphically.
+     */
+    static int countNonNull(int[] offsetToOrd) {
+        int nonNullCount = 0;
+        for (int ord : offsetToOrd) {
+            if (ord != FieldArrayContext.NULL_ORD) {
+                nonNullCount++;
+            }
+        }
+        return nonNullCount;
+    }
+
+    /**
      * Asserts every slot is null.
      */
     static boolean allNulls(int[] offsetToOrd) {

@@ -10,9 +10,13 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
@@ -33,6 +37,53 @@ public class TransportValidateQueryActionTests extends ESSingleNodeTestCase {
             ),
             instanceOf(IndexNotFoundException.class)
         );
+    }
+
+    public void testSliceRequiredWhenSliceEnabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
+
+        Exception failure = safeAwaitFailure(
+            ValidateQueryResponse.class,
+            listener -> client().admin().indices().validateQuery(new ValidateQueryRequest("slice-enabled"), listener)
+        );
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        assertThat(failure.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testRoutingRejectedWhenSliceEnabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
+
+        ValidateQueryRequest request = new ValidateQueryRequest("slice-enabled").routing("manual");
+        Exception failure = safeAwaitFailure(
+            ValidateQueryResponse.class,
+            listener -> client().admin().indices().validateQuery(request, listener)
+        );
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        assertThat(failure.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+    }
+
+    public void testSliceRejectedWhenSliceDisabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-disabled");
+
+        ValidateQueryRequest request = new ValidateQueryRequest("slice-disabled").searchSlice("s1");
+        Exception failure = safeAwaitFailure(
+            ValidateQueryResponse.class,
+            listener -> client().admin().indices().validateQuery(request, listener)
+        );
+        assertThat(failure, instanceOf(IllegalArgumentException.class));
+        assertThat(failure.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testSliceAcceptedWhenSliceEnabledIndex() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        createIndex("slice-enabled", Settings.builder().put(IndexSettings.SLICE_ENABLED.getKey(), true).build());
+
+        ValidateQueryRequest request = new ValidateQueryRequest("slice-enabled").searchSlice("s1");
+        ValidateQueryResponse response = safeAwait(listener -> client().admin().indices().validateQuery(request, listener));
+        assertTrue(response.isValid());
     }
 
 }

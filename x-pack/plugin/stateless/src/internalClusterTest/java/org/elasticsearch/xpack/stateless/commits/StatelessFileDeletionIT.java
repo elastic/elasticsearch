@@ -969,12 +969,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:WARN"
     )
     public void testDeleteIndexWhileNodeStopping() {
-        var indexNode = startMasterAndIndexNode();
+        // Make the fail-over happen fast enough after the master node stops
+        final Settings heartbeatSettings = Settings.builder()
+            .put(HEARTBEAT_FREQUENCY.getKey(), "1s")
+            .put(MAX_MISSED_HEARTBEATS.getKey(), 2)
+            .build();
+        var indexNode = startMasterAndIndexNode(heartbeatSettings);
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
-        startMasterAndIndexNode(Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").put(MAX_MISSED_HEARTBEATS.getKey(), 1).build());
+        startMasterAndIndexNode(heartbeatSettings);
 
         indexDocsAndFlush(indexName);
         indexDocsAndFlush(indexName);

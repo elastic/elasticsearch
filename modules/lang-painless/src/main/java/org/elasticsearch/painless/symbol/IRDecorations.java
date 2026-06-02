@@ -366,6 +366,21 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * Marker for static synthetic lambda functions in cancellation-aware scripts.
+     * Static lambdas have no implicit receiver, so the script instance is injected as a
+     * synthetic first parameter ({@code #scriptThis}) captured from the enclosing scope.
+     * The lambda body uses it to fetch the cancel {@code Runnable} via
+     * {@code _getCancellationCheck()} and to share the script's persistent
+     * {@code $cancelPoll} counter, identical to the {@link IRCCancellationCheck} path.
+     */
+    public static class IRCStaticCancellationCheck implements IRCondition {
+
+        private IRCStaticCancellationCheck() {
+
+        }
+    }
+
     /** describes the type for an instanceof instruction */
     public static class IRDInstanceType extends IRDType {
 

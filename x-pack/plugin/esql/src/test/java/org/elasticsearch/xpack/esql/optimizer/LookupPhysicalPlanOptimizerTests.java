@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ParameterizedQuery;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.physical.BulkLookupMvFilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -133,7 +134,8 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS,
             FoldContext.small(),
             TEST_SEARCH_STATS,
-            new EsqlFlags(true)
+            new EsqlFlags(true),
+            null
         );
 
         // The filter on 'ln' (alias for language_name) should be resolved and pushed to ParameterizedQueryExec.
@@ -170,6 +172,40 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(paramQuery.emptyResult(), is(true));
     }
 
+    /**
+     * Test bulk lookup optimization for LOOKUP JOIN ON a single keyword field.
+     */
+    public void testBulkLookupOnFieldOptimization() {
+        PhysicalPlan plan = optimizeLookupPlan("""
+            ROW language_name = "French"
+            | LOOKUP JOIN languages_lookup ON language_name
+            """, TEST_SEARCH_STATS);
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        FieldExtractExec extract = as(project.child(), FieldExtractExec.class);
+        BulkLookupMvFilterExec bulkExec = as(extract.child(), BulkLookupMvFilterExec.class);
+        FieldExtractExec extract2 = as(bulkExec.child(), FieldExtractExec.class);
+        ParameterizedQueryExec paramQuery = as(extract2.child(), ParameterizedQueryExec.class);
+        assertThat(paramQuery.emptyResult(), is(false));
+    }
+
+    /**
+     * Test bulk lookup optimization for LOOKUP JOIN ON a single keyword equals expression.
+     */
+    public void testBulkLookupOnExpressionOptimization() {
+        PhysicalPlan plan = optimizeLookupPlan("""
+            ROW name = "French"
+            | LOOKUP JOIN languages_lookup ON name == language_name
+            """, TEST_SEARCH_STATS);
+
+        ProjectExec project = as(plan, ProjectExec.class);
+        FieldExtractExec extract = as(project.child(), FieldExtractExec.class);
+        BulkLookupMvFilterExec bulkExec = as(extract.child(), BulkLookupMvFilterExec.class);
+        FieldExtractExec extract2 = as(bulkExec.child(), FieldExtractExec.class);
+        ParameterizedQueryExec paramQuery = as(extract2.child(), ParameterizedQueryExec.class);
+        assertThat(paramQuery.emptyResult(), is(false));
+    }
+
     private PhysicalPlan optimizeLookupPlan(String esql, SearchStats searchStats) {
         PhysicalPlan dataNodePlan = plannerOptimizer.plan(esql);
 
@@ -202,7 +238,8 @@ public class LookupPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             PlannerSettings.DEFAULTS,
             FoldContext.small(),
             searchStats,
-            new EsqlFlags(true)
+            new EsqlFlags(true),
+            null
         );
     }
 

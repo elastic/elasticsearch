@@ -46,6 +46,7 @@ public class RecordingApmServer extends ExternalResource {
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
+    private volatile int responseCode = 201;
 
     @Override
     protected void before() throws Throwable {
@@ -92,14 +93,35 @@ public class RecordingApmServer extends ExternalResource {
         }
     }
 
+    /**
+     * Override the HTTP response code for all subsequent responses. Codes {@code >= 400}
+     * short-circuit telemetry parsing to simulate APM server failures.
+     * Call {@link #clearResponseCode()} to restore default.
+     */
+    public void setResponseCode(int code) {
+        this.responseCode = code;
+    }
+
+    /** Restore the default response (201) for subsequent requests. */
+    public void clearResponseCode() {
+        this.responseCode = 201;
+    }
+
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
+            int responseCode = this.responseCode;
+            if (responseCode >= 400) {
+                exchange.getRequestBody().readAllBytes();
+                exchange.sendResponseHeaders(responseCode, 0);
+                return;
+            }
+
             String path = exchange.getRequestURI().getPath();
             if (running) {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         switch (path) {
-                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
+                            case "/v1/metrics" -> OtlpMetricsParser.parse(requestBody).forEach(this::route);
                             case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);
@@ -110,18 +132,9 @@ public class RecordingApmServer extends ExternalResource {
                             default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
-                } catch (Throwable t) {
-                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
-                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
-                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
-                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
-                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
-                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
-                    // if we have an error outside the test scope (before or after) that is OK.
-                    logger.warn("failed to parse request", t);
                 }
             }
-            exchange.sendResponseHeaders(201, 0);
+            exchange.sendResponseHeaders(responseCode, 0);
         }
     }
 

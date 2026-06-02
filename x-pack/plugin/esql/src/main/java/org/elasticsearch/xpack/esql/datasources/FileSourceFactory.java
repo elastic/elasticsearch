@@ -172,7 +172,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
         Configured<StorageProvider> resolvedStorage = storageRegistry.createProviderTrackingConsumedKeys(
             storagePath.scheme(),
             settings,
-            config
+            ExternalSourceResolver.storageConfig(config)
         );
         Configured<FormatReader> resolvedReader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(
             config
@@ -193,7 +193,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
             StorageProvider provider;
             FormatReader reader;
             if (config != null && config.isEmpty() == false) {
-                provider = storageRegistry.createProviderTrackingConsumedKeys(scheme, settings, config).value();
+                provider = storageRegistry.createProviderTrackingConsumedKeys(
+                    scheme,
+                    settings,
+                    ExternalSourceResolver.storageConfig(config)
+                ).value();
                 reader = resolveFormatReader(storagePath.objectName(), config).withConfigTrackingConsumedKeys(config).value();
             } else {
                 provider = storageRegistry.provider(storagePath);
@@ -230,7 +234,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
 
             StorageProvider storage;
             if (config != null && config.isEmpty() == false) {
-                storage = storageRegistry.createProvider(path.scheme(), settings, config);
+                storage = storageRegistry.createProvider(path.scheme(), settings, ExternalSourceResolver.storageConfig(config));
             } else {
                 storage = storageRegistry.provider(path);
             }
@@ -287,6 +291,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .sliceQueue(context.sliceQueue())
                 .errorPolicy(errorPolicy)
                 .parsingParallelism(context.parsingParallelism())
+                .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
                 .maxRecordBytes(context.maxRecordBytes())
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)

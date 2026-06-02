@@ -19,7 +19,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
  */
 public class TokenCountingMetrics {
 
-    public static final String FIELD_TOKEN_COUNT = "es.indexing.field.token_count";
+    public static final String FIELD_TOKEN_COUNT = "es.indexing.field.token_count.histogram";
     public static final TokenCountingMetrics NOOP = new TokenCountingMetrics(MeterRegistry.NOOP);
 
     private final LongHistogram tokenCountHistogram;

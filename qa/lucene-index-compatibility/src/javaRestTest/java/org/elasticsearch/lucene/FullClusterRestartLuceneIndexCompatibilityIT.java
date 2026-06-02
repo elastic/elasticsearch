@@ -519,11 +519,9 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                 var checkIndex = suffix("check-" + s);
                 mountIndex(repository, "snap-" + s, index, false, checkIndex);
                 ensureGreen(checkIndex);
-                var statsPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/" + checkIndex + "/_stats")));
-                Number msn = statsPath.evaluate("_all.primaries.seq_no.max_seq_no");
-                Number lcp = statsPath.evaluate("_all.primaries.seq_no.local_checkpoint");
+                long[] seqNo = readPrimaryShardSeqNoStats(checkIndex);
                 deleteIndex(checkIndex);
-                if (msn != null && lcp != null && lcp.longValue() < msn.longValue()) {
+                if (seqNo[1] < seqNo[0]) {
                     lagObserved = true;
                     break;
                 }
@@ -560,17 +558,27 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             restoreIndex(repository, "snap-" + lastSnap, index, restoredIndex);
             ensureGreen(restoredIndex);
 
-            var statsPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/" + restoredIndex + "/_stats")));
-            long msn = ((Number) statsPath.evaluate("_all.primaries.seq_no.max_seq_no")).longValue();
-            long lcp = ((Number) statsPath.evaluate("_all.primaries.seq_no.local_checkpoint")).longValue();
+            long[] seqNo = readPrimaryShardSeqNoStats(restoredIndex);
             assertThat(
                 "restored index [" + restoredIndex + "] must have local_checkpoint == max_seq_no after read-only restore",
-                lcp,
-                equalTo(msn)
+                seqNo[1],
+                equalTo(seqNo[0])
             );
 
             logger.debug("--> deleting restored index [{}]", restoredIndex);
             deleteIndex(restoredIndex);
         }
+    }
+
+    /** Returns {@code [max_seq_no, local_checkpoint]} from the primary shard of {@code indexName}. */
+    private long[] readPrimaryShardSeqNoStats(String indexName) throws IOException {
+        var request = new Request("GET", "/" + indexName + "/_stats");
+        request.addParameter("level", "shards");
+        var path = ObjectPath.createFromResponse(client().performRequest(request));
+        Number msn = path.evaluate("indices." + indexName + ".shards.0.0.seq_no.max_seq_no");
+        Number lcp = path.evaluate("indices." + indexName + ".shards.0.0.seq_no.local_checkpoint");
+        assertNotNull("max_seq_no must not be null for [" + indexName + "]", msn);
+        assertNotNull("local_checkpoint must not be null for [" + indexName + "]", lcp);
+        return new long[] { msn.longValue(), lcp.longValue() };
     }
 }

@@ -154,6 +154,13 @@ public interface Vector extends Accountable, RefCounted, Releasable {
     boolean isReleased();
 
     /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this vector's reference count
+     * reaches zero, immediately after its resources are released. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    void attachReleasable(Releasable releasable);
+
+    /**
      * The serialization type of vectors: 0 and 1 replaces the boolean false/true in pre-8.14.
      */
     byte SERIALIZE_VECTOR_VALUES = 0;

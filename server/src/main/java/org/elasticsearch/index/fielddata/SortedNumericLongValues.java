@@ -135,23 +135,38 @@ public abstract class SortedNumericLongValues implements ProcessedDocValues {
      * a {@link LongValues} instance via {@link #unwrapSingleton(SortedNumericLongValues)}
      */
     public static SortedNumericLongValues wrap(SortedNumericDocValues values) {
-        NumericDocValues singleton = DocValues.unwrapSingleton(values);
-        return new SortedNumericLongValues(singleton != null, values) {
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                return values.advanceExact(target);
-            }
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        if (singleton != null) {
+            final LongValues longValues = new LongValues() {
+                @Override
+                public long longValue() throws IOException {
+                    return singleton.longValue();
+                }
 
-            @Override
-            public long nextValue() throws IOException {
-                return values.nextValue();
-            }
+                @Override
+                public boolean advanceExact(int doc) throws IOException {
+                    return singleton.advanceExact(doc);
+                }
+            };
+            return singleton(longValues);
+        } else {
+            return new SortedNumericLongValues(false, values) {
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return values.advanceExact(target);
+                }
 
-            @Override
-            public int docValueCount() {
-                return singleton != null ? 1 : values.docValueCount();
-            }
-        };
+                @Override
+                public long nextValue() throws IOException {
+                    return values.nextValue();
+                }
+
+                @Override
+                public int docValueCount() {
+                    return values.docValueCount();
+                }
+            };
+        }
     }
 
     public abstract static class SortedNumericDoubleWrapper extends SortedNumericLongValues {

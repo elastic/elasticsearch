@@ -50,6 +50,8 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         if (isFirst) {
             List<DataType> extra = List.of(
                 DataType.VERSION,
+                DataType.DENSE_VECTOR,
+                DataType.EXPONENTIAL_HISTOGRAM,
                 DataType.CARTESIAN_POINT,
                 DataType.CARTESIAN_SHAPE,
                 DataType.GEO_POINT,
@@ -57,7 +59,8 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 DataType.GEOHASH,
                 DataType.GEOTILE,
                 DataType.GEOHEX,
-                DataType.UNSIGNED_LONG
+                DataType.UNSIGNED_LONG,
+                DataType.TDIGEST
             );
             searchFieldTypes.addAll(extra);
             taggedTypes.addAll(extra);
@@ -98,8 +101,11 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 TestCaseSupplier.TypedData sorts = sortSupplier.get();
                 List<?> valuesList = (List<?>) values.originalData();
 
+                // DENSE_VECTOR reuses the Float suppliers, so the evaluator class name is Float-based
+                DataType effectiveValueType = values.type() == DataType.DENSE_VECTOR ? DataType.FLOAT : values.type();
+
                 if (sorts.type() == DataType.NULL) {
-                    evaluatorStr = standardAggregatorNameAllBytesTheSame("Any", values.type());
+                    evaluatorStr = standardAggregatorNameAllBytesTheSame("Any", effectiveValueType);
                     expected.addAll(valuesList);
                 } else {
                     Long firstSort = null;
@@ -117,7 +123,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                     evaluatorStr = String.format(
                         Locale.ROOT,
                         "All%sBy%s",
-                        standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type()),
+                        standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", effectiveValueType),
                         standardAggregatorNameAllBytesTheSame("", sorts.type())
                     );
                 }

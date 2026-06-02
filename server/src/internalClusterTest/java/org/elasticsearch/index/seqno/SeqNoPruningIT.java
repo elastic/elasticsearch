@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -56,22 +58,34 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         return List.of(InternalSettingsPlugin.class, MockTransportService.TestPlugin.class);
     }
 
+    private static Settings.Builder seqNoPruningIndexSettings(Settings.Builder builder, boolean highMergeSegmentThreshold) {
+        builder.put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE);
+        if (highMergeSegmentThreshold) {
+            builder.put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), 100.0);
+        }
+        return builder;
+    }
+
+    private static int randomBatchCount(boolean highMergeSegmentThreshold) {
+        return highMergeSegmentThreshold
+            ? randomIntBetween(10, 20)
+            : randomIntBetween(3, (int) MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER - 1);
+    }
+
     public void testSeqNoPrunedAfterMerge() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
 
         final var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
+        final boolean highMergeSegmentThreshold = rarely();
+        createIndex(indexName, seqNoPruningIndexSettings(indexSettings(1, 0), highMergeSegmentThreshold).build());
         ensureGreen(indexName);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount(highMergeSegmentThreshold);
         final int docsPerBatch = randomIntBetween(20, 50);
         final long totalDocs = (long) nbBatches * docsPerBatch;
 
@@ -143,16 +157,11 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         final var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 0).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
+        final boolean highMergeSegmentThreshold = rarely();
+        createIndex(indexName, seqNoPruningIndexSettings(indexSettings(1, 0), highMergeSegmentThreshold).build());
         ensureGreen(indexName);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount(highMergeSegmentThreshold);
         final int docsPerBatch = randomIntBetween(20, 50);
         final long totalDocs = (long) nbBatches * docsPerBatch;
 
@@ -291,10 +300,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         final var indexName = randomIdentifier();
         createIndex(
             indexName,
-            indexSettings(1, 1).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
+            seqNoPruningIndexSettings(indexSettings(1, 1), false).put(IndexSettings.FILE_BASED_RECOVERY_THRESHOLD_SETTING.getKey(), 1.0)
                 .build()
         );
         ensureGreen(indexName);
@@ -419,6 +425,7 @@ public class SeqNoPruningIT extends ESIntegTestCase {
                     .put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
                     .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
+                    .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                     .build()
             ).setMapping("@timestamp", "type=date", "hostname", "type=keyword,time_series_dimension=true", "field", "type=keyword")
         );
@@ -475,16 +482,11 @@ public class SeqNoPruningIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         final var indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 1).put(IndexSettings.DISABLE_SEQUENCE_NUMBERS.getKey(), true)
-                .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
-                .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "100ms")
-                .build()
-        );
+        final boolean highMergeSegmentThreshold = rarely();
+        createIndex(indexName, seqNoPruningIndexSettings(indexSettings(1, 1), highMergeSegmentThreshold).build());
         ensureGreen(indexName);
 
-        final int nbBatches = randomIntBetween(5, 10);
+        final int nbBatches = randomBatchCount(highMergeSegmentThreshold);
         final int docsPerBatch = randomIntBetween(20, 50);
         final int totalDocs = nbBatches * docsPerBatch;
 

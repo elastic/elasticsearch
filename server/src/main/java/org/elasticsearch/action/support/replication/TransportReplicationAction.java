@@ -15,6 +15,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -226,7 +227,8 @@ public abstract class TransportReplicationAction<
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
-            executor,
+            // The request gets dispatched in the handler after checking the memory pressure limits
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             forceExecutionOnPrimary,
             true,
             in -> new ConcreteShardRequest<>(requestReader, in),
@@ -239,7 +241,8 @@ public abstract class TransportReplicationAction<
         };
         transportService.registerRequestHandler(
             transportReplicaAction,
-            executor,
+            // The request gets dispatched in the handler after checking the memory pressure limits
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true, // we must never reject because of thread pool capacity on replicas
             canTripCircuitBreakerOnReplica,
             in -> new ConcreteReplicaRequest<>(replicaRequestReader, in),
@@ -421,6 +424,9 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
+        final ShardId shardId = request.getRequest().shardId();
+        final IndexShard indexShard = getIndexShard(shardId);
+
         Releasable releasable = checkPrimaryLimits(
             request.getRequest(),
             request.sentFromLocalReroute(),
@@ -428,11 +434,26 @@ public abstract class TransportReplicationAction<
         );
         ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
-        try {
-            new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
-        } catch (RuntimeException e) {
-            listener.onFailure(e);
-        }
+        Executor handlerExecutor = handlerExecutor(indexShard);
+        handlerExecutor.execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return isForceExecutionOnPrimary(request.getRequest());
+            }
+        });
+    }
+
+    protected Executor handlerExecutor(IndexShard shard) {
+        return executor;
+    }
+
+    protected boolean isForceExecutionOnPrimary(final Request request) {
+        return forceExecutionOnPrimary;
     }
 
     protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
@@ -678,14 +699,24 @@ public abstract class TransportReplicationAction<
         final TransportChannel channel,
         final Task task
     ) {
+        final ShardId shardId = replicaRequest.getRequest().shardId();
+        final IndexShard indexShard = getIndexShard(shardId);
+
         Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
-        try {
-            new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
-        } catch (RuntimeException e) {
-            listener.onFailure(e);
-        }
+        handlerExecutor(indexShard).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                new AsyncReplicaAction(replicaRequest, listener, (ReplicationTask) task).run();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                // we must never reject because of thread pool capacity on replicas
+                return true;
+            }
+        });
     }
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {
@@ -1174,7 +1205,7 @@ public abstract class TransportReplicationAction<
         final Request request,
         final ActionListener<Releasable> onAcquired
     ) {
-        primary.acquirePrimaryOperationPermit(onAcquired, executor, forceExecutionOnPrimary);
+        primary.acquirePrimaryOperationPermit(onAcquired, handlerExecutor(primary), isForceExecutionOnPrimary(request));
     }
 
     /**
@@ -1189,7 +1220,13 @@ public abstract class TransportReplicationAction<
         final long globalCheckpoint,
         final long maxSeqNoOfUpdatesOrDeletes
     ) {
-        replica.acquireReplicaOperationPermit(primaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, onAcquired, executor);
+        replica.acquireReplicaOperationPermit(
+            primaryTerm,
+            globalCheckpoint,
+            maxSeqNoOfUpdatesOrDeletes,
+            onAcquired,
+            handlerExecutor(replica)
+        );
     }
 
     class PrimaryShardReference

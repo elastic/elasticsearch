@@ -158,7 +158,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(request, primary, l)), true);
+        primary.ensureMutable(listener.delegateFailure((l, ignored) -> doExecuteShardOperationOnPrimary(request, primary, l)), true);
     }
 
     @Override
@@ -175,8 +175,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return ShardBulkSplitHelper.combineResponses(originalRequest, splitRequests, responses);
     }
 
-    @Override
-    protected void dispatchedShardOperationOnPrimary(
+    private void doExecuteShardOperationOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
@@ -743,11 +742,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected void dispatchedShardOperationOnReplica(
-        BulkShardRequest request,
-        IndexShard replica,
-        ActionListener<ReplicaResult> outerListener
-    ) {
+    protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> outerListener) {
         var listener = ActionListener.releaseBefore(
             indexingPressure.trackReplicaOperationExpansion(getMaxOperationMemoryOverhead(request), force(request)),
             outerListener

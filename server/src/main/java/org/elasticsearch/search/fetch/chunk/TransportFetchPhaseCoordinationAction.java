@@ -236,7 +236,7 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.profileResult()
             );
 
-            ActionListener.respondAndRelease(listener.map(Response::new), finalResult);
+            listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
         }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();

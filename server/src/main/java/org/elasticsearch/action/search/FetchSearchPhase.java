@@ -138,8 +138,9 @@ class FetchSearchPhase extends SearchPhase {
             fetchResults,
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
             () -> {
-                context.addReleasable(fetchResults);
-                moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
+                try (fetchResults) {
+                    moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
+                }
             },
             context
         );

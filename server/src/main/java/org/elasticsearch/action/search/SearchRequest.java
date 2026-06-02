@@ -130,7 +130,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
      * When set, query-phase aggregation bytes remain on the {@link org.elasticsearch.common.breaker.CircuitBreaker#REQUEST}
      * breaker through response delivery so {@link TransportMultiSearchAction} can release them when buffering ends.
      */
-    private boolean bufferSubSearchResponseForMultiSearch;
+    private boolean bufferSubSearchResponseForMultiSearch = false;
 
     @Nullable
     private String projectRouting;

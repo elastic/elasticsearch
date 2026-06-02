@@ -97,7 +97,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * {@link SearchRequest#bufferSubSearchResponseForMultiSearch()} is set. Released by
      * {@link TransportMultiSearchAction} when multi-search buffering completes.
      */
-    private transient long queryPhaseAggregationBreakerBytes;
+    private transient long queryPhaseAggregationBreakerBytes = 0;
 
     // SearchHits from top_hits aggs to release when this response is released.
     private final List<SearchHits> topHitsToRelease;

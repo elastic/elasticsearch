@@ -281,7 +281,8 @@ class BulkPrimaryExecutionContext {
     /**
      * The current operation has been executed on the primary as part of a batch. Behaves like
      * {@link #markOperationAsExecuted(Engine.Result)} except that the translog location is folded with
-     * {@link TransportWriteAction#locationToSync(Translog.Location, Translog.Location, boolean)} since all operations in a batch share one translog location.
+     * {@link TransportWriteAction#locationToSync(Translog.Location, Translog.Location, boolean)} since
+     * all operations in a batch share one translog location.
      */
     public void markBatchOperationAsExecuted(Engine.Result result) {
         markOperationAsExecuted(result, true);

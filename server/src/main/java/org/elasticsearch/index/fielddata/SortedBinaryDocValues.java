@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
@@ -20,6 +21,12 @@ import java.io.IOException;
  */
 // TODO: Should it expose a count (current approach) or return null when there are no more values?
 public abstract class SortedBinaryDocValues {
+
+    private final DocIdSetIterator docIdIterator;
+
+    public SortedBinaryDocValues(DocIdSetIterator docIdSetIterator) {
+        this.docIdIterator = docIdSetIterator;
+    }
 
     /**
      * Advance this instance to the given document id
@@ -34,6 +41,10 @@ public abstract class SortedBinaryDocValues {
      * returned {@code false}.
      */
     public abstract int docValueCount();
+
+    public DocIdSetIterator docIdIterator() {
+        return docIdIterator;
+    }
 
     /**
      * Iterates to the next value in the current document. Do not call this more than

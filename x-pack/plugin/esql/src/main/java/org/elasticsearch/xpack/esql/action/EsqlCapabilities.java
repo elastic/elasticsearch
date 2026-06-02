@@ -2134,6 +2134,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
+         * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
+         * and floating point junk from dividing by small {@code to_nearest} values.
+         */
+        FIX_PROMQL_ROUND_TO_NEAREST,
+
+        /**
          * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
          * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
          * https://github.com/elastic/elasticsearch-serverless/issues/6817

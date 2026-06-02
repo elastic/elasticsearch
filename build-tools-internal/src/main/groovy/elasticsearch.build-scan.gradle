@@ -195,34 +195,42 @@ develocity {
               "storing test seed in Buildkite metadata"
             )
           }
+        }
 
-          def isRealFailure = result.failures && (!wasPreempted || failedBeforePreemption)
+        buildScanPublished { scan ->
+          // Write build scan ID to a file for the GradleRunner to pick up
+          try {
+            def scanIdFile = new File(projectDir, 'build/.buildscan-id')
+            scanIdFile.text = scan.buildScanId
+          } catch (Exception e) {
+            logger.warn("Could not write build scan ID file", e)
+          }
 
-          buildScanPublished { scan ->
-              // Attach build scan link as build metadata
-              // See: https://buildkite.com/docs/pipelines/build-meta-data
-              runBuildkiteAgent(
-                ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
-                "storing build scan link in Buildkite metadata"
-              )
+          if (onCI) {
+            // Attach build scan link as build metadata
+            // See: https://buildkite.com/docs/pipelines/build-meta-data
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanUri}".toString()],
+              "storing build scan link in Buildkite metadata"
+            )
 
-              // Attach build scan ID as build metadata
-              runBuildkiteAgent(
-                ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
-                "storing build scan ID in Buildkite metadata"
-              )
+            // Attach build scan ID as build metadata
+            runBuildkiteAgent(
+              ['meta-data', 'set', "build-scan-id-${System.getenv('BUILDKITE_JOB_ID')}".toString(), "${scan.buildScanId}".toString()],
+              "storing build scan ID in Buildkite metadata"
+            )
 
-              // Add a build annotation
-              // See: https://buildkite.com/docs/agent/v3/cli-annotate
-              def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
-                0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
-              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
-              // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
-              runBuildkiteAgent(
-                ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],
-                "adding build annotation",
-                { it.write(body) }
-              )
+            // Add a build annotation
+            // See: https://buildkite.com/docs/agent/v3/cli-annotate
+            def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
+              0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+            // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
+            runBuildkiteAgent(
+              ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],
+              "adding build annotation",
+              { it.write(body) }
+            )
           }
         }
       }

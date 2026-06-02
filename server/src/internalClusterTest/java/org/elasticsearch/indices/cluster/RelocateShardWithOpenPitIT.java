@@ -24,20 +24,22 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Regression test for a Store reference-count leak that prevents a shard from returning
- * to a node when a PIT (or any reader context) was opened against it before it relocated
- * away.
+ * Regression test for a {@link org.elasticsearch.index.store.Store} reference-count leak that prevents a shard from returning
+ * to a node when a PIT (or any other reader context) was opened against it before it left.
  *
- * <p>{@code SearchService.afterIndexRemoved} frees reader contexts on
- * {@code DELETED/CLOSED/REOPENED} but not on {@code NO_LONGER_ASSIGNED} - which is the
- * reason fired when a shard relocates off a node. The PIT's
- * {@code Engine.SearcherSupplier} holds a {@code Store.incRef}, so without that cleanup
- * the wrapper {@code ShardLock} stays held on the old node and any attempt to allocate
- * the same {@code ShardId} back to that node fails with
- * {@code ShardLockObtainFailedException}.
+ * <p>A PIT's {@code ReaderContext} holds an {@code Engine.SearcherSupplier} which keeps a {@code Store.incRef} alive. When the
+ * shard departs the node, the local {@code IndexShard} closes (firing {@code afterIndexRemoved} with reason
+ * {@code NO_LONGER_ASSIGNED}), but {@code SearchService} deliberately keeps the reader contexts open so an open PIT continues
+ * to serve its snapshot from the on-disk commit. As long as those contexts remain, the wrapper
+ * {@link org.elasticsearch.env.ShardLock} for that {@code ShardId} stays held on this node.
  *
- * <p>The test pins a single-shard index to node A, opens a PIT, moves the shard to
- * node B, then tries to move it back to node A and asserts the move completes.
+ * <p>If the shard then tries to come back to the same JVM, the new {@code IndexShard} cannot acquire the lock and recovery
+ * fails with {@link org.elasticsearch.env.ShardLockObtainFailedException}. The fix is to free the stale contexts in
+ * {@code SearchService.beforeIndexShardCreated}, which runs before {@code NodeEnvironment.shardLock(...)} on the relocation
+ * target, so the {@code Store} ref drops and the lock releases just in time for the new {@code IndexShard} to take it.
+ *
+ * <p>The test pins a single-shard index to node A, opens a PIT against it, moves the shard to node B, then tries to move it
+ * back to node A and asserts the return relocation completes promptly.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RelocateShardWithOpenPitIT extends ESIntegTestCase {
@@ -68,21 +70,20 @@ public class RelocateShardWithOpenPitIT extends ESIntegTestCase {
         final BytesReference pitId = pit.getPointInTimeId();
 
         try {
-            // Relocate the shard to node B. Node A's IndexShard closes with reason
-            // NO_LONGER_ASSIGNED. Without the fix, SearchService.afterIndexRemoved does
-            // not fire for that reason, the PIT keeps its Store ref, and node A's
-            // ShardLock stays held.
+            // Relocate the shard to node B. Node A's IndexShard closes with reason NO_LONGER_ASSIGNED; SearchService
+            // deliberately keeps the PIT's ReaderContext alive on node A so the PIT can still serve its snapshot from there.
+            // That kept-alive context still holds a Store.incRef, so node A's ShardLock for this ShardId stays held.
             updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", nodeB), index);
             ensureGreen(index);
             assertShardIsOn(index, nodeB);
 
-            // Try to move the shard back to node A. The new IndexShard needs to
-            // acquire node A's ShardLock for the same ShardId; without the fix it
-            // can't because the old (leaked) ref is still holding it.
-            // 60s budget: with the fix the second relocation finishes in single-digit
-            // seconds; the extra margin covers slow CI without making the test flaky.
-            // Without the fix the shard never returns (lock held until PIT expires at
-            // 10 min), so we fail-fast well before any reasonable timeout.
+            // Try to move the shard back to node A. The new IndexShard on A must acquire the same ShardLock; with the fix,
+            // SearchService.beforeIndexShardCreated frees the leaked reader context on the relocation target before the lock
+            // acquisition attempt, the Store ref drops to zero, the lock releases, and creation succeeds. Without the fix,
+            // the lock stays held until the PIT's 10-minute keep-alive expires and the shard fails to return.
+            //
+            // 60s budget: with the fix the second relocation finishes in single-digit seconds; the extra margin covers slow
+            // CI without making the test flaky. Without the fix we fail-fast well before any reasonable timeout.
             updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", nodeA), index);
             assertBusy(() -> assertShardIsOn(index, nodeA), 60, TimeUnit.SECONDS);
         } finally {

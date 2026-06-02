@@ -608,22 +608,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
-        // Whenever an index is removed from this node, any open ReaderContext for it can no longer search its
-        // data: the local IndexShards are gone. Each ReaderContext holds a Store.incRef (via
-        // Engine.SearcherSupplier); leaving them in place prevents the wrapper ShardLock from releasing and
-        // blocks subsequent IndexShard creation for the same ShardId on this node (see
-        // RelocateShardWithOpenPitIT). Free them unconditionally regardless of removal reason - in particular
-        // NO_LONGER_ASSIGNED (auto-expand revert, relocation away, etc.) was previously not covered.
-        freeAllContextForIndex(index);
+        // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
+        // if we then close all the contexts we can get some search failures along the way which are not expected.
+        // it's fine to keep the contexts open if the index is still "alive"
+        // unfortunately we don't have a clear way to signal today why an index is closed.
+        // to release memory and let references to the filesystem go etc.
+        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
+            freeAllContextForIndex(index);
+        }
     }
 
     @Override
     public void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
-        // if a shard is reassigned to a node where we still have searches against the same shard and it is not a relocate, we prefer
-        // to stop searches to restore full availability as fast as possible. A known scenario here is that we lost connection to master
-        // or master(s) were restarted.
+        // Free any stale reader contexts for this ShardId before the new IndexShard tries to acquire the ShardLock. Two
+        // scenarios converge here: (1) the shard is reassigned to this node after a master reconnect / restart and we want to
+        // drop the old searches to restore full availability quickly; (2) the shard is relocating onto a node that previously
+        // hosted it (e.g. a replica that was torn down by an auto_expand_replicas drop during a REPLACE node shutdown, or a
+        // shard manually moved away and back), where the prior ReaderContext still holds a Store.incRef and would otherwise
+        // pin the ShardLock long enough to stall the relocation. EmptyStoreRecoverySource is excluded because a fresh empty
+        // primary cannot have any prior contexts attached to it.
         assert routing.initializing();
-        if (routing.isRelocationTarget() == false && routing.recoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
+        if (routing.recoverySource() != RecoverySource.EmptyStoreRecoverySource.INSTANCE) {
             freeAllContextsForShard(routing.shardId());
         }
     }

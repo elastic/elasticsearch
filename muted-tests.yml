@@ -642,3 +642,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
   method: testTSTypeConflictTimeseriesStatsWithCast
   issue: https://github.com/elastic/elasticsearch/issues/150495
+- class: org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTests
+  method: testRegisterUnpromotableRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150514

@@ -198,7 +198,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         );
         var shards = Map.of(
             new ShardId(TEST_INDEX, 0),
-            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
+            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
         );
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage);
@@ -231,7 +231,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         );
         var shards = Map.of(
             new ShardId(TEST_INDEX, 0),
-            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0L, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
+            new ShardMappingSize(randomNonNegativeInt(), 0, 0, 0L, 0L, 0L, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "newTestShardNodeId")
         );
         var heapUsage = new HeapMemoryUsage(randomNonNegativeLong(), shards);
         collector.publishHeapUsage(heapUsage, TimeValue.timeValueMillis(500), new ActionListener<ActionResponse.Empty>() {
@@ -269,7 +269,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         when(hollowShardsService.isHollowShard(any())).thenReturn(false);
         final var shards = Map.of(
             shardId,
-            new ShardMappingSize(testIndexMappingSizeInBytes, 1, 1, 0, 0, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "node-0")
+            new ShardMappingSize(testIndexMappingSizeInBytes, 1, 1, 0, 0, 0L, UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES, "node-0")
         );
 
         long currentClusterStateVersion = randomNonNegativeLong();
@@ -301,7 +301,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
         when(indexShard.routingEntry()).thenReturn(TestShardRouting.newShardRouting(shardId, "node-0", true, ShardRoutingState.STARTED));
         final int numSegments = randomIntBetween(1, 10);
-        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(numSegments, 1, -1, 10, 20, 0));
+        when(indexShard.getShardFieldStats()).thenReturn(new ShardFieldStats(numSegments, 1, -1, 10, 20, 30));
 
         when(indexService.getShardOrNull(shardId.id())).thenReturn(indexShard);
         final long testIndexMappingSizeInBytes = 1024;
@@ -330,7 +330,7 @@ public class ShardsMappingSizeCollectorTests extends ESTestCase {
         long shardMemoryOverhead = hollowShardSegmentMemoryOverheadBytes * numSegments + fixedHollowShardMemoryOverheadBytes;
         final var shards = Map.of(
             shardId,
-            new ShardMappingSize(testIndexMappingSizeInBytes, numSegments, 1, 10, 20, shardMemoryOverhead, "node-0")
+            new ShardMappingSize(testIndexMappingSizeInBytes, numSegments, 1, 10, 20, 30, shardMemoryOverhead, "node-0")
         );
 
         collector.updateMappingMetricsForShard(shardId, randomNonNegativeLong());

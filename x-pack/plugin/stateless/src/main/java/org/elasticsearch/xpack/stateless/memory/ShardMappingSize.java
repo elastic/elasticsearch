@@ -19,6 +19,7 @@ public record ShardMappingSize(
     int totalFields,
     long postingsInMemoryBytes,
     long liveDocsBytes,
+    long pointsInMemoryBytes,
     // Value that can be passed to the master to indicate a more accurate overhead for the shard.
     // Use UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES to indicate that the node doesn't provide this value.
     long shardMemoryOverheadBytes,
@@ -35,6 +36,7 @@ public record ShardMappingSize(
             in.readVLong(),
             in.readVLong(),
             in.readVLong(),
+            in.readVLong(),
             in.readString()
         );
     }
@@ -46,6 +48,7 @@ public record ShardMappingSize(
         out.writeVInt(totalFields);
         out.writeVLong(postingsInMemoryBytes);
         out.writeVLong(liveDocsBytes);
+        out.writeVLong(pointsInMemoryBytes);
         out.writeVLong(shardMemoryOverheadBytes);
         out.writeString(nodeId);
     }

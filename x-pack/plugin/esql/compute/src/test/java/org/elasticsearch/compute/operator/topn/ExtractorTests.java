@@ -73,9 +73,7 @@ public class ExtractorTests extends ESTestCase {
                     );
                 }
                 case LONG_RANGE -> {
-                    cases.add(
-                        singleValueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange)
-                    );
+                    cases.add(singleValueTestCase("date_range", e, TopNEncoder.DEFAULT_UNSORTABLE, false, ExtractorTests::randomDateRange));
                     cases.add(
                         blockTestCase(
                             "many date_range followed by null",
@@ -92,13 +90,7 @@ public class ExtractorTests extends ESTestCase {
                 case BYTES_REF -> {
                     cases.add(singleValueTestCase("single alpha", e, TopNEncoder.UTF8, true, () -> randomAlphaOfLength(5)));
                     cases.add(
-                        multiValueTestCase(
-                            "many alpha",
-                            e,
-                            TopNEncoder.UTF8,
-                            true,
-                            () -> randomList(2, 10, () -> randomAlphaOfLength(5))
-                        )
+                        multiValueTestCase("many alpha", e, TopNEncoder.UTF8, true, () -> randomList(2, 10, () -> randomAlphaOfLength(5)))
                     );
                     cases.add(singleValueTestCase("single utf8", e, TopNEncoder.UTF8, true, () -> randomRealisticUnicodeOfLength(10)));
                     cases.add(
@@ -147,13 +139,7 @@ public class ExtractorTests extends ESTestCase {
                         )
                     );
                     cases.add(
-                        singleValueTestCase(
-                            "single point",
-                            e,
-                            TopNEncoder.DEFAULT_UNSORTABLE,
-                            false,
-                            TopNEncoderTests::randomPointAsWKB
-                        )
+                        singleValueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, false, TopNEncoderTests::randomPointAsWKB)
                     );
                     cases.add(
                         multiValueTestCase(
@@ -245,15 +231,7 @@ public class ExtractorTests extends ESTestCase {
         boolean sortable,
         Supplier<? extends List<?>> values
     ) {
-        return new Object[] {
-            new TestCase(
-                name,
-                type,
-                encoder,
-                sortable,
-                () -> blockFromValues(values.get()),
-                b -> b.filter(false, 0)
-            ) };
+        return new Object[] { new TestCase(name, type, encoder, sortable, () -> blockFromValues(values.get()), b -> b.filter(false, 0)) };
     }
 
     private static Block blockFromValues(List<?> values) {

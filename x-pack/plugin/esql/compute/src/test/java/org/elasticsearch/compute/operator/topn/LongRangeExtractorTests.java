@@ -31,13 +31,15 @@ public class LongRangeExtractorTests extends ESTestCase {
                 ValueExtractor.extractorFor(ElementType.LONG_RANGE, TopNEncoder.DEFAULT_UNSORTABLE, false, value)
                     .writeValue(valuesBuilder, 0);
 
-                try (ResultBuilder result = ResultBuilder.resultBuilderFor(
-                    TestBlockFactory.getNonBreakingInstance(),
-                    ElementType.LONG_RANGE,
-                    TopNEncoder.DEFAULT_UNSORTABLE,
-                    false,
-                    1
-                )) {
+                try (
+                    ResultBuilder result = ResultBuilder.resultBuilderFor(
+                        TestBlockFactory.getNonBreakingInstance(),
+                        ElementType.LONG_RANGE,
+                        TopNEncoder.DEFAULT_UNSORTABLE,
+                        false,
+                        1
+                    )
+                ) {
                     BytesRef values = valuesBuilder.bytesRefView();
                     result.decodeValue(values);
                     assertThat(values.length, equalTo(0));

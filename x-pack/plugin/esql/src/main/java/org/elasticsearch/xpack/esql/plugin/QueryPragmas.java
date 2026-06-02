@@ -111,6 +111,13 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
 
     /**
+     * Query-level override for the IN subquery hash join threshold.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting("in_subquery_hash_join_threshold", -1, -1);
+
+    /**
      * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
      * This applies to forks and subqueries.
      */
@@ -168,6 +175,11 @@ public final class QueryPragmas implements Writeable {
      * of doc-sequence loading.
      */
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
+
+    /**
+     *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
+     */
+    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -352,6 +364,10 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    public boolean runtimeLexicalSearch() {
+        return RUNTIME_LEXICAL_SEARCH.get(settings);
     }
 
     public boolean isEmpty() {

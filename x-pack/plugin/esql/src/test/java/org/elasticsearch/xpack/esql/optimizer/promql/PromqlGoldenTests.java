@@ -66,4 +66,17 @@ public class PromqlGoldenTests extends GoldenTestCase {
         assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
         builder("PROMQL index=k8s step=1h bytes=(SUM by (pod) (network.bytes_in))").transportVersion(TransportVersion.current()).run();
     }
+
+    public void testBinaryWithDifferentSelectors() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        builder("PROMQL index=k8s step=1m result=(sum(avg_over_time(network.cost[1m]) + avg_over_time(network.cost[10m])))")
+            .transportVersion(TransportVersion.current())
+            .run();
+    }
+
+    public void testInstantQueryScalarTimeFn() {
+        assumeTrue("requires PromQL support", EsqlCapabilities.Cap.PROMQL_COMMAND_V0.isEnabled());
+        assumeTrue("requires PromQL instant query support", EsqlCapabilities.Cap.PROMQL_INSTANT_QUERY.isEnabled());
+        builder("PROMQL index=k8s time=\"2024-05-10T00:03:00.000Z\" result=(time())").transportVersion(TransportVersion.current()).run();
+    }
 }

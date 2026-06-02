@@ -19,15 +19,17 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * concurrent implementation of k-means with L2 regularization over the cluster sizes
+ * Concurrent implementation of k-means with L2 regularization over the cluster sizes.
+ *
+ * @param <V> the array type for vectors and centroids ({@code float[]} or {@code byte[]})
  */
-class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
+class BalancedASKMeansLocalConcurrent<V> extends BalancedASKMeansLocal<V> {
 
     final TaskExecutor executor;
     final int numWorkers;
 
-    BalancedASKMeansLocalConcurrent(TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
-        super(sampleSize, maxIterations);
+    BalancedASKMeansLocalConcurrent(CentroidOps<V> ops, TaskExecutor executor, int numWorkers, int sampleSize, int maxIterations) {
+        super(ops, sampleSize, maxIterations);
         this.executor = executor;
         this.numWorkers = numWorkers;
     }
@@ -39,9 +41,9 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
 
     @Override
     protected void assign(
-        ClusteringFloatVectorValues vectors,
+        ClusteringVectorValues<V> vectors,
         IntToIntFunction ordTranslator,
-        float[][] centroids,
+        V[] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
         NeighborHood[] neighborHoods
@@ -54,7 +56,17 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+                () -> stepLloydSlice(
+                    vectors.copy(),
+                    ops,
+                    ordTranslator,
+                    centroids,
+                    centroidChangedSlice,
+                    assignments,
+                    neighborHoods,
+                    start,
+                    end
+                )
             );
         }
         executor.invokeAll(runners);
@@ -62,8 +74,8 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
 
     @Override
     protected void assignSpilled(
-        ClusteringFloatVectorValues vectors,
-        KMeansIntermediate kmeansIntermediate,
+        ClusteringVectorValues<V> vectors,
+        KMeansIntermediate<V> kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda
     ) throws IOException {
@@ -73,7 +85,7 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
             final int start = i * len;
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             runners.add(() -> {
-                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
+                assignSpilledSlice(vectors.copy(), ops, kmeansIntermediate, neighborhoods, soarLambda, start, end);
                 return null;
             });
         }
@@ -81,7 +93,7 @@ class BalancedASKMeansLocalConcurrent extends BalancedASKMeansLocal {
     }
 
     @Override
-    protected NeighborHood[] computeNeighborhoods(float[][] centroids, int clustersPerNeighborhood) throws IOException {
-        return NeighborHood.computeNeighborhoods(executor, numWorkers, centroids, clustersPerNeighborhood);
+    protected NeighborHood[] computeNeighborhoods(V[] centroids, int clustersPerNeighborhood) throws IOException {
+        return NeighborHood.computeNeighborhoods(executor, numWorkers, ops.toFloatCentroids(centroids), clustersPerNeighborhood);
     }
 }

@@ -348,6 +348,9 @@ tests:
 - class: org.elasticsearch.gradle.internal.transport.TransportVersionGenerationFuncTest
   method: name can be found from staged definition
   issue: https://github.com/elastic/elasticsearch/issues/150299
+- class: org.elasticsearch.search.vectors.AdaptiveHnswQueueSaturationCollectorTests
+  method: testEarlyExitRelation
+  issue: https://github.com/elastic/elasticsearch/issues/150470
 
 # Examples:
 #

@@ -40,7 +40,7 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
         SUPPORTS_FAILURE_STORE_LIFECYCLE,
         COMPONENT_TEMPLATE_TRACKING_INFO,
         SUPPORTS_DOWNSAMPLING_METHOD,
-        DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() ? SUPPORTS_FROZEN_AFTER : ""
+        SUPPORTS_FROZEN_AFTER
     );
 
     @Override

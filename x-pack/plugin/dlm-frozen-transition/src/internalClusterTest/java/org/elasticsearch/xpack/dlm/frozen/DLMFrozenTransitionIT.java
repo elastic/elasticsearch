@@ -175,8 +175,6 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
      * </ol>
      */
     public void testEndToEndFrozenTransition() throws Exception {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
-
         // --- Setup: start nodes, register repo, configure default repo ---
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);

@@ -209,7 +209,6 @@ public class DLMFrozenTransitionDisruptionIT extends ESIntegTestCase {
 
     @Before
     public void resetInterceptors() {
-        assumeTrue("requires DLM searchable snapshots feature flag", DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled());
         ActionInterceptorPlugin.clearInterceptors();
     }
 

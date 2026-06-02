@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -79,6 +79,18 @@ public abstract class DataSourceConfiguration {
             DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
             assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
             if (def.secret()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Returns true if any field marked as keyless auth has a value set. Null values are already excluded. */
+    public boolean hasKeylessAuth() {
+        for (var entry : values.entrySet()) {
+            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
+            assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
+            if (def.keylessAuth()) {
                 return true;
             }
         }

@@ -230,7 +230,7 @@ public class HistogramFieldMapper extends FieldMapper {
                                     }
 
                                     @Override
-                                    public DocIdSetIterator docIdSetIterator() {
+                                    public DocIdSetIterator docIdIterator() {
                                         return values;
                                     }
 

@@ -297,7 +297,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String LIMIT = "limit";
     private static final String LIMIT_IN_BYTES = "limit_in_bytes";
     private static final String LARGE_OPERATION_REJECTIONS = "large_operation_rejections";
-    private static final String TOTAL_CANCELLED_OPERATIONS = "total_cancelled_operations";
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

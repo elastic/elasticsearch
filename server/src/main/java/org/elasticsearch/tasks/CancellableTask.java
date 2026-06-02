@@ -123,7 +123,7 @@ public class CancellableTask extends Task {
         return "CancellableTask{" + super.toString() + ", reason='" + cancelReason + '\'' + ", isCancelled=" + (cancelReason != null) + '}';
     }
 
-    public TaskCancelledException getTaskCancelledException() {
+    private TaskCancelledException getTaskCancelledException() {
         assert reason != null;
         return new TaskCancelledException("task cancelled [" + reason + ']');
     }

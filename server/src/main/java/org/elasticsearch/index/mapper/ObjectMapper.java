@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -794,15 +795,24 @@ public class ObjectMapper extends Mapper {
         return mappers;
     }
 
+
+    // TODO: rethink
+    private final Set<String> cache = new HashSet<>();
+
     /**
      * Returns true if any mapped child field has {@code prefix} as a dotted-path prefix,
      * i.e. any key in this mapper's children starts with {@code prefix + "."}.
      * Used to detect intermediate object segments when {@code subobjects} is disabled.
      */
     public boolean hasMappedFieldsWithPrefix(String prefix) {
+        if (cache.contains(prefix)) {
+            return true;
+        }
+
         String p = prefix + ".";
         for (String key : mappers.keySet()) {
             if (key.startsWith(p)) {
+                cache.add(prefix);
                 return true;
             }
         }

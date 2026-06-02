@@ -101,7 +101,6 @@ public class RecoveriesCollection {
             recoveryTarget.sourceNode(),
             recoveryTarget.recoveryId()
         );
-        recoveryTarget.indexShard().recoveryStats().incCurrentAsTarget();
     }
 
     /**
@@ -122,7 +121,6 @@ public class RecoveriesCollection {
                 if (oldRecoveryTarget == null) {
                     return null;
                 }
-                oldRecoveryTarget.indexShard().recoveryStats().decCurrentAsTarget();
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
                 startRecoveryInternal(newRecoveryTarget);
             }
@@ -198,7 +196,6 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 reason
             );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.cancel(reason);
             cancelled = true;
             notifyRecoverySchedulingListeners();
@@ -223,7 +220,6 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 sendShardFailure
             );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.fail(e, sendShardFailure);
             notifyRecoverySchedulingListeners();
         }
@@ -234,7 +230,6 @@ public class RecoveriesCollection {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
             logger.trace("{} marking recovery from {} as done, id [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId());
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.markAsDone();
             notifyRecoverySchedulingListeners();
         }
@@ -272,7 +267,6 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 reason
             );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.cancel(reason);
             cancelled = true;
         }

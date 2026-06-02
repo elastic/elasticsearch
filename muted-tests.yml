@@ -630,3 +630,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testCCSCheckCompatibility
   issue: https://github.com/elastic/elasticsearch/issues/150418
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
+  method: testCanTransitionIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149770
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPartiallyRetainedByCcrLease
+  issue: https://github.com/elastic/elasticsearch/issues/150435

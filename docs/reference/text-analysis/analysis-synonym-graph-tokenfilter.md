@@ -99,6 +99,8 @@ serverless: ga
   }
 ```
 
+A maximum of 100 synonym sets may be specified per filter.
+
 ::::{tip}
 Use multiple synonym sets in a single filter instead of chaining multiple `synonym_graph` filters. Chaining can produce indeterminate search-time behavior.
 ::::

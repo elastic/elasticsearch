@@ -89,6 +89,8 @@ serverless: ga
   }
 ```
 
+A maximum of 100 synonym sets may be specified per filter.
+
 ```{applies_to}
 stack: ga 9.5
 serverless: ga

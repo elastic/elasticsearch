@@ -151,4 +151,21 @@ public class StaticLambdaCancellationTests extends ScriptTestCase {
         assertEquals("cancelled-entry-poll", ex.getCause().getMessage());
         assertTrue("entry-time poll should fire from the loopless lambda after enough invocations", callCount.get() >= 1);
     }
+
+    /**
+     * A static lambda's loop must keep the legacy max-loop-counter as a fallback when no cancellation
+     * runnable is bound — otherwise its loop would have no bound at all. With no runnable set, a loop
+     * exceeding the counter (default 1,000,000) must trip the legacy guard rather than run unbounded.
+     */
+    public void testStaticLambdaLoopFallsBackToLegacyCounterWithoutRunnable() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "List l = new ArrayList(); l.add(1);" + "l.removeIf(x -> { int i = 0; while (i < 2000000) { i++; } return false; });"
+        );
+        // No cancellation runnable set — _getCancellationCheck() returns null, so the persistent poll
+        // never fires and the legacy counter must catch the over-long loop.
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertTrue(
+            ex.getCause().getMessage().contains("The maximum number of statements that can be executed in a loop has been reached.")
+        );
+    }
 }

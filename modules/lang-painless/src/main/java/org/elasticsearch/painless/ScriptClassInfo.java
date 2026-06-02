@@ -222,7 +222,7 @@ public class ScriptClassInfo {
 
     /**
      * Whether the script base class overrides {@code _getCancellationCheck()}. Drives
-     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck} attachment.
+     * {@link org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCancellationCheck} attachment.
      */
     public boolean supportsCancellation() {
         return supportsCancellation;

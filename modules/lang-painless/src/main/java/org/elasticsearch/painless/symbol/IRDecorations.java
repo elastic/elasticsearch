@@ -363,14 +363,14 @@ public class IRDecorations {
     }
 
     /** opts a function into the cancellation-aware loop guard rather than the legacy {@link IRDMaxLoopCounter} */
-    public static class IRCCancellationCheck implements IRCondition {
+    public static class IRCInstanceCancellationCheck implements IRCondition {
 
-        private IRCCancellationCheck() {
+        private IRCInstanceCancellationCheck() {
 
         }
     }
 
-    /** like {@link IRCCancellationCheck} but for static lambdas, which receive the script as a synthetic {@code #scriptThis} parameter */
+    /** like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic {@code #scriptThis} parameter */
     public static class IRCStaticCancellationCheck implements IRCondition {
 
         private IRCStaticCancellationCheck() {

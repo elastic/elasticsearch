@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.watcher.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
+import org.junit.Before;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -40,9 +41,8 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
 
     private EmailServer server;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startEmailServer() throws Exception {
         server = EmailServer.localhost(logger);
     }
 

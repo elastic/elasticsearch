@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.junit.After;
+import org.junit.Before;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -49,9 +50,8 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     private Boolean encryptSensitiveData;
     private byte[] encryptionKey;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startEmailServer() throws Exception {
         server = EmailServer.localhost(logger);
     }
 

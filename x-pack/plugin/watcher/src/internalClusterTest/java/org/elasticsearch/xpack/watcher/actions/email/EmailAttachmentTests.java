@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -70,9 +71,8 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         .setBody("This is the content");
     private EmailServer server;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    @Before
+    public void startServers() throws Exception {
         webServer.enqueue(mockResponse);
         webServer.start();
 

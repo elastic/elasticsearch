@@ -65,18 +65,10 @@ public abstract class AbstractOTLPIndexingRestIT extends ESRestTestCase {
     protected abstract String otlpEndpointPath();
 
     @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
+    public void waitForOtlpTemplates() throws Exception {
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/metrics-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/traces-otel@template"))));
         assertBusy(() -> assertOK(client().performRequest(new Request("GET", "_index_template/logs-otel@template"))));
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
     }
 
     /**

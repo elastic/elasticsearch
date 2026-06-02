@@ -322,8 +322,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     private Path config;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void createScriptFiles() throws Exception {
         config = createTempDir().resolve("config");
         final Path scripts = config.resolve("scripts");
 

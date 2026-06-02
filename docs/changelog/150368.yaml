@@ -1,5 +1,5 @@
 area: Inference
 issues: []
 pr: 150368
-summary: Remove unwanted validation of inference entity id for update operation
+summary: Update error message for update operation for default endpoint
 type: bug

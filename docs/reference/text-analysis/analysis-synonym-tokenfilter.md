@@ -72,12 +72,7 @@ Use `synonyms_set` configuration option to provide one or more synonym sets crea
   }
 ```
 
-To combine rules from multiple synonym sets, provide them as an array:
-
-```{applies_to}
-stack: ga 9.5
-serverless: ga
-```
+{applies_to}`stack: ga 9.5+` To combine rules from multiple synonym sets, provide them as an array:
 
 ```JSON
   "filter": {

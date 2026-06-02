@@ -13,8 +13,15 @@ import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -42,6 +49,15 @@ import static org.mockito.Mockito.when;
  * stream operations, readBytes, readBytesAsync, and error handling.
  */
 public class GcsStorageObjectTests extends ESTestCase {
+
+    // Hold a strong reference to the BlockFactory so the JVM Cleaner does not close the
+    // arrow root allocator mid-test (BlockFactory.arrowAllocator() registers a cleaner action
+    // on its own BlockFactory instance, which is otherwise unreachable from ALLOCATOR alone).
+    private static final BlockFactory BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("test"))
+        .build();
+    private static final BufferAllocator ALLOCATOR = BLOCK_FACTORY.arrowAllocator();
+    private static final DirectBufferFactory FACTORY = DirectBufferFactory.forAllocator(ALLOCATOR);
 
     private final Storage mockStorage = mock(Storage.class);
 
@@ -170,13 +186,26 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testNewStreamWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException
+        // (which the external source operator maps to 400).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         IOException e = expectThrows(IOException.class, obj::newStream);
         assertTrue(e.getMessage().contains("Failed to read object from"));
+    }
+
+    public void testNewStreamMapsRetryableStorageExceptionToUnavailable() {
+        // A retryable transport status (here 503) becomes ExternalUnavailableException (mapped to 503).
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, obj::newStream);
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {
@@ -336,7 +365,8 @@ public class GcsStorageObjectTests extends ESTestCase {
     }
 
     public void testReadBytesWrapsOtherStorageExceptionAsIOException() {
-        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        // A non-retryable, non-404 status (here 412) is a client-class failure: wrapped as IOException.
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(412, "Precondition Failed"));
 
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
@@ -344,6 +374,17 @@ public class GcsStorageObjectTests extends ESTestCase {
         ByteBuffer target = ByteBuffer.allocate(10);
         IOException e = expectThrows(IOException.class, () -> obj.readBytes(0, target));
         assertTrue(e.getMessage().contains("Failed to read bytes from"));
+    }
+
+    public void testReadBytesMapsRetryableStorageExceptionToUnavailable() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+
+        StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
+
+        ByteBuffer target = ByteBuffer.allocate(10);
+        ExternalUnavailableException e = expectThrows(ExternalUnavailableException.class, () -> obj.readBytes(0, target));
+        assertTrue(e.getMessage().contains("GCS store unavailable"));
     }
 
     // === readBytesAsync tests ===
@@ -362,10 +403,10 @@ public class GcsStorageObjectTests extends ESTestCase {
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
 
         CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+        AtomicReference<DirectReadBuffer> result = new AtomicReference<>();
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(10, 5, Runnable::run, ActionListener.wrap(buf -> {
+        obj.readBytesAsync(10, 5, FACTORY, Runnable::run, ActionListener.wrap(buf -> {
             result.set(buf);
             latch.countDown();
         }, e -> {
@@ -376,8 +417,10 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNull(error.get());
         assertNotNull(result.get());
-        assertTrue("readBytesAsync must return a direct ByteBuffer", result.get().isDirect());
-        assertEquals(5, result.get().remaining());
+        try (DirectReadBuffer drb = result.get()) {
+            assertTrue("readBytesAsync must return a direct ByteBuffer", drb.buffer().isDirect());
+            assertEquals(5, drb.buffer().remaining());
+        }
         verify(mockReader).seek(10);
         verify(mockReader).limit(15);
     }
@@ -389,7 +432,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(-1, 10, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(-1, 10, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -407,7 +450,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, -1, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(0, -1, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));
@@ -427,7 +470,7 @@ public class GcsStorageObjectTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
 
-        obj.readBytesAsync(0, 10, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
+        obj.readBytesAsync(0, 10, FACTORY, Runnable::run, ActionListener.wrap(buf -> latch.countDown(), e -> {
             error.set(e);
             latch.countDown();
         }));

@@ -11,14 +11,19 @@ import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.column.page.PageReadStore;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Map;
 
 /**
  * In-memory {@link PageReadStore} backed by per-column {@link PrefetchedPageReader}s. Replaces
- * parquet-mr's {@code ColumnChunkPageReadStore} on the optimized iterator's read path; the
- * underlying buffers are heap slices of the prefetched chunks held by the iterator and are
- * released when the iterator drops the chunks.
+ * parquet-mr's {@code ColumnChunkPageReadStore} on the optimized iterator's read path.
+ *
+ * <p>Each {@link PrefetchedPageReader} owns native decompression buffers ({@link
+ * org.apache.arrow.memory.ArrowBuf}s) allocated from the supplied {@code BufferAllocator}.
+ * {@link #close()} releases all per-column readers and is idempotent; callers must ensure no
+ * {@link DictionaryPage} or {@link org.apache.parquet.column.page.DataPage} returned from a
+ * reader is used after close.
  */
 final class PrefetchedPageReadStore implements PageReadStore, DictionaryPageReadStore {
 
@@ -54,5 +59,7 @@ final class PrefetchedPageReadStore implements PageReadStore, DictionaryPageRead
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        Releasables.close(readers.values());
+    }
 }

@@ -1,6 +1,52 @@
-// Bun Snapshot v1, https://goo.gl/fbAQLP
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`generatePipelines should generate correct pipelines with a non-docs change 1`] = `
+exports[`generatePipelines > should generate correct pipeline when using a trigger comment for it 1`] = `
+[
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 2,
+                "signal_reason": "none",
+              },
+              {
+                "exit_status": "47",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 2,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines > should generate correct pipelines with a different branch that is not skipped 1`] = `
 [
   {
     "name": "bwc-snapshots",
@@ -38,422 +84,8 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                     "signal_reason": "none",
                   },
                   {
-                    "limit": 2,
-                    "signal_reason": "agent_stop",
-                  },
-                  {
-                    "exit_status": "1",
-                    "limit": 1,
-                  },
-                ],
-                "manual": {
-                  "allowed": true,
-                  "permit_on_passed": false,
-                  "reason": "Retry with smart test selection if desired",
-                },
-              },
-              "timeout_in_minutes": 300,
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    "name": "existing-retry",
-    "pipeline": {
-      "steps": [
-        {
-          "command": "echo 'existing retry'",
-          "label": "has-existing-retry",
-          "retry": {
-            "automatic": [
-              {
-                "exit_status": "2",
-                "limit": 5,
-              },
-            ],
-          },
-        },
-      ],
-    },
-  },
-  {
-    "name": "no-auto-retry",
-    "pipeline": {
-      "steps": [
-        {
-          "command": "echo 'no retries'",
-          "label": "no-auto-retry",
-        },
-      ],
-    },
-  },
-  {
-    "name": "using-defaults",
-    "pipeline": {
-      "env": {
-        "CUSTOM_ENV_VAR": "value",
-      },
-      "steps": [
-        {
-          "command": "echo 'hello world'",
-          "label": "test-step",
-          "retry": {
-            "automatic": [
-              {
-                "exit_status": "-1",
-                "limit": 2,
-                "signal_reason": "none",
-              },
-              {
-                "limit": 2,
-                "signal_reason": "agent_stop",
-              },
-              {
-                "exit_status": "1",
-                "limit": 1,
-              },
-            ],
-            "manual": {
-              "allowed": true,
-              "permit_on_passed": false,
-              "reason": "Retry with smart test selection if desired",
-            },
-          },
-        },
-      ],
-    },
-  },
-]
-`;
-
-exports[`generatePipelines should generate correct pipelines with only docs changes 1`] = `
-[
-  {
-    "name": "docs-check",
-    "pipeline": {
-      "steps": [
-        {
-          "agents": {
-            "buildDirectory": "/dev/shm/bk",
-            "image": "family/elasticsearch-ubuntu-2404",
-            "machineType": "custom-32-98304",
-            "provider": "gcp",
-          },
-          "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check",
-          "label": "docs-check",
-          "timeout_in_minutes": 300,
-        },
-      ],
-    },
-  },
-]
-`;
-
-exports[`generatePipelines should generate correct pipelines with full BWC expansion 1`] = `
-[
-  {
-    "name": "existing-retry",
-    "pipeline": {
-      "steps": [
-        {
-          "command": "echo 'existing retry'",
-          "label": "has-existing-retry",
-          "retry": {
-            "automatic": [
-              {
-                "exit_status": "2",
-                "limit": 5,
-              },
-            ],
-          },
-        },
-      ],
-    },
-  },
-  {
-    "name": "full-bwc",
-    "pipeline": {
-      "steps": [
-        {
-          "group": "bwc",
-          "steps": [
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.0#bwcTest",
-              "env": {
-                "BWC_VERSION": "7.0.0",
-              },
-              "key": "full-bwc:7_0_0",
-              "label": "7.0.0 / bwc",
-              "retry": {
-                "automatic": [
-                  {
-                    "exit_status": "-1",
-                    "limit": 2,
-                    "signal_reason": "none",
-                  },
-                  {
-                    "limit": 2,
-                    "signal_reason": "agent_stop",
-                  },
-                  {
-                    "exit_status": "1",
-                    "limit": 1,
-                  },
-                ],
-                "manual": {
-                  "allowed": true,
-                  "permit_on_passed": false,
-                  "reason": "Retry with smart test selection if desired",
-                },
-              },
-              "timeout_in_minutes": 300,
-            },
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.1#bwcTest",
-              "env": {
-                "BWC_VERSION": "7.0.1",
-              },
-              "key": "full-bwc:7_0_1",
-              "label": "7.0.1 / bwc",
-              "retry": {
-                "automatic": [
-                  {
-                    "exit_status": "-1",
-                    "limit": 2,
-                    "signal_reason": "none",
-                  },
-                  {
-                    "limit": 2,
-                    "signal_reason": "agent_stop",
-                  },
-                  {
-                    "exit_status": "1",
-                    "limit": 1,
-                  },
-                ],
-                "manual": {
-                  "allowed": true,
-                  "permit_on_passed": false,
-                  "reason": "Retry with smart test selection if desired",
-                },
-              },
-              "timeout_in_minutes": 300,
-            },
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.1.0#bwcTest",
-              "env": {
-                "BWC_VERSION": "7.1.0",
-              },
-              "key": "full-bwc:7_1_0",
-              "label": "7.1.0 / bwc",
-              "retry": {
-                "automatic": [
-                  {
-                    "exit_status": "-1",
-                    "limit": 2,
-                    "signal_reason": "none",
-                  },
-                  {
-                    "limit": 2,
-                    "signal_reason": "agent_stop",
-                  },
-                  {
-                    "exit_status": "1",
-                    "limit": 1,
-                  },
-                ],
-                "manual": {
-                  "allowed": true,
-                  "permit_on_passed": false,
-                  "reason": "Retry with smart test selection if desired",
-                },
-              },
-              "timeout_in_minutes": 300,
-            },
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.0#bwcTest",
-              "env": {
-                "BWC_VERSION": "8.10.0",
-              },
-              "key": "full-bwc:8_10_0",
-              "label": "8.10.0 / bwc",
-              "retry": {
-                "automatic": [
-                  {
-                    "exit_status": "-1",
-                    "limit": 2,
-                    "signal_reason": "none",
-                  },
-                  {
-                    "limit": 2,
-                    "signal_reason": "agent_stop",
-                  },
-                  {
-                    "exit_status": "1",
-                    "limit": 1,
-                  },
-                ],
-                "manual": {
-                  "allowed": true,
-                  "permit_on_passed": false,
-                  "reason": "Retry with smart test selection if desired",
-                },
-              },
-              "timeout_in_minutes": 300,
-            },
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.0#bwcTest",
-              "env": {
-                "BWC_VERSION": "8.11.0",
-              },
-              "key": "full-bwc:8_11_0",
-              "label": "8.11.0 / bwc",
-              "retry": {
-                "automatic": [
-                  {
-                    "exit_status": "-1",
-                    "limit": 2,
-                    "signal_reason": "none",
-                  },
-                  {
-                    "limit": 2,
-                    "signal_reason": "agent_stop",
-                  },
-                  {
-                    "exit_status": "1",
-                    "limit": 1,
-                  },
-                ],
-                "manual": {
-                  "allowed": true,
-                  "permit_on_passed": false,
-                  "reason": "Retry with smart test selection if desired",
-                },
-              },
-              "timeout_in_minutes": 300,
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    "name": "no-auto-retry",
-    "pipeline": {
-      "steps": [
-        {
-          "command": "echo 'no retries'",
-          "label": "no-auto-retry",
-        },
-      ],
-    },
-  },
-  {
-    "name": "using-defaults",
-    "pipeline": {
-      "env": {
-        "CUSTOM_ENV_VAR": "value",
-      },
-      "steps": [
-        {
-          "command": "echo 'hello world'",
-          "label": "test-step",
-          "retry": {
-            "automatic": [
-              {
-                "exit_status": "-1",
-                "limit": 2,
-                "signal_reason": "none",
-              },
-              {
-                "limit": 2,
-                "signal_reason": "agent_stop",
-              },
-              {
-                "exit_status": "1",
-                "limit": 1,
-              },
-            ],
-            "manual": {
-              "allowed": true,
-              "permit_on_passed": false,
-              "reason": "Retry with smart test selection if desired",
-            },
-          },
-        },
-      ],
-    },
-  },
-]
-`;
-
-exports[`generatePipelines should generate correct pipelines with a different branch that is not skipped 1`] = `
-[
-  {
-    "name": "bwc-snapshots",
-    "pipeline": {
-      "steps": [
-        {
-          "group": "bwc-snapshots",
-          "steps": [
-            {
-              "agents": {
-                "buildDirectory": "/dev/shm/bk",
-                "image": "family/elasticsearch-ubuntu-2404",
-                "machineType": "custom-32-98304",
-                "provider": "gcp",
-              },
-              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
-              "env": {
-                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
-              },
-              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
-              "matrix": {
-                "setup": {
-                  "BWC_VERSION": [
-                    "7.17.14",
-                    "8.10.3",
-                    "8.11.0",
-                  ],
-                },
-              },
-              "retry": {
-                "automatic": [
-                  {
-                    "exit_status": "-1",
-                    "limit": 2,
+                    "exit_status": "47",
+                    "limit": 3,
                     "signal_reason": "none",
                   },
                   {
@@ -523,6 +155,11 @@ exports[`generatePipelines should generate correct pipelines with a different br
                 "signal_reason": "none",
               },
               {
+                "exit_status": "47",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
                 "limit": 2,
                 "signal_reason": "agent_stop",
               },
@@ -559,44 +196,8 @@ exports[`generatePipelines should generate correct pipelines with a different br
                 "signal_reason": "none",
               },
               {
-                "limit": 2,
-                "signal_reason": "agent_stop",
-              },
-              {
-                "exit_status": "1",
-                "limit": 1,
-              },
-            ],
-            "manual": {
-              "allowed": true,
-              "permit_on_passed": false,
-              "reason": "Retry with smart test selection if desired",
-            },
-          },
-        },
-      ],
-    },
-  },
-]
-`;
-
-exports[`generatePipelines should generate correct pipeline when using a trigger comment for it 1`] = `
-[
-  {
-    "name": "using-defaults",
-    "pipeline": {
-      "env": {
-        "CUSTOM_ENV_VAR": "value",
-      },
-      "steps": [
-        {
-          "command": "echo 'hello world'",
-          "label": "test-step",
-          "retry": {
-            "automatic": [
-              {
-                "exit_status": "-1",
-                "limit": 2,
+                "exit_status": "47",
+                "limit": 3,
                 "signal_reason": "none",
               },
               {
@@ -621,7 +222,7 @@ exports[`generatePipelines should generate correct pipeline when using a trigger
 ]
 `;
 
-exports[`generatePipelines should generate correct pipelines with a non-docs change and @elasticmachine 1`] = `
+exports[`generatePipelines > should generate correct pipelines with a non-docs change 1`] = `
 [
   {
     "name": "bwc-snapshots",
@@ -656,6 +257,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                   {
                     "exit_status": "-1",
                     "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
                     "signal_reason": "none",
                   },
                   {
@@ -728,6 +334,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "signal_reason": "none",
               },
               {
+                "exit_status": "47",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
                 "limit": 2,
                 "signal_reason": "agent_stop",
               },
@@ -749,7 +360,7 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
 ]
 `;
 
-exports[`generatePipelines should generate correct pipelines with a non-docs change and @elasticsearchmachine 1`] = `
+exports[`generatePipelines > should generate correct pipelines with a non-docs change and @elasticmachine 1`] = `
 [
   {
     "name": "bwc-snapshots",
@@ -784,6 +395,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                   {
                     "exit_status": "-1",
                     "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
                     "signal_reason": "none",
                   },
                   {
@@ -856,6 +472,11 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
                 "signal_reason": "none",
               },
               {
+                "exit_status": "47",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
                 "limit": 2,
                 "signal_reason": "agent_stop",
               },
@@ -870,6 +491,465 @@ exports[`generatePipelines should generate correct pipelines with a non-docs cha
               "reason": "Retry with smart test selection if desired",
             },
           },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines > should generate correct pipelines with a non-docs change and @elasticsearchmachine 1`] = `
+[
+  {
+    "name": "bwc-snapshots",
+    "pipeline": {
+      "steps": [
+        {
+          "group": "bwc-snapshots",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed v{{matrix.BWC_VERSION}}#bwcTest",
+              "env": {
+                "BWC_VERSION": "{{matrix.BWC_VERSION}}",
+              },
+              "label": "{{matrix.BWC_VERSION}} / bwc-snapshots",
+              "matrix": {
+                "setup": {
+                  "BWC_VERSION": [
+                    "7.17.14",
+                    "8.10.3",
+                    "8.11.0",
+                  ],
+                },
+              },
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 2,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "existing-retry",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    "name": "no-auto-retry",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'no retries'",
+          "label": "no-auto-retry",
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 2,
+                "signal_reason": "none",
+              },
+              {
+                "exit_status": "47",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 2,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines > should generate correct pipelines with full BWC expansion 1`] = `
+[
+  {
+    "name": "existing-retry",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'existing retry'",
+          "label": "has-existing-retry",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "2",
+                "limit": 5,
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    "name": "full-bwc",
+    "pipeline": {
+      "steps": [
+        {
+          "group": "bwc",
+          "steps": [
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "7.0.0",
+              },
+              "key": "full-bwc:7_0_0",
+              "label": "7.0.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 2,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.0.1#bwcTest",
+              "env": {
+                "BWC_VERSION": "7.0.1",
+              },
+              "key": "full-bwc:7_0_1",
+              "label": "7.0.1 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 2,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.1.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "7.1.0",
+              },
+              "key": "full-bwc:7_1_0",
+              "label": "7.1.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 2,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.10.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "8.10.0",
+              },
+              "key": "full-bwc:8_10_0",
+              "label": "8.10.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 2,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+            {
+              "agents": {
+                "buildDirectory": "/dev/shm/bk",
+                "image": "family/elasticsearch-ubuntu-2404",
+                "machineType": "custom-32-98304",
+                "provider": "gcp",
+              },
+              "command": ".ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.11.0#bwcTest",
+              "env": {
+                "BWC_VERSION": "8.11.0",
+              },
+              "key": "full-bwc:8_11_0",
+              "label": "8.11.0 / bwc",
+              "retry": {
+                "automatic": [
+                  {
+                    "exit_status": "-1",
+                    "limit": 2,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "exit_status": "47",
+                    "limit": 3,
+                    "signal_reason": "none",
+                  },
+                  {
+                    "limit": 2,
+                    "signal_reason": "agent_stop",
+                  },
+                  {
+                    "exit_status": "1",
+                    "limit": 1,
+                  },
+                ],
+                "manual": {
+                  "allowed": true,
+                  "permit_on_passed": false,
+                  "reason": "Retry with smart test selection if desired",
+                },
+              },
+              "timeout_in_minutes": 300,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    "name": "no-auto-retry",
+    "pipeline": {
+      "steps": [
+        {
+          "command": "echo 'no retries'",
+          "label": "no-auto-retry",
+        },
+      ],
+    },
+  },
+  {
+    "name": "using-defaults",
+    "pipeline": {
+      "env": {
+        "CUSTOM_ENV_VAR": "value",
+      },
+      "steps": [
+        {
+          "command": "echo 'hello world'",
+          "label": "test-step",
+          "retry": {
+            "automatic": [
+              {
+                "exit_status": "-1",
+                "limit": 2,
+                "signal_reason": "none",
+              },
+              {
+                "exit_status": "47",
+                "limit": 3,
+                "signal_reason": "none",
+              },
+              {
+                "limit": 2,
+                "signal_reason": "agent_stop",
+              },
+              {
+                "exit_status": "1",
+                "limit": 1,
+              },
+            ],
+            "manual": {
+              "allowed": true,
+              "permit_on_passed": false,
+              "reason": "Retry with smart test selection if desired",
+            },
+          },
+        },
+      ],
+    },
+  },
+]
+`;
+
+exports[`generatePipelines > should generate correct pipelines with only docs changes 1`] = `
+[
+  {
+    "name": "docs-check",
+    "pipeline": {
+      "steps": [
+        {
+          "agents": {
+            "buildDirectory": "/dev/shm/bk",
+            "image": "family/elasticsearch-ubuntu-2404",
+            "machineType": "custom-32-98304",
+            "provider": "gcp",
+          },
+          "command": ".ci/scripts/run-gradle.sh -Dignore.tests.seed precommit :docs:check",
+          "label": "docs-check",
+          "timeout_in_minutes": 300,
         },
       ],
     },

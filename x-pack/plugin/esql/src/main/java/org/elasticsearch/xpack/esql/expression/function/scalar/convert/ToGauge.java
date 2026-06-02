@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -119,8 +119,8 @@ public class ToGauge extends AbstractConvertFunction {
      * Returns {@code true} when {@code TO_GAUGE} would be a no-op on every branch of a union field — every mapped type is
      * already a non-counter type (including {@link DataType#AGGREGATE_METRIC_DOUBLE}).
      */
-    public static boolean isNoOpOnAllUnionTypes(InvalidMappedField imf) {
-        return imf.types().stream().allMatch(type -> type.isCounter() == false);
+    public static boolean isNoOpOnAllUnionTypes(TypeConflictedField tcf) {
+        return tcf.types().stream().allMatch(type -> type.isCounter() == false);
     }
 
     @Override

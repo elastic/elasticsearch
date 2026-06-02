@@ -210,8 +210,20 @@ public interface DataPoint {
             switch (mappingHints.histogramMapping()) {
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
                 case TDIGEST -> buildTDigest(builder);
+                case HISTOGRAM_RAW -> buildRawHistogram(builder);
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder);
             }
+        }
+
+        private void buildRawHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            RawHistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            RawHistogramConverter.values(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         private void buildTDigest(XContentBuilder builder) throws IOException {
@@ -277,8 +289,20 @@ public interface DataPoint {
             switch (mappingHints.histogramMapping()) {
                 case EXPONENTIAL_HISTOGRAM -> ExponentialHistogramConverter.buildExponentialHistogram(dataPoint, builder, scratch);
                 case TDIGEST -> buildTDigest(builder);
+                case HISTOGRAM_RAW -> buildRawHistogram(builder);
                 case AGGREGATE_METRIC_DOUBLE -> buildAggregateMetricDouble(builder, dataPoint.getSum(), dataPoint.getCount());
             }
+        }
+
+        private void buildRawHistogram(XContentBuilder builder) throws IOException {
+            builder.startObject();
+            builder.startArray("counts");
+            RawHistogramConverter.counts(dataPoint, builder::value);
+            builder.endArray();
+            builder.startArray("values");
+            RawHistogramConverter.values(dataPoint, builder::value);
+            builder.endArray();
+            builder.endObject();
         }
 
         private void buildTDigest(XContentBuilder builder) throws IOException {
@@ -308,11 +332,13 @@ public interface DataPoint {
                 errors.add("cumulative histogram metrics are not supported, ignoring " + metric.getName());
                 return false;
             }
-            if (dataPoint.getBucketCountsCount() == 1 && dataPoint.getExplicitBoundsCount() == 0) {
-                errors.add("histogram with a single bucket and no explicit bounds is not supported, ignoring " + metric.getName());
+            int bucketCountsCount = dataPoint.getBucketCountsCount();
+            int explicitBoundsCount = dataPoint.getExplicitBoundsCount();
+            if (bucketCountsCount > 0 && bucketCountsCount != explicitBoundsCount + 1) {
+                errors.add("histogram bucket count must be one greater than explicit bounds count, ignoring " + metric.getName());
                 return false;
             }
-            for (int i = 1; i < dataPoint.getExplicitBoundsCount(); i++) {
+            for (int i = 1; i < explicitBoundsCount; i++) {
                 if (dataPoint.getExplicitBounds(i - 1) >= dataPoint.getExplicitBounds(i)) {
                     errors.add("histogram bounds are not sorted or not unique, ignoring " + metric.getName());
                     return false;
@@ -325,7 +351,7 @@ public interface DataPoint {
     private static String getHistogramDynamicTemplate(MappingHints mappingHints) {
         return switch (mappingHints.histogramMapping()) {
             case AGGREGATE_METRIC_DOUBLE -> "summary";
-            case TDIGEST -> "histogram";
+            case TDIGEST, HISTOGRAM_RAW -> "histogram";
             case EXPONENTIAL_HISTOGRAM -> "exponential_histogram";
         };
     }

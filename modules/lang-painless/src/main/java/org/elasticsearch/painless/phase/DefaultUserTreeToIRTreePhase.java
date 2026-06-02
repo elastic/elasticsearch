@@ -203,6 +203,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
@@ -257,6 +258,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -271,9 +273,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
      * Attaches per-loop safety mechanisms. Opted-in contexts get both {@link IRCCancellationCheck}
      * (cancellation path) and {@link IRDMaxLoopCounter} (legacy fallback when no runnable is
      * bound at runtime). Non-opted-in contexts get only the legacy counter (unchanged).
+     * Static functions (lambdas that don't capture {@code this}) cannot call
+     * {@code _getCancellationCheck()} and therefore only receive the legacy counter.
      */
     protected static void attachLoopProtection(FunctionNode irFunctionNode, ScriptScope scriptScope) {
-        if (scriptScope.getScriptClassInfo().supportsCancellation()) {
+        if (scriptScope.getScriptClassInfo().supportsCancellation() && irFunctionNode.hasCondition(IRCStatic.class) == false) {
             irFunctionNode.attachCondition(IRCCancellationCheck.class);
         }
         irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
@@ -1422,12 +1426,52 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
+        // For typed static lambdas in cancellation-aware scripts: inject the script receiver as a
+        // synthetic first capture so the lambda body shares the script's persistent $cancelPoll
+        // counter and can fetch the cancel Runnable via _getCancellationCheck(). The enclosing
+        // function exposes itself as "#scriptThis" (compiler-internal namespace, matching the
+        // other "#"-prefixed bookkeeping locals); the lambda receives it as a parameter of the
+        // script base class type and uses it the same way an instance method would use "this".
+        boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
+            && scriptScope.getScriptClassInfo().supportsCancellation()
+            && scriptScope.hasDecoration(userLambdaNode, TargetType.class);
+        if (injectCancelCapture) {
+            irFunctionNode.attachCondition(IRCStaticCancellationCheck.class);
+
+            Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
+            List<Class<?>> augTypes = new ArrayList<>();
+            augTypes.add(scriptClass);
+            augTypes.addAll(irFunctionNode.getDecorationValue(IRDTypeParameters.class));
+            irFunctionNode.attachDecoration(new IRDTypeParameters(augTypes));
+
+            List<String> augNames = new ArrayList<>();
+            augNames.add("#scriptThis");
+            augNames.addAll(irFunctionNode.getDecorationValue(IRDParameterNames.class));
+            irFunctionNode.attachDecoration(new IRDParameterNames(augNames));
+        }
+
         irExpressionNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).valueType()));
 
         List<Variable> captures = scriptScope.getDecoration(userLambdaNode, CapturesDecoration.class).captures();
 
+        List<String> captureNames;
         if (captures.isEmpty() == false) {
-            List<String> captureNames = captures.stream().map(Variable::name).toList();
+            captureNames = captures.stream().map(Variable::name).toList();
+        } else {
+            captureNames = null;
+        }
+
+        if (injectCancelCapture) {
+            List<String> augCaptures = new ArrayList<>();
+            augCaptures.add("#scriptThis");
+            if (captureNames != null) {
+                augCaptures.addAll(captureNames);
+            }
+            irExpressionNode.attachDecoration(new IRDCaptureNames(augCaptures));
+            FunctionRef original = irExpressionNode.getDecorationValue(IRDReference.class);
+            Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
+            irExpressionNode.attachDecoration(new IRDReference(original.withSyntheticScriptCapture(scriptClass)));
+        } else if (captureNames != null) {
             irExpressionNode.attachDecoration(new IRDCaptureNames(captureNames));
         }
 

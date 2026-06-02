@@ -562,7 +562,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         stopBreakingActions(indexNodeA, indexNodeB);
 
         ensureGreen();
-        assertNodeHasNoCurrentRecoveries(indexNodeB);
+        // The nodes stats response can temporarily omit the target node because the mock disconnect
+        // between index nodes is still reconnecting.
+        assertBusy(() -> assertNodeHasNoCurrentRecoveries(indexNodeB));
         // Have to assertBusy here because sometimes the failed IndexShard lingers on indexNodeB
         assertBusy(() -> assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs)));
     }
@@ -883,6 +885,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
                 .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
                 .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                 .build()
         );
         ensureGreen(indexName);

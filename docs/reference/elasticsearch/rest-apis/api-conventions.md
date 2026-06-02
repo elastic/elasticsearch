@@ -10,7 +10,7 @@ navigation_title: API conventions
 
 # Elasticsearch API conventions [api-conventions]
 
-The {{es}} REST APIs are exposed over HTTP. Except where noted, the following conventions apply across all APIs.
+The {{es}} REST APIs are exposed over HTTP. This page covers conventions that apply across all APIs, and provides recommendations for configuring HTTP clients to interact with {{es}}.
 
 
 ## Content-type requirements [_content_type_requirements]
@@ -501,7 +501,13 @@ Accept: application/vnd.elasticsearch+json; compatible-with=7
 
 ## HTTP `429 Too Many Requests` status code push back [api-push-back]
 
-{{es}} APIs may respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy to handle the request. When this happens, consider retrying after a short delay. If the retry also receives a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
+{{es}} APIs might respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy to handle the request. When this happens, consider retrying after a short delay. If the retry also receives a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
+
+
+## HTTP client configuration
+
+::::{include} ../configuration-reference/_snippets/http-client-configuration.md
+::::
 
 
 ## URL-based access control [api-url-access-control]
@@ -513,14 +519,14 @@ To prevent the user from overriding the data stream or index specified in the UR
 This causes  {{es}} to reject requests that explicitly specify a data stream or index in the request body.
 
 
-## Boolean Values [_boolean_values]
+## Boolean values [_boolean_values]
 
 All REST API parameters (both request parameters and JSON body) support providing boolean "false" as the value `false` and boolean "true" as the value `true`. All other values will raise an error.
 
 
-## Number Values [api-conventions-number-values]
+## Number values [api-conventions-number-values]
 
-When passing a numeric parameter in a request body, you may use a `string` containing the number instead of the native numeric type. For example:
+When passing a numeric parameter in a request body, you can use a `string` containing the number instead of the native numeric type. For example:
 
 ```console
 POST /_search
@@ -555,7 +561,7 @@ Whenever the byte size of data needs to be specified, e.g. when setting a buffer
 :   Petabytes
 
 
-## Distance Units [distance-units]
+## Distance units [distance-units]
 
 Wherever distances need to be specified, such as the `distance` parameter in the [Geo-distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md)), the default unit is meters if none is specified. Distances can be specified in other units, such as `"1km"` or `"2mi"` (2 miles).
 

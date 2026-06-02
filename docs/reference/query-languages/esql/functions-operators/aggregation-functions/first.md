@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `FIRST` function [esql-first]
 
-:::{include} ../../_snippets/functions/layout/first.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/first.md
 :::

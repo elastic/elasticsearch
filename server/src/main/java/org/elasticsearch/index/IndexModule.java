@@ -135,7 +135,16 @@ public final class IndexModule {
     // whether to use the query cache
     public static final Setting<Boolean> INDEX_QUERY_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "index.queries.cache.enabled",
-        true,
+        settings -> {
+            if (settings == null) {
+                return Boolean.TRUE.toString();
+            }
+            // IndexMode cannot be referenced here: IndexModule is loaded before IndexMode, and IndexMode's static
+            // initializer references IndexSettings, which in turn needs IndexMode.VALIDATE_WITH_SETTINGS — causing
+            // a circular static initialization that results in a NullPointerException at boot time.
+            String mode = settings.get("index.mode");
+            return Boolean.toString("columnar".equals(mode) == false && "logsdb_columnar".equals(mode) == false);
+        },
         Property.IndexScope
     );
 

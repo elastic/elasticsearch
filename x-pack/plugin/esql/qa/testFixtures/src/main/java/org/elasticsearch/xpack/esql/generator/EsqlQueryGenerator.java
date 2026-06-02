@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
@@ -108,6 +109,7 @@ public class EsqlQueryGenerator {
     public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
+        DedupGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
@@ -171,7 +173,8 @@ public class EsqlQueryGenerator {
         final CommandGenerator.QuerySchema schema,
         Executor executor,
         boolean isTimeSeries,
-        QueryExecutor queryExecutor
+        QueryExecutor queryExecutor,
+        GenerationContext context
     ) {
         boolean canGenerateTimeSeries = isTimeSeries;
         CommandGenerator.CommandDescription desc;
@@ -179,10 +182,10 @@ public class EsqlQueryGenerator {
         if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
             String index = promQLGenerator.generateIndices(schema);
             List<Column> fieldSchema = discoverFieldsViaMetricsInfo(index, queryExecutor);
-            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, index);
+            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, context, index);
             canGenerateTimeSeries = false;
         } else {
-            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
+            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor, context);
         }
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
@@ -211,7 +214,7 @@ public class EsqlQueryGenerator {
                 }
             }
 
-            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor, context);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
             }

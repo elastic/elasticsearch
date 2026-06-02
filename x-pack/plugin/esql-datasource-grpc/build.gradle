@@ -8,6 +8,11 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 esplugin {
   name = 'esql-datasource-grpc'
@@ -27,7 +32,6 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
-  implementation project(path: xpackModule('esql:arrow'))
   implementation project(":libs:arrow")
 
   // Arrow Flight (gRPC-based columnar data transport)

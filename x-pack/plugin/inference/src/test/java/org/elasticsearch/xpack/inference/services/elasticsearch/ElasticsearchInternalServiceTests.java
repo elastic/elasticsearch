@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -22,7 +21,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -455,7 +453,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 config,
                 getElserModelVerificationActionListener(elserServiceSettings, criticalWarning, warnWarning, false)
             );
-            assertWarnings(true, new DeprecationWarning(DeprecationLogger.CRITICAL, criticalWarning));
+            assertWarnings(criticalWarning);
         }
 
         // Invalid service settings
@@ -735,11 +733,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         boolean expectChunkingSettings
     ) {
         return ActionListener.wrap(model -> {
-            assertWarnings(
-                true,
-                new DeprecationWarning(DeprecationLogger.CRITICAL, criticalWarning),
-                new DeprecationWarning(Level.WARN, warnWarning)
-            );
+            assertWarnings(criticalWarning, warnWarning);
 
             assertThat(model, instanceOf(ElserInternalModel.class));
             ElserInternalModel elserInternalModel = (ElserInternalModel) model;
@@ -1082,7 +1076,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             model,
             new RerankRequest(
                 InferenceString.fromStringList(inputs),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                InferenceString.ofText(randomAlphaOfLength(10)),
                 topN,
                 randomOptionalBoolean(),
                 Map.of()
@@ -1204,7 +1198,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         service.chunkedInfer(
             model,
-            null,
             List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
@@ -1276,7 +1269,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         service.chunkedInfer(
             model,
-            null,
             List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
@@ -1348,7 +1340,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         service.chunkedInfer(
             model,
-            null,
             List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
             Map.of(),
             InputType.SEARCH,
@@ -1394,7 +1385,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         expectedWindowSize.set(null);
         service.chunkedInfer(
             model,
-            null,
             List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
             Map.of(),
             InputType.SEARCH,
@@ -1406,7 +1396,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         expectedWindowSize.set(256);
         service.chunkedInfer(
             model,
-            null,
             List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar")),
             Map.of(),
             InputType.SEARCH,
@@ -1458,7 +1447,6 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
 
         service.chunkedInfer(
             model,
-            null,
             List.of(new ChunkInferenceInput("foo"), new ChunkInferenceInput("bar"), new ChunkInferenceInput("baz")),
             Map.of(),
             InputType.SEARCH,
@@ -1528,7 +1516,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var latchedListener = new LatchedActionListener<>(resultsListener, latch);
 
         // For the given input we know how many requests will be made
-        service.chunkedInfer(model, null, List.of(input), Map.of(), InputType.SEARCH, null, latchedListener);
+        service.chunkedInfer(model, List.of(input), Map.of(), InputType.SEARCH, null, latchedListener);
 
         latch.await();
         assertTrue("Listener not called with results", gotResults.get());
@@ -1544,7 +1532,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
         try (var service = createService(mock(Client.class))) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), Map.of(), InputType.SEARCH, null, listener);
+            service.chunkedInfer(model, List.of(), Map.of(), InputType.SEARCH, null, listener);
 
             var results = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -2079,7 +2067,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             var exception = expectThrows(
                 ElasticsearchStatusException.class,
@@ -2102,7 +2090,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             var exception = expectThrows(
                 ModelDeploymentTimeoutException.class,
@@ -2134,9 +2122,9 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         });
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
-            assertTrue(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
+            assertNull(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
 
             verify(mockDeploymentDurationHistogram).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);
@@ -2217,7 +2205,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
 
-        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener);
+        service.infer(model, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 
@@ -2261,7 +2249,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         var latch = new CountDownLatch(1);
         var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
 
-        service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, providedTimeout, latchedListener);
+        service.infer(model, List.of("test input"), false, Map.of(), InputType.SEARCH, providedTimeout, latchedListener);
 
         assertTrue(latch.await(30, TimeUnit.SECONDS));
 

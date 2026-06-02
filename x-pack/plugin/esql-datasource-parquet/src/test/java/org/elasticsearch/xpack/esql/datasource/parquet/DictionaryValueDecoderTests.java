@@ -103,6 +103,121 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         }
     }
 
+    public void testReadIndicesAllBitWidths() throws IOException {
+        // Exercise every supported bit width 1..32, including the dedicated 3/5/6/7 fast paths,
+        // the 8-byte word read in readBitsLE for widths 9..15 and 17..31, and the bitWidth == 32
+        // mask edge case (where (1L << width) - 1 would be undefined and the code uses the
+        // 0xFFFFFFFFL constant instead).
+        for (int bitWidth = 1; bitWidth <= 32; bitWidth++) {
+            long maxValue = bitWidth == 32 ? 0xFFFFFFFFL : (1L << bitWidth) - 1;
+            int count = 200 + bitWidth * 17;
+            int[] expected = new int[count];
+            for (int i = 0; i < count; i++) {
+                // randomIntBetween takes int bounds; cap at Integer.MAX_VALUE for width 32 so
+                // we exercise the high-bit range without overflowing the helper.
+                int hi = (int) Math.min(maxValue, Integer.MAX_VALUE);
+                expected[i] = randomIntBetween(0, hi);
+            }
+            DictionaryValueDecoder decoder = decoderFor(expected, bitWidth);
+            int[] indices = new int[count];
+            decoder.readIndices(indices, 0, count);
+            assertArrayEquals("bitWidth=" + bitWidth, expected, indices);
+        }
+    }
+
+    public void testReadIndicesChunkedAcrossPartialGroupBoundary() throws IOException {
+        // Force the bulk decoder to leave a tail (groupNext < 8) at the end of one call and pick
+        // it up at the start of the next, exercising the "drain partial group at top of bulk
+        // loop" branch and the loadPackedGroup + arraycopy tail path. Covers each dedicated
+        // unpack8Values fast path (3/5/6/7) since they read at non-byte-aligned offsets within a
+        // group and resume-after-tail probes that alignment surface.
+        for (int bitWidth : new int[] { 3, 5, 6, 7 }) {
+            int maxValue = (1 << bitWidth) - 1;
+            int count = 67; // not a multiple of 8 → many calls land mid-group
+            int[] expected = new int[count];
+            for (int i = 0; i < count; i++) {
+                expected[i] = randomIntBetween(0, maxValue);
+            }
+            DictionaryValueDecoder decoder = decoderFor(expected, bitWidth);
+            int[] indices = new int[count];
+            int pos = 0;
+            // Mix of chunk sizes including non-multiples-of-8 so partial groups straddle calls.
+            int[] chunks = { 3, 8, 1, 16, 5, 17, 4, 13 };
+            for (int chunk : chunks) {
+                int take = Math.min(chunk, count - pos);
+                decoder.readIndices(indices, pos, take);
+                pos += take;
+            }
+            assertArrayEquals("bitWidth=" + bitWidth, expected, indices);
+        }
+    }
+
+    public void testReadIndicesChunkedAcrossLongRleRun() throws IOException {
+        // A long stretch of identical values forces RunLengthBitPackingHybridEncoder to emit an
+        // RLE run. Reading it in chunks that don't align with the run boundary exercises the
+        // bulk RLE branch (Arrays.fill into dst) across multiple calls.
+        int rleLength = 200;
+        int tail = 21;
+        int[] expected = new int[rleLength + tail];
+        for (int i = 0; i < rleLength; i++) {
+            expected[i] = 1;
+        }
+        for (int i = 0; i < tail; i++) {
+            expected[rleLength + i] = randomIntBetween(0, 7);
+        }
+        DictionaryValueDecoder decoder = decoderFor(expected, /* bitWidth= */ 3);
+        int[] indices = new int[expected.length];
+        int pos = 0;
+        for (int chunk : new int[] { 5, 64, 31, 80, 17, 24 }) {
+            int take = Math.min(chunk, expected.length - pos);
+            decoder.readIndices(indices, pos, take);
+            pos += take;
+        }
+        assertArrayEquals(expected, indices);
+    }
+
+    public void testReadBinariesProducesSameSequenceAsReadIndices() throws IOException {
+        // The typed readBinaries method routes through readIndicesBulk + a gather loop. Verify
+        // it emits the same logical sequence as the raw index path for the same encoded stream.
+        // readInts/readLongs/readFloats/readDoubles/readBooleans share the same bulk pipeline and
+        // are exercised indirectly through PageColumnReader integration tests.
+        String[] dict = { "a", "b", "c", "d", "e", "f", "g", "h" };
+        int bitWidth = 3;
+        int count = 137;
+        int[] expectedIndices = new int[count];
+        for (int i = 0; i < count; i++) {
+            expectedIndices[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Dictionary fakeDict = new BinaryDictionary(dict);
+
+        DictionaryValueDecoder indexDecoder = decoderFor(expectedIndices, bitWidth);
+        int[] indices = new int[count];
+        indexDecoder.readIndices(indices, 0, count);
+
+        DictionaryValueDecoder binDecoder = decoderFor(expectedIndices, bitWidth);
+        BytesRef[] binaries = new BytesRef[count];
+        binDecoder.readBinaries(binaries, 0, count, fakeDict);
+
+        for (int i = 0; i < count; i++) {
+            assertEquals("index@" + i, expectedIndices[i], indices[i]);
+            assertEquals("bin@" + i, new BytesRef(dict[expectedIndices[i]]), binaries[i]);
+        }
+    }
+
+    public void testReadIndicesBitWidthZero() throws IOException {
+        // bitWidth = 0 corresponds to a single-entry dictionary; every decoded index must be 0.
+        // The encoder emits an RLE run here (homogeneous input), so this primarily covers the
+        // bulk RLE branch with the rleValue == 0 fill; the bit-packed bitWidth==0 branches in
+        // readIndicesBulk and loadPackedGroup are covered indirectly via runs interleaved with
+        // bit-packed groups in other tests.
+        int[] expected = new int[123];
+        DictionaryValueDecoder decoder = decoderFor(expected, 0);
+        int[] indices = new int[expected.length];
+        Arrays.fill(indices, -1);
+        decoder.readIndices(indices, 0, expected.length);
+        assertArrayEquals(expected, indices);
+    }
+
     public void testGetDictionaryBytesRefsCachesAcrossCalls() {
         String[] dict = { "one", "two", "three" };
         Dictionary fakeDict = new BinaryDictionary(dict);
@@ -146,6 +261,30 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         for (int i = 0; i < expectedIndices.length; i++) {
             assertSame("readBinaries must return the cached entry", entries[expectedIndices[i]], resolved[i]);
         }
+    }
+
+    public void testInvalidBitWidthThrowsIllegalArgumentException() {
+        // An out-of-range bit width is read from the file's dictionary page — malformed input, so it
+        // surfaces as a client-class IllegalArgumentException (HTTP 400), not a server error.
+        ByteBuffer buf = ByteBuffer.allocate(1);
+        buf.put((byte) 254);
+        buf.flip();
+        DictionaryValueDecoder decoder = new DictionaryValueDecoder();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> decoder.init(buf));
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("bit width"));
+    }
+
+    public void testTruncatedStreamThrowsIllegalArgumentException() throws IOException {
+        int[] indices = { 0, 1, 2, 3, 4, 5, 6, 7 };
+        ByteBuffer encoded = encodeRle(indices, 3);
+        byte[] raw = new byte[encoded.remaining()];
+        encoded.get(raw);
+        byte[] truncated = Arrays.copyOf(raw, raw.length / 2);
+        ByteBuffer truncBuf = ByteBuffer.wrap(truncated);
+        DictionaryValueDecoder decoder = new DictionaryValueDecoder();
+        decoder.init(truncBuf);
+        int[] out = new int[indices.length];
+        expectThrows(IllegalArgumentException.class, () -> decoder.readIndices(out, 0, indices.length));
     }
 
     // --- helpers ---

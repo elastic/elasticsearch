@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 
 public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializationTests<EvalExec> {
     public EvalExec randomEvalExec(int depth) {
@@ -29,12 +30,7 @@ public class EvalExecSerializationTests extends AbstractPhysicalPlanSerializatio
     }
 
     public Alias randomField() {
-        Expression child = new Add(
-            randomSource(),
-            FieldAttributeTests.createFieldAttribute(0, true),
-            FieldAttributeTests.createFieldAttribute(0, true),
-            configuration()
-        );
+        Expression child = new Add(randomSource(), createFieldAttribute(0, true), createFieldAttribute(0, true), configuration());
         return new Alias(randomSource(), randomAlphaOfLength(5), child);
     }
 

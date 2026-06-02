@@ -26,12 +26,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
@@ -59,6 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -164,7 +167,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ).build();
 
         String description = factory.describe();
-        assertTrue(description.contains("AsyncExternalSourceOperator"));
+        assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
         assertTrue(description.contains("file:///data/test.csv"));
@@ -199,7 +202,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ).build();
 
         String description = factory.describe();
-        assertTrue(description.contains("AsyncExternalSourceOperator"));
+        assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
         assertTrue(description.contains("s3://bucket/data.parquet"));
@@ -2347,6 +2350,33 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression guard: if stream-only decompression fails after opening the raw object stream,
+     * cleanup must abort (not drain) the underlying connection.
+     */
+    public void testOpenWithParallelismGzipDecompressFailureAbortsRawStream() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            dummyFormatReaderForOpenParallelismTests(),
+            Runnable::run
+        );
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new FailingStreamOnlyCodec());
+
+        byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(gzipped, tracking);
+
+        IOException thrown = expectThrows(
+            IOException.class,
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null)
+        );
+        assertEquals("decompress failed", thrown.getMessage());
+        assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
+    }
+
     public void testOpenWithParallelismBareSegmentableReturnsIterator() throws IOException {
         ExecutorService exec = Executors.newFixedThreadPool(8);
         try {
@@ -2403,6 +2433,26 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         }
     }
 
+    /** Stream-only codec that fails during {@link #decompress(InputStream)} for abort-path tests. */
+    private static final class FailingStreamOnlyCodec implements DecompressionCodec {
+        private final GzipDecompressionCodec delegate = new GzipDecompressionCodec();
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public List<String> extensions() {
+            return delegate.extensions();
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) throws IOException {
+            throw new IOException("decompress failed");
+        }
+    }
+
     private static SegmentableFormatReader mockInnerForParallelDescribeAndOpen() throws IOException {
         SegmentableFormatReader inner = mock(SegmentableFormatReader.class);
         when(inner.minimumSegmentSize()).thenReturn(1024L);
@@ -2411,18 +2461,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         when(inner.defaultErrorPolicy()).thenReturn(ErrorPolicy.STRICT);
         when(inner.metadata(any())).thenReturn(null);
         when(inner.read(any(), any())).thenReturn(emptyPageIterator());
-        when(inner.findNextRecordBoundary(any())).thenAnswer(invocation -> {
-            InputStream in = invocation.getArgument(0);
-            long consumed = 0;
-            int b;
-            while ((b = in.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1L;
-        });
+        when(inner.recordSplitter(anyInt())).thenAnswer(invocation -> TestRecordSplitters.newlineSplitter(invocation.getArgument(0)));
         return inner;
     }
 
@@ -2947,16 +2986,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         final AtomicInteger readWithFirstSplitFalseCount = new AtomicInteger(0);
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            byte[] buf = new byte[1];
-            int total = 0;
-            while (stream.read(buf) > 0) {
-                total++;
-                if (buf[0] == '\n') {
-                    return total;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override

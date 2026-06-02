@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,21 +26,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
-import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -103,8 +101,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -210,8 +208,9 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperForReindex() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            // null the _id so we recalculate it on write
+            return id -> null;
         }
 
         @Override
@@ -280,8 +279,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -378,8 +377,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -407,6 +406,11 @@ public enum IndexMode {
         }
 
         @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return COLUMNAR_INDEX_MODES_ADDED;
+        }
+
+        @Override
         public void validateMapping(MappingLookup lookup) {}
 
         @Override
@@ -427,8 +431,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -495,6 +499,11 @@ public enum IndexMode {
         }
 
         @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return COLUMNAR_INDEX_MODES_ADDED;
+        }
+
+        @Override
         public void validateMapping(MappingLookup lookup) {}
 
         @Override
@@ -517,8 +526,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -585,6 +594,11 @@ public enum IndexMode {
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
 
         @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return VECTORDB_DOCUMENT_INDEX_MODE;
+        }
+
+        @Override
         public void validateMapping(MappingLookup lookup) {}
 
         @Override
@@ -603,8 +617,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -717,6 +731,21 @@ public enum IndexMode {
     public static final FeatureFlag VECTORDB_FEATURE_FLAG = new FeatureFlag("vectordb_document_index_mode");
 
     /**
+     * Returns the minimum transport version a recipient node must run to deserialize this index mode.
+     * Modes introduced after the initial release override this to return their introduction version.
+     */
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    /**
+     * Returns whether this index mode can be serialized to a node running the given transport version.
+     */
+    public final boolean supportsVersion(TransportVersion version) {
+        return version.supports(getMinimalSupportedVersion());
+    }
+
+    /**
      * Returns only the index modes that are available in the current build.
      * Columnar and vectordb_document modes are excluded in non-snapshot builds where their feature flag is disabled.
      */
@@ -761,10 +790,9 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
-     * It can never support field data.
+     * Get the id transformer for reindex to correctly reindex the id into the destination index.
      */
-    public abstract IdFieldMapper idFieldMapperForReindex();
+    public abstract Function<String, String> idTransformerForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
@@ -883,20 +911,13 @@ public enum IndexMode {
     }
 
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
-        if ((indexMode == COLUMNAR || indexMode == LOGSDB_COLUMNAR)
-            && out.getTransportVersion().supports(COLUMNAR_INDEX_MODES_ADDED) == false) {
-            throw new IOException(
-                "cannot serialize index mode ["
-                    + indexMode
-                    + "] to node on transport version ["
-                    + out.getTransportVersion()
-                    + "] that does not support it"
+        if (indexMode.supportsVersion(out.getTransportVersion()) == false) {
+            final var message = Strings.format(
+                "[%s] doesn't support serialization with transport version [%s]",
+                indexMode.getName(),
+                out.getTransportVersion()
             );
-        }
-        if (indexMode == VECTORDB_DOCUMENT && out.getTransportVersion().supports(VECTORDB_DOCUMENT_INDEX_MODE) == false) {
-            throw new IllegalArgumentException(
-                "cannot send index mode [" + VECTORDB_DOCUMENT.getName() + "] to a node that does not support it"
-            );
+            throw new IllegalStateException(message);
         }
         final int code = switch (indexMode) {
             case STANDARD -> 0;

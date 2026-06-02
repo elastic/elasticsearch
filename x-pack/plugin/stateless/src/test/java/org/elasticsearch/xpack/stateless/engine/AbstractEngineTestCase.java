@@ -99,6 +99,8 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
+import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -118,7 +120,6 @@ import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -360,39 +361,34 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         store.associateIndexWithNewTranslog(translogUuid);
 
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            mergePolicy,
-            indexWriterConfig.getAnalyzer(),
-            indexWriterConfig.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, threadPool),
-            new CapturingEngineEventListener(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            emptyList(),
-            emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> SequenceNumbers.NO_OPS_PERFORMED,
-            () -> RetentionLeases.EMPTY,
-            primaryTermSupplier,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            threadPool::relativeTimeInNanos,
-            new CapturingIndexCommitListener(),
-            true,
-            mapperService,
-            new EngineResetLock(),
-            MergeMetrics.NOOP,
-            Function.identity()
-        );
+        return EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(mergePolicy)
+            .analyzer(indexWriterConfig.getAnalyzer())
+            .similarity(indexWriterConfig.getSimilarity())
+            .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, threadPool))
+            .eventListener(new CapturingEngineEventListener())
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()))
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTermSupplier)
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(threadPool::relativeTimeInNanos)
+            .indexCommitListener(new CapturingIndexCommitListener())
+            .promotableToPrimary(true)
+            .mapperService(mapperService)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
     }
 
     protected SearchEngine newSearchEngine() {
@@ -410,16 +406,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+                ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
@@ -427,6 +427,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     super.close();
                 } finally {
                     searchConfig.getStore().decRef();
+                    IOUtils.close(reshardSearchFilters);
                 }
             }
         };
@@ -523,41 +524,22 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             )
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
-        final EngineConfig searchConfig = new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            null,
-            null,
-            null,
-            null,
-            new CapturingEngineEventListener(),
-            null,
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            null,
-            null,
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            () -> {
+        final EngineConfig searchConfig = EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .eventListener(new CapturingEngineEventListener())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .retentionLeasesSupplier(() -> {
                 throw new AssertionError();
-            },
-            primaryTermSupplier,
-            null,
-            null,
-            null,
-            null,
-            false,
-            null,
-            new EngineResetLock(),
-            MergeMetrics.NOOP,
-            Function.identity()
-        );
+            })
+            .primaryTermSupplier(primaryTermSupplier)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.EMPTY,
             Sets.addToCopy(
@@ -568,23 +550,27 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+                ReshardUnownedBitsetCache.CACHE_TTL_SETTING,
+                ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment);
+                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment, reshardSearchFilters);
                 }
             }
         };
@@ -639,41 +625,22 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             )
         );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            null,
-            null,
-            null,
-            null,
-            new CapturingEngineEventListener(),
-            null,
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            null,
-            null,
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            () -> {
+        return EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .eventListener(new CapturingEngineEventListener())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .retentionLeasesSupplier(() -> {
                 throw new AssertionError();
-            },
-            directory.getCurrentCommit()::primaryTerm,
-            null,
-            null,
-            null,
-            null,
-            false,
-            null,
-            new EngineResetLock(),
-            MergeMetrics.NOOP,
-            Function.identity()
-        );
+            })
+            .primaryTermSupplier(directory.getCurrentCommit()::primaryTerm)
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
     }
 
     protected static Engine.Index randomDoc(String id) throws IOException {

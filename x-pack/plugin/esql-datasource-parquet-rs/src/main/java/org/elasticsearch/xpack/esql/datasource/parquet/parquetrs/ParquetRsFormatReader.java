@@ -33,6 +33,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.ArrowToBlockConverter;
 import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Booleans;
@@ -41,9 +42,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -56,7 +57,6 @@ import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
-import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -569,12 +569,25 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         try (ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator)) {
             ParquetRsBridge.getSchemaFFI(path, configJson, ffiSchema.memoryAddress());
             Schema arrowSchema = Data.importSchema(allocator, ffiSchema, null);
-            List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
-            for (Field field : arrowSchema.getFields()) {
-                attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), ArrowToEsql.dataTypeForField(field)));
-            }
-            return attributes;
+            return arrowSchemaToAttributes(arrowSchema);
         }
+    }
+
+    /**
+     * Convert an Arrow schema into ES|QL attributes, honoring Arrow's field-level nullability flag. Defaulting to
+     * non-nullable (as the 3-arg {@link ReferenceAttribute} constructor does) would mislead planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) into dropping legitimate
+     * null rows for nullable Arrow fields.
+     */
+    static List<Attribute> arrowSchemaToAttributes(Schema arrowSchema) {
+        List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
+        for (Field field : arrowSchema.getFields()) {
+            Nullability nullability = field.isNullable() ? Nullability.TRUE : Nullability.FALSE;
+            attributes.add(
+                new ReferenceAttribute(Source.EMPTY, null, field.getName(), ArrowToEsql.dataTypeForField(field), nullability, null, false)
+            );
+        }
+        return attributes;
     }
 
     @Override

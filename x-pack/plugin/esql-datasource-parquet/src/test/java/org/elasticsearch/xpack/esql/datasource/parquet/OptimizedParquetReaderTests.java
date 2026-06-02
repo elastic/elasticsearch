@@ -30,7 +30,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -78,13 +77,13 @@ public class OptimizedParquetReaderTests extends ESTestCase {
     }
 
     public void testFormatUuidNullThrows() {
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(null));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(null));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("null"));
     }
 
     public void testFormatUuidTooShortThrows() {
         byte[] bytes = new byte[10];
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(bytes));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetColumnDecoding.formatUuid(bytes));
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("10"));
     }
 
@@ -671,6 +670,36 @@ public class OptimizedParquetReaderTests extends ESTestCase {
         List<Page> pagesNoLateMat = readAllPages(readerNoLateMat, storageObject);
         int rowsNoLateMat = pagesNoLateMat.stream().mapToInt(Page::getPositionCount).sum();
         assertThat("explicit no-late-mat returns all rows (no row-level filtering)", rowsNoLateMat, equalTo(totalRows));
+    }
+
+    public void testCorruptDataPageOptimizedReaderProducesIllegalArgumentException() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        int footerLenOffset = parquetData.length - 8;
+        int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
+            | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
+        int footerStart = parquetData.length - 8 - footerLen;
+        java.util.Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, true);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, FormatReadContext.of(null, 100))) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("id"));
     }
 
     // --- Helpers ---

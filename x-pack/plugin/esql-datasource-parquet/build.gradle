@@ -7,6 +7,11 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 versions << [
   'hadoop' : '3.4.3',
@@ -30,6 +35,10 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
+  // Shared Panama FFI zstd helper (PanamaZstd) and bundled compression libraries. Provided
+  // at runtime via the esql-datasource-compression-libs parent plugin classloader chain
+  // declared by extendedPlugins.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
@@ -48,14 +57,40 @@ dependencies {
 
   // Compression libraries — inherited at runtime via extendedPlugins from
   // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
-  // can reference their classes at compile time.
+  // can reference their classes at compile time. zstd-jni was removed in Phase 2: the codec
+  // factory now routes zstd through PanamaZstd (Panama FFI binding) on both code paths.
   compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
-  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
   compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  // Run the whole suite under Arrow's debug allocator so any use-after-free, double-free, or
+  // unreleased ArrowBuf on the direct-memory read path fails deterministically with a stack
+  // trace at the offending allocation instead of surfacing as a flaky native corruption
+  // (e.g. zstd "Src size is incorrect") in an unrelated test later in the same JVM.
+  systemProperty 'arrow.memory.debug.allocator', 'true'
+  // The wall-time perf smoke runs in its own JVM on the production allocator — see perfSmokeTest.
+  exclude '**/OptimizedReaderPerformanceTests.class'
+}
+
+// OptimizedReaderPerformanceTests asserts a wall-time ratio (optimized vs baseline). The Arrow
+// debug allocator's per-buffer ledger inflates the Arrow path ~20x and only penalizes the
+// optimized side, so the ratio is meaningless under it — and the flag is a static-final JVM
+// global that cannot be toggled per-test. Run this one class in its own JVM on the production
+// (non-debug) allocator so it always executes in CI with a meaningful measurement.
+tasks.register('perfSmokeTest', Test) {
+  include '**/OptimizedReaderPerformanceTests.class'
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+}
+
+tasks.named("check").configure { dependsOn "perfSmokeTest" }
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'

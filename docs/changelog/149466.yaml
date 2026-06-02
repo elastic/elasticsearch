@@ -1,0 +1,6 @@
+area: Search
+issues:
+ - 84400
+pr: 149466
+summary: Expose `_clusters` metadata in open point-in-time response for CCS
+type: enhancement

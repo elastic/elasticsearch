@@ -30,6 +30,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.bloomfilter.SyntheticIdBloomFilterSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -965,7 +966,7 @@ public final class IndexSettings {
     public static final FeatureFlag INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG = new FeatureFlag("index_disabled_by_default");
     public static final Setting<Boolean> INDEX_DISABLED_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.index_disabled_by_default",
-        false,
+        settings -> Boolean.toString(IndexSettings.MODE.get(settings).isStrictColumnar()),
         Property.IndexScope,
         Property.Final
     );
@@ -1170,6 +1171,25 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
+    public static final Setting<Boolean> DYNAMIC_STRINGS_AUTO_TEXT = Setting.boolSetting(
+        "index.mapping.dynamic_strings.auto_text",
+        settings -> {
+            IndexMode mode = IndexSettings.MODE.get(settings);
+            boolean disableAutoTextByDefault = mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR;
+            return Boolean.toString(disableAutoTextByDefault == false);
+        },
+        value -> {
+            if (value == false && FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                throw new IllegalArgumentException(
+                    "[index.mapping.dynamic_strings.auto_text] can only be disabled when the"
+                        + " extended_doc_values_options feature flag is enabled"
+                );
+            }
+        },
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -1259,6 +1279,7 @@ public final class IndexSettings {
     private volatile boolean requestCacheEnabled;
     private volatile boolean skipIgnoredSourceWrite;
     private volatile boolean skipIgnoredSourceRead;
+    private volatile boolean dynamicStringsAutoText;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
@@ -1525,6 +1546,7 @@ public final class IndexSettings {
             }
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
+        dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1620,6 +1642,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
+        scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -2383,5 +2406,16 @@ public final class IndexSettings {
 
     public boolean sequenceNumbersDisabled() {
         return disableSequenceNumbers;
+    }
+
+    private void setDynamicStringsAutoText(boolean enabled) {
+        this.dynamicStringsAutoText = enabled;
+    }
+
+    /**
+     * Returns <code>true</code> if dynamically mapped strings should be mapped with a keyword subfield.
+     */
+    public boolean getDynamicStringsAutoText() {
+        return dynamicStringsAutoText;
     }
 }

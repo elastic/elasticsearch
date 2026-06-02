@@ -158,13 +158,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 return state;
             });
 
-            if (clusterService.getClusterSettings().isDynamicSetting(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
-                // setting only registered in some tests today
-                clusterService.getClusterSettings()
-                    .initializeAndWatch(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
-            } else {
-                maxMasterNodeTimeout = AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
-            }
+            // setting only registered in some tests today
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
         }
 
         @Override

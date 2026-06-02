@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_BUFFER` function [esql-st_buffer]
 
-:::{include} ../../_snippets/functions/layout/st_buffer.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_buffer.md
 :::

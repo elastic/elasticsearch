@@ -424,7 +424,22 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         SourceToParse.Source sourceObject = context.sourceToParse().source();
         XContentType contentType = sourceObject.xContentType();
-        // TODO: Optimize if source not materialized
+        final boolean recoverySourceEnabled = context.indexSettings().isRecoverySourceEnabled();
+        final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
+
+        // Materializing the source bytes is only required when something downstream needs them:
+        // - storing the regular _source field (stored() == true), or
+        // - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
+        // The recovery-disabled case needs nothing at all, and the synthetic-recovery case needs
+        // only a byte-size estimate, which the EIRF row can supply without re-serializing.
+        if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
+            if (syntheticRecovery) {
+                assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, sourceObject.estimatedSizeInBytes()));
+            }
+            return;
+        }
+
         final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
@@ -434,12 +449,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (context.indexSettings().isRecoverySourceEnabled() == false) {
-            // Recovery source is disabled; skip adding recovery source fields.
+        if (recoverySourceEnabled == false) {
             return;
         }
 
-        if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+        if (syntheticRecovery) {
             assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
             // Synthetic source recovery is enabled; omit the full recovery source.
             // Instead, store only the size of the uncompressed original source.

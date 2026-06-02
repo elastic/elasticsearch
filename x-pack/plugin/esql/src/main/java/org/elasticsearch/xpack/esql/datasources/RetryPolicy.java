@@ -184,6 +184,18 @@ class RetryPolicy {
     }
 
     <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path) throws IOException {
+        return execute(operation, operationName, path, () -> {});
+    }
+
+    /**
+     * As {@link #execute(IOSupplier, String, StoragePath)}, plus a hook fired exactly once per
+     * scheduled retry — used by {@code RetryableStorageObject} to bump
+     * {@code StorageObjectMetricsCounters.retryCount} so the observed retry count surfaces in the
+     * query profile. The hook fires when a transient/throttle failure has been classified as
+     * retryable and the policy has decided to sleep + try again; it does NOT fire on the initial
+     * attempt or on a final terminal failure.
+     */
+    <T> T execute(IOSupplier<T> operation, String operationName, StoragePath path, Runnable onRetry) throws IOException {
         if (maxRetries == 0 && throttleMaxRetries == 0) {
             return operation.get();
         }
@@ -234,6 +246,7 @@ class RetryPolicy {
                     delay,
                     e.getMessage()
                 );
+                onRetry.run();
                 try {
                     Thread.sleep(delay);
                 } catch (InterruptedException ie) {

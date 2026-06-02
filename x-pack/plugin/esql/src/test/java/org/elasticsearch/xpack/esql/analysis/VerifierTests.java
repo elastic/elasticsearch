@@ -487,6 +487,10 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]")
         );
         defaultAnalyzer().error(
+            "from test | stats w_avg = weighted_avg(salary, count(*)) by first_name",
+            equalTo("1:48: nested aggregations [count(*)] not allowed inside other aggregations " + "[weighted_avg(salary, count(*))]")
+        );
+        defaultAnalyzer().error(
             "from test | stats count(avg(first_name)) by first_name",
             equalTo(
                 "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
@@ -844,7 +848,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
                         ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -873,7 +877,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | STATS count(*) BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
                         ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -884,6 +888,22 @@ public class VerifierTests extends ESTestCase {
                 "FROM test | STATS count(*) BY dense_vector",
                 equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
             );
+    }
+
+    public void testFlattenedAllowedInLimitBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY resource.attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY attributes");
+    }
+
+    public void testFlattenedAllowedInStatsBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY resource.attributes");
     }
 
     public void testDoubleRenamingField() {
@@ -1173,6 +1193,11 @@ public class VerifierTests extends ESTestCase {
                 equalTo("1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment")
             );
         }
+        defaultAnalyzer().error(
+            "ROW a = NULL::time_duration",
+            equalTo("1:9: cannot use [NULL::time_duration] directly in a row assignment")
+        );
+        defaultAnalyzer().error("ROW a = NULL::date_period", equalTo("1:9: cannot use [NULL::date_period] directly in a row assignment"));
     }
 
     public void testSubtractDateTimeFromTemporal() {
@@ -1341,6 +1366,101 @@ public class VerifierTests extends ESTestCase {
                 )
             );
         }
+        defaultAnalyzer().error(
+            "ROW x = 1 | EVAL y = NULL::time_duration",
+            equalTo("1:18: EVAL does not support type [time_duration] as the return data type of expression [NULL::time_duration]")
+        );
+        defaultAnalyzer().error(
+            "ROW x = 1 | EVAL y = NULL::date_period",
+            equalTo("1:18: EVAL does not support type [date_period] as the return data type of expression [NULL::date_period]")
+        );
+    }
+
+    public void testPeriodAndDurationInStats() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:31: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:31: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInSort() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error("ROW x = 1 | SORT 1 " + unit, equalTo("1:18: cannot sort on time_duration"));
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error("ROW x = 1 | SORT 1 " + unit, equalTo("1:18: cannot sort on date_period"));
+        }
+    }
+
+    public void testPeriodAndDurationInLimitBy() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | LIMIT 1 BY 1 " + unit,
+                equalTo("1:24: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | LIMIT 1 BY 1 " + unit,
+                equalTo("1:24: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInInlineStats() {
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:38: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW x = 1 | INLINE STATS COUNT(*) BY 1 " + unit,
+                equalTo("1:38: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInChangePoint() {
+        assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
+        assumeTrue("change_point_by must be enabled", EsqlCapabilities.Cap.CHANGE_POINT_BY.isEnabled());
+        // Keys are qualifiedNames so we can't use literals; test via columns. The ROW assignment also
+        // fires an error but the CHANGE_POINT key error still appears in the output.
+        defaultAnalyzer().error(
+            """
+                ROW key = NULL::time_duration, value = 0
+                | CHANGE_POINT value ON key""",
+            containsString("CHANGE_POINT only supports sortable keys, found expression [key] type [TIME_DURATION]")
+        );
+        defaultAnalyzer().error(
+            """
+                ROW key = NULL::date_period, value = 0
+                | CHANGE_POINT value ON key""",
+            containsString("CHANGE_POINT only supports sortable keys, found expression [key] type [DATE_PERIOD]")
+        );
+        // BY groupings accept expressions, so literals work directly.
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "ROW key = 0, value = 0 | CHANGE_POINT value ON key BY 1 " + unit,
+                equalTo("1:55: CHANGE_POINT grouping only supports sortable values, found expression [1 " + unit + "] type [TIME_DURATION]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "ROW key = 0, value = 0 | CHANGE_POINT value ON key BY 1 " + unit,
+                equalTo("1:55: CHANGE_POINT grouping only supports sortable values, found expression [1 " + unit + "] type [DATE_PERIOD]")
+            );
+        }
     }
 
     public void testFilterNonBoolField() {
@@ -1463,6 +1583,13 @@ public class VerifierTests extends ESTestCase {
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
         index.error("FROM flattened_otel_logs | SORT attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
+    }
+
+    public void testDateRangeSorting() {
+        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
     }
 
     public void testFieldExtractFirstArgumentMustBeFlattened() {
@@ -1710,6 +1837,27 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testSparklineRejectsMultiValuedAggs() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), " + sparklineArgs + ")",
+            containsString(
+                "first argument of [SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), "
+                    + sparklineArgs
+                    + ")] "
+                    + "must be a single-valued aggregate function, found [TOP(avg_worked_seconds, 3, \"asc\")]"
+            )
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(SAMPLE(avg_worked_seconds, 3), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [SAMPLE(avg_worked_seconds, 3)]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(VALUES(avg_worked_seconds), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [VALUES(avg_worked_seconds)]")
+        );
+    }
+
     public void testWeightedAvg() {
         defaultAnalyzer().error(
             "row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)",
@@ -1795,6 +1943,13 @@ public class VerifierTests extends ESTestCase {
                     containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
                 )
             );
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
+            fullText().error(
+                "from test | dedup | where " + functionInvocation,
+                containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
+            );
+        }
+
     }
 
     public void testFullTextFunctionsAfterFork() {
@@ -3809,6 +3964,14 @@ public class VerifierTests extends ESTestCase {
         );
 
         defaultAnalyzer().error(
+            randomFrom(sourceCommands) + "LIMIT 5 BY gender | INLINE STATS max(salary) BY gender",
+            containsString(
+                "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
+                    + "but was [INLINE STATS max(salary) BY gender] after [LIMIT 5 BY gender] [@"
+            )
+        );
+
+        defaultAnalyzer().error(
             randomFrom(sourceCommands) + "SORT languages | LIMIT 5 | INLINE STATS max(salary) BY gender",
             containsString(
                 "INLINE STATS cannot be used after an explicit or implicit LIMIT command, "
@@ -4194,6 +4357,19 @@ public class VerifierTests extends ESTestCase {
         k8s().error("TS k8s | SORT @timestamp | TS_INFO", containsString("TS_INFO cannot be used after SORT command"));
     }
 
+    public void testDedupRejectsAggregateMetricDouble() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error(
+            "FROM k8s | KEEP network.eth0.tx | DEDUP",
+            containsString("cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+        );
+    }
+
+    public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         fullText().query("from test | eval similarity = " + functionInvocation);
     }
@@ -4343,6 +4519,10 @@ public class VerifierTests extends ESTestCase {
 
     private static TestAnalyzer k8s() {
         return analyzer().addK8s().stripErrorPrefix(true);
+    }
+
+    private static TestAnalyzer k8sDownsampled() {
+        return analyzer().addK8sDownsampled().stripErrorPrefix(true);
     }
 
     private static TestAnalyzer lookupJoinFullText() {

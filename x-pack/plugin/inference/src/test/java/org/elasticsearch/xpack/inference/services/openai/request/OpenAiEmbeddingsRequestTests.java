@@ -70,10 +70,11 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(headerKey).getValue(), is(headerValue));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("user"), is("user"));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
     }
 
     public void testCreateRequest_WithDefaultUrl() throws URISyntaxException, IOException {
@@ -89,10 +90,11 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(3));
+        assertThat(requestMap, aMapWithSize(4));
         assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("user"), is("user"));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
     }
 
     public void testCreateRequest_WithDefaultUrlAndWithoutUserOrganization() throws URISyntaxException, IOException {
@@ -108,9 +110,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("input"), is(List.of("abc")));
         assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
@@ -123,9 +126,10 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(2));
+        assertThat(requestMap, aMapWithSize(3));
         assertThat(requestMap.get("input"), is(List.of("ab")));
         assertThat(requestMap.get("model"), is("model"));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
     }
 
     public void testIsTruncated_ReturnsTrue() {

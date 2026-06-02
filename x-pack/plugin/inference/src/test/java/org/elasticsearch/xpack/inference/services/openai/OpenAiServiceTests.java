@@ -73,6 +73,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.encodeFloatsAsOpenAiBase64;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -104,7 +105,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 
@@ -131,7 +132,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -160,7 +161,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, null, null, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -186,17 +187,15 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            String responseJson = """
+            // Wire-shape parity with production OpenAI: base64-encoded float32 embedding.
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -205,7 +204,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = OpenAiEmbeddingsModelTests.createModel(
@@ -217,7 +216,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -229,10 +228,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().getFirst().getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -256,7 +256,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             );
 
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -499,7 +499,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = OpenAiChatCompletionModelTests.createCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
+            service.infer(model, List.of("abc"), true, new HashMap<>(), InputType.INGEST, null, listener);
 
             return InferenceEventsAssertion.assertThat(listener.actionGet(TEST_REQUEST_TIMEOUT)).hasFinishedStream();
         }
@@ -587,7 +587,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                 TaskType.TEXT_EMBEDDING
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, null, null, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.infer(model, List.of("abc"), false, new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -665,7 +665,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -678,26 +678,20 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            // response with 2 embeddings
-            String responseJson = """
+            // response with 2 embeddings; base64 wire shape, matching production OpenAI.
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.123,
-                              -0.123
-                          ]
+                          "embedding": "%s"
                       },
                       {
                           "object": "embedding",
                           "index": 1,
-                          "embedding": [
-                              0.223,
-                              -0.223
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -706,13 +700,12 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.123F, -0.123F), encodeFloatsAsOpenAiBase64(0.223F, -0.223F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,
@@ -752,10 +745,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().getFirst().getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of("a", "bb")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -764,25 +758,19 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
-            String responseJson = """
+            String responseJson = Strings.format("""
                 {
                   "object": "list",
                   "data": [
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              0.0123,
-                              -0.0123
-                          ]
+                          "embedding": "%s"
                       },
                       {
                           "object": "embedding",
                           "index": 0,
-                          "embedding": [
-                              1.0123,
-                              -1.0123
-                          ]
+                          "embedding": "%s"
                       }
                   ],
                   "model": "text-embedding-ada-002-v2",
@@ -791,7 +779,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                       "total_tokens": 8
                   }
                 }
-                """;
+                """, encodeFloatsAsOpenAiBase64(0.0123F, -0.0123F), encodeFloatsAsOpenAiBase64(1.0123F, -1.0123F));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", TaskType.EMBEDDING);
@@ -827,10 +815,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             assertThat(webServer.requests().getFirst().getHeader(ORGANIZATION_HEADER), equalTo("org"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.size(), is(4));
             assertThat(requestMap.get("input"), is(List.of(inputString1, inputString2)));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("user"));
+            assertThat(requestMap.get("encoding_format"), is("base64"));
         }
     }
 
@@ -871,11 +860,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(
-                    List.of(
-                        new InferenceStringGroup(
-                            List.of(new InferenceString(DataType.TEXT, "abc"), new InferenceString(DataType.TEXT, "def"))
-                        )
-                    ),
+                    List.of(new InferenceStringGroup(List.of(InferenceString.ofText("abc"), InferenceString.ofText("def")))),
                     InputType.UNSPECIFIED,
                     Map.of()
                 ),

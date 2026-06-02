@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Result;
 
@@ -19,7 +20,13 @@ public interface ApproximationDriver {
      * Builds an approximation driver for the logical plan.
      */
     static ApproximationDriver create(LogicalPlan logicalPlan, ApproximationSettings settings) {
-        ApproximationVerifier.QueryProperties queryProperties = ApproximationVerifier.verifyPlanOrThrow(logicalPlan);
+        // Verification has already been done before (in SubstituteApproximationPlan)
+        // with the minimum transport version for this plan. Therefore, we can just
+        // use the current version here instead.
+        ApproximationVerifier.QueryProperties queryProperties = ApproximationVerifier.verifyPlanOrThrow(
+            logicalPlan,
+            TransportVersion.current()
+        );
         if (queryProperties.forkBranchProperties() == null) {
             return new Approximation(logicalPlan, queryProperties, settings);
         } else {

@@ -38,6 +38,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -1135,9 +1136,7 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
-        LongSupplier directoryBytesRead = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-            ? searchService.getIndicesService()::currentStoreBytesRead
-            : () -> 0L;
+        LongSupplier directoryBytesRead = directoryBytesReadSupplier(searchService.getIndicesService());
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.
@@ -1245,7 +1244,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            long planningBytesRead = Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
+            long planningBytesRead = planningBytesRead(directoryBytesRead, bytesBefore);
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(
                 listener,
@@ -1311,6 +1310,24 @@ public class ComputeService {
 
             return DriverCompletionInfo.excludingProfiles(drivers, planningBytesRead);
         });
+    }
+
+    /**
+     * Supplier for per-thread store directory bytes used by Lucene operators and planner-time accounting.
+     * Returns zero when the {@code directory_metrics} feature flag is disabled.
+     */
+    static LongSupplier directoryBytesReadSupplier(IndicesService indicesService) {
+        if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
+            return indicesService::currentStoreBytesRead;
+        }
+        return () -> 0L;
+    }
+
+    /**
+     * SEARCH-thread planner bytes read delta, matching the snapshot taken at the start of {@link #runCompute}.
+     */
+    static long planningBytesRead(LongSupplier directoryBytesRead, long bytesBefore) {
+        return Math.max(0L, directoryBytesRead.getAsLong() - bytesBefore);
     }
 
     // public for testing

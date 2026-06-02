@@ -2043,6 +2043,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModesRejectSyntheticSourceKeepIndexSetting() {
+        // The "all"" value is already rejected globally by the setting's value validator, so we only need to cover "arrays" here
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
             Settings settings = Settings.builder()

@@ -12,11 +12,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
@@ -97,6 +98,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String SECRET_SETTINGS_VALUE = "some_secret_value";
     private static final int NEW_CHUNK_SIZE_VALUE = 100;
     private static final int NEW_OVERLAP_VALUE = 25;
+    private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
+    private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
+    private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -131,10 +135,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
@@ -155,10 +156,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
@@ -339,6 +337,140 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_UnknownServiceSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    public void testMasterOperation_UnknownServiceSetting_ThrowsWhenParserUsedForServiceSettings() {
+        when(service.usesParserForServiceSettings()).thenReturn(true);
+        var serviceSettings = mock(ServiceSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(serviceSettings.updateServiceSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(serviceSettings, mock(TaskSettings.class), null, null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    private void assertMasterOperation_UnknownSetting_ThrowsBadRequest(String requestBody) {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperationWithRequestBody(requestBody);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
+        );
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsWhenParserUsedForTaskSettings() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = mock(TaskSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(taskSettings.updatedTaskSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(mock(ServiceSettings.class), taskSettings, null, null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownChunkingSetting_ThrowsBadRequest() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": 20,
+                    "sentence_overlap": 0,
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ValidationException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.validationErrors().size(), is(1));
+        assertThat(
+            exception.validationErrors().getFirst(),
+            is("Sentence based chunking settings can not have the following settings: [unknown_setting]")
+        );
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
         mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
@@ -474,10 +606,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
-
-        var requestBody = """
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
+        return callMasterOperationWithRequestBody("""
             {
                 "task_type": "text_embedding",
                 "service_settings": {
@@ -488,7 +618,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                     "input_type": "ingest",
                     "auto_truncate": true
                 }
-            }""";
+            }
+            """);
+    }
+
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(String requestBody) {
+        var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(
             mock(Task.class),
@@ -503,6 +638,75 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener
         );
         return listener;
+    }
+
+    public void testValidateConsumedUpdateSettings_NullMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_EmptyMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, new HashMap<>(), new HashMap<>());
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownServiceSetting_ThrowsWhenParserNotUsed() {
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        Strings.format(
+            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+            UNKNOWN_SETTING_KEY,
+            UNKNOWN_SETTING_VALUE,
+            SERVICE_NAME_VALUE
+        );
+    }
+
+    /**
+     * Parser-based services do not remove service settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the service settings parser in {@link ServiceSettings#updateServiceSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceServiceSettingsMapEmptyWhenParserUsed() {
+        when(service.usesParserForServiceSettings()).thenReturn(true);
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownTaskSetting_ThrowsWhenParserNotUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(false);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        Strings.format(
+            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+            UNKNOWN_SETTING_KEY,
+            UNKNOWN_SETTING_VALUE,
+            SERVICE_NAME_VALUE
+        );
+    }
+
+    /**
+     * Parser-based services do not remove task settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the task settings parser in {@link TaskSettings#updatedTaskSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceTaskSettingsMapEmptyWhenParserUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings);
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_NewConfigMapsAreNull_ReturnsExistingConfigs() {

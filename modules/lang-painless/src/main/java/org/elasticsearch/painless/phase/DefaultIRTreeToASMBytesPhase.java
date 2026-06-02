@@ -388,14 +388,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.endMethod();
     }
 
-    private static void writeLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        writeBranchedLoopGuard(writeScope, methodWriter, location, true);
-    }
-
-    private static void writeForEachLoopGuard(WriteScope writeScope, MethodWriter methodWriter, Location location) {
-        writeBranchedLoopGuard(writeScope, methodWriter, location, false);
-    }
-
     private static void writeBranchedLoopGuard(
         WriteScope writeScope,
         MethodWriter methodWriter,
@@ -535,7 +527,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        writeLoopGuard(writeScope, methodWriter, irWhileLoopNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irWhileLoopNode.getLocation(), true);
 
         BlockNode irBlockNode = irWhileLoopNode.getBlockNode();
 
@@ -570,7 +562,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        writeLoopGuard(writeScope, methodWriter, irDoWhileLoopNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irDoWhileLoopNode.getLocation(), true);
 
         methodWriter.goTo(start);
         methodWriter.mark(end);
@@ -607,7 +599,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifZCmp(Opcodes.IFEQ, end);
         }
 
-        writeLoopGuard(writeScope, methodWriter, irForLoopNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irForLoopNode.getLocation(), true);
 
         boolean allEscape = false;
 
@@ -668,7 +660,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.arrayLength();
         methodWriter.ifICmp(MethodWriter.GE, end);
 
-        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irForEachSubArrayNode.getLocation(), false);
 
         methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
         methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
@@ -718,7 +710,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_HASNEXT);
         methodWriter.ifZCmp(MethodWriter.EQ, end);
 
-        writeForEachLoopGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation());
+        writeBranchedLoopGuard(writeScope, methodWriter, irForEachSubIterableNode.getLocation(), false);
 
         methodWriter.visitVarInsn(iterator.getAsmType().getOpcode(Opcodes.ILOAD), iterator.getSlot());
         if (painlessMethod != null || variable.getType().isPrimitive() == false) {

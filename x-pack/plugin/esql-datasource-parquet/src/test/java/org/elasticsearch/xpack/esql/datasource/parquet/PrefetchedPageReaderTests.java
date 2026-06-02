@@ -117,6 +117,50 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         assertThat(reader.readPage(), nullValue());
     }
 
+    public void testReadsV2PageWithEmptyDataSection() throws IOException {
+        // Spark's writer stores all-null V2 pages with an empty data buffer rather than a
+        // compressed zero-byte payload. Decompression libraries reject empty input, so the reader
+        // must short-circuit. Verify for every compressed codec.
+        for (CompressionCodecName codec : List.of(
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.LZ4_RAW
+        )) {
+            byte[] rl = new byte[] { 1, 2, 3 };
+            byte[] dl = new byte[] { 4, 5 };
+            DataPageV2 v2 = new DataPageV2(
+                10,
+                10,
+                10,
+                BytesInput.from(rl),
+                BytesInput.from(dl),
+                Encoding.PLAIN,
+                BytesInput.empty(),
+                rl.length + dl.length,
+                intStats(),
+                true
+            );
+            PrefetchedPageReader reader = new PrefetchedPageReader(
+                codecFactory.getDecompressor(codec),
+                List.of(new PrefetchedPageReader.CompressedPage(v2, -1L)),
+                null,
+                10
+            );
+            DataPage out = reader.readPage();
+            assertThat("failed for codec " + codec, out, notNullValue());
+            DataPageV2 outV2 = (DataPageV2) out;
+            assertThat(outV2.isCompressed(), equalTo(false));
+            assertThat(outV2.getData().toByteArray(), equalTo(new byte[0]));
+            assertThat(outV2.getRepetitionLevels().toByteArray(), equalTo(rl));
+            assertThat(outV2.getDefinitionLevels().toByteArray(), equalTo(dl));
+            assertThat(outV2.getRowCount(), equalTo(10));
+            assertThat(outV2.getNullCount(), equalTo(10));
+            assertThat(outV2.getValueCount(), equalTo(10));
+            assertThat(reader.readPage(), nullValue());
+        }
+    }
+
     public void testUncompressedV1PageWithDirectInputSkipsAllocAndCopy() throws IOException {
         // Regression coverage for elastic/esql-planning#804: when the codec is UNCOMPRESSED and
         // the page slice is already direct (the prefetched path), decompressV1 must return a view

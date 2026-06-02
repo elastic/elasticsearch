@@ -79,6 +79,16 @@ public interface InferenceService extends Closeable {
     }
 
     /**
+     * Override as needed. Services that create the service settings using a parser do not remove entries from the map used to create the
+     * {@link ServiceSettings}, which causes the existing validation that there are no unknown values left in the map to fail. Rather than
+     * explicitly checking that the map is empty, these services will throw an exception from the parser.
+     * @return whether this service implements a parser for service settings
+     */
+    default boolean usesParserForServiceSettings() {
+        return false;
+    }
+
+    /**
      * Create a new model from {@link ModelConfigurations} and {@link ModelSecrets} objects.
      * This method is used for creating updated model instances.
      * @param config The model configurations

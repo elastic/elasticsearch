@@ -11,11 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
@@ -28,6 +30,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -164,6 +168,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * {@link RangeAwareFormatReader#readRange} calls.
      */
     private final boolean batchReadCapable;
+    @Nullable
+    private volatile SharedNumericThreshold.Supplier thresholdSupplier;
+    @Nullable
+    private volatile String thresholdColumnName;
+    @Nullable
+    private volatile ElementType thresholdElementType;
+    private volatile boolean thresholdAscending;
+    private volatile boolean thresholdNullsFirst;
+    @Nullable
+    private volatile DynamicThreshold cachedThreshold;
 
     /**
      * When set, the producer paths request the synthetic {@link ColumnExtractor#ROW_POSITION_COLUMN}
@@ -458,6 +472,28 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 deferredExtraction
             );
         }
+    }
+
+    /**
+     * Installs the shared numeric TopN threshold. Must be called during planning, before the
+     * first {@link #get(DriverContext)} call creates source operators from this factory.
+     */
+    public synchronized void setNumericThresholdSupplier(
+        SharedNumericThreshold.Supplier thresholdSupplier,
+        String columnName,
+        ElementType elementType,
+        boolean ascending,
+        boolean nullsFirst
+    ) {
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("numeric threshold must be installed before source operators are created");
+        }
+        this.thresholdSupplier = thresholdSupplier;
+        this.thresholdColumnName = columnName;
+        this.thresholdElementType = elementType;
+        this.thresholdAscending = ascending;
+        this.thresholdNullsFirst = nullsFirst;
+        closeDynamicThreshold();
     }
 
     @Override
@@ -799,25 +835,70 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * pushed expressions reference those columns.
      */
     private FormatReader readerForFile(FileSplit fileSplit) {
-        if (pushedExpressions.isEmpty() || pushdownSupport == null) {
-            return formatReader;
+        FormatReader reader = formatReader;
+        if (pushedExpressions.isEmpty() == false && pushdownSupport != null) {
+            ColumnMapping mapping = fileSplit.columnMapping();
+            if (mapping != null) {
+                List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
+                if (adapted != pushedExpressions) {
+                    if (adapted.isEmpty()) {
+                        reader = formatReader.withPushedFilter(null);
+                    } else {
+                        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
+                        reader = result.hasPushedFilter()
+                            ? formatReader.withPushedFilter(result.pushedFilter())
+                            : formatReader.withPushedFilter(null);
+                    }
+                }
+            }
         }
-        ColumnMapping mapping = fileSplit.columnMapping();
-        if (mapping == null) {
-            return formatReader;
+        return readerWithDynamicThreshold(reader);
+    }
+
+    @Nullable
+    private DynamicThreshold dynamicThreshold() {
+        DynamicThreshold threshold = cachedThreshold;
+        if (threshold != null || thresholdSupplier == null) {
+            return threshold;
         }
-        List<Expression> adapted = mapping.mapFilters(pushedExpressions, queryDataSchema);
-        if (adapted == pushedExpressions) {
-            return formatReader;
+        synchronized (this) {
+            threshold = cachedThreshold;
+            if (threshold == null && thresholdSupplier != null) {
+                if (thresholdColumnName == null || thresholdElementType == null) {
+                    throw new IllegalStateException("numeric threshold descriptor is incomplete");
+                }
+                threshold = new DynamicThreshold(
+                    thresholdColumnName,
+                    thresholdElementType,
+                    thresholdAscending,
+                    thresholdNullsFirst,
+                    thresholdSupplier.get()
+                );
+                cachedThreshold = threshold;
+            }
+            return threshold;
         }
-        if (adapted.isEmpty()) {
-            return formatReader.withPushedFilter(null);
+    }
+
+    private boolean noFurtherCandidates() {
+        DynamicThreshold threshold = dynamicThreshold();
+        return threshold != null && threshold.noFurtherCandidates();
+    }
+
+    private FormatReader readerWithDynamicThreshold(FormatReader reader) {
+        DynamicThreshold threshold = dynamicThreshold();
+        if (threshold != null && reader instanceof DynamicThresholdAware aware) {
+            return aware.withDynamicThreshold(threshold);
         }
-        FilterPushdownSupport.PushdownResult result = pushdownSupport.pushFilters(adapted);
-        if (result.hasPushedFilter()) {
-            return formatReader.withPushedFilter(result.pushedFilter());
+        return reader;
+    }
+
+    private synchronized void closeDynamicThreshold() {
+        DynamicThreshold threshold = cachedThreshold;
+        cachedThreshold = null;
+        if (threshold != null) {
+            IOUtils.closeWhileHandlingException(threshold);
         }
-        return formatReader.withPushedFilter(null);
     }
 
     private void startSliceQueueRead(AsyncExternalSourceBuffer buffer, DriverContext driverContext) {
@@ -979,6 +1060,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = state.pages;
         AsyncExternalSourceBuffer buffer = state.buffer;
         while (true) {
+            if (noFurtherCandidates()) {
+                return DrainResult.DONE;
+            }
             if (buffer.noMoreInputs()) {
                 return DrainResult.DONE;
             }
@@ -1074,6 +1158,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      */
     private boolean advanceToNextUnit(ProducerState state) throws IOException {
         while (true) {
+            if (noFurtherCandidates()) {
+                return false;
+            }
             if (state.buffer.noMoreInputs()) {
                 return false;
             }
@@ -1108,6 +1195,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * process multiple splits at once via {@link RangeAwareFormatReader#readAll}.
      */
     private boolean openNextSliceQueueLeaf(ProducerState state) throws IOException {
+        if (noFurtherCandidates()) {
+            return false;
+        }
         if (batchReadCapable && state.leaves == null) {
             return openNextBatch(state);
         }
@@ -1239,6 +1329,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * injection (incompatible with a unified batch iterator).
      */
     private boolean openNextBatch(ProducerState state) throws IOException {
+        if (noFurtherCandidates()) {
+            return false;
+        }
         int remaining = state.queue.remaining();
         if (remaining == 0) {
             return false;
@@ -1270,7 +1363,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // so dataProjectedColumns() returns the full attribute list and no virtual-column wrapping
         // is needed.
         List<String> cols = dataProjectedColumns();
-        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) formatReader;
+        RangeAwareFormatReader rangeReader = (RangeAwareFormatReader) readerWithDynamicThreshold(formatReader);
         CloseableIterator<Page> pages = null;
         try {
             pages = rangeReader.readAll(splitRefs, cols, batchSize);
@@ -1289,6 +1382,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * have been processed.
      */
     private boolean openNextMultiFile(ProducerState state) throws IOException {
+        if (noFurtherCandidates()) {
+            return false;
+        }
         FileList files = state.fileList;
         assert files != null;
         if (state.fileIndex >= files.fileCount()) {
@@ -1312,6 +1408,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         CloseableIterator<Page> pages = null;
         try {
             StorageObject obj = storageProvider.newObject(files.path(fileIndex));
+            FormatReader fileReader = readerWithDynamicThreshold(formatReader);
             // Pull this file's coordinator-inferred schema from schemaInfo when available, so the
             // reader is pinned to the same inference the per-file ColumnMapping was built against.
             ColumnMapping mapping = null;
@@ -1324,7 +1421,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
+            pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -1334,7 +1431,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .errorPolicy(errorPolicy)
                     .readSchema(perFileReadSchema)
                     .build();
-                pages = formatReader.read(obj, ctx);
+                pages = fileReader.read(obj, ctx);
             }
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
@@ -1356,13 +1453,20 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext
     ) {
+        if (noFurtherCandidates()) {
+            buffer.finish(false);
+            driverContext.removeAsyncAction();
+            releaseOperator();
+            return;
+        }
         FormatReadContext ctx = FormatReadContext.builder()
             .projectedColumns(projectedColumns)
             .batchSize(batchSize)
             .rowLimit(rowLimit)
             .errorPolicy(errorPolicy)
             .build();
-        formatReader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
+        FormatReader reader = readerWithDynamicThreshold(formatReader);
+        reader.readAsync(storageObject, ctx, executor, ActionListener.wrap(iterator -> {
             consumePagesInBackground(iterator, buffer, driverContext, storageObject, projectedColumns);
         }, e -> {
             buffer.onFailure(e);
@@ -1377,17 +1481,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         AsyncExternalSourceBuffer buffer,
         DriverContext driverContext
     ) {
+        if (noFurtherCandidates()) {
+            buffer.finish(false);
+            driverContext.removeAsyncAction();
+            releaseOperator();
+            return;
+        }
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> pages = openWithParallelism(
-                formatReader,
-                storageObject,
-                projectedColumns,
-                errorPolicy,
-                false,
-                true,
-                null
-            );
+            FormatReader reader = readerWithDynamicThreshold(formatReader);
+            CloseableIterator<Page> pages = openWithParallelism(reader, storageObject, projectedColumns, errorPolicy, false, true, null);
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -1395,7 +1498,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .rowLimit(rowLimit)
                     .errorPolicy(errorPolicy)
                     .build();
-                pages = formatReader.read(storageObject, ctx);
+                pages = reader.read(storageObject, ctx);
             }
             // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
             // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
@@ -1485,15 +1588,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void releaseOperator() {
-        if (operatorRefCount.decrementAndGet() == 0 && onClose != null) {
-            if (deferredExtraction) {
-                // Don't close onClose here — the deferred extraction path keeps using the storage
-                // (and thus the per-query budget) after the last source operator finishes
-                // producing. Release the factory's ref instead; the budget closes once every
-                // SourceExtractors registry has also been closed.
-                releaseDeferredCloseRef();
-            } else {
-                closeQuietly(onClose);
+        if (operatorRefCount.decrementAndGet() == 0) {
+            closeDynamicThreshold();
+            if (onClose != null) {
+                if (deferredExtraction) {
+                    // Don't close onClose here — the deferred extraction path keeps using the storage
+                    // (and thus the per-query budget) after the last source operator finishes
+                    // producing. Release the factory's ref instead; the budget closes once every
+                    // SourceExtractors registry has also been closed.
+                    releaseDeferredCloseRef();
+                } else {
+                    closeQuietly(onClose);
+                }
             }
         }
     }

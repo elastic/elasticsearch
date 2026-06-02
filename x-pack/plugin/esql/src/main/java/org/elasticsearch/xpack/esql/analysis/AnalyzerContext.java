@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
@@ -29,6 +30,7 @@ import java.util.Set;
 public class AnalyzerContext {
     private final Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<IndexPattern, IndexResolution> optionalLinkedResolution;  // CPS-specific resolution for remote indexes matching local
@@ -45,6 +47,7 @@ public class AnalyzerContext {
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
@@ -58,6 +61,7 @@ public class AnalyzerContext {
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
@@ -78,6 +82,7 @@ public class AnalyzerContext {
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
@@ -88,6 +93,7 @@ public class AnalyzerContext {
         this(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             null,
             indexResolution,
             lookupResolution,
@@ -107,6 +113,10 @@ public class AnalyzerContext {
 
     public EsqlFunctionRegistry functionRegistry() {
         return functionRegistry;
+    }
+
+    public PromqlFunctionRegistry promqlFunctionRegistry() {
+        return promqlFunctionRegistry;
     }
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
@@ -187,6 +197,7 @@ public class AnalyzerContext {
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
@@ -195,6 +206,7 @@ public class AnalyzerContext {
         this(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),

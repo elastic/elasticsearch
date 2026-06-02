@@ -1,0 +1,6 @@
+area: Indices APIs
+issues:
+ - 149730
+pr: 149859
+summary: Rollover ignoring active shards can ignore reroute
+type: enhancement

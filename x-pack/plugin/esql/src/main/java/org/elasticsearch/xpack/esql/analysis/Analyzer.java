@@ -2402,22 +2402,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return esr;
             });
             if (res.equals(plan) == false) {
-                res = res.transformUp(Project.class, p -> {
-                    List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
-                    for (Attribute attr : p.inputSet()) {
-                        if (attr.synthetic() && p.outputSet().contains(attr) == false) {
-                            syntheticAttributesToCarryOver.add(attr);
-                        }
-                    }
-
-                    if (syntheticAttributesToCarryOver.isEmpty()) {
-                        return p;
-                    }
-
-                    List<NamedExpression> newProjections = new ArrayList<>(p.projections());
-                    newProjections.addAll(syntheticAttributesToCarryOver);
-                    return new Project(p.source(), p.child(), newProjections);
-                });
+                res = carryOverSyntheticAttributesThroughProjects(res);
             }
             return res;
         }
@@ -3034,6 +3019,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     : unionAll
             );
 
+            // Carry over the synthetic convert-function attributes added to UnionAll output through Project above it.
+            if (convertFunctionsToAttributes.isEmpty() == false) {
+                planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(planWithConvertFunctionsPushedDown);
+            }
+
             // Then replace the conversion functions with the corresponding attributes in the UnionAll output
             LogicalPlan planWithConvertFunctionsReplaced = replaceConvertFunctions(
                 planWithConvertFunctionsPushedDown,
@@ -3542,5 +3532,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             });
             return isEmpty.get();
         }
+    }
+
+    /**
+     * Carry over synthetic attributes that are present in a {@link Project}'s input set but missing from its
+     * projections, by appending them to the projection list. Used by the union-types resolution rules to
+     * propagate newly introduced synthetic {@code $$<field>$converted_to$<type>} attributes (from either
+     * multi-typed {@link EsRelation} fields or {@link UnionAll} branches) through intermediate
+     * {@link Project} nodes that were resolved before the synthetic existed (typically those produced by
+     * {@code RENAME}, {@code KEEP}, or {@code DROP}). Without this, downstream references inserted above
+     * the {@link Project} would have no binding and the optimizer's plan consistency check would later
+     * fail with missing references.
+     *
+     * <p>Used by both {@code ResolveUnionTypes} (for multi-typed EsRelation fields) and
+     * {@code ResolveUnionTypesInUnionAll} (for type conflicts across {@link UnionAll} branches).
+     */
+    private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan) {
+        return plan.transformUp(Project.class, p -> {
+            List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+            for (Attribute attr : p.inputSet()) {
+                if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                    syntheticAttributesToCarryOver.add(attr);
+                }
+            }
+            if (syntheticAttributesToCarryOver.isEmpty()) {
+                return p;
+            }
+            List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+            newProjections.addAll(syntheticAttributesToCarryOver);
+            return new Project(p.source(), p.child(), newProjections);
+        });
     }
 }

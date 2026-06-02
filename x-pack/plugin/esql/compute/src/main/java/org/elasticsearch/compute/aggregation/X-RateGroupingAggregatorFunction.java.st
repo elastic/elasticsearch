@@ -475,13 +475,13 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
+        flushRawBuffers();
         return this::evaluateIntermediate;
     }
 
     private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
-        var flushQueues = rawBuffer.prepareForFlush();
         try (
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
             var values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
@@ -490,7 +490,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
-                var state = flushAndCombineState(flushQueues, group);
+                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
                     state.writeIntervalsToBlocks(timestamps, values);
@@ -532,6 +532,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                 flushGroup(state, rawBuffer, flushQueue);
             }
         }
+        rawBuffer.clearBuffers();
     }
 
     static final class $Type$RawBuffer extends RawBuffer {
@@ -552,28 +553,26 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
 
         void prepareForAppend(int groupId, int count, long firstTimestamp) {
             prepareSlicesOnly(groupId, firstTimestamp);
-            int newSize = valueCount + count;
+            int newSize = timestamps.size() + count;
             timestamps.ensureCapacity(newSize);
             values.ensureCapacity(newSize);
         }
 
         void appendWithoutResize(long timestamp, $type$ value) {
-            timestamps.set(valueCount, timestamp);
-            values.set(valueCount, value);
-            valueCount++;
+            timestamps.append(timestamp);
+            values.append(value);
         }
 
         void maybeResizeAndAppend(long timestamp, $type$ value) {
-            timestamps.ensureCapacity(valueCount + 1);
-            values.ensureCapacity(valueCount + 1);
+            timestamps.ensureCapacity(timestamps.size() + 1);
+            values.ensureCapacity(values.size() + 1);
             appendWithoutResize(timestamp, value);
         }
 
         void appendRange(int fromPosition, int toPosition, $Type$Vector valueVector, LongVector timestampVector) {
             int count = toPosition - fromPosition;
-            timestamps.appendRange(valueCount, timestampVector, fromPosition, count);
-            values.appendRange(valueCount, valueVector, fromPosition, count);
-            valueCount += count;
+            timestamps.appendRange(timestampVector, fromPosition, count);
+            values.appendRange(valueVector, fromPosition, count);
         }
 
         void appendRange(int fromPosition, int toPosition, $Type$Block valueBlock, LongVector timestampVector) {
@@ -582,10 +581,15 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                     continue;
                 }
                 assert valueBlock.getValueCount(p) == 1 : "expected single-valued block " + valueBlock;
-                values.set(valueCount, valueBlock.get$Type$(p));
-                timestamps.set(valueCount, timestampVector.getLong(p));
-                valueCount++;
+                timestamps.append(timestampVector.getLong(p));
+                values.append(valueBlock.get$Type$(p));
             }
+        }
+
+        @Override
+        void clearBuffers() {
+            timestamps.clear();
+            values.clear();
         }
 
         @Override
@@ -671,26 +675,17 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
+        flushRawBuffers();
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
-        var flushQueues = rawBuffer.prepareForFlush();
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                var flushQueue = flushQueues.getFlushQueue(group);
-                if (flushQueue != null) {
-                    if (state == null) {
-                        state = new ReducedState();
-                        reducedStates = bigArrays.grow(reducedStates, group + 1);
-                        reducedStates.set(group, state);
-                    }
-                    flushGroup(state, rawBuffer, flushQueue);
-                }
                 if (state != null && state.samples > 1) {
                     state.combineIntervals();
                 }
@@ -721,18 +716,6 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
-    ReducedState flushAndCombineState(FlushQueues flushQueues, int groupId) {
-        ReducedState state = groupId < reducedStates.size() ? reducedStates.getAndSet(groupId, null) : null;
-        var flushQueue = flushQueues.getFlushQueue(groupId);
-        if (flushQueue != null) {
-            if (state == null) {
-                state = new ReducedState();
-            }
-            flushGroup(state, rawBuffer, flushQueue);
-        }
-        return state;
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -749,8 +732,6 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         private final LongBuffer timestamps;
         private final $Type$Buffer values;
 
-        private int count = 0;
-
         IntervalBuffer(CircuitBreaker cb) {
             LongBuffer timestamps = null;
             $Type$Buffer values = null;
@@ -766,6 +747,10 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             }
             this.timestamps = timestamps;
             this.values = values;
+        }
+
+        int count() {
+            return timestamps.size() / 2;
         }
 
         long lastTs(int intervalId) {
@@ -785,18 +770,14 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
 
         int appendInterval(long lastTs, $type$ lastValue, long firstTs, $type$ firstValue) {
-            int newSlots = 2 * (count + 1);
-            timestamps.ensureCapacity(newSlots);
-            values.ensureCapacity(newSlots);
-
-            int lo = 2 * count;
-            int hi = lo + 1;
-            timestamps.set(lo, lastTs);
-            values.set(lo, lastValue);
-            timestamps.set(hi, firstTs);
-            values.set(hi, firstValue);
-
-            return count++;
+            int id = count();
+            timestamps.ensureCapacity(timestamps.size() + 2);
+            values.ensureCapacity(values.size() + 2);
+            timestamps.append(lastTs);
+            values.append(lastValue);
+            timestamps.append(firstTs);
+            values.append(firstValue);
+            return id;
         }
 
         int appendIntervalsFromBlocks(LongBlock ts, $Type$Block vs, int position) {
@@ -806,20 +787,15 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
 
             assert valueCount % 2 == 0 : "expected even number of values for intervals, got " + valueCount + " in " + ts;
 
-            int newIntervalCount = valueCount / 2;
-            int newSlots = 2 * (count + newIntervalCount);
-            timestamps.ensureCapacity(newSlots);
-            values.ensureCapacity(newSlots);
+            timestamps.ensureCapacity(timestamps.size() + valueCount);
+            values.ensureCapacity(values.size() + valueCount);
 
-            int firstId = count;
+            int firstId = count();
             for (int i = 0; i < valueCount; i += 2) {
-                int lo = 2 * count;
-                int hi = lo + 1;
-                timestamps.set(lo, ts.getLong(tsFirst + i));
-                values.set(lo, vs.get$Type$(vsFirst + i));
-                timestamps.set(hi, ts.getLong(tsFirst + i + 1));
-                values.set(hi, vs.get$Type$(vsFirst + i + 1));
-                count++;
+                timestamps.append(ts.getLong(tsFirst + i));
+                values.append(vs.get$Type$(vsFirst + i));
+                timestamps.append(ts.getLong(tsFirst + i + 1));
+                values.append(vs.get$Type$(vsFirst + i + 1));
             }
             return firstId;
         }

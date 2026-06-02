@@ -57,9 +57,9 @@ dependencies {
 
   // Compression libraries — inherited at runtime via extendedPlugins from
   // esql-datasource-compression-libs; declared compileOnly so PlainCompressionCodecFactory
-  // can reference their classes at compile time.
+  // can reference their classes at compile time. zstd-jni was removed in Phase 2: the codec
+  // factory now routes zstd through PanamaZstd (Panama FFI binding) on both code paths.
   compileOnly "io.airlift:aircompressor:${versions.aircompressor}"
-  compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
   compileOnly "org.xerial.snappy:snappy-java:${versions.snappyJava}"
 
   testImplementation project(':test:framework')

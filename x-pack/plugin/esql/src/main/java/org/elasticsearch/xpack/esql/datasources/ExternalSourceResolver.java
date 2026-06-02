@@ -134,6 +134,10 @@ public class ExternalSourceResolver {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
+                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
+                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+                        listener.onFailure(e);
+                        return;
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();

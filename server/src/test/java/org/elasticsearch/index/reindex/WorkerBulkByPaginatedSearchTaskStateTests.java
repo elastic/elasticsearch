@@ -42,9 +42,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
+public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
     private BulkByPaginatedSearchTask task;
-    private WorkerBulkByScrollTaskState workerState;
+    private WorkerBulkByPaginatedSearchTaskState workerState;
 
     @Before
     public void createTask() {
@@ -278,7 +278,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         );
         final float initialRps = randomFloatBetween(0.1f, 1000f, true);
         slicedTask.setWorker(initialRps, sliceId);
-        final WorkerBulkByScrollTaskState slicedWorker = slicedTask.getWorkerState();
+        final WorkerBulkByPaginatedSearchTaskState slicedWorker = slicedTask.getWorkerState();
 
         final float newRps = randomFloatBetween(0.1f, 1000f, true);
         slicedWorker.rethrottleWithRelocationGuard(newRps);
@@ -344,7 +344,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             null
         );
         restoreTask.setWorker(requestRps, null);
-        final WorkerBulkByScrollTaskState state = restoreTask.getWorkerState();
+        final WorkerBulkByPaginatedSearchTaskState state = restoreTask.getWorkerState();
 
         final BulkByPaginatedSearchTask.Status statusWithDifferentRps = new BulkByPaginatedSearchTask.Status(
             null,

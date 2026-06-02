@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -534,11 +533,7 @@ public class PromqlCommand extends UnaryPlan
             if (DataType.isNull(seriesType)) {
                 return;
             }
-            var metadata = PromqlFunctionRegistry.INSTANCE.functionMetadata(functionCall.functionName());
-            if (metadata == null) {
-                return;
-            }
-            var counterSupport = metadata.counterSupport();
+            var counterSupport = functionCall.definition().counterSupport();
             if (DataType.isCounter(seriesType) && counterSupport == PromqlFunctionDefinition.CounterSupport.UNSUPPORTED) {
                 failures.add(
                     fail(

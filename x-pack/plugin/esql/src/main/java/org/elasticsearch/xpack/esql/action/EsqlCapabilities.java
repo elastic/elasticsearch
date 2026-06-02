@@ -1301,6 +1301,17 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Carry over synthetic convert-function attributes introduced by
+         * {@code ResolveUnionTypesInUnionAll} through intermediate {@code Project} nodes (e.g. those
+         * produced by {@code RENAME}, {@code KEEP}, or {@code DROP}) sitting above the {@code UnionAll}.
+         * Without this, the synthetic {@code $$<field>$converted_to$<type>} attribute referenced by the
+         * rewritten convert function would not be visible above the {@code Project}, producing a plan
+         * with missing references that fails the optimizer's plan consistency check.
+         * https://github.com/elastic/elasticsearch/issues/149509
+         */
+        SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
@@ -1393,6 +1404,12 @@ public class EsqlCapabilities {
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
          */
         SUGGESTED_CAST,
+
+        /**
+         * Support for {@code TO_COUNTER} function and the {@code ::counter} cast operator, which converts
+         * {@code long}, {@code integer}, and {@code double} values to their counter-typed equivalents.
+         */
+        TO_COUNTER,
 
         /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
@@ -2828,6 +2845,11 @@ public class EsqlCapabilities {
          * (e.g. by MV_EXPAND) into many rows reaching the STATS command.
          */
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
+
+        /**
+         * Fix for column pruning when FORK branches return no columns.
+         */
+        FORK_PROJECT_AWAY_COLUMNS_FIX,
 
         /**
          * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to

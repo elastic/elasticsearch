@@ -338,6 +338,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_boolean.md
                   - file: esql/functions-operators/type-conversion-functions/to_cartesianpoint.md
                   - file: esql/functions-operators/type-conversion-functions/to_cartesianshape.md
+                  - file: esql/functions-operators/type-conversion-functions/to_counter.md
                   - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
                   - file: esql/functions-operators/type-conversion-functions/to_datetime.md
                   - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md

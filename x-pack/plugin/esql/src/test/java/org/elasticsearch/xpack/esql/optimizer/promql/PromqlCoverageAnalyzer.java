@@ -52,6 +52,7 @@ import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 
 /**
@@ -76,6 +77,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
         new MutableAnalyzerContext(
             EsqlTestUtils.TEST_CFG,
             TEST_FUNCTION_REGISTRY,
+            TEST_PROMQL_FUNCTION_REGISTRY,
             Map.of(),
             AnalyzerTestUtils.defaultLookupResolution(),
             new EnrichResolution(),

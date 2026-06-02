@@ -2675,7 +2675,14 @@ public class ReindexerTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest) {
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                    new BytesArray("pit-id"),
+                    1,
+                    1,
+                    0,
+                    0,
+                    SearchResponse.Clusters.EMPTY
+                );
                 listener.onResponse((Response) response);
                 return;
             }
@@ -2768,7 +2775,14 @@ public class ReindexerTests extends ESTestCase {
             if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest pitRequest) {
                 openPitCount.incrementAndGet();
                 capturedPitRequest = pitRequest;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                    new BytesArray("pit-id"),
+                    1,
+                    1,
+                    0,
+                    0,
+                    SearchResponse.Clusters.EMPTY
+                );
                 listener.onResponse((Response) response);
                 return;
             }

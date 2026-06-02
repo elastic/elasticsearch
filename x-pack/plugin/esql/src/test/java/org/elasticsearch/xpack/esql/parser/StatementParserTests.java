@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -4498,6 +4499,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
+            }
+            if (EsqlCapabilities.Cap.TO_COUNTER.isEnabled()) {
+                // counter is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.COUNTER_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToCounter.class));
+                report.field(DataType.COUNTER_CAST_NAME, ToCounter.DEFINITION.name());
             }
             report.endObject();
             String rendered = Strings.toString(report);

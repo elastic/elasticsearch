@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfigur
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
@@ -180,6 +181,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
+                TEST_PROMQL_FUNCTION_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 import org.elasticsearch.tasks.Task;
@@ -29,11 +30,12 @@ public class TransportPutSynonymsAction extends HandledTransportAction<PutSynony
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         super(PutSynonymsAction.NAME, transportService, actionFilters, PutSynonymsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client, clusterService);
+        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client, clusterService, featureService);
     }
 
     @Override

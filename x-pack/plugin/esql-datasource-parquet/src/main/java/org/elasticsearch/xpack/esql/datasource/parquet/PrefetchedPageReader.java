@@ -166,6 +166,22 @@ final class PrefetchedPageReader implements PageReader {
             int rlBytes = (int) v2.getRepetitionLevels().size();
             int dlBytes = (int) v2.getDefinitionLevels().size();
             int uncompressedDataSize = v2.getUncompressedSize() - rlBytes - dlBytes;
+            if (uncompressedDataSize == 0) {
+                // Spark's Parquet writer stores all-null V2 pages with an empty data buffer
+                // rather than a compressed representation of zero bytes. Decompression libraries
+                // (Snappy, Zstd, ...) reject empty input, so skip decompression entirely.
+                return DataPageV2.uncompressed(
+                    v2.getRowCount(),
+                    v2.getNullCount(),
+                    v2.getValueCount(),
+                    firstRowIndex,
+                    v2.getRepetitionLevels(),
+                    v2.getDefinitionLevels(),
+                    v2.getDataEncoding(),
+                    BytesInput.empty(),
+                    v2.getStatistics()
+                );
+            }
             BytesInput decompressedData = decompressToDirectBuffer(v2.getData(), uncompressedDataSize);
             return DataPageV2.uncompressed(
                 v2.getRowCount(),

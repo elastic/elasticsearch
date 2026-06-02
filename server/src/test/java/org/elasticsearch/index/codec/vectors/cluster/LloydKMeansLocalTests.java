@@ -208,6 +208,7 @@ public class LloydKMeansLocalTests extends ESTestCase {
             double recall = (double) matched / neighborHoodsGraph[i].neighbors().length;
             assertThat(recall, greaterThanOrEqualTo(0.5));
             if (recall == 1.0) {
+                // we cannot assert on array equality as there can be small differences due to numerical errors
                 assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-4f);
             }
         }
@@ -257,8 +258,10 @@ public class LloydKMeansLocalTests extends ESTestCase {
         }
         int clustersPerNeighbour = randomIntBetween(32, 64);
 
+        // sequential version
         NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
 
+        // multiple concurrent executions for consistency
         for (int iter = 0; iter < 50; iter++) {
             int numThreads = randomIntBetween(2, 8);
             try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
@@ -293,11 +296,13 @@ public class LloydKMeansLocalTests extends ESTestCase {
     private static KMeansFloatVectorValues generateFloatData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
+        // Generate random centroids
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < nDims; j++) {
                 centroids[i][j] = random().nextFloat() * 100;
             }
         }
+        // Generate data points around centroids
         for (int i = 0; i < nSamples; i++) {
             int cluster = random().nextInt(nClusters);
             float[] vector = new float[nDims];
@@ -312,11 +317,13 @@ public class LloydKMeansLocalTests extends ESTestCase {
     private static KMeansByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
         List<byte[]> vectors = new ArrayList<>(nSamples);
         byte[][] centroids = new byte[nClusters][nDims];
+        // Generate random centroids
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < nDims; j++) {
                 centroids[i][j] = (byte) randomIntBetween(-128, 127);
             }
         }
+        // Generate data points around centroids
         for (int i = 0; i < nSamples; i++) {
             int cluster = random().nextInt(nClusters);
             byte[] vector = new byte[nDims];

@@ -298,6 +298,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
         if (centroids.length > 1 && centroids.length < nVectors) {
             assertEquals(nVectors, soarAssignments.length);
+            // verify no duplicates exist
             for (int i = 0; i < assignments.length; i++) {
                 int soarAssignment = soarAssignments[i];
                 assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroids.length));
@@ -331,11 +332,13 @@ public class HierarchicalKMeansTests extends ESTestCase {
     private static KMeansFloatVectorValues generateFloatData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
+        // Generate random centroids
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < nDims; j++) {
                 centroids[i][j] = random().nextFloat() * 100;
             }
         }
+        // Generate data points around centroids
         for (int i = 0; i < nSamples; i++) {
             int cluster = random().nextInt(nClusters);
             float[] vector = new float[nDims];
@@ -350,11 +353,13 @@ public class HierarchicalKMeansTests extends ESTestCase {
     private static KMeansByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
         List<byte[]> vectors = new ArrayList<>(nSamples);
         byte[][] centroids = new byte[nClusters][nDims];
+        // Generate random centroids
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < nDims; j++) {
                 centroids[i][j] = (byte) randomIntBetween(-128, 127);
             }
         }
+        // Generate data points around centroids
         for (int i = 0; i < nSamples; i++) {
             int cluster = random().nextInt(nClusters);
             byte[] vector = new byte[nDims];

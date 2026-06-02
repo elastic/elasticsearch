@@ -1,7 +1,7 @@
 import { stringify } from "yaml";
 import { execSync } from "child_process";
 
-import { generatePipelines } from "./pipeline";
+import { generatePipelines } from "./pipeline.ts";
 
 const pipelines = generatePipelines();
 

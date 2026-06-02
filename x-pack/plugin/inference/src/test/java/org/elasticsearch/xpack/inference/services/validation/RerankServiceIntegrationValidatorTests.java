@@ -71,14 +71,13 @@ public class RerankServiceIntegrationValidatorTests extends ESTestCase {
         verifyCallToService();
     }
 
-    public void testValidate_SuccessfulCallToServiceForReRankTaskType() {
+    public void testValidate_SuccessfulCallToService() {
         mockSuccessfulCallToService(mockInferenceServiceResults);
         verify(mockActionListener).onResponse(mockInferenceServiceResults);
         verifyCallToService();
     }
 
     private void mockSuccessfulCallToService(InferenceServiceResults result) {
-        when(mockInferenceService.supportsNewRerankCodePath()).thenReturn(true);
         doAnswer(ans -> {
             ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(result);

@@ -57,10 +57,16 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         long outageStartEpochMs = System.currentTimeMillis();
         recordingApmServer.setResponseCode(503);
 
-        client().performRequest(new Request("GET", "/_use_apm_metrics"));
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        Thread.sleep(3000);
+        // Produce BUFFER_BATCHES files to verify the drain loop iterates beyond the first.
+        // One file per iteration is all we can get: deltaPreferred() resets the SDK delta after
+        // each successful disk write, so subsequent flushes without new metric values produce nothing.
+        // The sleep ensures each file has aged past disk_buffer_read_min_age before the drain.
+        final int BUFFER_BATCHES = 3;
+        for (int i = 0; i < BUFFER_BATCHES; i++) {
+            client().performRequest(new Request("GET", "/_use_apm_metrics"));
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            Thread.sleep(300);
+        }
 
         long outageStartEpochNanos = outageStartEpochMs * 1_000_000L;
         long outageEndEpochNanos = System.currentTimeMillis() * 1_000_000L;

@@ -277,6 +277,33 @@ public class RetryableStorageObjectTests extends ESTestCase {
     }
 
     /**
+     * Stacked mid-read faults at the unit layer: several drops in one read, each after delivering a chunk of
+     * progress. The per-episode budget (maxRetries=3) resets on every byte of progress, so even 5 drops — well
+     * over the budget — all recover byte-exact. If this passes while the E2E 3-fault case fails, the E2E failure
+     * is in the S3/fixture/SDK-pin interaction, not the resume core.
+     */
+    public void testManyProgressingMidReadFaultsAllRecover() throws IOException {
+        RetryPolicy policy = new RetryPolicy(3, 1, 10);
+        byte[] payload = new byte[1000];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+        ChunkedFaultingStorageObject delegate = new ChunkedFaultingStorageObject(
+            StoragePath.of("s3://bucket/k"),
+            payload,
+            150,
+            5,
+            new SocketException("Connection reset")
+        );
+        RetryableStorageObject obj = new RetryableStorageObject(delegate, policy);
+        byte[] read;
+        try (InputStream in = obj.newStream(0, payload.length)) {
+            read = in.readAllBytes();
+        }
+        assertArrayEquals("byte-exact across 5 progressing mid-read faults", payload, read);
+    }
+
+    /**
      * A non-transient error mid-read (e.g. a permission error surfacing on the stream) must propagate
      * unchanged — no re-open, no retry.
      */
@@ -388,6 +415,73 @@ public class RetryableStorageObjectTests extends ESTestCase {
             boolean fail = alwaysFail || opens == 0;
             opens++;
             return fail ? new FailingAfterNStream(slice, failAfterBytes, midReadFailure) : new ByteArrayInputStream(slice);
+        }
+
+        @Override
+        public InputStream newStream() {
+            return newStream(0, payload.length);
+        }
+
+        @Override
+        public long length() {
+            return payload.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return null;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
+
+        @Override
+        public int readBytes(long position, ByteBuffer target) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StorageObjectMetrics metrics() {
+            return new StorageObjectMetrics(opens, 0, 0, 0);
+        }
+    }
+
+    /**
+     * Delivers {@code chunkBytes} of progress then drops, for the first {@code faults} opens; the next open
+     * succeeds with the remaining slice. Models several stacked mid-read resets that each make progress.
+     */
+    private static final class ChunkedFaultingStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final byte[] payload;
+        private final int chunkBytes;
+        private final int faults;
+        private final IOException failure;
+        private int opens = 0;
+
+        ChunkedFaultingStorageObject(StoragePath path, byte[] payload, int chunkBytes, int faults, IOException failure) {
+            this.path = path;
+            this.payload = payload;
+            this.chunkBytes = chunkBytes;
+            this.faults = faults;
+            this.failure = failure;
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int pos = Math.toIntExact(position);
+            int remaining = payload.length - pos;
+            int len = length == READ_TO_END ? remaining : Math.toIntExact(Math.min(length, remaining));
+            byte[] slice = Arrays.copyOfRange(payload, pos, pos + len);
+            boolean fail = opens < faults;
+            opens++;
+            return fail ? new FailingAfterNStream(slice, chunkBytes, failure) : new ByteArrayInputStream(slice);
         }
 
         @Override

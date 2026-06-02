@@ -1045,8 +1045,8 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var returnDocuments = randomOptionalBoolean();
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 topN,
                 returnDocuments,
                 new HashMap<>()
@@ -1203,7 +1203,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 GoogleVertexAiEmbeddingsModelTests.createModel(randomAlphaOfLength(10), randomBoolean(), randomSimilarityMeasure()),
-                null,
                 List.of(),
                 new HashMap<>(),
                 InputType.INTERNAL_INGEST,

@@ -490,7 +490,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 this,
                 indexCreatedVersion,
                 IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD,
-                indexSettings.getMode().isColumnar(),
+                indexSettings.getMode().isStrictColumnar(),
                 docValuesParameters().multiValue()
             );
             return new KeywordFieldMapper(
@@ -619,7 +619,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexVersion = builder.indexSettings.getIndexVersionCreated();
             this.readInArrayOrder = builder.offsetsFieldName != null
                 && builder.docValuesParameters().multiValue()
-                && builder.indexSettings.getMode().isColumnar();
+                && builder.indexSettings.getMode().isStrictColumnar();
         }
 
         public KeywordFieldType(String name) {
@@ -1422,19 +1422,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (shouldRecordOffset(context)) {
+        if (FieldArrayContext.shouldRecordOffsets(context, offsetsFieldName, docValuesParameters.multiValue())) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value.bytes());
             } else if (value == null) {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }
         }
-    }
-
-    private boolean shouldRecordOffset(DocumentParserContext context) {
-        return offsetsFieldName != null && context.isImmediateParentAnArray()
-        // canAddIgnoreField is for source_keep_mode
-            && (context.canAddIgnoredField() || (docValuesParameters.multiValue() && indexSettings.getMode().isColumnar()));
     }
 
     @Override

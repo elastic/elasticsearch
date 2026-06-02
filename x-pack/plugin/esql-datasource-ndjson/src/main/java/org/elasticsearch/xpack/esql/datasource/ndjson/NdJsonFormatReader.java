@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -43,6 +44,9 @@ import java.util.Set;
 public class NdJsonFormatReader implements SegmentableFormatReader {
 
     private static final Logger logger = LogManager.getLogger(NdJsonFormatReader.class);
+    private static final NdJsonRecordSplitter DEFAULT_RECORD_SPLITTER = new NdJsonRecordSplitter(
+        SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+    );
 
     public static final String SCHEMA_SAMPLE_SIZE_SETTING = "esql.datasource.ndjson.schema_sample_size";
     public static final int DEFAULT_SCHEMA_SAMPLE_SIZE = 20_000;
@@ -68,7 +72,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     /** Below 64 KiB, per-chunk overhead dominates parse cost; reject silly configurations early. */
     static final ByteSizeValue MIN_SEGMENT_SIZE = ByteSizeValue.ofKb(64);
 
-    /** Buffer size used to accelerate {@link #scanForTerminator} on cold (unbuffered) streams. */
+    /** Buffer size used to accelerate schema-inference line skipping on cold (unbuffered) streams. */
     private static final int SCAN_BUFFER_SIZE = 8 * 1024;
 
     static final String CONFIG_SCHEMA_SAMPLE_SIZE = "schema_sample_size";
@@ -82,6 +86,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
     private final long segmentSizeBytes;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
+    private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
         this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings));
@@ -164,7 +171,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         PushbackInputStream stream = new PushbackInputStream(new BufferedInputStream(raw, SCAN_BUFFER_SIZE), 1);
         if (skipFirstLine) {
             try {
-                LineScan scan = scanForTerminator(stream);
+                NdJsonRecordSplitter splitter = defaultRecordSplitter();
+                NdJsonRecordSplitter.LineScan scan = splitter.scanForTerminator(stream);
+                if (scan.consumed() == RecordSplitter.RECORD_TOO_LARGE) {
+                    throw splitter.recordTooLargeException();
+                }
                 if (scan.peekedByte() != -1) {
                     stream.unread(scan.peekedByte());
                 }
@@ -349,72 +360,33 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             skipFirstLine,
             trimLastPartialLine,
             effectiveSchema,
-            errorPolicy
+            errorPolicy,
+            counters,
+            context.maxRecordBytes()
         );
     }
 
-    @Override
-    public long findNextRecordBoundary(InputStream stream) throws IOException {
-        // The caller only cares about the byte offset of the terminator; a lone CR followed by
-        // some non-LF byte may have been consumed from the stream by the scanner, but the
-        // caller discards the stream after this call so that is acceptable.
-        // Wrap cold streams to restore the 8 KB fast path; if already buffered, pass through.
-        InputStream buffered = stream instanceof BufferedInputStream ? stream : new BufferedInputStream(stream, SCAN_BUFFER_SIZE);
-        return scanForTerminator(buffered).consumed();
-    }
-
     /**
-     * NDJSON records never contain embedded newlines, so a backward scan for a line terminator
-     * is always correct and O(1) from the end of the buffer — no per-record allocations needed.
-     * Matches the LF / CRLF / lone-CR contract of {@link #scanForTerminator}.
+     * Returns an immutable typed snapshot of the NDJSON reader's counters for the operator-status
+     * envelope. Zeroed counters when no decoders have run.
      */
     @Override
-    public int findLastRecordBoundary(byte[] buf, int length) {
-        for (int i = length - 1; i >= 0; i--) {
-            byte b = buf[i];
-            if (b == '\n' || b == '\r') {
-                return i;
-            }
-        }
-        return -1;
+    public NdJsonReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
-    /** Outcome of a single scan for the next record terminator. */
-    record LineScan(long consumed, int peekedByte) {
-        /** Sentinel returned when the stream ended before any terminator. */
-        static final LineScan EOF = new LineScan(-1, -1);
+    @Override
+    public RecordSplitter recordSplitter() {
+        return defaultRecordSplitter();
     }
 
-    /**
-     * Reads one byte at a time from {@code in} until a record terminator (LF, CRLF, or lone CR)
-     * is consumed. Returns {@link LineScan#consumed} as the number of bytes read through-and-
-     * including the terminator; for the lone-CR case the byte that follows (which is the first
-     * byte of the next record) is read from the stream and exposed via {@link LineScan#peekedByte}
-     * so callers can preserve it. Returns {@link LineScan#EOF} if the stream ends before any
-     * terminator is seen.
-     *
-     * <p>Single source of truth for the three NDJSON line-terminator consumers:
-     * {@link NdJsonPageIterator#skipToNextLine}, {@link #findNextRecordBoundary}, and
-     * {@link #openForSchemaInference}.
-     */
-    static LineScan scanForTerminator(InputStream in) throws IOException {
-        long consumed = 0;
-        int b;
-        while ((b = in.read()) != -1) {
-            consumed++;
-            if (b == '\n') {
-                return new LineScan(consumed, -1);
-            }
-            if (b == '\r') {
-                int next = in.read();
-                if (next == '\n') {
-                    return new LineScan(consumed + 1, -1);
-                }
-                // EOF after CR is reported as a clean terminator with no peeked byte.
-                return new LineScan(consumed, next);
-            }
-        }
-        return LineScan.EOF;
+    @Override
+    public RecordSplitter recordSplitter(int maxRecordBytes) {
+        return new NdJsonRecordSplitter(maxRecordBytes);
+    }
+
+    private static NdJsonRecordSplitter defaultRecordSplitter() {
+        return DEFAULT_RECORD_SPLITTER;
     }
 
     /**

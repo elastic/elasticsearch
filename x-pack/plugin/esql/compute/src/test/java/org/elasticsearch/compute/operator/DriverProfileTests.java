@@ -60,6 +60,9 @@ public class DriverProfileTests extends AbstractWireSerializingTestCase<DriverPr
               "cpu_time" : "10micros",
               "documents_found" : 222,
               "values_loaded" : 1000,
+              "rows_emitted" : 444,
+              "bytes_read" : 0,
+              "read_nanos" : 0,
               "iterations" : 12,
               "operators" : [
                 {

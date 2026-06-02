@@ -130,6 +130,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.TokenCountingMetrics;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -894,7 +895,8 @@ class NodeConstruction {
             telemetryProvider.getMeterRegistry(),
             threadPool::relativeTimeInMillis
         );
-        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+        TokenCountingMetrics tokenCountingMetrics = new TokenCountingMetrics(telemetryProvider.getMeterRegistry());
+        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics, tokenCountingMetrics);
 
         MergeMetrics mergeMetrics = new MergeMetrics(telemetryProvider.getMeterRegistry());
 

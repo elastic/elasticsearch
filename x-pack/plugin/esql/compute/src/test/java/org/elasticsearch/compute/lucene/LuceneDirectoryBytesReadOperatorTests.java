@@ -54,7 +54,6 @@ import java.util.function.LongSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class LuceneDirectoryBytesReadOperatorTests extends ComputeTestCase {
 

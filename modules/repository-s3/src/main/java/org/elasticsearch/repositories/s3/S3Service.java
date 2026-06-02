@@ -15,12 +15,9 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
@@ -109,13 +106,6 @@ class S3Service extends AbstractLifecycleComponent {
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
 
     private final S3DefaultRegionHolder defaultRegionHolder;
-
-    /**
-     * Use a signer that does not require to pre-read (and checksum) the body of PutObject and UploadPart requests since we can rely on
-     * TLS for equivalent protection.
-     */
-    @SuppressWarnings("deprecation")
-    private static final Signer signer = AwsS3V4Signer.create();
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
@@ -375,7 +365,6 @@ class S3Service extends AbstractLifecycleComponent {
 
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
-        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, signer);
         var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
             .toBuilder()
             .maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);

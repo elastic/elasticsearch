@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
+import org.elasticsearch.ingest.geoip.EnterpriseGeoIpTaskState;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.injection.guice.Inject;
@@ -175,19 +176,33 @@ public class TransportGetDatabaseConfigurationAction extends TransportNodesActio
     private static Collection<DatabaseConfigurationMetadata> getMaxmindDatabases(ClusterService clusterService, String id) {
         List<DatabaseConfigurationMetadata> maxmindDatabases = new ArrayList<>();
         final IngestGeoIpMetadata geoIpMeta = clusterService.state().metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        EnterpriseGeoIpTaskState enterpriseTaskState = EnterpriseGeoIpTaskState.getEnterpriseGeoIpTaskState(clusterService.state());
         if (Regex.isSimpleMatchPattern(id)) {
             for (Map.Entry<String, DatabaseConfigurationMetadata> entry : geoIpMeta.getDatabases().entrySet()) {
                 if (Regex.simpleMatch(id, entry.getKey())) {
-                    maxmindDatabases.add(entry.getValue());
+                    maxmindDatabases.add(withLastUpdate(entry.getValue(), enterpriseTaskState));
                 }
             }
         } else {
             DatabaseConfigurationMetadata meta = geoIpMeta.getDatabases().get(id);
             if (meta != null) {
-                maxmindDatabases.add(meta);
+                maxmindDatabases.add(withLastUpdate(meta, enterpriseTaskState));
             }
         }
         return maxmindDatabases;
+    }
+
+    // non-private for unit testing
+    static DatabaseConfigurationMetadata withLastUpdate(DatabaseConfigurationMetadata meta, EnterpriseGeoIpTaskState enterpriseTaskState) {
+        if (enterpriseTaskState == null) {
+            return meta;
+        }
+        String databaseFileName = meta.database().name() + ".mmdb";
+        GeoIpTaskState.Metadata taskMetadata = enterpriseTaskState.getDatabases().get(databaseFileName);
+        if (taskMetadata == null) {
+            return meta;
+        }
+        return new DatabaseConfigurationMetadata(meta.database(), meta.version(), taskMetadata.lastUpdate());
     }
 
     @Override

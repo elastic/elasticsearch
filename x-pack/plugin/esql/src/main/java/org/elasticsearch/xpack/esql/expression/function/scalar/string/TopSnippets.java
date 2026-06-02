@@ -39,7 +39,7 @@ import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.esql.capabilities.AnalyzerNameAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -81,7 +81,11 @@ import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class TopSnippets extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnalyzerNameAware {
+public class TopSnippets extends EsqlScalarFunction
+    implements
+        OptionalArgument,
+        PostAnalysisVerificationAware,
+        PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -101,6 +105,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final int MAX_PASSAGES_PER_CHUNK = 1;
 
     private final Expression field, query, options;
+    private TopSnippetsOptions topSnippetsOptions;
 
     private static final String NUM_SNIPPETS = "num_snippets";
     private static final String NUM_WORDS = "num_words";
@@ -279,7 +284,18 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
      */
     private TypeResolution resolveParams() {
         return isString(field(), sourceText(), FIRST).and(() -> resolveQuery())
-            .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS, TopSnippets::validateOptions));
+            .and(() -> resolveTopSnippetsOptions());
+    }
+
+    private TypeResolution resolveTopSnippetsOptions() {
+        if (options == null) {
+            topSnippetsOptions = TopSnippetsOptions.DEFAULT;
+            return TypeResolution.TYPE_RESOLVED;
+        }
+        return resolve(options(), source(), THIRD, ALLOWED_OPTIONS, opts -> {
+            validateOptions(opts);
+            topSnippetsOptions = topSnippetsOptions(opts);
+        });
     }
 
     /**
@@ -303,14 +319,20 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     }
 
     @Override
-    public void validateAnalyzers(AnalysisRegistry registry, Failures failures) {
-        String name = analyzerName();
+    public void postAnalysisVerification(Failures failures) {
+        // Per-expression analysis-time checks are handled by the AnalysisRegistry overload below;
+        // the constant-query check lives in postOptimizationVerification, which runs after folding.
+    }
+
+    @Override
+    public void postAnalysisVerification(AnalysisRegistry analysisRegistry, Failures failures) {
+        String name = topSnippetsOptions().analyzerName();
         if (name == null) {
             return;
         }
         Analyzer resolved;
         try {
-            resolved = registry.getAnalyzer(name);
+            resolved = analysisRegistry.getAnalyzer(name);
         } catch (IOException e) {
             failures.add(fail(this, "failed to load analyzer [{}]: {}", name, e.getMessage()));
             return;
@@ -320,13 +342,57 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         }
     }
 
-    private String analyzerName() {
+    private record TopSnippetsOptions(
+        int numSnippets,
+        int numWords,
+        boolean docOrder,
+        boolean highlight,
+        String preTag,
+        String postTag,
+        String encoder,
+        String analyzerName
+    ) {
+        private static final TopSnippetsOptions DEFAULT = new TopSnippetsOptions(
+            DEFAULT_NUM_SNIPPETS,
+            DEFAULT_WORD_SIZE,
+            false,
+            false,
+            DEFAULT_PRE_TAG,
+            DEFAULT_POST_TAG,
+            DEFAULT_ENCODER,
+            null
+        );
+    }
+
+    private TopSnippetsOptions topSnippetsOptions() {
+        if (topSnippetsOptions == null) {
+            topSnippetsOptions = parseTopSnippetsOptions();
+        }
+        return topSnippetsOptions;
+    }
+
+    private TopSnippetsOptions parseTopSnippetsOptions() {
         if (options == null) {
-            return null;
+            return TopSnippetsOptions.DEFAULT;
         }
         Map<String, Object> opts = new HashMap<>();
         Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
-        return (String) opts.get(ANALYZER);
+        validateOptions(opts);
+        return topSnippetsOptions(opts);
+    }
+
+    private static TopSnippetsOptions topSnippetsOptions(Map<String, Object> options) {
+        boolean highlight = Boolean.TRUE.equals(options.get(HIGHLIGHT));
+        return new TopSnippetsOptions(
+            extractIntegerOption(options, NUM_SNIPPETS, DEFAULT_NUM_SNIPPETS),
+            extractIntegerOption(options, NUM_WORDS, DEFAULT_WORD_SIZE),
+            DOC_ORDER.equals(options.get(ORDER)),
+            highlight,
+            (String) options.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG),
+            (String) options.getOrDefault(POST_TAG, DEFAULT_POST_TAG),
+            (String) options.getOrDefault(ENCODER, DEFAULT_ENCODER),
+            (String) options.get(ANALYZER)
+        );
     }
 
     private static void validateOptions(Map<String, Object> options) {
@@ -409,9 +475,15 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         // Folding builds a synthetic ToEvaluator with no AnalysisRegistry, so we can only fold
         // when 'analyzer' isn't requested. All option entries must be foldable so toEvaluator
         // can read them at fold time.
-        return options() instanceof MapExpression map
-            && map.containsKey(ANALYZER) == false
-            && map.children().stream().allMatch(Expression::foldable);
+        if (options() instanceof MapExpression map && map.children().stream().allMatch(Expression::foldable)) {
+            try {
+                return topSnippetsOptions().analyzerName() == null;
+            } catch (InvalidArgumentException e) {
+                // This should never happen
+                return false;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -441,15 +513,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         return options;
     }
 
-    private int numSnippets(Map<String, Object> options) {
-        return extractIntegerOption(options, NUM_SNIPPETS, DEFAULT_NUM_SNIPPETS);
-    }
-
-    private int numWords(Map<String, Object> options) {
-        return extractIntegerOption(options, NUM_WORDS, DEFAULT_WORD_SIZE);
-    }
-
-    private int extractIntegerOption(Map<String, Object> options, String option, int defaultValue) {
+    private static int extractIntegerOption(Map<String, Object> options, String option, int defaultValue) {
         Object value = options.get(option);
         return value != null ? ((Number) value).intValue() : defaultValue;
     }
@@ -566,33 +630,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        int numSnippets;
-        int numWords;
-        boolean docOrder;
+        TopSnippetsOptions options = topSnippetsOptions();
         PassageFormatter highlightFormatter = null;
-        String analyzerName = null;
-        if (options != null) {
-            Map<String, Object> opts = new HashMap<>();
-            Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
-            numSnippets = numSnippets(opts);
-            numWords = numWords(opts);
-            docOrder = DOC_ORDER.equals(opts.get(ORDER));
-            analyzerName = (String) opts.get(ANALYZER);
-            if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
-                String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
-                String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
-                String encoderType = (String) opts.getOrDefault(ENCODER, DEFAULT_ENCODER);
-                Encoder encoder = HTML_ENCODER.equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
-                highlightFormatter = new CustomPassageFormatter(preTag, postTag, encoder, 0);
-            }
-        } else {
-            numSnippets = DEFAULT_NUM_SNIPPETS;
-            numWords = DEFAULT_WORD_SIZE;
-            docOrder = false;
+        if (options.highlight()) {
+            Encoder encoder = HTML_ENCODER.equals(options.encoder()) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+            highlightFormatter = new CustomPassageFormatter(options.preTag(), options.postTag(), encoder, 0);
         }
 
-        ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
+        ChunkingSettings chunkingSettings = options.numWords() > 0 ? new SentenceBoundaryChunkingSettings(options.numWords(), 0) : null;
 
+        String analyzerName = options.analyzerName();
         Analyzer resolvedAnalyzer = analyzerName == null ? new StandardAnalyzer() : toEvaluator.getAnalyzer(analyzerName);
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
@@ -606,8 +653,8 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             queryString,
             chunkingSettings,
             scorer,
-            numSnippets,
-            docOrder,
+            options.numSnippets(),
+            options.docOrder(),
             highlightFormatter
         );
     }

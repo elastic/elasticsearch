@@ -13,7 +13,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.LicenseAware;
-import org.elasticsearch.xpack.esql.capabilities.AnalyzerNameAware;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -167,10 +166,7 @@ public class Verifier {
             planCheckers.forEach(c -> c.accept(p, failures));
             p.forEachExpression(e -> {
                 if (e instanceof PostAnalysisVerificationAware va) {
-                    va.postAnalysisVerification(failures);
-                }
-                if (e instanceof AnalyzerNameAware aware) {
-                    aware.validateAnalyzers(context.analysisRegistry(), failures);
+                    va.postAnalysisVerification(context.analysisRegistry(), failures);
                 }
             });
 

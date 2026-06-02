@@ -417,13 +417,13 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     public void testValidateAnalyzersKnownAnalyzerPasses() {
         Failures failures = new Failures();
-        topSnippetsWithAnalyzer("standard").validateAnalyzers(analysisRegistry, failures);
+        topSnippetsWithAnalyzer("standard").postAnalysisVerification(analysisRegistry, failures);
         assertThat(failures.failures(), empty());
     }
 
     public void testValidateAnalyzersUnknownAnalyzerFails() {
         Failures failures = new Failures();
-        topSnippetsWithAnalyzer("no_such_analyzer").validateAnalyzers(analysisRegistry, failures);
+        topSnippetsWithAnalyzer("no_such_analyzer").postAnalysisVerification(analysisRegistry, failures);
         assertThat(failures.failures(), hasSize(1));
         assertThat(
             failures.failures().iterator().next().message(),
@@ -433,7 +433,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
     public void testValidateAnalyzersMissingAnalyzerOptionPasses() {
         Failures failures = new Failures();
-        topSnippetsWithAnalyzer(null).validateAnalyzers(analysisRegistry, failures);
+        topSnippetsWithAnalyzer(null).postAnalysisVerification(analysisRegistry, failures);
         assertThat(failures.failures(), empty());
     }
 
@@ -445,7 +445,7 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             null
         );
         Failures failures = new Failures();
-        ts.validateAnalyzers(analysisRegistry, failures);
+        ts.postAnalysisVerification(analysisRegistry, failures);
         assertThat(failures.failures(), empty());
     }
 

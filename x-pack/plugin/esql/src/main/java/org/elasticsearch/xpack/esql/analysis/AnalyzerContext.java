@@ -126,8 +126,7 @@ public class AnalyzerContext {
     }
 
     /**
-     * Node-level analyzer registry to resolve analyzer names referenced by
-     * {@code AnalyzerNameAware} expressions
+     * Node-level analyzer registry.
      */
     public AnalysisRegistry analysisRegistry() {
         return analysisRegistry;

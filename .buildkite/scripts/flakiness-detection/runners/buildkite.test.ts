@@ -1,12 +1,15 @@
-import { describe, expect, test } from "bun:test";
-import { toBuildkitePipeline } from "./buildkite";
-import { buildCommands } from "../commands";
-import {
+import { describe, expect, test } from "vitest";
+import { toBuildkitePipeline } from "./buildkite.ts";
+import { buildCommands } from "../commands.ts";
+import type {
   ClassifiedTest,
+  RunnableCommand,
+} from "../domain.ts";
+
+import {
   DEFAULT_AGENT_CONFIG,
   DEFAULT_BATCHING_CONFIG,
-  RunnableCommand,
-} from "../domain";
+} from "../domain.ts";
 
 function pipelineFromTests(tests: ClassifiedTest[]) {
   return toBuildkitePipeline(
@@ -203,11 +206,10 @@ describe("toBuildkitePipeline", () => {
     // No agents override — analyze inherits the parent pipeline's default
     // (which has npm). The gradle-tuned cfg.agents image does not.
     expect(analyze.agents).toBeUndefined();
-    expect(analyze.command).toContain("npm install -g bun@");
     expect(analyze.command).toContain(
       'buildkite-agent artifact download "**/build/test-results/**/TEST-*.xml" .'
     );
-    expect(analyze.command).toContain("bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
+    expect(analyze.command).toContain("node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts");
     // Order: bun install → download → analyzer.
     const installIdx = analyze.command.indexOf("npm install");
     const downloadIdx = analyze.command.indexOf("artifact download");

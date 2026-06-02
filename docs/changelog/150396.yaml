@@ -1,4 +1,4 @@
-area: "Snapshot/Restore, Distributed"
+area: "Snapshot/Restore"
 issues: []
 pr: 150396
 summary: Add azure snapshot repository access tier settings

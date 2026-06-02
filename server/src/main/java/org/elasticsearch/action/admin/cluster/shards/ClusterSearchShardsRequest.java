@@ -147,11 +147,15 @@ public final class ClusterSearchShardsRequest extends MasterNodeReadRequest<Clus
 
     public ClusterSearchShardsRequest searchSlice(@Nullable String searchSlice) {
         this.searchSlice = searchSlice;
-        return this;
-    }
-
-    public ClusterSearchShardsRequest setRoutingFromSlice(boolean routingFromSlice) {
-        this.routingFromSlice = routingFromSlice;
+        if (searchSlice == null) {
+            if (routingFromSlice) {
+                this.routing = null;
+            }
+            this.routingFromSlice = false;
+        } else {
+            this.routingFromSlice = true;
+            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
+        }
         return this;
     }
 

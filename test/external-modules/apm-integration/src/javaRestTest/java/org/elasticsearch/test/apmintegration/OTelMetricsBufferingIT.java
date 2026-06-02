@@ -1,0 +1,121 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.test.apmintegration;
+
+import org.elasticsearch.client.Request;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+/**
+ * End-to-end coverage for {@code BufferingMetricExporter}: persists batches when OTLP is
+ * unreachable and replays them after recovery, preserving original collection timestamps.
+ */
+public class OTelMetricsBufferingIT extends AbstractMetricsIT {
+
+    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
+
+    public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
+        .systemProperty("telemetry.otel.metrics.enabled", "true")
+        .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
+        .setting("telemetry.otel.metrics.interval", "500ms")
+        .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
+        .setting("telemetry.otel.metrics.buffer_ttl", "5m")
+        // Tight write/read windows so buffered files become drainable within the test budget.
+        .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
+        .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
+        .build();
+
+    @ClassRule
+    public static TestRule ruleChain = AbstractMetricsIT.buildRuleChain(recordingApmServer, cluster);
+
+    @Override
+    protected RecordingApmServer apmServer() {
+        return recordingApmServer;
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    public void testOutageBuffersToDiskAndDrainsOnRecovery() throws Exception {
+        waitForMetricCollectionGreen();
+
+        long outageStartEpochMs = System.currentTimeMillis();
+        recordingApmServer.setResponseCode(503);
+
+        // Produce BUFFER_BATCHES files to verify the drain loop iterates beyond the first.
+        // One file per iteration is all we can get: deltaPreferred() resets the SDK delta after
+        // each successful disk write, so subsequent flushes without new metric values produce nothing.
+        // The sleep ensures each file has aged past disk_buffer_read_min_age before the drain.
+        final int BUFFER_BATCHES = 3;
+        for (int i = 0; i < BUFFER_BATCHES; i++) {
+            client().performRequest(new Request("GET", "/_use_apm_metrics"));
+            client().performRequest(new Request("GET", "/_flush_telemetry"));
+            Thread.sleep(300);
+        }
+
+        long outageStartEpochNanos = outageStartEpochMs * 1_000_000L;
+        long outageEndEpochNanos = System.currentTimeMillis() * 1_000_000L;
+
+        CountDownLatch backlogReplayed = new CountDownLatch(1);
+        CountDownLatch outageWindowBatchReplayed = new CountDownLatch(1);
+        AtomicLong maxReplaysSeen = new AtomicLong();
+        recordingApmServer.addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
+                long timestamp = m.collectionTime();
+                if (timestamp >= outageStartEpochNanos && timestamp <= outageEndEpochNanos) {
+                    outageWindowBatchReplayed.countDown();
+                }
+                long replays = longSample(m, "es.apm.metrics.disk_buffer.replays");
+                if (replays > 0) {
+                    maxReplaysSeen.accumulateAndGet(replays, Math::max);
+                }
+                // Require ≥2 to verify the drain loop iterated through more than a single file.
+                if (maxReplaysSeen.get() >= 2) {
+                    backlogReplayed.countDown();
+                }
+            }
+        });
+
+        recordingApmServer.clearResponseCode();
+
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+
+        assertTrue(
+            "expected the drain loop to replay at least two disk-buffered batches after recovery "
+                + "(es.apm.metrics.disk_buffer.replays peaked at "
+                + maxReplaysSeen.get()
+                + ")",
+            backlogReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+        );
+        assertTrue(
+            "expected a replayed metricset carrying an outage-window timestamp",
+            outageWindowBatchReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+        );
+    }
+
+    private static void waitForMetricCollectionGreen() throws IOException, InterruptedException {
+        CountDownLatch baselineLatch = new CountDownLatch(1);
+        recordingApmServer.addMessageConsumer(msg -> {
+            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
+                baselineLatch.countDown();
+            }
+        });
+        client().performRequest(new Request("GET", "/_flush_telemetry"));
+        assertTrue("Timed out waiting for baseline metrics", baselineLatch.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+    }
+}

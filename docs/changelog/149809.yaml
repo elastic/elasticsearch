@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149809
+summary: "ESQL|DS: Panama FFI streaming zstd for `.csv.zst` / `.ndjson.zstd`"
+type: enhancement

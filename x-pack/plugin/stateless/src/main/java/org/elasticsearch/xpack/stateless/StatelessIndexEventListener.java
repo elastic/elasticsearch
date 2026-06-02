@@ -60,7 +60,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.snapshots.SnapshotsCommitService;
@@ -99,7 +99,7 @@ class StatelessIndexEventListener implements IndexEventListener {
     private final boolean useInternalFilesReplicatedContentForSearchShards;
     private final SnapshotsCommitService snapshotsCommitService;
     private final ClusterService clusterService;
-    private final RecoveryMetricsCollector recoveryMetricsCollector;
+    private final StatelessRecoveryMetricsCollector recoveryMetricsCollector;
 
     StatelessIndexEventListener(
         ThreadPool threadPool,
@@ -117,7 +117,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         StatelessSharedBlobCacheService cacheService,
         SnapshotsCommitService snapshotsCommitService,
         ClusterService clusterService,
-        RecoveryMetricsCollector recoveryMetricsCollector
+        StatelessRecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.threadPool = threadPool;
         this.statelessCommitService = statelessCommitService;

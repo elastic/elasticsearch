@@ -13,8 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -28,11 +32,29 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private ClusterService clusterService;
+    private DLMFrozenTransitionExecutor transitionExecutor;
 
     @Before
     public void setupTest() {
-        threadPool = new TestThreadPool(getTestName());
+        threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                DLMFrozenTransitionPlugin.EXECUTOR_NAME,
+                2,
+                2,
+                "dlm.frozen.transition.thread_pool",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
         clusterService = createClusterService(threadPool);
+        transitionExecutor = new DLMFrozenTransitionExecutor(
+            clusterService,
+            4,
+            DLMFrozenTransitionSettings.create(clusterService),
+            new DataStreamLifecycleErrorStore(System::currentTimeMillis),
+            threadPool.executor(DLMFrozenTransitionPlugin.EXECUTOR_NAME)
+        );
     }
 
     @After
@@ -52,7 +74,8 @@ public class DLMFrozenTransitionPluginTests extends ESTestCase {
             (indexName, pid) -> new DLMFrozenTransitionServiceTests.TestDLMFrozenTransitionRunnable(
                 indexName,
                 new java.util.concurrent.CountDownLatch(0)
-            )
+            ),
+            transitionExecutor
         );
         var cleanupService = new DLMFrozenCleanupService(clusterService, new NoOpClient(threadPool));
         var plugin = new DLMFrozenTransitionPlugin(List.of(transitionService, cleanupService));

@@ -37,7 +37,9 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproxima
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExternalSourceAggregatePushdown;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -55,7 +57,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
+public abstract class AbstractPhysicalOperationProviders {
 
     private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
@@ -65,12 +67,18 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         this.analysisRegistry = analysisRegistry;
     }
 
-    @Override
+    public abstract PhysicalOperation sourcePhysicalOperation(EsQueryExec esQuery, LocalExecutionPlannerContext context);
+
+    public abstract PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    );
+
     public AnalysisRegistry analysisRegistry() {
         return analysisRegistry;
     }
 
-    @Override
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,

@@ -78,6 +78,8 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
             // Observability indices:
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
+            // Evaluation indices:
+            "\\.evaluation-.*",
             // Security index:
             "\\.entities\\.v\\d+\\..*",
             // indices or data streams defined in files in x-pack/plugin/core/template-resources/src/main/resources/monitoring-*:

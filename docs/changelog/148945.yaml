@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 148945
+summary: "[Native] head+spread prefetch in amd64 bulk kernels"
+type: enhancement

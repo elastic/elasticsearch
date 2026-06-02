@@ -51,7 +51,6 @@ import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -80,6 +79,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
@@ -2003,13 +2003,13 @@ public abstract class Engine implements Closeable {
             return this.doc.docs();
         }
 
-        public BytesReference source() {
+        public SourceToParse.Source source() {
             return this.doc.source();
         }
 
         @Override
         public int estimatedSizeInBytes() {
-            return (id().length() * 2) + source().length() + 12;
+            return (id().length() * 2) + source().estimatedSizeInBytes() + 12;
         }
 
         /**

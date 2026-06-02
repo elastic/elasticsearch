@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Parameterized integration tests for Parquet files with internal compression.
@@ -34,16 +32,7 @@ import java.util.Map;
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
-    private static final Map<String, String> CODEC_DIR_SUFFIXES = Map.of(
-        "snappy",
-        "standalone-snappy",
-        "gzip",
-        "standalone-gzip",
-        "zstd",
-        "standalone-zstd",
-        "lz4raw",
-        "standalone-lz4raw"
-    );
+    private static final List<String> CODECS = List.of("snappy", "gzip", "zstd", "lz4raw");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
@@ -66,9 +55,7 @@ public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTes
 
     @Override
     protected String fixturesBase() {
-        String dir = CODEC_DIR_SUFFIXES.get(codecName);
-        assert dir != null : "Unknown codec: " + codecName;
-        return dir;
+        return "standalone-" + codecName;
     }
 
     @Override
@@ -88,27 +75,6 @@ public class ParquetCompressedFormatSpecIT extends AbstractExternalSourceSpecTes
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithCodecs(List.of("snappy", "gzip", "zstd", "lz4raw"), "/external-basic.csv-spec");
-    }
-
-    /**
-     * Cross-products csv-spec tests with codec names and storage backends.
-     * Returns parameter arrays with 8 arguments:
-     * (fileName, groupName, testName, lineNumber, testCase, instructions, codecName, storageBackend).
-     */
-    private static List<Object[]> readExternalSpecTestsWithCodecs(List<String> codecs, String... specPatterns) throws Exception {
-        List<Object[]> baseWithBackends = readExternalSpecTests(specPatterns);
-        List<Object[]> parameterized = new ArrayList<>();
-        for (Object[] baseTest : baseWithBackends) {
-            for (String codec : codecs) {
-                int len = baseTest.length;
-                Object[] expanded = new Object[len + 1];
-                System.arraycopy(baseTest, 0, expanded, 0, len - 1);
-                expanded[len - 1] = codec;
-                expanded[len] = baseTest[len - 1];
-                parameterized.add(expanded);
-            }
-        }
-        return parameterized;
+        return readExternalSpecTestsWithCodecs(CODECS, "/external-basic.csv-spec", "/external-multivalue.csv-spec");
     }
 }

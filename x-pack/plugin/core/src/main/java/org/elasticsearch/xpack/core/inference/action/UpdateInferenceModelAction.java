@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.CHUNKING_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.inference.ModelConfigurations.TASK_SETTINGS;
 import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
@@ -115,11 +116,19 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
         /**
          * Returns the {@code task_settings} block from the request body as a fresh, modifiable
          * deep copy of the parsed content (or {@code null} if the body did not include any).
-         * Same per-call deep-copy semantics as {@link #getServiceSettings()}.
          */
         @Nullable
         public Map<String, Object> getTaskSettings() {
             return cachedParsedSettings.getTaskSettings();
+        }
+
+        /**
+         * Returns the {@code chunking_settings} block from the request body as a fresh, modifiable
+         * deep copy of the parsed content (or {@code null} if the body did not include any).
+         */
+        @Nullable
+        public Map<String, Object> getChunkingSettings() {
+            return cachedParsedSettings.getChunkingSettings();
         }
 
         /**
@@ -193,6 +202,8 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             @Nullable
             private Map<String, Object> taskSettings;
             @Nullable
+            private Map<String, Object> chunkingSettings;
+            @Nullable
             private TaskType bodyTaskType;
 
             @Nullable
@@ -205,6 +216,12 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
             Map<String, Object> getTaskSettings() {
                 parseContentIfNeeded();
                 return taskSettings != null ? deepCopyMap(taskSettings) : null;
+            }
+
+            @Nullable
+            Map<String, Object> getChunkingSettings() {
+                parseContentIfNeeded();
+                return chunkingSettings != null ? deepCopyMap(chunkingSettings) : null;
             }
 
             @Nullable
@@ -244,6 +261,9 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
                 Map<String, Object> parsedTaskSettings = new HashMap<>();
                 moveFieldToMap(unvalidatedMap, parsedTaskSettings, TASK_SETTINGS);
 
+                Map<String, Object> parsedChunkingSettings = new HashMap<>();
+                moveFieldToMap(unvalidatedMap, parsedChunkingSettings, CHUNKING_SETTINGS);
+
                 if (unvalidatedMap.isEmpty() == false) {
                     throw new ElasticsearchStatusException(
                         "Request contained fields which cannot be updated, remove these fields and try again [{}]",
@@ -254,6 +274,7 @@ public class UpdateInferenceModelAction extends ActionType<UpdateInferenceModelA
 
                 this.serviceSettings = parsedServiceSettings.isEmpty() == false ? parsedServiceSettings : null;
                 this.taskSettings = parsedTaskSettings.isEmpty() == false ? parsedTaskSettings : null;
+                this.chunkingSettings = parsedChunkingSettings.isEmpty() == false ? parsedChunkingSettings : null;
                 this.bodyTaskType = parsedBodyTaskType;
                 this.parsed = true;
             }

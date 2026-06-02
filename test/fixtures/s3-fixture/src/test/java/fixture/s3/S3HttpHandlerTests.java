@@ -467,7 +467,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         expectParseAmzChunkedFailure("header of chunk [1] was too long", 0, new BytesArray(randomAlphaOfLength(149) + "\r\n"));
         expectParseAmzChunkedFailure("header of chunk [1] was too short", 0, new BytesArray("\n"));
         expectParseAmzChunkedFailure("header of chunk [1] not terminated with [\\r\\n]", 0, new BytesArray("abc\n"));
-        expectParseAmzChunkedFailure("header of chunk [1] did not match expected pattern", 0, new BytesArray("5\r\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] did not match expected pattern", 0, new BytesArray("z\r\n"));
 
         try (var out = new BytesStreamOutput()) {
             writeAmzChunkedBodyChunk(out, singleChunkData);
@@ -502,11 +502,24 @@ public class S3HttpHandlerTests extends ESTestCase {
     private static void writeAmzChunkedBodyChunk(OutputStream out, BytesReference dataChunk) throws IOException {
         try (var writer = new OutputStreamWriter(Streams.noCloseStream(out), StandardCharsets.UTF_8)) {
             writer.write(Integer.toHexString(dataChunk.length()));
-            writer.write(";chunk-signature=");
-            writer.write(randomAlphaOfLengthBetween(0, 64));
+            if (randomBoolean()) {
+                // a chunk-signature chunk header is permitted but not required:
+                writer.write(";chunk-signature=");
+                writer.write(randomAlphaOfLengthBetween(0, 64));
+            }
             writer.write("\r\n");
-            writer.flush();
-            dataChunk.writeTo(out);
+            if (dataChunk.length() == 0) {
+                if (randomBoolean()) {
+                    // the last chunk may include trailers such as a checksum
+                    writer.write(randomIdentifier("x-amz-checksum-"));
+                    writer.write(":");
+                    writer.write(randomAlphaOfLengthBetween(0, 64));
+                    writer.write("\r\n");
+                }
+            } else {
+                writer.flush();
+                dataChunk.writeTo(out);
+            }
             writer.write("\r\n");
         }
     }

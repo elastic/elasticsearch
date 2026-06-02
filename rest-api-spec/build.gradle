@@ -174,4 +174,6 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("tsdb/25_id_generation/get", "ids have changed after introduction of synthetic id")
   task.skipTest("tsdb/25_id_generation/routing_path matches deep object", "ids have changed after introduction of synthetic id")
   task.skipTest("tsdb/25_id_generation/index a new document on top of an old one over bulk", "ids have changed after introduction of synthetic id")
+  task.skipTest("scroll/12_slices/Sliced scroll", "doc to slice mapping changed with shard-oblivious-slicing")
+  task.skipTest("scroll/12_slices/Sliced scroll with doc values", "doc to slice mapping changed with shard-oblivious-slicing")
 })

@@ -687,6 +687,43 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * If the boundary scanner never reports a boundary (simulating a quoting-rule regression on a
+     * non-EOF chunk), the segmentator's grow loop must fail fast with a bounded, diagnosable error
+     * instead of reading the whole stream into one ever-growing buffer and livelocking. Without the
+     * record-size bound this test would hang and the suite would time out. A small bound is injected
+     * via the package-private iterator constructor so the cap trips cheaply.
+     */
+    public void testGrowLoopFailsFastWhenScannerNeverReportsBoundary() throws Exception {
+        int maxRecordBytes = 8 * 1024;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                maxRecordBytes
+            );
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * A large stream where every Nth record has a multi-line quoted field: verifies order
      * preservation and correct record count end-to-end under realistic parallelism.
      */
@@ -998,6 +1035,79 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public List<String> fileExtensions() {
             return List.of(".txt");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * A format reader whose boundary scanner never reports a boundary — models a quoting-rule
+     * regression that would otherwise drive the segmentator's grow loop unbounded. Used to verify the
+     * grow-loop bound fails fast.
+     */
+    private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final long minSegment;
+
+        NeverBoundaryFormatReader(long minSegment) {
+            this.minSegment = minSegment;
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) {
+            return -1;
+        }
+
+        @Override
+        public int findLastRecordBoundary(byte[] buf, int length) {
+            return -1;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return minSegment;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return this;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new CloseableIterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    throw new java.util.NoSuchElementException();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "never-boundary";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".nb");
         }
 
         @Override

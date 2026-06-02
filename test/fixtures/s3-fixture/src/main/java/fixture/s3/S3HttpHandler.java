@@ -59,7 +59,8 @@ import java.util.regex.Pattern;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -74,6 +75,8 @@ public class S3HttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
     public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
     public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
+    public static final String COPY_SOURCE_HEADER = "X-amz-copy-source";
+    public static final Pattern SHA256_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final String bucket;
     private final String basePath;
@@ -243,6 +246,7 @@ public class S3HttpHandler implements HttpHandler {
                         }
                     } else {
                         final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                        verifyContentSha256Header(exchange, blob.v2());
                         upload.addPart(blob.v1(), blob.v2());
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
@@ -341,6 +345,8 @@ public class S3HttpHandler implements HttpHandler {
                     }
                 } else {
                     final Tuple<String, BytesReference> blob = parseRequestBody(exchange);
+                    verifyContentSha256Header(exchange, blob.v2());
+
                     final var updateResponseCode = updateBlobContents(
                         exchange,
                         request.path(),
@@ -348,13 +354,6 @@ public class S3HttpHandler implements HttpHandler {
                     );
 
                     if (updateResponseCode == RestStatus.OK) {
-                        assertThat(
-                            exchange.getRequestHeaders().getFirst(CONTENT_SHA256_HEADER),
-                            oneOf(
-                                "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
-                                MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
-                            )
-                        );
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                     }
                     exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);
@@ -576,7 +575,7 @@ public class S3HttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
+    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-fA-F]+)(;chunk-signature=[^\\r\\n]*)?$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         try {
@@ -628,6 +627,11 @@ public class S3HttpHandler implements HttpHandler {
             }
             final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
 
+            if (chunkSize == 0) {
+                // ignore any trailers (e.g. checksum)
+                break;
+            }
+
             final int chunkTerminatorIndex = headerLength + chunkSize;
             if (chunkTerminatorIndex + 2 > encodedRequestBody.length()
                 || encodedRequestBody.get(chunkTerminatorIndex) != '\r'
@@ -635,16 +639,10 @@ public class S3HttpHandler implements HttpHandler {
                 throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
             }
 
-            if (chunkSize != 0) {
-                chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
-            }
+            chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
 
             final int toSkip = headerLength + chunkSize + 2;
             encodedRequestBody = encodedRequestBody.slice(toSkip, encodedRequestBody.length() - toSkip);
-
-            if (chunkSize == 0) {
-                break;
-            }
         }
 
         final BytesReference decodedRequestBody = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
@@ -714,7 +712,7 @@ public class S3HttpHandler implements HttpHandler {
 
     @Nullable // if no X-amz-copy-source header present
     private static String copySourceName(final HttpExchange exchange) {
-        final var copySources = exchange.getRequestHeaders().get("X-amz-copy-source");
+        final var copySources = exchange.getRequestHeaders().get(COPY_SOURCE_HEADER);
         if (copySources != null) {
             if (copySources.size() != 1) {
                 throw new AssertionError("multiple X-amz-copy-source headers found: " + copySources);
@@ -819,6 +817,30 @@ public class S3HttpHandler implements HttpHandler {
                 return uploadCount;
             }
         });
+    }
+
+    private static void verifyContentSha256Header(final HttpExchange exchange, BytesReference body) {
+        final var contentSha256Header = exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER);
+        if (contentSha256Header != null && SHA256_PATTERN.asMatchPredicate().test(contentSha256Header)) {
+            // This header is optional and if present it may contain a special value indicating a different checksum scheme is in use, but
+            // if it's a real SHA256 checksum then it must match the request's contents.
+            assertEquals(contentSha256Header, MessageDigests.toHexString(MessageDigests.digest(body, MessageDigests.sha256())));
+        }
+    }
+
+    /**
+     * Assert that if the exchange is a {@code PutObject} or {@code UploadPart} request then {@code X-amz-content-sha256} header is present
+     * and either contains a full SHA256 hash or another value matching the provided {@link org.hamcrest.Matcher}.
+     */
+    public void assertContentSha256Header(HttpExchange exchange, org.hamcrest.Matcher<String> otherPermittedValues) {
+        final var request = parseRequest(exchange);
+        if ((request.isUploadPartRequest() || request.isPutObjectRequest())
+            && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER)).orElse(List.of()).isEmpty()) {
+            assertThat(
+                exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
+                anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), otherPermittedValues)
+            );
+        }
     }
 
     public S3Request parseRequest(HttpExchange exchange) {

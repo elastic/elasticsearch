@@ -1,0 +1,42 @@
+---
+"Task cancellation interrupts a long-running update_by_query script loop":
+  - do:
+      indices.create:
+        index: test_ubq_cancel
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: test_ubq_cancel
+        id:    "1"
+        body:  { "value": 1 }
+  - do:
+      indices.refresh:
+        index: test_ubq_cancel
+
+  - do:
+      update_by_query:
+        index: test_ubq_cancel
+        wait_for_completion: false
+        body:
+          script:
+            lang: painless
+            source: |
+              long start = System.currentTimeMillis();
+              while (System.currentTimeMillis() - start < 60000L) {
+                /* spin: task cancellation will interrupt via Painless cancellation check */
+              }
+              ctx._source.processed = true;
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+
+  - do:
+      tasks.cancel:
+        task_id: $task
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task

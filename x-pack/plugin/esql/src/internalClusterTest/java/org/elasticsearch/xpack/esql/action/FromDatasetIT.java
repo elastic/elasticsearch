@@ -8,19 +8,20 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -110,7 +111,7 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void requireFeatureFlag() {
-        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+        assumeTrue("requires external data sources feature flag", DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
     }
 
     @Before
@@ -407,6 +408,37 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
 
         Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_* | LIMIT 1"), TIMEOUT));
         assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+    }
+
+    public void testFromDatasetExplainDoesNotLeakSecrets() throws Exception {
+        assumeTrue("EXPLAIN requires the capability to be enabled", Cap.EXPLAIN.isEnabled());
+
+        // Register a DataSource whose settings include a secret key with a recognisable sentinel value.
+        // TestValidator marks any key starting with "secret_" as a secret, which causes DatasetRewriter
+        // to wrap the value in a SecureString when building the config map for UnresolvedExternalRelation.
+        final String sentinel = "SENTINEL_DO_NOT_LEAK_aBcD1234";
+        assertAcked(
+            client().execute(
+                PutDataSourceAction.INSTANCE,
+                putDataSourceRequest("local_ds", Map.of("secret_access_key", sentinel, "region", "us-east-1"))
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("EXPLAIN (FROM employees | LIMIT 1)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            for (List<Object> row : rows) {
+                for (Object value : row) {
+                    String rendered = String.valueOf(value);
+                    assertFalse("EXPLAIN output must not contain the secret sentinel — found in: " + rendered, rendered.contains(sentinel));
+                }
+            }
+        }
     }
 
     public void testFromUnknownNameFallsThroughToIndexResolution() throws Exception {

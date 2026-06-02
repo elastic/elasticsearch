@@ -44,6 +44,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
      * @param sliceField the field used for slicing the index
      * @param sliceId the slice to be search
+     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public IVFKnnFloatSlicedVectorQuery(
         String field,
@@ -54,9 +55,10 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         float visitRatio,
         boolean doPrecondition,
         String sliceField,
-        BytesRef sliceId
+        BytesRef sliceId,
+        float overSampleFactor
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition);
+        super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }
@@ -123,14 +125,15 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
             minDocID = 0;
         } else {
             skipper.advance(ord, Long.MAX_VALUE);
-            minDocID = nextDoc(skipper.minDocID(0), sortedDocValues, ord);
+            minDocID = skipper.minValue() == ord ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, ord);
         }
         int maxDocID;
         if (skipper.maxValue() == ord) {
-            maxDocID = skipper.docCount() - 1;
+            maxDocID = skipper.docCount();
         } else {
-            skipper.advance(ord + 1, Long.MAX_VALUE);
-            maxDocID = nextDoc(skipper.minDocID(0), sortedDocValues, ord + 1) - 1;
+            int nextOrd = ord + 1;
+            skipper.advance(nextOrd, Long.MAX_VALUE);
+            maxDocID = skipper.minValue() == nextOrd ? skipper.minDocID(0) : nextDoc(skipper.minDocID(0), sortedDocValues, nextOrd);
         }
         return new ESAcceptDocs.SliceAcceptDocs(minDocID, maxDocID);
     }

@@ -77,7 +77,7 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
 
     public void testWarnsAndSkipsUnparseableBound() {
         DriverContext driverContext = driverContext();
-        // A valid two-bucket histogram plus a bucket whose `le` label is not a number, which must be skipped with a warning.
+        // A valid two-bucket histogram plus a malformed `le` label, which must be skipped with a warning.
         List<List<Object>> rows = List.of(List.of(2.0, "1.0"), List.of(4.0, "+Inf"), List.of(1.0, "not_a_number"));
         List<Page> results = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
@@ -96,8 +96,13 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
         // The bad bucket is dropped rather than failing the query: a single result is still produced.
         assertThat(results.size(), equalTo(1));
         assertThat(
-            warnings,
-            hasItem(containsString("evaluation of [source] failed, treating result as null. Only first 20 failures recorded."))
+            ((DoubleBlock) results.get(0).getBlock(0)).getDouble(0),
+            equalTo(
+                ClassicHistogramQuantileStates.bucketQuantile(
+                    quantile,
+                    List.of(new Bucket(1.0, 2.0), new Bucket(Double.POSITIVE_INFINITY, 4.0))
+                )
+            )
         );
         // The warning names the offending `le` value, mirroring Prometheus' "bad bucket label" warning.
         assertThat(

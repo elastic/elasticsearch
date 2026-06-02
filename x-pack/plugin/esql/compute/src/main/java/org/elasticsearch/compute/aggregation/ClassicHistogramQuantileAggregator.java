@@ -43,7 +43,7 @@ class ClassicHistogramQuantileAggregator {
         if (buckets.isNull(0)) {
             return;
         }
-        state.add(buckets, 0);
+        state.addIntermediate(buckets, 0);
     }
 
     public static Block evaluateFinal(ClassicHistogramQuantileStates.SingleState state, DriverContext driverContext) {
@@ -72,7 +72,7 @@ class ClassicHistogramQuantileAggregator {
         if (buckets.isNull(valuesPosition)) {
             return;
         }
-        state.add(groupId, buckets, valuesPosition);
+        state.addIntermediate(groupId, buckets, valuesPosition);
     }
 
     public static void combineIntermediate(
@@ -86,7 +86,7 @@ class ClassicHistogramQuantileAggregator {
             if (buckets.isNull(valuesPosition)) {
                 continue;
             }
-            state.add(groups.getInt(groupPosition), buckets, valuesPosition);
+            state.addIntermediate(groups.getInt(groupPosition), buckets, valuesPosition);
         }
     }
 
@@ -107,7 +107,7 @@ class ClassicHistogramQuantileAggregator {
             int groupStart = groups.getFirstValueIndex(groupPosition);
             int groupEnd = groupStart + groups.getValueCount(groupPosition);
             for (int g = groupStart; g < groupEnd; g++) {
-                state.add(groups.getInt(g), buckets, valuesPosition);
+                state.addIntermediate(groups.getInt(g), buckets, valuesPosition);
             }
         }
     }

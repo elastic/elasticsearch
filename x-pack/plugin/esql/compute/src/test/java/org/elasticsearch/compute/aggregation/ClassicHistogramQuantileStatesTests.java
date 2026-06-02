@@ -134,13 +134,14 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         BlockFactory blockFactory = blockFactory();
         DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
 
-        // A bucket whose `le` label is not a number is dropped (Prometheus warns and skips it), so the state stays empty.
+        // Prometheus warns and skips malformed `le` buckets, preserving the valid buckets for the same histogram.
         try (var state = new SingleState(blockFactory.breaker(), 0.5)) {
+            ClassicHistogramQuantileAggregator.combine(state, 2.0, new BytesRef("1.0"));
             ClassicHistogramQuantileAggregator.combine(state, 1.0, new BytesRef("not_a_number"));
+            ClassicHistogramQuantileAggregator.combine(state, 4.0, new BytesRef("+Inf"));
 
-            try (Block result = state.evaluateFinal(driverContext)) {
-                assertThat(result.elementType(), equalTo(ElementType.NULL));
-                assertTrue(result.areAllValuesNull());
+            try (DoubleBlock result = (DoubleBlock) state.evaluateFinal(driverContext)) {
+                assertThat(result.getDouble(0), equalTo(1.0));
             }
         }
     }
@@ -375,8 +376,8 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
                 }
 
                 DoubleBlock serialized = (DoubleBlock) intermediates[0];
-                target.add(0, serialized, 0);
-                target.add(1, serialized, 1);
+                ClassicHistogramQuantileAggregator.combineIntermediate(target, 0, serialized, 0);
+                ClassicHistogramQuantileAggregator.combineIntermediate(target, 1, serialized, 1);
             } finally {
                 Releasables.close(intermediates);
             }
@@ -386,6 +387,28 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
                 DoubleBlock results = (DoubleBlock) target.evaluateFinal(selected, driverContext)
             ) {
                 assertThat(results.getDouble(0), equalTo(1.5));
+                assertThat(results.getDouble(1), equalTo(1.0));
+            }
+        }
+    }
+
+    public void testGroupingStateSkipsMalformedBoundForThatGroup() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+
+        try (var state = new ClassicHistogramQuantileStates.GroupingState(blockFactory.breaker(), blockFactory.bigArrays(), 0.5)) {
+            state.add(0, new BytesRef("1.0"), 2.0);
+            state.add(0, new BytesRef("not_a_number"), 1.0);
+            state.add(0, new BytesRef("+Inf"), 4.0);
+
+            state.add(1, 1.0, 2.0);
+            state.add(1, Double.POSITIVE_INFINITY, 4.0);
+
+            try (
+                IntVector selected = blockFactory.newIntRangeVector(0, 2);
+                DoubleBlock results = (DoubleBlock) state.evaluateFinal(selected, driverContext)
+            ) {
+                assertThat(results.getDouble(0), equalTo(1.0));
                 assertThat(results.getDouble(1), equalTo(1.0));
             }
         }
@@ -405,7 +428,7 @@ public class ClassicHistogramQuantileStatesTests extends ComputeTestCase {
         Block[] blocks = new Block[1];
         try {
             source.toIntermediate(blocks, 0, driverContext);
-            target.add((DoubleBlock) blocks[0], 0);
+            target.addIntermediate((DoubleBlock) blocks[0], 0);
         } finally {
             Releasables.close(blocks);
         }

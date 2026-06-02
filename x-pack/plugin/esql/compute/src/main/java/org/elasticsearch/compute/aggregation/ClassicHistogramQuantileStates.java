@@ -19,13 +19,10 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.LongStream;
 
 /**
  * Aggregation state and PromQL {@code histogram_quantile} evaluation for classic cumulative histogram buckets
@@ -294,7 +291,7 @@ final class ClassicHistogramQuantileStates {
          * Merges the pre-aggregated buckets serialized at {@code position} of an intermediate {@link DoubleBlock}, which
          * stores each bucket as two consecutive values: the upper bound followed by its cumulative count.
          */
-        void add(DoubleBlock block, int position) {
+        void addIntermediate(DoubleBlock block, int position) {
             int start = block.getFirstValueIndex(position);
             int valueCount = block.getValueCount(position);
             assert valueCount % 2 == 0 : "histogram intermediate state must hold (upperBound, count) pairs, got " + valueCount;
@@ -388,7 +385,7 @@ final class ClassicHistogramQuantileStates {
             states = bigArrays.grow(states, groupId + 1L);
             SingleState state = states.get(groupId);
             if (state == null) {
-                state = new SingleState(breaker, quantile);
+                state = new SingleState(breaker, quantile, warnings);
                 states.set(groupId, state);
             }
             return state;
@@ -399,22 +396,15 @@ final class ClassicHistogramQuantileStates {
          * {@code histogram_quantile} — records a warning and skips the bucket when the label is not a number.
          */
         void add(int groupId, BytesRef le, double count) {
-            double upperBound;
-            try {
-                upperBound = parseUpperBound(le);
-            } catch (NumberFormatException e) {
-                warnings.registerException(e);
-                return;
-            }
-            getOrAdd(groupId).add(upperBound, count);
+            getOrAdd(groupId).add(le, count);
         }
 
         void add(int groupId, double upperBound, double count) {
             getOrAdd(groupId).add(upperBound, count);
         }
 
-        void add(int groupId, DoubleBlock block, int position) {
-            getOrAdd(groupId).add(block, position);
+        void addIntermediate(int groupId, DoubleBlock block, int position) {
+            getOrAdd(groupId).addIntermediate(block, position);
         }
 
         @Override
@@ -460,10 +450,16 @@ final class ClassicHistogramQuantileStates {
 
         @Override
         public void close() {
-            Releasables.close(
-                Releasables.wrap(LongStream.range(0, states.size()).mapToObj(states::get).filter(Objects::nonNull).toList()),
-                states
-            );
+            try {
+                for (long i = 0; i < states.size(); i++) {
+                    SingleState state = states.get(i);
+                    if (state != null) {
+                        state.close();
+                    }
+                }
+            } finally {
+                states.close();
+            }
         }
     }
 }

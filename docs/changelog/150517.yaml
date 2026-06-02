@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 150517
+summary: Revert "Introduce `RecoverySchedulingListener"`
+type: bug

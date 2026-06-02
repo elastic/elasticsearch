@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { toGradleProject, toFqcn } from "./domain";
+import { describe, expect, test } from "vitest";
+import { toGradleProject, toFqcn } from "./domain.ts";
 
 describe("toGradleProject", () => {
   test("converts simple path", () => {

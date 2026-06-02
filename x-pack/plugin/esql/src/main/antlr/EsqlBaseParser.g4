@@ -74,10 +74,12 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | tsCollapseCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? dedupCommand
     ;
 
 whereCommand
@@ -122,7 +124,13 @@ indexPatternOrSubquery
     ;
 
 subquery
-    : LP fromCommand (PIPE processingCommand)* RP
+    : LP subquerySourceCommand (PIPE processingCommand)* RP
+    ;
+
+subquerySourceCommand
+    : fromCommand
+    | {this.isDevVersion()}? rowCommand
+    | {this.isDevVersion()}? timeSeriesCommand
     ;
 
 indexPattern
@@ -309,7 +317,7 @@ sampleCommand
     ;
 
 changePointCommand
-    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? ({this.isDevVersion()}? BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? (BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
     ;
 
 forkCommand
@@ -370,6 +378,10 @@ tsInfoCommand
     : TS_INFO
     ;
 
+tsCollapseCommand
+    : TS_COLLAPSE
+    ;
+
 //
 // In development
 //
@@ -379,6 +391,10 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+dedupCommand
+    : DEV_DEDUP
     ;
 
 uriPartsCommand

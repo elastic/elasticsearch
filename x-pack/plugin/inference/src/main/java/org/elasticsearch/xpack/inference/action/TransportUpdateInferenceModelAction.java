@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -41,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
@@ -58,7 +61,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.ingest.IngestDocument.deepCopyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
 
@@ -110,7 +112,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ClusterState state,
         ActionListener<UpdateInferenceModelAction.Response> masterListener
     ) {
-        var bodyTaskType = request.getContentAsSettings().taskType();
+        var bodyTaskType = request.getBodyTaskType();
         var resolvedTaskType = resolveTaskType(request.getTaskType(), bodyTaskType != null ? bodyTaskType.toString() : null);
 
         AtomicReference<InferenceService> service = new AtomicReference<>();
@@ -148,14 +150,13 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
                 ModelConfigurations mergedModelConfigurations = combineExistingModelConfigurationsWithNewSettings(
                     existingParsedModel,
-                    request.getContentAsSettings(),
+                    request.getServiceSettings(),
+                    request.getTaskSettings(),
+                    request.getChunkingSettings(),
                     service.get().name()
                 );
 
-                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(
-                    existingParsedModel,
-                    request.getContentAsSettings().serviceSettings()
-                );
+                ModelSecrets mergedModelSecrets = combineExistingSecretsWithNewSecrets(existingParsedModel, request.getServiceSettings());
 
                 Model mergedParsedModel = service.get().buildModelFromConfigAndSecrets(mergedModelConfigurations, mergedModelSecrets);
                 if (mergedParsedModel.equals(existingParsedModel)) {
@@ -211,29 +212,46 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     }
 
     /**
-     * Combines the existing model configurations with the new settings to create a new model configuration
-     * @param existingParsedModel the Model representing a third-party service endpoint
-     * @param newSettings  new settings to update
-     * @param serviceName the name of the service
+     * Combines the existing model configurations with the new settings to create a new model configuration.
+     *
+     * <p>Service settings and task settings are <em>merged</em> with the existing values via the
+     * provider-specific update parsers. Chunking settings, in contrast, are <em>replaced</em>:
+     * when {@code newChunkingSettings} is non-null the resulting configuration uses a fresh
+     * {@link ChunkingSettings} instance built from that map, because chunking settings have no
+     * merge semantics on the {@link ChunkingSettings} interface and the strategy plus its
+     * dependent fields must be re-validated together.
+     *
+     * @param existingParsedModel  the Model representing a third-party service endpoint
+     * @param newServiceSettings   new service settings to merge, or {@code null} to leave unchanged
+     * @param newTaskSettings      new task settings to merge, or {@code null} to leave unchanged
+     * @param newChunkingSettings  new chunking settings to install (full replacement), or {@code null} to leave unchanged
+     * @param serviceName          the name of the service
      * @return a new object representing the updated model configurations
      */
     ModelConfigurations combineExistingModelConfigurationsWithNewSettings(
         Model existingParsedModel,
-        UpdateInferenceModelAction.Settings newSettings,
+        @Nullable Map<String, Object> newServiceSettings,
+        @Nullable Map<String, Object> newTaskSettings,
+        @Nullable Map<String, Object> newChunkingSettings,
         String serviceName
     ) {
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
         ServiceSettings existingServiceSettings = existingConfigs.getServiceSettings();
+        ChunkingSettings existingChunkingSettings = existingConfigs.getChunkingSettings();
 
         TaskSettings mergedTaskSettings = existingTaskSettings;
         ServiceSettings mergedServiceSettings = existingServiceSettings;
+        ChunkingSettings replacementChunkingSettings = existingChunkingSettings;
 
-        if (newSettings.serviceSettings() != null) {
-            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(deepCopyMap(newSettings.serviceSettings()));
+        if (newServiceSettings != null) {
+            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newServiceSettings);
         }
-        if (newSettings.taskSettings() != null) {
-            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(deepCopyMap(newSettings.taskSettings()));
+        if (newTaskSettings != null) {
+            mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newTaskSettings);
+        }
+        if (newChunkingSettings != null) {
+            replacementChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings);
         }
 
         return new ModelConfigurations(
@@ -242,25 +260,25 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             serviceName,
             mergedServiceSettings,
             mergedTaskSettings,
-            existingConfigs.getChunkingSettings()
+            replacementChunkingSettings
         );
     }
 
     /**
      * Combines the existing model secrets with the new secrets to create a new model secrets
      * @param existingParsedModel the Model representing a third-party service endpoint
-     * @param newSettingsMap new secrets to update
+     * @param newSettingsMap new secrets to update, or {@code null} to leave unchanged
      * @return a new object representing the updated model secrets
      */
-    ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
+    ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, @Nullable Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
-        SecretSettings mergedSecretSettings = existingSecretSettings;
+        SecretSettings replacementSecretSettings = existingSecretSettings;
 
         if (newSettingsMap != null && existingSecretSettings != null) {
-            mergedSecretSettings = existingSecretSettings.newSecretSettings(deepCopyMap(newSettingsMap));
+            replacementSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
         }
 
-        return new ModelSecrets(mergedSecretSettings);
+        return new ModelSecrets(replacementSecretSettings);
     }
 
     private void updateInClusterEndpoint(

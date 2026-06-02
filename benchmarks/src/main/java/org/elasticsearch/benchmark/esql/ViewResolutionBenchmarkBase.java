@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -168,7 +169,7 @@ public abstract class ViewResolutionBenchmarkBase {
             String name = "col" + i;
             mapping.put(name, new EsField(name, KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
-        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of(), Map.of());
+        EsIndex esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD), Map.of(), Map.of());
 
         Configuration config = new Configuration(
             DateUtils.UTC,
@@ -195,6 +196,7 @@ public abstract class ViewResolutionBenchmarkBase {
             new AnalyzerContext(
                 config,
                 functionRegistry,
+                PromqlFunctionRegistry.INSTANCE,
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),
@@ -308,7 +310,7 @@ public abstract class ViewResolutionBenchmarkBase {
     @Benchmark
     public void resolveViews(Blackhole blackhole) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(preParsedPlan, viewParser, future);
+        viewResolver.replaceViews(preParsedPlan, null, viewParser, future);
         blackhole.consume(future.actionGet());
     }
 
@@ -318,7 +320,7 @@ public abstract class ViewResolutionBenchmarkBase {
         LogicalPlan parsed = parsePlan(queryString);
 
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(parsed, viewParser, future);
+        viewResolver.replaceViews(parsed, null, viewParser, future);
         LogicalPlan resolved = future.actionGet().plan();
 
         LogicalPlan analyzed = analyzer.analyze(resolved);
@@ -343,7 +345,7 @@ public abstract class ViewResolutionBenchmarkBase {
             boolean enabled,
             ViewResolutionService viewResolutionService
         ) {
-            super(clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
+            super(null, clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
             this.enabled = enabled;
             this.viewResolutionService = viewResolutionService;
             this.benchmarkClusterService = clusterService;

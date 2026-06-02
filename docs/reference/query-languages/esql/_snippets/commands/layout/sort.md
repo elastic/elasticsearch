@@ -44,22 +44,22 @@ The following examples show how to control sort order, tie-breaking, null placem
 
 ### Sort in default ascending order
 
-:::{include} ../examples/docs.csv-spec/sort.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sort.md
 :::
 
 ### Sort in descending order with DESC
 
-:::{include} ../examples/docs.csv-spec/sortDesc.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sortDesc.md
 :::
 
 ### Break ties with additional sort expressions
 
-:::{include} ../examples/docs.csv-spec/sortTie.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sortTie.md
 :::
 
 ### Control null placement with NULLS FIRST or NULLS LAST
 
-:::{include} ../examples/docs.csv-spec/sortNullsFirst.md
+:::{include} ../../generated/x-pack-esql/commands/examples/docs.csv-spec/sortNullsFirst.md
 :::
 
 ### Sort by expression

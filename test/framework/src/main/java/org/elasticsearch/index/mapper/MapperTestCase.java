@@ -57,10 +57,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractIntsFromDocValuesBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractNumericBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -326,11 +324,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
-            "didn't throw while parsing " + source.source().utf8ToString(),
+            "didn't throw while parsing " + source.source().originalBytes().utf8ToString(),
             () -> mapperService.documentMapper().parse(source)
         );
         assertThat(
-            "incorrect exception while parsing " + source.source().utf8ToString(),
+            "incorrect exception while parsing " + source.source().originalBytes().utf8ToString(),
             e.getCause().getMessage(),
             exceptionMessageMatcher
         );
@@ -572,8 +570,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ParsedDocument doc = documentMapper.parse(source(b -> b.field("field", this.getSampleValueForDocument())));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         for (var field : fields) {
-            assertThat(field.fieldType().indexOptions(), equalTo(IndexOptions.NONE));
+            assertThat(field.fieldType().indexOptions(), equalTo(defaultDisabledIndexOption()));
         }
+    }
+
+    /**
+     * Most field types default to disabled indexing when IndexSettings.INDEX_DISABLED_BY_DEFAULT is set.
+     * Text-like fields are the notable exception.
+     */
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.NONE;
     }
 
     protected final void assertParseMinimalWarnings() {
@@ -1235,7 +1241,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
-            (ctx, docid) -> Source.fromBytes(doc.source())
+            (ctx, docid) -> Source.fromBytes(doc.source().originalBytes())
         );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
@@ -1805,17 +1811,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public void testSingletonIntBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractIntsFromDocValuesBlockLoader.Singleton) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonLongBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (LongsBlockLoader.Singleton) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     public void testSingletonDoubleBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton double reading", supportsBulkDoubleBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (DoublesBlockLoader.Singleton) columnAtATimeReader);
+        testSingletonBulkBlockReading(columnAtATimeReader -> (AbstractNumericBlockLoader.Singleton) columnAtATimeReader);
     }
 
     private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
@@ -1926,14 +1932,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 try (BlockLoader.ColumnAtATimeReader columnReader = blockLoader.columnAtATimeReader(context).apply(breaker)) {
-                    assertThat(
-                        columnReader,
-                        anyOf(
-                            instanceOf(LongsBlockLoader.Sorted.class),
-                            instanceOf(DoublesBlockLoader.Sorted.class),
-                            instanceOf(AbstractIntsFromDocValuesBlockLoader.Singleton.class)
-                        )
-                    );
                     var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                     assertThat(block.get(0), equalTo(expectedSampleValues[0]));

@@ -18,14 +18,18 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +38,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -94,12 +99,14 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertListObjectsResponse(handler, "path/other", null, """
@@ -111,7 +118,8 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertListObjectsResponse(handler, "path/", "/", """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult>\
             <Prefix>path/</Prefix><Delimiter>/</Delimiter><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             <CommonPrefixes><Prefix>path/subpath1/</Prefix></CommonPrefixes>\
             <CommonPrefixes><Prefix>path/subpath2/</Prefix></CommonPrefixes>\
             </ListBucketResult>""");
@@ -121,8 +129,10 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/subpath1/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
-            <Contents><Key>path/subpath2/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>50</Size></Contents>\
+            <Contents><Key>path/subpath1/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
+            <Contents><Key>path/subpath2/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>50</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         assertEquals(RestStatus.OK, handleRequest(handler, "DELETE", "/bucket/path/subpath1/blob").status());
@@ -228,6 +238,54 @@ public class S3HttpHandlerTests extends ESTestCase {
         );
     }
 
+    public void testStorageClass() {
+        final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
+        final var standardPath = "/bucket/path/standard-blob";
+        final var tieredPath = "/bucket/path/tiered-blob";
+        final var storageClass = randomFrom("INTELLIGENT_TIERING", "STANDARD_IA", "GLACIER", "DEEP_ARCHIVE");
+        final var body = new BytesArray(randomAlphaOfLength(20).getBytes(StandardCharsets.UTF_8));
+
+        // PUT without storage class header defaults to STANDARD
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", standardPath, body).status());
+        // PUT with an explicit storage class
+        assertEquals(RestStatus.OK, handleRequest(handler, "PUT", tieredPath, body, storageClassHeader(storageClass)).status());
+
+        // GET: STANDARD objects do not carry the x-amz-storage-class header
+        assertNull(handleRequest(handler, "GET", standardPath).headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
+        // GET: non-STANDARD objects carry the header
+        assertEquals(storageClass, handleRequest(handler, "GET", tieredPath).headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER));
+
+        // LIST: both objects appear with their correct StorageClass elements
+        assertListObjectsResponse(handler, "path/", null, Strings.format("""
+            <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix>path/</Prefix><IsTruncated>false</IsTruncated>\
+            <Contents><Key>path/standard-blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
+            <Contents><Key>path/tiered-blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>20</Size>\
+            <StorageClass>%s</StorageClass></Contents>\
+            </ListBucketResult>""", storageClass));
+
+        // Multipart upload with explicit storage class
+        final var createUploadResponse = handleRequest(
+            handler,
+            "POST",
+            "/bucket/path/mp-blob?uploads",
+            BytesArray.EMPTY,
+            storageClassHeader(storageClass)
+        );
+        final var uploadId = getUploadId(createUploadResponse.body());
+        final var partResponse = handleRequest(handler, "PUT", "/bucket/path/mp-blob?uploadId=" + uploadId + "&partNumber=1", body);
+        final var partEtag = Objects.requireNonNull(partResponse.etag());
+        handleRequest(handler, "POST", "/bucket/path/mp-blob?uploadId=" + uploadId, new BytesArray(Strings.format("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+               <Part><ETag>%s</ETag><PartNumber>1</PartNumber></Part>
+            </CompleteMultipartUpload>""", partEtag).getBytes(StandardCharsets.UTF_8)));
+        assertEquals(
+            storageClass,
+            handleRequest(handler, "GET", "/bucket/path/mp-blob").headers().getFirst(S3HttpHandler.STORAGE_CLASS_HEADER)
+        );
+    }
+
     public void testSingleMultipartUpload() {
         final var handler = new S3HttpHandler("bucket", "path", S3ConsistencyModel.randomConsistencyModel());
 
@@ -285,7 +343,8 @@ public class S3HttpHandlerTests extends ESTestCase {
 
         assertListObjectsResponse(handler, "", null, """
             <?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Prefix></Prefix><IsTruncated>false</IsTruncated>\
-            <Contents><Key>path/blob</Key><LastModified>1970-01-01T00:00:00.000Z</LastModified><Size>100</Size></Contents>\
+            <Contents><Key>path/blob</Key><LastModified>2024-01-01T00:00:00.000Z</LastModified><Size>100</Size>\
+            <StorageClass>STANDARD</StorageClass></Contents>\
             </ListBucketResult>""");
 
         final var expectedContents = new BytesArray((part1 + part2).getBytes(StandardCharsets.UTF_8));
@@ -386,6 +445,93 @@ public class S3HttpHandlerTests extends ESTestCase {
         assertThat(startTagPosition, greaterThan(0));
         final var startIdPosition = startTagPosition + startTag.length();
         return createUploadResponseBody.substring(startIdPosition, startIdPosition + 22);
+    }
+
+    public void testParseAmzChunkedRequestBody() throws IOException {
+        assertThat(S3HttpHandler.parseAmzChunkedRequestBody(0, buildAmzChunkedBody()), equalBytes(BytesArray.EMPTY));
+
+        final var singleChunkData = randomBytesReference(between(1, 256));
+        assertThat(
+            S3HttpHandler.parseAmzChunkedRequestBody(singleChunkData.length(), buildAmzChunkedBody(singleChunkData)),
+            equalBytes(singleChunkData)
+        );
+
+        final var chunk1 = randomBytesReference(between(1, 128));
+        final var chunk2 = randomBytesReference(between(1, 128));
+        assertThat(
+            S3HttpHandler.parseAmzChunkedRequestBody(chunk1.length() + chunk2.length(), buildAmzChunkedBody(chunk1, chunk2)),
+            equalBytes(CompositeBytesReference.of(chunk1, chunk2))
+        );
+
+        expectParseAmzChunkedFailure("header of chunk [1] was not terminated", 0, new BytesArray("no-newline-here"));
+        expectParseAmzChunkedFailure("header of chunk [1] was too long", 0, new BytesArray(randomAlphaOfLength(149) + "\r\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] was too short", 0, new BytesArray("\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] not terminated with [\\r\\n]", 0, new BytesArray("abc\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] did not match expected pattern", 0, new BytesArray("z\r\n"));
+
+        try (var out = new BytesStreamOutput()) {
+            writeAmzChunkedBodyChunk(out, singleChunkData);
+            // remove or corrupt terminator
+            out.seek(out.size() - 2);
+            if (randomBoolean()) {
+                out.writeByte((byte) (int) randomValueOtherThan(0x0d, () -> between(0x00, 0xff)));
+            }
+            if (randomBoolean()) {
+                out.writeByte((byte) (int) randomValueOtherThan(0x0a, () -> between(0x00, 0xff)));
+            }
+            expectParseAmzChunkedFailure("chunk [1] not terminated with [\\r\\n]", singleChunkData.length(), out.bytes());
+        }
+
+        expectParseAmzChunkedFailure(
+            "Something went wrong when parsing the chunked request",
+            singleChunkData.length() + randomFrom(-2, -1, 1, 2),
+            buildAmzChunkedBody(singleChunkData)
+        );
+    }
+
+    private static BytesReference buildAmzChunkedBody(BytesReference... dataChunks) throws IOException {
+        try (var out = new BytesStreamOutput()) {
+            for (BytesReference dataChunk : dataChunks) {
+                writeAmzChunkedBodyChunk(out, dataChunk);
+            }
+            writeAmzChunkedBodyChunk(out, BytesArray.EMPTY);
+            return out.bytes();
+        }
+    }
+
+    private static void writeAmzChunkedBodyChunk(OutputStream out, BytesReference dataChunk) throws IOException {
+        try (var writer = new OutputStreamWriter(Streams.noCloseStream(out), StandardCharsets.UTF_8)) {
+            writer.write(Integer.toHexString(dataChunk.length()));
+            if (randomBoolean()) {
+                // a chunk-signature chunk header is permitted but not required:
+                writer.write(";chunk-signature=");
+                writer.write(randomAlphaOfLengthBetween(0, 64));
+            }
+            writer.write("\r\n");
+            if (dataChunk.length() == 0) {
+                if (randomBoolean()) {
+                    // the last chunk may include trailers such as a checksum
+                    writer.write(randomIdentifier("x-amz-checksum-"));
+                    writer.write(":");
+                    writer.write(randomAlphaOfLengthBetween(0, 64));
+                    writer.write("\r\n");
+                }
+            } else {
+                writer.flush();
+                dataChunk.writeTo(out);
+            }
+            writer.write("\r\n");
+        }
+    }
+
+    private void expectParseAmzChunkedFailure(String expectedMessageFragment, int headerDecodedContentLength, BytesReference encodedBody) {
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> S3HttpHandler.parseAmzChunkedRequestBody(headerDecodedContentLength, encodedBody)
+            ).getMessage(),
+            containsString(expectedMessageFragment)
+        );
     }
 
     public void testExtractPartEtags() {
@@ -615,7 +761,17 @@ public class S3HttpHandlerTests extends ESTestCase {
         BytesReference requestBody,
         Headers requestHeaders
     ) {
-        final var httpExchange = new TestHttpExchange(method, uri, requestBody, requestHeaders);
+        final Headers finalRequestHeaders;
+        if (method.equals("PUT")) {
+            finalRequestHeaders = new Headers(requestHeaders);
+            finalRequestHeaders.add(
+                S3HttpHandler.CONTENT_SHA256_HEADER,
+                MessageDigests.toHexString(MessageDigests.digest(requestBody, MessageDigests.sha256()))
+            );
+        } else {
+            finalRequestHeaders = requestHeaders;
+        }
+        final var httpExchange = new TestHttpExchange(method, uri, requestBody, finalRequestHeaders);
         try {
             handler.handle(httpExchange);
         } catch (IOException e) {
@@ -625,7 +781,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         var responseHeaders = new Headers();
         httpExchange.getResponseHeaders().forEach((header, values) -> {
             // com.sun.net.httpserver.Headers.Headers() normalize keys
-            if ("Etag".equals(header) || "Content-range".equals(header)) {
+            if ("Etag".equals(header) || "Content-range".equals(header) || S3HttpHandler.STORAGE_CLASS_HEADER.equals(header)) {
                 responseHeaders.put(header, List.copyOf(values));
             }
         });
@@ -663,6 +819,12 @@ public class S3HttpHandlerTests extends ESTestCase {
     private static Headers contentRangeHeader(long start, long end, long length) {
         var headers = new Headers();
         headers.put("Content-Range", List.of(Strings.format("bytes %d-%d/%d", start, end, length)));
+        return headers;
+    }
+
+    private static Headers storageClassHeader(String storageClass) {
+        var headers = new Headers();
+        headers.put(S3HttpHandler.STORAGE_CLASS_HEADER, List.of(storageClass));
         return headers;
     }
 

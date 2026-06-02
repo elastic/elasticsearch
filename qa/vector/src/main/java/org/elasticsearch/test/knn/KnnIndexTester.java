@@ -88,8 +88,6 @@ public class KnnIndexTester {
     public static final Logger logger;
 
     static {
-        LogConfigurator.loadLog4jPlugins();
-
         // necessary otherwise the es.logger.level system configuration in build.gradle is ignored
         ProcessInfo pinfo = ProcessInfo.fromSystem();
         Map<String, String> sysprops = pinfo.sysprops();
@@ -185,6 +183,9 @@ public class KnnIndexTester {
                     )
                 );
                 suffix.add(Integer.toString(args.quantizeBits()));
+                if (args.queryQuantizeBits() != null && args.queryQuantizeBits() != defaultQueryQuantizeBits(args.quantizeBits())) {
+                    suffix.add("q" + args.queryQuantizeBits());
+                }
             }
             case HNSW -> {
                 suffix.add(Integer.toString(args.hnswM()));
@@ -206,7 +207,7 @@ public class KnnIndexTester {
 
         format = switch (args.indexType()) {
             case IVF -> {
-                var encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(quantizeBits.byteValue());
+                var encoding = resolveQuantEncoding(quantizeBits, args.queryQuantizeBits());
                 // Use flatVectorThreshold from config, or default to -1 (dynamic) if not specified
                 int flatVectorThreshold = args.flatVectorThreshold() >= 0 ? args.flatVectorThreshold() : -1;
                 yield new ESNextDiskBBQVectorsFormat(
@@ -596,6 +597,22 @@ public class KnnIndexTester {
         }
     }
 
+    private static int defaultQueryQuantizeBits(int docQuantizeBits) {
+        return switch (docQuantizeBits) {
+            case 1, 2 -> 4;
+            case 4 -> 4;
+            case 7 -> 7;
+            default -> throw new IllegalArgumentException("Unsupported document quantize bits: " + docQuantizeBits);
+        };
+    }
+
+    private static ESNextDiskBBQVectorsFormat.QuantEncoding resolveQuantEncoding(int docQuantizeBits, @Nullable Integer queryQuantizeBits) {
+        if (queryQuantizeBits == null) {
+            return ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) docQuantizeBits);
+        }
+        return ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) docQuantizeBits, queryQuantizeBits.byteValue());
+    }
+
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
@@ -603,6 +620,32 @@ public class KnnIndexTester {
                     throw new IllegalArgumentException(
                         "IVF index type only supports 1, 2, 4 or 7 bits quantization, but got: " + args.quantizeBits()
                     );
+                }
+                if (args.queryQuantizeBits() != null) {
+                    int docBits = args.quantizeBits();
+                    int queryBits = args.queryQuantizeBits();
+                    if (docBits == 1 && !Set.of(1, 4).contains(queryBits)) {
+                        throw new IllegalArgumentException(
+                            "IVF with 1-bit document quantization supports query_quantize_bits 1 or 4, but got: " + queryBits
+                        );
+                    }
+                    if (docBits == 2 && queryBits != 4) {
+                        throw new IllegalArgumentException(
+                            "IVF with 2-bit document quantization requires query_quantize_bits 4, but got: " + queryBits
+                        );
+                    }
+                    if ((docBits == 4 || docBits == 7) && queryBits != docBits) {
+                        throw new IllegalArgumentException(
+                            "IVF with "
+                                + docBits
+                                + "-bit document quantization requires query_quantize_bits "
+                                + docBits
+                                + ", but got: "
+                                + queryBits
+                        );
+                    }
+                    // validate the combination is supported by the codec
+                    resolveQuantEncoding(docBits, queryBits);
                 }
                 break;
             case GPU_HNSW: {
@@ -947,6 +990,7 @@ public class KnnIndexTester {
         "num_docs",
         "num_segments",
         "quantize_bits",
+        "query_quantize_bits",
         "vector_encoding",
         "vector_space",
         "hnsw_m",
@@ -1057,6 +1101,7 @@ public class KnnIndexTester {
                             Integer.toString(qr.numDocs),
                             Integer.toString(qr.numSegments),
                             config.quantizeBits() != null ? Integer.toString(config.quantizeBits()) : "",
+                            config.queryQuantizeBits() != null ? Integer.toString(config.queryQuantizeBits()) : "",
                             config.vectorEncoding().name().toLowerCase(Locale.ROOT),
                             config.vectorSpace() != null ? config.vectorSpace().name().toLowerCase(Locale.ROOT) : "",
                             Integer.toString(config.hnswM()),

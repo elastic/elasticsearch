@@ -37,7 +37,7 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     public static final String TEST_DATA_URI = "data:mime/type;base64,abcd";
 
     public void testConstructorWithNoFormat_usesDefault() {
-        assertThat(new InferenceString(DataType.TEXT, "value").dataFormat(), is(DataFormat.TEXT));
+        assertThat(InferenceString.ofText("value").dataFormat(), is(DataFormat.TEXT));
         assertThat(new InferenceString(DataType.IMAGE, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.AUDIO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
         assertThat(new InferenceString(DataType.VIDEO, TEST_DATA_URI).dataFormat(), is(DataFormat.BASE64));
@@ -330,13 +330,13 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public void testToStringList_withAllTextInferenceStrings() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).toList();
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).toList();
         assertThat(InferenceString.toStringList(inferenceStrings), is(rawStrings));
     }
 
     public void testToStringList_throwsAssertionError_whenAnyInferenceStringIsNotText() {
         var rawStrings = List.of("one", "two", "three", "four");
-        var inferenceStrings = rawStrings.stream().map(s -> new InferenceString(DataType.TEXT, s)).collect(Collectors.toList());
+        var inferenceStrings = rawStrings.stream().map(InferenceString::ofText).collect(Collectors.toList());
         // Add a non-text InferenceString randomly in the list
         inferenceStrings.add(randomInt(inferenceStrings.size()), new InferenceString(DataType.IMAGE, TEST_DATA_URI));
         AssertionError assertionError = expectThrows(AssertionError.class, () -> InferenceString.toStringList(inferenceStrings));
@@ -432,5 +432,16 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static boolean isAudioVideoOrPdf(InferenceString testInstance) {
         return testInstance.isAudio() || testInstance.isVideo() || testInstance.isPdf();
+    }
+
+    public static DataType randomDataTypeSupportingBase64() {
+        var dataTypesSupportingBase64 = Arrays.stream(DataType.values())
+            .filter(type -> type.getSupportedFormats().contains(DataFormat.BASE64))
+            .collect(Collectors.toSet());
+        return randomFrom(dataTypesSupportingBase64);
+    }
+
+    public static String randomDataURI() {
+        return TEST_DATA_URI + randomAlphanumericOfLength(5);
     }
 }

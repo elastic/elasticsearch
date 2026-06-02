@@ -243,6 +243,13 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     boolean isReleased();
 
     /**
+     * Attaches a {@link Releasable} that is invoked exactly once when this block's reference count
+     * reaches zero, immediately after its resources are released. May be called at most once; throws
+     * {@link IllegalStateException} if called after release or a second time.
+     */
+    void attachReleasable(Releasable releasable);
+
+    /**
      * @param position the position
      * @return true if the value stored at the given position is null, false otherwise
      */
@@ -486,7 +493,7 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
                     blocks[b] = builders[b].build();
                 }
             } finally {
-                if (blocks[blocks.length - 1] == null) {
+                if (blocks.length > 0 && blocks[blocks.length - 1] == null) {
                     Releasables.closeExpectNoException(blocks);
                 }
             }

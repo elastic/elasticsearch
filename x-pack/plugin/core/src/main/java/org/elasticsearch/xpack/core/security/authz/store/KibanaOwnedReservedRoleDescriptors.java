@@ -683,6 +683,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // SLO observability solution internal indices
                 // Kibana system user uses them to read / write slo data.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".slo-observability.*").privileges("all").build(),
+                // Evaluations indices
+                RoleDescriptor.IndicesPrivileges.builder().indices(".evaluation-*").privileges("all").build(),
                 // Endpoint heartbeat. Kibana reads from these to determine metering/billing for
                 // endpoints.
                 RoleDescriptor.IndicesPrivileges.builder().indices(".logs-endpoint.heartbeat-*").privileges("read", "create_index").build(),
@@ -704,6 +706,19 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
                 RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // Significant events. Kibana system user only manages the index plumbing
+                // (template, rollover, mappings, settings, data stream lifecycle); end-user
+                // credentials own reading and writing the documents.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".significant_events-*")
+                    .privileges(
+                        RolloverAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        "indices:admin/data_stream/lifecycle/put"
+                    )
+                    .build(),
                 // For Agent Builder OTLP telemetry. Kibana ships OpenTelemetry spans
                 // via the /_otlp/v1/traces endpoint; span events are extracted by
                 // ES as log records into the logs data stream.

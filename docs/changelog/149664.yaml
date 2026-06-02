@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149664
+summary: Parquet/ORC nested STRUCT pushdown
+type: enhancement

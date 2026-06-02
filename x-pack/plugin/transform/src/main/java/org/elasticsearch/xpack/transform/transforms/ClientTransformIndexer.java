@@ -42,7 +42,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -263,7 +263,10 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+    protected void doDeleteByQuery(
+        DeleteByQueryRequest deleteByQueryRequest,
+        ActionListener<BulkByPaginatedSearchResponse> responseListener
+    ) {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
@@ -454,7 +457,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+        if (TransformMetadata.isUpgradeMode(clusterService.state())) {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }

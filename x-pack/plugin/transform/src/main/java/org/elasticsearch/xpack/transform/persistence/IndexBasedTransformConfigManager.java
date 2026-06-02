@@ -48,8 +48,8 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -623,7 +623,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             listener.onFailure(conflictStatusException("Cannot reset Transform while the Transform feature is upgrading."));
             return;
         }
-        ActionListener<BulkByScrollResponse> deleteListener = ActionListener.wrap(dbqResponse -> listener.onResponse(true), e -> {
+        ActionListener<BulkByPaginatedSearchResponse> deleteListener = ActionListener.wrap(dbqResponse -> listener.onResponse(true), e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
@@ -1004,14 +1004,14 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     private boolean isUpgrading() {
-        return TransformMetadata.upgradeMode(clusterService.state());
+        return TransformMetadata.isUpgradeMode(clusterService.state());
     }
 
     private Exception conflictStatusException(String message) {
         return new ElasticsearchStatusException(message, RestStatus.CONFLICT);
     }
 
-    private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {
+    private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByPaginatedSearchResponse response) {
         RestStatus status = RestStatus.OK;
         Throwable reason = new Exception("Unknown error");
         // Getting the max RestStatus is sort of arbitrary, would the user care about 5xx over 4xx?
@@ -1043,7 +1043,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         DeleteByQueryRequest deleteByQuery = new DeleteByQueryRequest();
 
         deleteByQuery.setAbortOnVersionConflict(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
         // disable scoring by using index order

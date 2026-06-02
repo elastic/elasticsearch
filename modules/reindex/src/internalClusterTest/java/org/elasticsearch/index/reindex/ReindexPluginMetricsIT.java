@@ -94,10 +94,14 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
     @After
     public void tearDown() throws Exception {
         try {
-            assertAcked(
-                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                    .setPersistentSettings(Settings.builder().putNull(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
-            );
+            // Tests that skip via assumeTrue before starting a node leave the cluster empty;
+            // the persistent setting reset would then fail with "no node found".
+            if (internalCluster().size() > 0) {
+                assertAcked(
+                    clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        .setPersistentSettings(Settings.builder().putNull(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING.getKey()).build())
+                );
+            }
         } finally {
             SearchContextFailureInjectionPlugin.CONFIG.set(null);
             SearchContextFailureInjectionPlugin.PIT_SEARCH_COUNTER.set(0);
@@ -353,7 +357,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow();
 
-        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkByScrollRequest.AUTO_SLICES).get();
+        reindex().source("source").destination("dest_auto").setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES).get();
 
         assertBusy(() -> {
             testTelemetryPlugin.collect();
@@ -375,7 +379,6 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
      * (e.g. connection refused, host unreachable).
      */
     public void testRemoteReindexVersionLookupFailureMetrics() throws Exception {
-        assumeTrue("PIT search must be enabled for remote version lookup path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String dataNodeName = internalCluster().startNode();
 
@@ -433,7 +436,6 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
      * Verifies that local reindex metrics record failures when PIT open fails (e.g. source index is closed).
      */
     public void testLocalReindexPitOpenFailureMetrics() throws Exception {
-        assumeTrue("PIT search must be enabled for local PIT path", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String dataNodeName = internalCluster().startNode();
 
@@ -509,7 +511,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = reindex().source("source").destination("dest").refresh(true).get();
+        BulkByPaginatedSearchResponse response = reindex().source("source").destination("dest").refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("dest").setSize(0), 3);
@@ -544,7 +546,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = updateByQuery().source("test").refresh(true).get();
+        BulkByPaginatedSearchResponse response = updateByQuery().source("test").refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 3);
@@ -579,7 +581,7 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
             .orElseThrow();
         testTelemetryPlugin.resetMeter();
 
-        BulkByScrollResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
+        BulkByPaginatedSearchResponse response = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get();
         assertThat(response.getBulkFailures(), empty());
         assertThat(response.getSearchFailures(), empty());
         assertHitCount(prepareSearch("test").setSize(0), 0);
@@ -600,7 +602,6 @@ public class ReindexPluginMetricsIT extends ESIntegTestCase {
      * then fails with {@link SearchContextMissingException}.
      */
     public void testReindexEmitsSearchContextKeepaliveExpiredMetric() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String dataNodeName = internalCluster().startNode();
         TimeValue pitKeepAlive = TimeValue.timeValueMillis(200);

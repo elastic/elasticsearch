@@ -390,7 +390,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
             }
         };
 
-        for (IndexMode indexMode : IndexMode.values()) {
+        for (IndexMode indexMode : IndexMode.availableModes()) {
             MapperService mapperService = initMapperService.apply(indexMode);
             assertMapperService.accept(mapperService);
         }
@@ -2015,5 +2015,51 @@ public class MapperServiceTests extends MapperServiceTestCase {
         // simulates a series of mapping updates
         mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
         assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
+    }
+
+    public void testColumnarModesRejectSyntheticSourceKeepOnField() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            for (String value : List.of("all", "arrays", "none")) {
+                Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), indexMode.getName()).build();
+                MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+                    b.startObject("kw");
+                    b.field("type", "keyword");
+                    b.field(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, value);
+                    b.endObject();
+                })));
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "parameter ["
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + "] is not allowed on field [kw] in index using ["
+                            + indexMode
+                            + "] index mode"
+                    )
+                );
+            }
+        }
+    }
+
+    public void testColumnarModesRejectSyntheticSourceKeepIndexSetting() {
+        // The "all"" value is already rejected globally by the setting's value validator, so we only need to cover "arrays" here
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        for (IndexMode indexMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), indexMode.getName())
+                .put(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY, "arrays")
+                .build();
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, mapping(b -> {}))
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "[" + Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING_KEY + "] is not allowed in index using [" + indexMode + "] index mode"
+                )
+            );
+        }
     }
 }

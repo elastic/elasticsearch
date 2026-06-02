@@ -144,7 +144,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -256,7 +255,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
                 }
 
                 @Override
-                ActionListener<BatchedCompoundCommit> newUploadTaskListener(
+                ActionListener<BccUploadResult> newUploadTaskListener(
                     ShardCommitState commitState,
                     VirtualBatchedCompoundCommit virtualBcc,
                     ShardCommitState.BlobReference blobReference
@@ -970,12 +969,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService:WARN"
     )
     public void testDeleteIndexWhileNodeStopping() {
-        var indexNode = startMasterAndIndexNode();
+        // Make the fail-over happen fast enough after the master node stops
+        final Settings heartbeatSettings = Settings.builder()
+            .put(HEARTBEAT_FREQUENCY.getKey(), "1s")
+            .put(MAX_MISSED_HEARTBEATS.getKey(), 2)
+            .build();
+        var indexNode = startMasterAndIndexNode(heartbeatSettings);
         var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
-        startMasterAndIndexNode(Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").put(MAX_MISSED_HEARTBEATS.getKey(), 1).build());
+        startMasterAndIndexNode(heartbeatSettings);
 
         indexDocsAndFlush(indexName);
         indexDocsAndFlush(indexName);
@@ -1064,7 +1068,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         if (excludeOrStop) {
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToExclude), indexName);
             if (randomBoolean()) {
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToExclude))));
+                internalCluster().awaitNodeVacated(indexName, nodeToExclude);
             }
         } else {
             internalCluster().stopNode(nodeToExclude);
@@ -1090,7 +1094,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         logger.info("--> excluding {}", indexNodeA);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
 
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
@@ -1318,6 +1322,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
         }
+        // flush so they make it to the blob-store
+        flush(indexName);
 
         final long recoveryGeneration = initialGeneration + commits;
         logger.debug("--> search shard 2 will recover from generation {}", recoveryGeneration);
@@ -1399,6 +1405,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
         var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        // We're testing that these don't get deleted, so there should be some
+        assertThat(blobsBeforeMerge, not(empty()));
 
         // While search shard is recovering, create a new merged commit
         logger.debug("--> force merging");
@@ -1510,7 +1518,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         ensureStableCluster(3);
 
         var indexName = randomIdentifier();
-        createIndex(indexName, 1, 1);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
 
         var stateless = internalCluster().getInstance(PluginsService.class, indexNode)
             .filterPlugins(TestStatelessPlugin.class)

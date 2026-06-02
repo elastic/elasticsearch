@@ -55,6 +55,7 @@ options {
  * all other commands.
  */
 import ChangePoint,
+       Dedup,
        Enrich,
        Explain,
        Expression,
@@ -62,6 +63,7 @@ import ChangePoint,
        Fork,
        Fuse,
        Inline,
+       InExpression,
        Join,
        Lookup,
        MMR,

@@ -57,6 +57,7 @@ public class AggregateWritables {
             AbsentOverTime.ENTRY,
             DimensionValues.ENTRY,
             HistogramMerge.ENTRY,
+            DeltaOnlyHistogramMergeOverTime.ENTRY,
             HistogramMergeOverTime.ENTRY,
             Sparkline.ENTRY,
             ToPartial.ENTRY,

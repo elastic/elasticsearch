@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_X` function [esql-st_x]
 
-:::{include} ../../_snippets/functions/layout/st_x.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_x.md
 :::

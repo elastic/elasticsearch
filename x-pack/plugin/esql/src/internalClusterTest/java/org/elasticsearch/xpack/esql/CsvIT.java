@@ -64,8 +64,10 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -102,6 +104,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeFalseLogging;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.assumeTrueLogging;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
@@ -193,6 +197,8 @@ public class CsvIT extends ESTestCase {
             List.of(
                 getTestTransportPlugin(),
                 EsqlTestPlugin.class,
+                // EncryptionService binding for the always-registered data-source CRUD actions.
+                TestEncryptionServicePlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 CommonAnalysisPlugin.class,
@@ -222,16 +228,21 @@ public class CsvIT extends ESTestCase {
     }
 
     public final void test() throws Throwable {
-        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
-        assumeFalse(
+        assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeFalseLogging(
             "runs in a single cluster/single node mode",
             testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST.capabilityName())
         );
-        assumeFalse(
+        assumeFalseLogging(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
-        checkTestCapabilities();
+        assumeTrueLogging(
+            "CSV tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -244,10 +255,16 @@ public class CsvIT extends ESTestCase {
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));
         }
+        if (randomBoolean()) {
+            Settings.Builder pragmaSettings = Settings.builder();
+            pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
+            request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
+        }
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
         // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
         try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
+            assertFalse("response must not be partial: " + response.getExecutionInfo(), response.isPartial());
             ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
             ActualResults actual = new ActualResults(
                 response.zoneId(),
@@ -272,14 +289,11 @@ public class CsvIT extends ESTestCase {
                 .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
                 .toList();
             testCase.assertWarnings(false).assertWarnings(warnings, null);
+            CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, response.documentsFound());
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
         }
-    }
-
-    private void checkTestCapabilities() {
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
     }
 
     private StackTraceElement[] prependSpec(StackTraceElement[] original) {
@@ -370,8 +384,12 @@ public class CsvIT extends ESTestCase {
 
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
-        if ("views".equals(currentGroupName)) {
-            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(name, view));
+        if ("views".equals(currentGroupName) || "approximation".equals(currentGroupName)) {
+            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> {
+                if (view.requiredCapabilities().stream().allMatch(EsqlCapabilities.Cap::isEnabled)) {
+                    views.maybeLoad(name, view);
+                }
+            });
         } else {
             views.unloadAll();
         }

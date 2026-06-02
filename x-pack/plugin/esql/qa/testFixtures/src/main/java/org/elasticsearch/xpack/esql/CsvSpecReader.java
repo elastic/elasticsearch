@@ -25,6 +25,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new Warning(ctx));
         ctx.addOptionParser(new WarningRegex(ctx));
         ctx.addOptionParser(new IgnoreOrder(ctx));
+        ctx.addOptionParser(new DocumentsFound(ctx));
         return ctx;
     }
 
@@ -42,6 +43,8 @@ public final class CsvSpecReader {
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
+        private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
+        private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
         String requestTimeRangeGte;
@@ -73,10 +76,14 @@ public final class CsvSpecReader {
                 testCase = new CsvTestCase();
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
+                testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.requestStored = requestStored;
                 testCase.requestTimeRangeGte = requestTimeRangeGte;
                 testCase.requestTimeRangeLte = requestTimeRangeLte;
                 requiredCapabilities.clear();
+                requiredCapabilitiesLocalCluster.clear();
+                missingCapabilitiesRemoteCluster.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                 requestTimeRangeGte = null;
                 requestTimeRangeLte = null;
@@ -109,6 +116,14 @@ public final class CsvSpecReader {
             String lower = line.toLowerCase(Locale.ROOT);
             if (lower.startsWith("required_capability:")) {
                 state.requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("required_capability_coordinator:")) {
+                state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("missing_capability_data_node:")) {
+                state.missingCapabilitiesRemoteCluster.add(line.substring("missing_capability_data_node:".length()).trim());
                 return Boolean.TRUE;
             }
             return null;
@@ -210,18 +225,44 @@ public final class CsvSpecReader {
         }
     }
 
+    record DocumentsFound(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("documents_found:")) {
+                state.testCase.expectedDocumentsFound = line.substring("documents_found:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
         final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public String query;
         public String expectedResults;
+        public String expectedDocumentsFound;
         public boolean ignoreOrder;
         /**
          * How to change the test when requesting all values be loaded from stored fields.
          */
         public WhenLoadsRequestedToStored requestStored;
+        /**
+         * Capabilities that must be present on all clusters.
+         */
         public List<String> requiredCapabilities = List.of();
+        /**
+         * Capabilities that must be present on the local cluster.
+         * (equivalent to {@link CsvTestCase#requiredCapabilities} for single-cluster tests)
+         */
+        public List<String> requiredCapabilitiesLocalCluster = List.of();
+        /**
+         * Capabilities that must be missing on the remote cluster.
+         * (not supported for single-cluster tests)
+         */
+        public List<String> missingCapabilitiesRemoteCluster = List.of();
         /**
          * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
          * a Query DSL range on {@code @timestamp} with these bounds (inclusive).
@@ -291,5 +332,4 @@ public final class CsvSpecReader {
             return new AssertWarnings.NoWarnings();
         }
     }
-
 }

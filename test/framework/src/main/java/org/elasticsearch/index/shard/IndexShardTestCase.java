@@ -637,7 +637,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             );
             mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
-            final Engine.Warmer warmer = createTestWarmer(indexSettings);
+            final Engine.Warmer warmer = createTestWarmer(indexSettings, mapperService);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
                 CircuitBreakerMetrics.NOOP,
@@ -1325,12 +1325,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return indexShard.getReplicationTracker();
     }
 
-    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings) {
+    public static Engine.Warmer createTestWarmer(IndexSettings indexSettings, MapperService mapperService) {
         return reader -> {
             // This isn't a warmer but sometimes verify the content in the reader
             if (randomBoolean()) {
                 try {
-                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, reader);
+                    EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(indexSettings, mapperService, reader);
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }

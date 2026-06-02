@@ -530,25 +530,13 @@ public interface ActionListener<Response> {
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
         Executor executor,
-        ActionListener<T> delegate,
-        Runnable cleanupOnTimeout
+        ActionListener<T> delegate
     ) {
         if (timeout == null) {
             return delegate;
         } else {
             var result = new SubscribableListener<T>();
             result.addListener(delegate);
-            result.addListener(new ActionListener<T>() {
-                @Override
-                public void onResponse(T t) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ElasticsearchTimeoutException) {
-                        cleanupOnTimeout.run();
-                    }
-                }
-            });
             result.addTimeout(timeout, threadPool, executor);
             return result;
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -458,15 +459,15 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(plan.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(3));
         assertThat(matchers.get(0).name(), equalTo("__name__"));
-        assertThat(matchers.get(0).value(), equalTo("foo"));
+        assertThat(matchers.get(0).getFirstValue(), equalTo("foo"));
         assertThat(matchers.get(0).isNegation(), equalTo(false));
 
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("host-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("host-1"));
         assertThat(matchers.get(1).isNegation(), equalTo(true));
 
         assertThat(matchers.get(2).name(), equalTo("host"));
-        assertThat(matchers.get(2).value(), equalTo("host-2"));
+        assertThat(matchers.get(2).getFirstValue(), equalTo("host-2"));
         assertThat(matchers.get(2).isNegation(), equalTo(true));
     }
 
@@ -621,6 +622,301 @@ public class PromqlParserTests extends ESTestCase {
             () -> TEST_PARSER.parseQuery("PROMQL index=?idx step=5m avg(foo)", paramsAsConstant("idx", 42))
         );
         assertThat(e.getMessage(), containsString("Parameter [?idx] for index must be a string"));
+    }
+
+    public void testTsCollapseAfterPromql() {
+        TimeSeriesCollapse collapse = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m (avg(foo)) | TS_COLLAPSE"),
+            TimeSeriesCollapse.class
+        );
+        as(collapse.child(), PromqlCommand.class);
+    }
+
+    public void testTsCollapseNotAfterPromql() {
+        ParsingException e = assertThrows(ParsingException.class, () -> TEST_PARSER.parseQuery("ROW a = 1 | TS_COLLAPSE"));
+        assertThat(e.getMessage(), containsString("TS_COLLAPSE can only appear directly after a PROMQL command"));
+    }
+
+    public void testTsCollapseNotDirectlyAfterPromql() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (avg(foo)) | LIMIT 1 | TS_COLLAPSE")
+        );
+        assertThat(e.getMessage(), containsString("TS_COLLAPSE can only appear directly after a PROMQL command"));
+    }
+
+    // ---- label matcher parameter tests ----
+
+    public void testLabelMatcherWithNamedParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=?_host}", paramsAsConstant("_host", "server-1")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(2));
+        assertThat(matchers.get(0).name(), equalTo("__name__"));
+        assertThat(matchers.get(0).getFirstValue(), equalTo("foo"));
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
+    }
+
+    public void testLabelMatcherWithPositionalParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=?1}", paramsAsConstant(null, "server-1")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(2));
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
+    }
+
+    public void testLabelMatcherWithRegexParam() {
+        // When user explicitly uses =~, they opt into regex semantics - no escaping
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=~?_pattern}", paramsAsConstant("_pattern", "server-.*")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(2));
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        // Passed through as-is - user controls the regex
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-.*"));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
+    }
+
+    public void testLabelMatcherWithNegationParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host!=?_host}", paramsAsConstant("_host", "server-1")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NEQ));
+    }
+
+    public void testLabelMatcherWithNegationRegexParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host!~?_pattern}", paramsAsConstant("_pattern", "test-.*")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NREG));
+    }
+
+    public void testLabelMatcherWithMultiValueParamRegex() {
+        // Multi-value param with regex matcher creates a multi-value LabelMatcher
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo{service=~?_services}",
+                paramsAsConstant("_services", List.of("api", "web", "worker"))
+            ),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(2));
+        assertThat(matchers.get(1).name(), equalTo("service"));
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("api", "web", "worker")));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
+    }
+
+    public void testLabelMatcherWithMultiValueParamNegationRegex() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{env!~?_envs}", paramsAsConstant("_envs", List.of("test", "dev"))),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("test", "dev")));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NREG));
+    }
+
+    public void testLabelMatcherWithMultiValueRegexParam() {
+        // When user explicitly uses =~ with multi-value, each value is treated as a regex pattern
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo{host=~?_hosts}",
+                paramsAsConstant("_hosts", List.of("server.*", "web-[0-9]+"))
+            ),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("server.*", "web-[0-9]+")));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
+    }
+
+    public void testLabelMatcherWithMultiValueExactParamLiteral() {
+        // Multi-value with = creates multi-value LabelMatcher (translated to IN clause at optimizer)
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo{host=?_hosts}",
+                paramsAsConstant("_hosts", List.of("k8s.pod.name", "service.api"))
+            ),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        // Values preserved as literals without escaping
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("k8s.pod.name", "service.api")));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
+    }
+
+    public void testLabelMatcherWithSingleValueRegexParamNoEscape() {
+        // Single value with explicit =~ - no escaping, user controls regex
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=~?_host}", paramsAsConstant("_host", "k8s.pod.*")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).getFirstValue(), equalTo("k8s.pod.*"));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
+    }
+
+    public void testLabelMatcherWithSingleValueExactParamNoEscape() {
+        // Single value with exact matcher should NOT be escaped (goes through Automata.makeString)
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=?_host}", paramsAsConstant("_host", "k8s.pod.name")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        // No escaping for exact match - the value is used literally by Automata.makeString
+        assertThat(matchers.get(1).getFirstValue(), equalTo("k8s.pod.name"));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
+    }
+
+    public void testLabelMatcherWithNumericParam() {
+        // Numeric params should be converted to strings
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{status_code=?_code}", paramsAsConstant("_code", 200)),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).name(), equalTo("status_code"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("200"));
+    }
+
+    public void testLabelMatcherWithBooleanParam() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{enabled=?_flag}", paramsAsConstant("_flag", true)),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).getFirstValue(), equalTo("true"));
+    }
+
+    public void testLabelMatcherWithMultipleParams() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo{host=?_host, env=?_env, service=~?_services}",
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("_host", "server-1"),
+                        paramAsConstant("_env", "prod"),
+                        paramAsConstant("_services", List.of("api", "web"))
+                    )
+                )
+            ),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(4));
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
+        assertThat(matchers.get(2).name(), equalTo("env"));
+        assertThat(matchers.get(2).getFirstValue(), equalTo("prod"));
+        assertThat(matchers.get(3).name(), equalTo("service"));
+        assertThat(matchers.get(3).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(3).values(), equalTo(List.of("api", "web")));
+    }
+
+    public void testLabelMatcherParamUnknownError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=?_unknown}", new QueryParams(List.of()))
+        );
+        assertThat(e.getMessage(), containsString("Parameter [?_unknown] value not found"));
+    }
+
+    public void testLabelMatcherMultiValueWithExactMatcher() {
+        // Multi-value params with = create a multi-value LabelMatcher (translated to IN clause)
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery(
+                "PROMQL index=test step=5m foo{host=?_hosts}",
+                paramsAsConstant("_hosts", List.of("server-1", "server-2"))
+            ),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(2));
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        // Multi-value preserved as list
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("server-1", "server-2")));
+        // Stays as EQ (translated to IN at optimizer level)
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
+    }
+
+    public void testLabelMatcherMultiValueWithNegationMatcher() {
+        // Multi-value params with != create a multi-value LabelMatcher (translated to NOT IN clause)
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{env!=?_envs}", paramsAsConstant("_envs", List.of("test", "dev"))),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers.get(1).name(), equalTo("env"));
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("test", "dev")));
+        // Stays as NEQ (translated to NOT IN at optimizer level)
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NEQ));
+    }
+
+    public void testLabelMatcherEmptyListParamError() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=~?_hosts}", paramsAsConstant("_hosts", List.of()))
+        );
+        assertThat(e.getMessage(), containsString("Parameter [?_hosts]"));
+        assertThat(e.getMessage(), containsString("cannot be an empty list"));
+    }
+
+    public void testLabelMatcherMixedLiteralAndParam() {
+        // Mix of literal and param values in label matchers
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=\"server-1\", env=?_env}", paramsAsConstant("_env", "prod")),
+            PromqlCommand.class
+        );
+        List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
+        assertThat(matchers, hasSize(3));
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
+        assertThat(matchers.get(2).name(), equalTo("env"));
+        assertThat(matchers.get(2).getFirstValue(), equalTo("prod"));
+    }
+
+    public void testLabelMatcherParamInRangeSelector() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m rate(foo{host=?_host}[5m])", paramsAsConstant("_host", "server-1")),
+            PromqlCommand.class
+        );
+        List<RangeSelector> rangeSelectors = promql.promqlPlan().collect(RangeSelector.class);
+        assertThat(rangeSelectors, hasSize(1));
+        List<LabelMatcher> matchers = rangeSelectors.getFirst().labelMatchers().matchers();
+        assertThat(matchers.get(1).name(), equalTo("host"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
+    }
+
+    public void testLabelMatcherSameParamUsedMultipleTimes() {
+        PromqlCommand promql = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{host=?_val} + bar{host=?_val}", paramsAsConstant("_val", "server-1")),
+            PromqlCommand.class
+        );
+        List<InstantSelector> selectors = promql.promqlPlan().collect(InstantSelector.class);
+        assertThat(selectors, hasSize(2));
+        for (InstantSelector selector : selectors) {
+            assertThat(selector.labelMatchers().matchers().get(1).getFirstValue(), equalTo("server-1"));
+        }
     }
 
     private static PromqlCommand parse(String query) {

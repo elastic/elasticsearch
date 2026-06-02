@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
@@ -21,8 +22,9 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * <ul>
  *   <li>Access key + secret key (static credentials)</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>Default credentials (IAM role, instance profile) when no explicit credentials are provided</li>
  * </ul>
+ * The node's ambient credentials (IAM role, instance profile, environment) are never used: a data source
+ * must carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  */
 public class S3Configuration extends FileDataSourceConfiguration {
 
@@ -48,12 +50,12 @@ public class S3Configuration extends FileDataSourceConfiguration {
     }
 
     /**
-     * Lenient factory for query-time WITH clauses, which may carry format-level options
+     * Lenient factory for query-time configuration maps, which may carry format-level options
      * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
      * before construction; cross-field validation (auth/credential conflicts) still runs.
      */
-    public static S3Configuration fromQueryConfig(Map<String, Object> raw) {
-        return fromMap(filterKnown(raw, FIELDS));
+    public static Configured<S3Configuration> fromQueryConfig(Map<String, Object> raw) {
+        return filterAndConstruct(raw, FIELDS, S3Configuration::new);
     }
 
     public static S3Configuration fromFields(String accessKey, String secretKey, String endpoint, String region) {

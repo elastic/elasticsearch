@@ -103,6 +103,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -180,6 +181,7 @@ public class ComputeService {
     private final PlannerSettings.Holder plannerSettings;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
+    private final Executor searchExecutor;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -197,8 +199,8 @@ public class ComputeService {
         this.exchangeService = transportActionServices.exchangeService();
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.blockFactory = blockFactory;
-        var esqlExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
-        this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
+        this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.driverRunner = new DriverTaskRunner(transportService, searchExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = transportActionServices.inferenceService();
@@ -212,13 +214,13 @@ public class ComputeService {
             searchService,
             transportService,
             exchangeService,
-            esqlExecutor
+            searchExecutor
         );
         this.clusterComputeHandler = new ClusterComputeHandler(
             this,
             exchangeService,
             transportService,
-            esqlExecutor,
+            searchExecutor,
             dataNodeComputeHandler
         );
         this.plannerSettings = transportActionServices.plannerSettings();
@@ -234,12 +236,16 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan) {
+    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
         try {
-            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+                plan,
+                operatorFactoryRegistry.sourceFactories(),
+                maxRecordBytes(configuration)
+            );
             return coalesceSplits(discovered);
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
@@ -276,7 +282,7 @@ public class ComputeService {
     }
 
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan);
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -309,12 +315,12 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits);
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration));
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -412,19 +418,27 @@ public class ComputeService {
         return result;
     }
 
-    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits, int maxRecordBytes) {
         if (operatorFactoryRegistry == null) {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
             fragment.fragment().forEachDown(ExternalRelation.class, external -> {
                 ExternalSourceExec tempExec = external.toPhysicalExec();
-                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+                    tempExec,
+                    operatorFactoryRegistry.sourceFactories(),
+                    maxRecordBytes
+                );
                 if (discovered instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
             });
         });
+    }
+
+    private static int maxRecordBytes(Configuration configuration) {
+        return Math.toIntExact(configuration.pragmas().maxRecordSize().getBytes());
     }
 
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
@@ -457,7 +471,6 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
@@ -505,10 +518,7 @@ public class ComputeService {
         var mainSessionId = newChildSession(sessionId);
         QueryPragmas queryPragmas = configuration.pragmas();
 
-        ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(
-            queryPragmas.exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        ExchangeSourceHandler mainExchangeSource = new ExchangeSourceHandler(queryPragmas.exchangeBufferSize(), searchExecutor);
 
         exchangeService.addExchangeSourceHandler(mainSessionId, mainExchangeSource);
         var finalListener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
@@ -532,7 +542,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 finalListener.map(profiles -> {
                     execInfo.markEndQuery();
-                    return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
+                    return new Result(mainPlan.output(), collectedPages, null, configuration, profiles, execInfo);
                 })
             )
         ) {
@@ -701,7 +711,7 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
+        final PhysicalPlan splitPlan = discoverSplits(physicalPlan, configuration);
         final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
@@ -759,7 +769,7 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(resolvedPlan.output(), collectedPages, configuration, completionInfo, execInfo);
+                        return new Result(resolvedPlan.output(), collectedPages, null, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
@@ -813,10 +823,7 @@ public class ComputeService {
          * entire plan.
          */
         List<Attribute> outputAttributes = resolvedPlan.output();
-        var exchangeSource = new ExchangeSourceHandler(
-            configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (
@@ -826,7 +833,7 @@ public class ComputeService {
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -990,10 +997,7 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         List<Attribute> outputAttributes = resolvedPlan.output();
-        var exchangeSource = new ExchangeSourceHandler(
-            configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
-        );
+        var exchangeSource = new ExchangeSourceHandler(configuration.pragmas().exchangeBufferSize(), searchExecutor);
         listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (
@@ -1002,7 +1006,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, null, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -1259,7 +1263,9 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            Releasables.close(context.searchContexts().iterable());
+            if (context.description().equals(DATA_DESCRIPTION)) {
+                Releasables.close(context.searchContexts().iterable());
+            }
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }

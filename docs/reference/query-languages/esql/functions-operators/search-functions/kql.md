@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `KQL` function [esql-kql]
 
-:::{include} ../../_snippets/functions/layout/kql.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/kql.md
 :::

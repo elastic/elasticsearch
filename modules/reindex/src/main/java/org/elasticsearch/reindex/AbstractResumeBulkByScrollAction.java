@@ -17,36 +17,38 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
+import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
 
-/**
- * Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
- * node, then returns a {@link ResumeBulkByScrollResponse} containing the task id of the delegate action.
- */
-public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>> extends HandledTransportAction<
-    ResumeBulkByScrollRequest,
-    ResumeBulkByScrollResponse> {
+/// Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
+/// node, then returns a [ResumeBulkByPaginatedSearchResponse] containing the task id of the delegate action.
+public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
+    HandledTransportAction<ResumeBulkByPaginatedSearchRequest, ResumeBulkByPaginatedSearchResponse> {
+
+    private static final Logger logger = LogManager.getLogger(AbstractResumeBulkByScrollAction.class);
 
     private final ClusterService clusterService;
-    private final ActionType<BulkByScrollResponse> delegateAction;
+    private final ActionType<BulkByPaginatedSearchResponse> delegateAction;
     private final NodeClient nodeClient;
 
     protected AbstractResumeBulkByScrollAction(
         String actionName,
         TransportService transportService,
         ActionFilters actionFilters,
-        Writeable.Reader<ResumeBulkByScrollRequest> requestReader,
+        Writeable.Reader<ResumeBulkByPaginatedSearchRequest> requestReader,
         Executor executor,
         ClusterService clusterService,
-        ActionType<BulkByScrollResponse> delegateAction,
+        ActionType<BulkByPaginatedSearchResponse> delegateAction,
         NodeClient nodeClient
     ) {
         super(actionName, transportService, actionFilters, requestReader, executor);
@@ -56,11 +58,26 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
     }
 
     @Override
-    protected void doExecute(Task task, ResumeBulkByScrollRequest request, ActionListener<ResumeBulkByScrollResponse> listener) {
-        var responseListener = new SubscribableListener<BulkByScrollResponse>();
+    protected void doExecute(
+        Task task,
+        ResumeBulkByPaginatedSearchRequest request,
+        ActionListener<ResumeBulkByPaginatedSearchResponse> listener
+    ) {
+        // ResumeBulkByPaginatedSearchRequest.validate() rejects requests with no ResumeInfo
+        assert request.getDelegate().getResumeInfo().isPresent();
+        final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
+
+        var responseListener = new SubscribableListener<BulkByPaginatedSearchResponse>();
         Task delegateTask = nodeClient.executeLocally(delegateAction, request.getDelegate(), responseListener);
         responseListener.addListener(new LoggingReindexTaskListener(delegateTask));
         TaskId taskId = new TaskId(clusterService.localNode().getId(), delegateTask.getId());
-        listener.onResponse(new ResumeBulkByScrollResponse(taskId));
+        logger.info(
+            "resumed relocation for [{}]: original task [{}] continues as task [{}]",
+            actionName,
+            resumeInfo.relocationOrigin().originalTaskId(),
+            taskId
+        );
+
+        listener.onResponse(new ResumeBulkByPaginatedSearchResponse(taskId));
     }
 }

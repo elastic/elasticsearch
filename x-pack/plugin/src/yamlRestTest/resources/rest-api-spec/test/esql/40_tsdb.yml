@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [allowed_warnings_regex, allowed_warnings]
+      test_runner_features: [allowed_warnings_regex, allowed_warnings, capabilities]
   - do:
       indices.create:
           index: test
@@ -183,6 +183,37 @@ setup:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+
+  - do:
+      indices.create:
+        index: test_counter_double
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [dim]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              value:
+                type: double
+                time_series_metric: counter
+
+  - do:
+      indices.create:
+        index: idx_histogram
+        body:
+          mappings:
+            properties:
+              h:
+                type: histogram
 
 ---
 load everything:
@@ -935,7 +966,7 @@ PromQL rate on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -949,6 +980,10 @@ PromQL rate on counter field:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - length: {values: 4}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.2.1: "2021-04-28T18:52:00.000Z"}
+  - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
 PromQL irate on counter field:
@@ -958,7 +993,7 @@ PromQL irate on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0, promql_unmapped_fields_filter_nulls]
+          capabilities: [promql_command_v0, promql_unmapped_fields_filter_nulls, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -972,6 +1007,8 @@ PromQL irate on counter field:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - length: {values: 2}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
 
 ---
 PromQL increase on counter field:
@@ -981,7 +1018,7 @@ PromQL increase on counter field:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -995,6 +1032,10 @@ PromQL increase on counter field:
   - match: {columns.2.name: "k8s.pod.name"}
   - match: {columns.2.type: "keyword"}
   - length: {values: 4}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
+  - match: {values.2.1: "2021-04-28T18:52:00.000Z"}
+  - match: {values.3.1: "2021-04-28T18:52:00.000Z"}
 
 ---
 PromQL max_over_time:
@@ -1004,7 +1045,7 @@ PromQL max_over_time:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -1017,6 +1058,7 @@ PromQL max_over_time:
   - match: {columns.1.type: "date"}
   - length: {values: 1}
   - match: {values.0.0: 20.0}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
 
 ---
 PromQL sum_over_time with grouping:
@@ -1026,7 +1068,7 @@ PromQL sum_over_time with grouping:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -1041,8 +1083,10 @@ PromQL sum_over_time with grouping:
   - match: {columns.2.type: "keyword"}
   - length: {values: 2}
   - match: {values.0.0: 20.0}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
   - match: {values.0.2: "A"}
   - match: {values.1.0: 83.0}
+  - match: {values.1.1: "2021-04-28T18:51:00.000Z"}
   - match: {values.1.2: "B"}
 
 ---
@@ -1053,7 +1097,7 @@ PromQL avg aggregation:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [promql_command_v0]
+          capabilities: [promql_command_v0, fix_promql_time_bucket_v2]
       reason: "PromQL support"
   - do:
       esql.query:
@@ -1065,6 +1109,7 @@ PromQL avg aggregation:
   - match: {columns.1.name: "step"}
   - match: {columns.1.type: "date"}
   - length: {values: 1}
+  - match: {values.0.1: "2021-04-28T18:51:00.000Z"}
 
 ---
 PromQL unknown function error:
@@ -1131,3 +1176,180 @@ Stats on aggregate_metric_double with no count, but has sum:
   - match: {values.0.2: 0}
   - match: {values.0.3: null}
   - match: {values.0.4: null}
+
+---
+'sort by _tsid':
+  - requires:
+      test_runner_features: [ contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ sorting_on_histogram_and_tsid_forbidden ]
+      reason: "sorting on _tsid raises a verification error since this fix"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test METADATA _tsid | SORT _tsid | LIMIT 3'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot sort on _tsid' }
+
+---
+sort by counter_integer:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
+  - do:
+      catch: /cannot sort on counter_integer/
+      esql.query:
+        body:
+          query: 'from test | sort k8s.pod.network.rx | limit 1'
+
+---
+sort by counter_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
+  - do:
+      catch: /cannot sort on counter_double/
+      esql.query:
+        body:
+          query: 'from test_counter_double | sort value | limit 1'
+
+---
+sort by histogram:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ sorting_on_histogram_and_tsid_forbidden ]
+      reason: "sorting on histogram raises a verification error since this fix"
+  - do:
+      catch: /cannot sort on histogram/
+      esql.query:
+        body:
+          query: 'from idx_histogram | sort h | limit 3'
+
+---
+PromQL label matcher with named param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?_name}[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: [{"_name": "cat"}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.2: "cat"}
+  - match: {values.1.2: "cat"}
+
+---
+PromQL label matcher with positional param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?1}[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: ["dog"]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.2: "dog"}
+  - match: {values.1.2: "dog"}
+
+---
+PromQL label matcher with regex multi-value param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=~?_names}[1m]))) | SORT step, k8s.pod.name | LIMIT 10'
+          params: [{"_names": ["cat", "dog"]}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL label matcher multi-value with exact matcher promotes to regex:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?_names}[1m]))) | SORT step, k8s.pod.name | LIMIT 10'
+          params: [{"_names": ["cat", "dog"]}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL label matcher unknown param error:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      catch: /Parameter \[\?_unknown\] value not found/
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum(rate(k8s.pod.network.tx{k8s.pod.name=?_unknown}[1m])))'
+          params: []

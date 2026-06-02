@@ -38,6 +38,34 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertFalse(GenerativeRestTest.isLimitByMvExpandBug(error, query));
     }
 
+    public void testWildcardLongRangeTopNConnectionBugMatchesFromStar() {
+        String query = "SET unmapped_fields=\"nullify\";FROM * | CHANGE_POINT sv ON event_dates AS type, pvalue";
+        String error = "Connection is closed";
+
+        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
+    }
+
+    public void testWildcardLongRangeTopNConnectionBugMatchesWildcardPattern() {
+        String query = "FROM mv_* | SORT decade";
+        String error = "Connection reset";
+
+        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
+    }
+
+    public void testWildcardLongRangeTopNConnectionBugRequiresWildcardSource() {
+        String query = "FROM mv_decades | SORT decade";
+        String error = "Connection is closed";
+
+        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
+    }
+
+    public void testWildcardLongRangeTopNConnectionBugRequiresConnectionError() {
+        String query = "FROM mv_* | SORT decade";
+        String error = "verification_exception: line 1:1: unknown column [decade]";
+
+        assertFalse(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
+    }
+
     public void testFullTextAfterSubqueryMatchesLimitInsideSubquery() {
         String query = "FROM books, (FROM books | LIMIT 1) | WHERE match(title, \"quick\")";
         String error = "verification_exception: line 1:13: [MATCH] function cannot be used after LIMIT";

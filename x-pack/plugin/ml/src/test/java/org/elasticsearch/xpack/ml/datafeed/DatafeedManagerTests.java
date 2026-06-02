@@ -104,7 +104,7 @@ public class DatafeedManagerTests extends ESTestCase {
 
     /** Ensures {@link DatafeedManager} treats the config as CPS-capable for credential minting. */
     private static void withCpsSearchSurface(DatafeedConfig.Builder builder) {
-        builder.setProjectRouting("_local");
+        builder.setProjectRouting("_alias:_origin");
     }
 
     private DatafeedManager newDatafeedManager(
@@ -926,7 +926,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         DatafeedConfig clearedConfig = new DatafeedConfig.Builder("test-datafeed", "test-job").setIndices(List.of("logs-*"))
-            .setProjectRouting("_local")
+            .setProjectRouting("_alias:_origin")
             .build();
         mockRevokeSucceeds(apiKeyService);
         doAnswer(invocation -> {
@@ -1035,7 +1035,7 @@ public class DatafeedManagerTests extends ESTestCase {
         stubGetDatafeedConfig(datafeedConfigProvider, existingBuilder.build());
 
         DatafeedConfig clearedConfig = new DatafeedConfig.Builder("test-datafeed", "test-job").setIndices(List.of("logs-*"))
-            .setProjectRouting("_local")
+            .setProjectRouting("_alias:_origin")
             .build();
         mockRevokeFails(apiKeyService, new RuntimeException("revoke failed"));
         doAnswer(invocation -> {
@@ -1439,7 +1439,7 @@ public class DatafeedManagerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToLocal() {
+    public void testUpdateDatafeedFirstTimeMigrationShouldDefaultProjectRoutingToOrigin() {
         Settings settings = Settings.builder().put("serverless.cross_project.enabled", true).put("xpack.security.enabled", false).build();
 
         DatafeedConfigProvider datafeedConfigProvider = mock(DatafeedConfigProvider.class);
@@ -1477,7 +1477,7 @@ public class DatafeedManagerTests extends ESTestCase {
         );
 
         assertThat(capturedUpdate.get(), notNullValue());
-        assertThat(capturedUpdate.get().getProjectRouting(), equalTo(ProjectRoutingResolver.LOCAL));
+        assertThat(capturedUpdate.get().getProjectRouting(), equalTo("_alias:" + ProjectRoutingResolver.ORIGIN));
         verify(auditor).info(eq("job-1"), eq(Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED)));
     }
 

@@ -339,7 +339,7 @@ public final class DatafeedManager {
 
     /**
      * Returns a (possibly augmented) update request that defaults {@code project_routing} to
-     * {@link ProjectRoutingResolver#LOCAL} when all of the following are true:
+     * {@code _alias:_origin} when all of the following are true:
      * <ul>
      *   <li>The credential transition is {@link CredentialTransitions.Intent#REPLACE} for a
      *       first-time UIAM migration (no stored {@code cloudInternalCredential}).</li>
@@ -369,11 +369,12 @@ public final class DatafeedManager {
         logger.info(
             "[{}] CPS migration: defaulting project_routing to [{}] to preserve local search scope",
             existingConfig.getId(),
-            ProjectRoutingResolver.LOCAL
+            "_alias:" + ProjectRoutingResolver.ORIGIN
         );
         auditor.info(existingConfig.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_CPS_MIGRATION_PROJECT_ROUTING_DEFAULTED));
-        DatafeedUpdate augmentedUpdate = new DatafeedUpdate.Builder(request.getUpdate()).setProjectRouting(ProjectRoutingResolver.LOCAL)
-            .build();
+        DatafeedUpdate augmentedUpdate = new DatafeedUpdate.Builder(request.getUpdate()).setProjectRouting(
+            "_alias:" + ProjectRoutingResolver.ORIGIN
+        ).build();
         return new UpdateDatafeedAction.Request(augmentedUpdate);
     }
 

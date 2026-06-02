@@ -1,0 +1,5 @@
+area: Data streams
+issues: []
+pr: 150457
+summary: Remove feature flag for DLM Frozen Tier while preserving BWC
+type: feature

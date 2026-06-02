@@ -1727,12 +1727,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
-            activateSearchNode.set(true);
             // The upload thread's sendNewUploadedCommitNotification may race with the state change
             // and send a TransportFetchShardCommitsInUseAction through fakeSearchNode, which needs
             // a DiscoveryNode to construct the response.
             var searchNodeId = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
             fakeSearchNode.setSearchDiscoveryNode(state.getNodes().get(searchNodeId));
+            activateSearchNode.set(true);
 
             boolean clusterChangedFirst = randomBoolean();
             if (clusterChangedFirst) {

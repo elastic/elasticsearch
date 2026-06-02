@@ -13,6 +13,9 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -102,14 +105,14 @@ public final class AnomalyDetectorsIndex {
      */
     public static void createStateIndexAndAliasIfNecessary(
         Client client,
-        ClusterState state,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
     ) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
-            state,
+            projectMetadata,
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
@@ -122,9 +125,30 @@ public final class AnomalyDetectorsIndex {
         );
     }
 
-    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+    /** @deprecated Use {@link #createStateIndexAndAliasIfNecessary(
+     *      Client, ProjectMetadata, IndexNameExpressionResolver, TimeValue, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createStateIndexAndAliasIfNecessary(
         Client client,
         ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        createStateIndexAndAliasIfNecessary(
+            client,
+            state.getMetadata().getProject(ProjectId.DEFAULT),
+            resolver,
+            masterNodeTimeout,
+            finalListener
+        );
+    }
+
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         TimeValue masterNodeTimeout,
         final ActionListener<Boolean> finalListener
@@ -145,7 +169,7 @@ public final class AnomalyDetectorsIndex {
 
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
-            state,
+            projectMetadata,
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
@@ -155,6 +179,27 @@ public final class AnomalyDetectorsIndex {
             // better option
             ActiveShardCount.DEFAULT,
             stateIndexAndAliasCreated
+        );
+    }
+
+    /** @deprecated Use {@link #createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+     *      Client, ProjectMetadata, IndexNameExpressionResolver, TimeValue, ActionListener)}
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectMetadata overload and remove this one.")
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+            client,
+            state.getMetadata().getProject(ProjectId.DEFAULT),
+            resolver,
+            masterNodeTimeout,
+            finalListener
         );
     }
 

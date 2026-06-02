@@ -133,19 +133,19 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         ClusterState cs = ClusterState.builder(new ClusterName("_name")).build();
         String[] indices = new String[] { "no_index" };
 
-        assertArrayEquals(new String[] { "no_index" }, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, 1));
+        assertArrayEquals(new String[] { "no_index" }, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, 1));
     }
 
     public void testMappingRequiresUpdateNullMapping() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("null_mapping", null));
         String[] indices = new String[] { "null_index" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, 1));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, 1));
     }
 
     public void testMappingRequiresUpdateNoVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("no_version_field", "NO_VERSION_FIELD"));
         String[] indices = new String[] { "no_version_field" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, 1));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, 1));
     }
 
     /**
@@ -160,23 +160,23 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap("product_version_only", MlIndexAndAlias.BWC_MAPPINGS_VERSION)
             );
             String[] indices = new String[] { "product_version_only" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("product_version_only", "8.10.2"));
             String[] indices = new String[] { "product_version_only" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("product_version_only", "7.17.13"));
             String[] indices = new String[] { "product_version_only" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
         {
             // Serverless versions may be build hashes
             ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("product_version_only", "a1b2c3d4"));
             String[] indices = new String[] { "product_version_only" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
     }
 
@@ -195,7 +195,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
@@ -203,7 +206,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             // Serverless versions may be build hashes
@@ -212,7 +218,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
@@ -220,7 +229,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
@@ -228,7 +237,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
         {
             // Serverless versions may be build hashes
@@ -237,7 +246,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "both" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
     }
 
@@ -255,7 +264,10 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "mappings_version_only" };
-            assertArrayEquals(Strings.EMPTY_ARRAY, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, currentVersion));
+            assertArrayEquals(
+                Strings.EMPTY_ARRAY,
+                ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, currentVersion)
+            );
         }
         {
             ClusterState cs = getClusterStateWithMappingsWithMetadata(
@@ -263,7 +275,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 Collections.singletonMap(SystemIndexDescriptor.VERSION_META_KEY, currentVersion)
             );
             String[] indices = new String[] { "mappings_version_only" };
-            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, newVersion));
+            assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, newVersion));
         }
     }
 
@@ -272,13 +284,13 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             Collections.singletonMap("version_nested", Collections.singletonMap("nested", "1.0"))
         );
         String[] indices = new String[] { "version_nested" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, 1));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, 1));
     }
 
     public void testMappingRequiresUpdateBogusMappingVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_bogus", "0.0"));
         String[] indices = new String[] { "version_bogus" };
-        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, 1));
+        assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs.metadata().getProject(), indices, 1));
     }
 
     @SuppressWarnings({ "unchecked" })

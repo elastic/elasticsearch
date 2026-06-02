@@ -434,8 +434,7 @@ public abstract class TransportReplicationAction<
         );
         ActionListener<Response> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), releasable::close);
 
-        Executor handlerExecutor = handlerExecutor(indexShard);
-        handlerExecutor.execute(new ActionRunnable<>(listener) {
+        handlerExecutor(indexShard).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 new AsyncPrimaryAction(request, listener, (ReplicationTask) task).run();

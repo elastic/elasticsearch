@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.core.Strings.format;
@@ -82,6 +83,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
+
+    // Temporary test-only hooks for reproducing the race in https://github.com/elastic/elasticsearch/issues/150213
+    static final AtomicReference<IOException> testOnlyInjectCleanFilesException = new AtomicReference<>();
 
     @Nullable // if we're not downloading files from snapshots in this recovery
     private volatile Releasable snapshotFileDownloadsPermit;
@@ -480,6 +484,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final Store store = store();
             store.incRef();
             try {
+                final IOException injected = testOnlyInjectCleanFilesException.getAndSet(null);
+                if (injected != null) {
+                    throw injected;
+                }
                 if (indexShard.routingEntry().isPromotableToPrimary()) {
                     store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
                     bootstrap(indexShard, globalCheckpoint);

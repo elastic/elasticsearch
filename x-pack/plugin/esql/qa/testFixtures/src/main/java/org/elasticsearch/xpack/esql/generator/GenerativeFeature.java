@@ -21,8 +21,7 @@ public enum GenerativeFeature {
     BASELINE,
 
     /**
-     * Allow {@code FROM (...)} subqueries to be produced as sources. See
-     * {@code GenerativeSubqueryRestTest}.
+     * Allow {@code FROM (...)} subqueries to be produced as sources by the per-feature generative test harness.
      */
     SUBQUERIES,
 

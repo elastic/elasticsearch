@@ -580,9 +580,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testJvmMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/150289
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/150294

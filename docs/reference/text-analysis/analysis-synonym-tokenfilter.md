@@ -91,12 +91,8 @@ serverless: ga
 
 A maximum of 100 synonym sets may be specified per filter.
 
-```{applies_to}
-stack: ga 9.5
-serverless: ga
-```
-
 ::::{note}
+:applies_to: stack: ga 9.5+
 Synonym sets are limited to 100,000 rules per set by default. This limit is configurable using the `synonyms.max_synonym_rules` cluster setting.
 ::::
 

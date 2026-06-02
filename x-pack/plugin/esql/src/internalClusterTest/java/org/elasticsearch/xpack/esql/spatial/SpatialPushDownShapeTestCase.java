@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCase<Geometry> {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(SpatialPlugin.class, EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
     }
 
     public void testSimpleShapeContainsPolygon() {

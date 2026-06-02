@@ -1095,8 +1095,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorMessage == null || query == null) {
             return false;
         }
-        return CONNECTION_CLOSED_OR_RESET_PATTERN.matcher(errorMessage).matches()
-            && WILDCARD_SOURCE_PATTERN.matcher(query).find();
+        return CONNECTION_CLOSED_OR_RESET_PATTERN.matcher(errorMessage).matches() && WILDCARD_SOURCE_PATTERN.matcher(query).find();
     }
 
     private static final Pattern SUBQUERY_IN_FROM_PATTERN = Pattern.compile("(?i)\\(\\s*from\\b");

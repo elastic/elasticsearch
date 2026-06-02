@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.xpack.esql.formatter.arrow;
 
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
@@ -41,6 +41,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.AfterClass;
 
@@ -177,39 +178,39 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> v.isNull(i) ? null : "non-null in vector"
     );
 
-    static final Map<String, ValueType> VALUE_TYPES = Map.ofEntries(
-        Map.entry("integer", INTEGER_VALUES),
-        Map.entry("counter_integer", INTEGER_VALUES),
-        Map.entry("long", LONG_VALUES),
-        Map.entry("counter_long", LONG_VALUES),
-        Map.entry("unsigned_long", ULONG_VALUES),
-        Map.entry("double", DOUBLE_VALUES),
-        Map.entry("counter_double", DOUBLE_VALUES),
+    static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
+        Map.entry(DataType.INTEGER, INTEGER_VALUES),
+        Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
+        Map.entry(DataType.LONG, LONG_VALUES),
+        Map.entry(DataType.COUNTER_LONG, LONG_VALUES),
+        Map.entry(DataType.UNSIGNED_LONG, ULONG_VALUES),
+        Map.entry(DataType.DOUBLE, DOUBLE_VALUES),
+        Map.entry(DataType.COUNTER_DOUBLE, DOUBLE_VALUES),
 
-        Map.entry("text", TEXT_VALUES),
-        Map.entry("keyword", TEXT_VALUES),
+        Map.entry(DataType.TEXT, TEXT_VALUES),
+        Map.entry(DataType.KEYWORD, TEXT_VALUES),
 
-        Map.entry("boolean", BOOLEAN_VALUES),
-        Map.entry("date", DATE_VALUES),
-        Map.entry("ip", IP_VALUES),
-        Map.entry("version", VERSION_VALUES),
-        Map.entry("_source", SOURCE_VALUES),
+        Map.entry(DataType.BOOLEAN, BOOLEAN_VALUES),
+        Map.entry(DataType.DATETIME, DATE_VALUES),
+        Map.entry(DataType.IP, IP_VALUES),
+        Map.entry(DataType.VERSION, VERSION_VALUES),
+        Map.entry(DataType.SOURCE, SOURCE_VALUES),
 
-        Map.entry("null", NULL_VALUES),
-        Map.entry("unsupported", NULL_VALUES),
+        Map.entry(DataType.NULL, NULL_VALUES),
+        Map.entry(DataType.UNSUPPORTED, NULL_VALUES),
 
         // All geo types just pass-through WKB, use random binary data
-        Map.entry("geo_point", BINARY_VALUES),
-        Map.entry("geo_shape", BINARY_VALUES),
-        Map.entry("cartesian_point", BINARY_VALUES),
-        Map.entry("cartesian_shape", BINARY_VALUES)
+        Map.entry(DataType.GEO_POINT, BINARY_VALUES),
+        Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
+        Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
+        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES)
     );
 
     // ---------------------------------------------------------------------------------------------
     // Tests
 
     public void testTestHarness() {
-        TestColumn testColumn = TestColumn.create("foo", "integer");
+        TestColumn testColumn = TestColumn.create("foo", DataType.INTEGER);
         TestBlock denseBlock = TestBlock.create(BLOCK_FACTORY, testColumn, Density.Dense, 3);
         TestBlock sparseBlock = TestBlock.create(BLOCK_FACTORY, testColumn, Density.Sparse, 5);
         TestBlock emptyBlock = TestBlock.create(BLOCK_FACTORY, testColumn, Density.Empty, 7);
@@ -232,11 +233,7 @@ public class ArrowResponseTests extends ESTestCase {
         assertEquals(3 + 5 + 7, count);
 
         // Test that we have value types for all types
-        List<String> converters = new ArrayList<>(ArrowResponse.ESQL_CONVERTERS.keySet());
-        Collections.sort(converters);
-        List<String> valueTypes = new ArrayList<>(VALUE_TYPES.keySet());
-        Collections.sort(valueTypes);
-        assertEquals("Missing test value types", converters, valueTypes);
+        assertEquals("Missing test value types", ArrowResponse.ESQL_FORMATTERS.keySet(), VALUE_TYPES.keySet());
     }
 
     /**
@@ -260,7 +257,7 @@ public class ArrowResponseTests extends ESTestCase {
 
     public void testSingleBlock() throws IOException {
         // Simple test to easily focus on a specific type & density
-        String type = "text";
+        DataType type = DataType.TEXT;
         Density density = Density.Dense;
 
         TestColumn testColumn = new TestColumn("foo", type, VALUE_TYPES.get(type), false);
@@ -336,7 +333,7 @@ public class ArrowResponseTests extends ESTestCase {
         // End of block
         assertEquals(6, block.getFirstValueIndex(4));
 
-        var column = TestColumn.create("some-field", "integer", true);
+        var column = TestColumn.create("some-field", DataType.INTEGER, true);
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
         compareEsqlAndArrow(testCase);
@@ -361,7 +358,7 @@ public class ArrowResponseTests extends ESTestCase {
         BytesRefBlock block = builder.build();
         builder.close();
 
-        var column = TestColumn.create("some-field", "text");
+        var column = TestColumn.create("some-field", DataType.TEXT);
         TestCase testCase = new TestCase(List.of(column), List.of(new TestPage(List.of(TestBlock.create(column, block)))));
 
         compareEsqlAndArrow(testCase);
@@ -434,10 +431,10 @@ public class ArrowResponseTests extends ESTestCase {
     public void testRandomTypesAndSize() throws IOException {
 
         // Shuffle types to randomize their succession in the Arrow stream
-        List<String> types = new ArrayList<>(VALUE_TYPES.keySet());
+        List<DataType> types = new ArrayList<>(VALUE_TYPES.keySet());
         Collections.shuffle(types, random());
 
-        List<TestColumn> columns = types.stream().map(type -> TestColumn.create("col-" + type, type)).toList();
+        List<TestColumn> columns = types.stream().map(type -> TestColumn.create("col-" + type.outputType(), type)).toList();
 
         List<TestPage> pages = IntStream
             // 1 to 10 pages of random density and 1 to 1000 values
@@ -464,7 +461,7 @@ public class ArrowResponseTests extends ESTestCase {
 
             // Check esql type in the metadata
             var metadata = root.getSchema().getFields().get(i).getMetadata();
-            assertEquals(testCase.columns.get(i).type, metadata.get("elastic:type"));
+            assertEquals(testCase.columns.get(i).type.outputType(), metadata.get("elastic:type"));
 
             // Check values
             var esqlValuesIterator = new EsqlValuesIterator(testCase, i);
@@ -598,16 +595,16 @@ public class ArrowResponseTests extends ESTestCase {
     record TestCase(List<TestColumn> columns, List<TestPage> pages) {
         @Override
         public String toString() {
-            return pages.size() + " pages of " + columns.stream().map(TestColumn::type).collect(Collectors.joining("|"));
+            return pages.size() + " pages of " + columns.stream().map(c -> c.type().outputType()).collect(Collectors.joining("|"));
         }
     }
 
-    record TestColumn(String name, String type, ValueType valueType, boolean multivalue) {
-        static TestColumn create(String name, String type) {
+    record TestColumn(String name, DataType type, ValueType valueType, boolean multivalue) {
+        static TestColumn create(String name, DataType type) {
             return create(name, type, randomBoolean());
         }
 
-        static TestColumn create(String name, String type, boolean multivalue) {
+        static TestColumn create(String name, DataType type, boolean multivalue) {
             return new TestColumn(name, type, VALUE_TYPES.get(type), multivalue);
         }
     }

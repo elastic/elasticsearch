@@ -529,9 +529,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/150123
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT
-  method: testMixedOperationsDuringSplitWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/147842
 - class: org.elasticsearch.simdvec.internal.vectorization.MSBitToBitESNextOSQVectorsScorerTests
   method: testSymmetric1BitDotProductMatchesNativeWhenSupported
   issue: https://github.com/elastic/elasticsearch/issues/150155

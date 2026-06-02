@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
  * reads from, by parsing the query's source command(s) and lookup-join clauses.
  * <p>
  * {@link CsvFlattenedKeywordIT} uses this to scope the keyword-path set passed to
- * {@link EsqlQueryKeywordFieldRewriter} to only the fields that are {@code keyword} in the
+ * {@link AstKeywordFieldRewriter} to only the fields that are {@code keyword} in the
  * specific indices the query touches &mdash; instead of the union of every keyword path across
  * every dataset, which produces cross-dataset false positives (e.g. wrapping {@code id} because it
  * is {@code keyword} in {@code apps}, even when the query is reading {@code employees} where
@@ -295,8 +295,7 @@ public final class EsqlQueryDatasetResolver {
      * <p>
      * The masking is conservative for the {@code """..."""} form: backslash escapes inside it are
      * left untouched (ES|QL's triple-quoted form treats backslashes literally), and an unterminated
-     * literal at end-of-input is masked to end-of-input as well. Both behaviours match the rewriter
-     * in {@link EsqlQueryKeywordFieldRewriter}.
+     * literal at end-of-input is masked to end-of-input as well.
      */
     static String maskStringsAndComments(String query) {
         char[] out = query.toCharArray();

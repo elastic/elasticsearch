@@ -92,7 +92,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  *       indices contributed each side of the conflict.</li>
  *   <li>{@code skip-wrap; site=&lt;SITE&gt;; field=&lt;X&gt;; reason=...} &mdash; per launched query,
  *       once per distinct {@code (site, field)} pair the rewriter's
- *       {@link EsqlQueryKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
+ *       {@link AstKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
  *       grammar slots that accept only an attribute ({@code MV_EXPAND}, {@code ENRICH ON / WITH},
  *       {@code LOOKUP JOIN ... ON ...}) and the LHS of the match operator {@code :}. These
  *       positions are still exercised at the runtime layer (the bare attribute reaches the
@@ -115,7 +115,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  *       attribute-only positions the rewriter explicitly carves out
  *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}, match
  *       operator {@code :} LHS) emit {@code skip-wrap} log lines instead so the inventory remains
- *       complete. See {@link EsqlQueryKeywordFieldRewriter} for the full list.</li>
+ *       complete. See {@link AstKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
  *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes
@@ -230,7 +230,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
     /**
      * Strategy implementation that delegates JSON manipulation to {@link KeywordToFlattenedTransformer}
-     * and query rewriting to {@link EsqlQueryKeywordFieldRewriter}.
+     * and query rewriting to {@link AstKeywordFieldRewriter}.
      * <p>
      * Three pieces of state are kept, all populated eagerly at construction time:
      * <ul>
@@ -644,7 +644,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // touches (minus cross-dataset non-keyword conflicts), but a subquery's FROM typically
             // references only a subset of those datasets and therefore must not see fields the
             // subquery's schema does not produce.
-            EsqlQueryKeywordFieldRewriter.RewriteResult result = EsqlQueryKeywordFieldRewriter.rewrite(
+            AstKeywordFieldRewriter.RewriteResult result = AstKeywordFieldRewriter.rewrite(
                 originalQuery,
                 this::resolveKeywordPathsForQuery,
                 KeywordToFlattenedTransformer.WRAPPER_SUBKEY,
@@ -700,18 +700,18 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         /**
          * Returns {@code true} when {@code events} is non-empty and every recorded site is
-         * {@link EsqlQueryKeywordFieldRewriter.SkipSite#LOOKUP_JOIN_ON}. Used by
+         * {@link AstKeywordFieldRewriter.SkipSite#LOOKUP_JOIN_ON}. Used by
          * {@link #transformQuery} to recognise queries whose only field references appear inside
          * a {@code LOOKUP JOIN ... ON ...} body (where {@code field_extract} cannot be
          * substituted) so the test can be marked skipped with a precise reason rather than run
          * as if it exercised {@code field_extract} when it does not.
          */
-        private static boolean hasOnlyLookupJoinOnSkips(List<EsqlQueryKeywordFieldRewriter.SkipEvent> events) {
+        private static boolean hasOnlyLookupJoinOnSkips(List<AstKeywordFieldRewriter.SkipEvent> events) {
             if (events.isEmpty()) {
                 return false;
             }
-            for (EsqlQueryKeywordFieldRewriter.SkipEvent event : events) {
-                if (event.site() != EsqlQueryKeywordFieldRewriter.SkipSite.LOOKUP_JOIN_ON) {
+            for (AstKeywordFieldRewriter.SkipEvent event : events) {
+                if (event.site() != AstKeywordFieldRewriter.SkipSite.LOOKUP_JOIN_ON) {
                     return false;
                 }
             }
@@ -726,15 +726,15 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * that a {@code grep "site=MV_EXPAND_ARG"} or
          * {@code grep "site=MATCH_OPERATOR_LHS"} produces a usable inventory.
          */
-        private static void logRewriterSkipEvents(List<EsqlQueryKeywordFieldRewriter.SkipEvent> events) {
+        private static void logRewriterSkipEvents(List<AstKeywordFieldRewriter.SkipEvent> events) {
             if (events.isEmpty()) {
                 return;
             }
-            Map<EsqlQueryKeywordFieldRewriter.SkipSite, Set<String>> bySite = new TreeMap<>();
-            for (EsqlQueryKeywordFieldRewriter.SkipEvent event : events) {
+            Map<AstKeywordFieldRewriter.SkipSite, Set<String>> bySite = new TreeMap<>();
+            for (AstKeywordFieldRewriter.SkipEvent event : events) {
                 bySite.computeIfAbsent(event.site(), k -> new TreeSet<>()).add(event.field());
             }
-            for (Map.Entry<EsqlQueryKeywordFieldRewriter.SkipSite, Set<String>> entry : bySite.entrySet()) {
+            for (Map.Entry<AstKeywordFieldRewriter.SkipSite, Set<String>> entry : bySite.entrySet()) {
                 String reason = skipSiteReason(entry.getKey());
                 for (String field : entry.getValue()) {
                     logger.info("keyword→flattened: skip-wrap; site={}; field={}; reason={}", entry.getKey(), field, reason);
@@ -743,12 +743,12 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
-         * Human-readable reason string for each {@link EsqlQueryKeywordFieldRewriter.SkipSite}.
+         * Human-readable reason string for each {@link AstKeywordFieldRewriter.SkipSite}.
          * Kept as a centralised mapping (rather than as a field on {@code SkipEvent}) so the
          * reason text can evolve with the test variant's documentation without changing the
          * rewriter's API surface.
          */
-        private static String skipSiteReason(EsqlQueryKeywordFieldRewriter.SkipSite site) {
+        private static String skipSiteReason(AstKeywordFieldRewriter.SkipSite site) {
             return switch (site) {
                 case MV_EXPAND_ARG -> "MV_EXPAND grammar slot accepts only an attribute, not an expression";
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
@@ -852,7 +852,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * quotes are part of the header syntax and not part of the column name in the actual
          * pipeline output, so they are stripped here. The rewriter then re-introduces backticks
          * (the ES|QL parser-level quoting form) when emitting the trailing {@code KEEP}; see
-         * {@code quoteIdentifierIfNeeded} on {@link EsqlQueryKeywordFieldRewriter}.
+         * {@code quoteIdentifierIfNeeded} on {@link AstKeywordFieldRewriter}.
          * <p>
          * Returns an empty list when {@code expectedResults} is {@code null}, blank, or otherwise
          * cannot be parsed into a header line of {@code name:type} pairs. In that case the

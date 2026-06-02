@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.downsample;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.downsample.DownsampleShardTaskParams;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -20,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class DownsampleShardTask extends AllocatedPersistentTask {
-    public static final String TASK_NAME = "rollup-shard";
+    public static final String TASK_NAME = DownsampleShardTaskParams.NAME;
     private final String downsampleIndex;
     private volatile long totalShardDocCount;
     private volatile long docsProcessed;

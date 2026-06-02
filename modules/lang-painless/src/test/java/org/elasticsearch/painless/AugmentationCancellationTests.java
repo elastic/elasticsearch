@@ -469,4 +469,60 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         assertEquals("cancelled-def-encoded-lambda", ex.getCause().getMessage());
         assertTrue("cancel runnable should fire from the each() nested in the def-encoded lambda", callCount.get() >= 1);
     }
+
+    /**
+     * Builds a source that declares {@code fill} plus the given user functions (functions must
+     * precede statements in Painless), fills a 1500-element {@code big} list, then runs {@code stmts}.
+     */
+    private ScriptedMetricAggContexts.InitScript compileFillThen(String functions, String stmts) {
+        StringBuilder source = new StringBuilder("void fill(List m) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" m.add(").append(i).append(");");
+        }
+        source.append("} ").append(functions).append(" List big = new ArrayList(); fill(big); ").append(stmts);
+        return compileInit(source.toString());
+    }
+
+    private static void assertFires(ScriptedMetricAggContexts.InitScript script, String message) {
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException(message);
+        });
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals(message, ex.getCause().getMessage());
+        assertTrue("each() poll should fire", callCount.get() >= 1);
+    }
+
+    /** A statically-typed {@code each} called inside a user function (an instance method) polls. */
+    public void testStaticEachInsideUserFunctionFiresCancelRunnable() {
+        assertFires(compileFillThen("void helper(List m) { m.each(q -> q.toString()); }", "helper(big);"), "cancelled-static-userfn");
+    }
+
+    /** A {@code def}-dispatched {@code each} called inside a user function polls. */
+    public void testDefEachInsideUserFunctionFiresCancelRunnable() {
+        assertFires(compileFillThen("void helper(def m) { m.each(q -> q.toString()); }", "helper(big);"), "cancelled-def-userfn");
+    }
+
+    /** A bound {@code big::each} method reference constructed inside a lambda body polls. */
+    public void testMethodRefEachNestedInLambdaFiresCancelRunnable() {
+        assertFires(
+            compileFillThen(
+                "def apply(Function f, Consumer a) { return f.apply(a); }",
+                "List l = new ArrayList(); l.add(1); l.each(x -> apply(big::each, q -> q.toString()));"
+            ),
+            "cancelled-methodref-in-lambda"
+        );
+    }
+
+    /** An unbound {@code List::each} method reference (receiver supplied as a SAM argument) polls. */
+    public void testUnboundMethodRefEachFiresCancelRunnable() {
+        assertFires(
+            compileFillThen(
+                "def applyBi(BiFunction f, def a, Consumer c) { return f.apply(a, c); }",
+                "applyBi(List::each, big, q -> q.toString());"
+            ),
+            "cancelled-unbound-methodref"
+        );
+    }
 }

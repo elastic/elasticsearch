@@ -258,7 +258,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             pollCancellation.dup();
             pollCancellation.visitVarInsn(Opcodes.ASTORE, 1);
             pollCancellation.ifNull(noRunnable);
-            writePersistentCancellationDecrement(pollCancellation, 0, 1);
+            pollCancellation.writeCancellationPoll(0, 1);
             pollCancellation.mark(noRunnable);
             pollCancellation.returnValue();
             pollCancellation.endMethod();
@@ -369,11 +369,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label skipEntry = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skipEntry);
-            writePersistentCancellationDecrement(
-                methodWriter,
-                writeScope.getInternalVariable("scriptThis").getSlot(),
-                cancelRunnable.getSlot()
-            );
+            methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
             methodWriter.mark(skipEntry);
         }
 
@@ -403,11 +399,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label skip = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skip);
-            writePersistentCancellationDecrement(
-                methodWriter,
-                writeScope.getInternalVariable("scriptThis").getSlot(),
-                cancelRunnable.getSlot()
-            );
+            methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
             methodWriter.mark(skip);
             return;
         }
@@ -417,36 +409,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
         methodWriter.ifNull(legacyPath);
-        writePersistentCancellationDecrement(
-            methodWriter,
-            writeScope.getInternalVariable("scriptThis").getSlot(),
-            cancelRunnable.getSlot()
-        );
+        methodWriter.writeCancellationPoll(writeScope.getInternalVariable("scriptThis").getSlot(), cancelRunnable.getSlot());
         methodWriter.goTo(end);
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
         methodWriter.mark(end);
-    }
-
-    private static void writePersistentCancellationDecrement(MethodWriter methodWriter, int scriptThisSlot, int runnableSlot) {
-        Label skip = new Label();
-
-        methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
-        methodWriter.dup();
-        methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
-        methodWriter.push(-1);
-        methodWriter.math(MethodWriter.ADD, Type.INT_TYPE);
-        methodWriter.dupX1();
-        methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
-        methodWriter.ifZCmp(MethodWriter.GT, skip);
-
-        methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
-        methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
-        methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
-        methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-        methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
-
-        methodWriter.mark(skip);
     }
 
     @Override

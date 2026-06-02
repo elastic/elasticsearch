@@ -28,7 +28,7 @@ public class AmazonBedrockRequestExecutorService extends RequestExecutorService 
         RequestExecutorServiceSettings settings,
         AmazonBedrockExecuteOnlyRequestSender requestSender
     ) {
-        super(threadPool, startupLatch, settings, requestSender);
+        super(threadPool, startupLatch, settings, requestSender, null);
         this.requestSender = requestSender;
     }
 

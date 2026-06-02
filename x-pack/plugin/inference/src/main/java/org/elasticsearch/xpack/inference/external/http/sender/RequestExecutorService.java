@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,6 +56,8 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * {@link org.apache.http.client.methods.HttpUriRequest} to set a timeout for how long this executor will wait
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
+ *
+ * TODO: update docs with semaphore info
  *
  * The request flow looks as follows:
  *
@@ -138,18 +141,30 @@ public class RequestExecutorService implements RequestExecutor {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AdjustableCapacityBlockingQueue<RejectableTask> requestQueue;
     private volatile Future<?> requestQueueTask;
+    // "in flight" request means either request is executed by the http client or waiting for a connection to become available
+    private final Semaphore inFlightRequestsSemaphore;
 
     public RequestExecutorService(ThreadPool threadPool, RequestExecutorServiceSettings settings, RequestSender requestSender) {
-        this(threadPool, null, settings, requestSender);
+        this(threadPool, null, settings, requestSender, null);
     }
 
     protected RequestExecutorService(
         ThreadPool threadPool,
         @Nullable CountDownLatch startupLatch,
         RequestExecutorServiceSettings settings,
-        RequestSender requestSender
+        RequestSender requestSender,
+        @Nullable Semaphore inFlightRequestsSemaphore
     ) {
-        this(threadPool, DEFAULT_QUEUE_CREATOR, startupLatch, settings, requestSender, Clock.systemUTC(), DEFAULT_RATE_LIMIT_CREATOR);
+        this(
+            threadPool,
+            DEFAULT_QUEUE_CREATOR,
+            startupLatch,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            DEFAULT_RATE_LIMIT_CREATOR,
+            inFlightRequestsSemaphore
+        );
     }
 
     RequestExecutorService(
@@ -159,7 +174,8 @@ public class RequestExecutorService implements RequestExecutor {
         RequestExecutorServiceSettings settings,
         RequestSender requestSender,
         Clock clock,
-        RateLimiterCreator rateLimiterCreator
+        RateLimiterCreator rateLimiterCreator,
+        @Nullable Semaphore inFlightRequestsSemaphore
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.queueCreator = Objects.requireNonNull(queueCreator);
@@ -169,6 +185,10 @@ public class RequestExecutorService implements RequestExecutor {
         this.clock = Objects.requireNonNull(clock);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
         this.requestQueue = new AdjustableCapacityBlockingQueue<>(queueCreator, settings.getQueueCapacity());
+        this.inFlightRequestsSemaphore = Objects.requireNonNullElse(
+            inFlightRequestsSemaphore,
+            new Semaphore(settings.allowedConcurrentInFlightRequests())
+        );
     }
 
     @Override
@@ -217,6 +237,10 @@ public class RequestExecutorService implements RequestExecutor {
 
     public int queueSize() {
         return requestQueue.size() + rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
+    }
+
+    public int inflightRequests() {
+        return settings.allowedConcurrentInFlightRequests() - inFlightRequestsSemaphore.availablePermits();
     }
 
     /**
@@ -490,22 +514,15 @@ public class RequestExecutorService implements RequestExecutor {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var task = new RequestTask(
-            requestManager,
-            inferenceInputs,
-            timeout,
-            threadPool,
-            // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
-            // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
-            ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
-        );
-
+        var inferenceEntityId = requestManager.inferenceEntityId();
         if (isShutdown()) {
-            task.onRejection(
+            // We do not need to create a task, if we're shutting down
+            // TODO: this changes some tests, update them
+            listener.onFailure(
                 new EsRejectedExecutionException(
                     format(
                         "Failed to enqueue request task for inference id [%s] because the request executor service has been shutdown",
-                        requestManager.inferenceEntityId()
+                        inferenceEntityId
                     ),
                     true
                 )
@@ -513,8 +530,35 @@ public class RequestExecutorService implements RequestExecutor {
             return;
         }
 
+        var requestAcquired = inFlightRequestsSemaphore.tryAcquire();
+        if (requestAcquired == false) {
+            listener.onFailure(
+                new EsRejectedExecutionException(
+                    format("Failed to process task for inference id [%s]. Too many in flight inference requests", inferenceEntityId),
+                    false
+                )
+            );
+            return;
+        }
+
+        var task = new RequestTask(
+            requestManager,
+            inferenceInputs,
+            timeout,
+            threadPool,
+            // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
+            // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
+            ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext()),
+            inFlightRequestsSemaphore
+        );
+
+        // Rate limited execution path
         if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
             submitTaskToRateLimitedExecutionPath(task);
+            // "Immediate" execution path
+            // An "immediate" execution is just from the RequestExecutorService immediate.
+            // The request can still hang on the Apache HTTP Client,
+            // that's why we need to call acquire on the "in flight" request semaphore here, too.
         } else {
             boolean taskAccepted = requestQueue.offer(task);
 

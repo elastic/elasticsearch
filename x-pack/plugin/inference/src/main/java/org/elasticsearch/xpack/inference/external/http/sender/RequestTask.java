@@ -14,6 +14,8 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 class RequestTask implements RejectableTask {
@@ -27,10 +29,16 @@ class RequestTask implements RejectableTask {
         InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
-        ActionListener<InferenceServiceResults> listener
+        ActionListener<InferenceServiceResults> listener,
+        Semaphore inFlightRequestSemaphore
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.timedListener = new TimedListener<>(timeout, listener, threadPool, requestCreator.inferenceEntityId());
+        this.timedListener = new TimedListener<>(
+            timeout,
+            releaseSemaphoreOnceListener(listener, inFlightRequestSemaphore),
+            threadPool,
+            requestCreator.inferenceEntityId()
+        );
         this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 
@@ -62,5 +70,18 @@ class RequestTask implements RejectableTask {
     @Override
     public RequestManager getRequestManager() {
         return requestCreator;
+    }
+
+    private static ActionListener<InferenceServiceResults> releaseSemaphoreOnceListener(
+        ActionListener<InferenceServiceResults> listener,
+        Semaphore inFlightRequestSemaphore
+    ) {
+        // This makes sure that the semaphore is always only released once per RequestTask to prevent false permit counts
+        var semaphoreReleased = new AtomicBoolean();
+        return ActionListener.runAfter(listener, () -> {
+            if (semaphoreReleased.compareAndSet(false, true)) {
+                inFlightRequestSemaphore.release();
+            }
+        });
     }
 }

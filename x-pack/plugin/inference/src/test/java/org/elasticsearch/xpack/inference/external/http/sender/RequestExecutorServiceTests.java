@@ -187,7 +187,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     public void testExecute_Throws_WhenRateLimitedQueueIsFull() throws InterruptedException {
-        var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettings(1), mock(RetryingHttpSender.class));
+        var service = new RequestExecutorService(
+            threadPool,
+            null,
+            createRequestExecutorServiceSettings(1, null),
+            mock(RetryingHttpSender.class),
+            null
+        );
 
         // Enqueue before start() so the poller cannot drain the queue between submits (avoids rate-limit delay + timeout).
         service.execute(
@@ -373,7 +379,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(mock(RequestSender.class), "id");
         var listener = new PlainActionFuture<InferenceServiceResults>();
         service.submitTaskToRateLimitedExecutionPath(
-            new RequestTask(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, threadPool, listener)
+            new RequestTask(
+                requestManager,
+                new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+                null,
+                threadPool,
+                listener,
+                null
+            )
         );
 
         service.shutdown();
@@ -406,7 +419,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             throw new ElasticsearchException("failed");
         }).when(requestManager).execute(any(), any(), any(), any());
 
-        var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettingsEmpty(), requestSender);
+        var service = new RequestExecutorService(threadPool, null, createRequestExecutorServiceSettingsEmpty(), requestSender, null);
 
         service.start();
 
@@ -430,8 +443,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
     public void testChangingCapacity_SetsCapacityToTwo() throws ExecutionException, InterruptedException, TimeoutException {
         var requestSender = mock(RetryingHttpSender.class);
 
-        var settings = createRequestExecutorServiceSettings(1);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender);
+        var settings = createRequestExecutorServiceSettings(1, null);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
 
         service.execute(
             RequestManagerTests.createMockWithRateLimitingEnabled(requestSender),
@@ -475,8 +488,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         TimeoutException {
         var requestSender = mock(RetryingHttpSender.class);
 
-        var settings = createRequestExecutorServiceSettings(3);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender);
+        var settings = createRequestExecutorServiceSettings(3, null);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
 
         service.submitTaskToRateLimitedExecutionPath(
             new RequestTask(
@@ -484,7 +497,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
                 null,
                 threadPool,
-                new PlainActionFuture<>()
+                new PlainActionFuture<>(),
+                null
             )
         );
         service.submitTaskToRateLimitedExecutionPath(
@@ -493,14 +507,22 @@ public class RequestExecutorServiceTests extends ESTestCase {
                 new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
                 null,
                 threadPool,
-                new PlainActionFuture<>()
+                new PlainActionFuture<>(),
+                null
             )
         );
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id");
         service.submitTaskToRateLimitedExecutionPath(
-            new RequestTask(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, threadPool, listener)
+            new RequestTask(
+                requestManager,
+                new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+                null,
+                threadPool,
+                listener,
+                null
+            )
         );
         assertThat(service.queueSize(), is(3));
 
@@ -545,8 +567,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         TimeoutException {
         var requestSender = mock(RetryingHttpSender.class);
 
-        var settings = createRequestExecutorServiceSettings(1);
-        var service = new RequestExecutorService(threadPool, null, settings, requestSender);
+        var settings = createRequestExecutorServiceSettings(1, null);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
         service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, new PlainActionFuture<>());
@@ -598,7 +620,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         RequestExecutorService.RateLimiterCreator rateLimiterCreator = (a, b, c) -> mockRateLimiter;
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(1);
+        var settings = createRequestExecutorServiceSettings(1, null);
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -606,7 +628,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            rateLimiterCreator
+            rateLimiterCreator,
+            null
         );
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
@@ -629,7 +652,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         RequestExecutorService.RateLimiterCreator rateLimiterCreator = (a, b, c) -> mockRateLimiter;
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(1);
+        var settings = createRequestExecutorServiceSettings(1, null);
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -637,7 +660,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            rateLimiterCreator
+            rateLimiterCreator,
+            null
         );
         var requestManager = RequestManagerTests.createMock(requestSender, "id", RateLimitSettings.DISABLED_INSTANCE);
 
@@ -670,7 +694,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         RequestExecutorService.RateLimiterCreator rateLimiterCreator = (a, b, c) -> mockRateLimiter;
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(1);
+        var settings = createRequestExecutorServiceSettings(1, null);
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -678,7 +702,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            rateLimiterCreator
+            rateLimiterCreator,
+            null
         );
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender);
 
@@ -707,7 +732,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(now);
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
         var service = new RequestExecutorService(
             threadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -715,13 +740,21 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             clock,
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            null
         );
         var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id1");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         service.submitTaskToRateLimitedExecutionPath(
-            new RequestTask(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, threadPool, listener)
+            new RequestTask(
+                requestManager,
+                new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+                null,
+                threadPool,
+                listener,
+                null
+            )
         );
 
         assertThat(service.numberOfRateLimitGroups(), is(1));
@@ -732,7 +765,14 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         var requestManager2 = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id2");
         service.submitTaskToRateLimitedExecutionPath(
-            new RequestTask(requestManager2, new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()), null, threadPool, listener)
+            new RequestTask(
+                requestManager2,
+                new EmbeddingsInput(List.of(), InputTypeTests.randomWithNull()),
+                null,
+                threadPool,
+                listener,
+                null
+            )
         );
 
         assertThat(service.numberOfRateLimitGroups(), is(1));
@@ -744,7 +784,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
         var service = new RequestExecutorService(
             mockThreadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -752,7 +792,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            null
         );
 
         service.shutdown();
@@ -771,7 +812,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         when(mockThreadPool.executor(any())).thenReturn(mockExecutorService);
 
         var requestSender = mock(RetryingHttpSender.class);
-        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1));
+        var settings = createRequestExecutorServiceSettings(2, TimeValue.timeValueDays(1), null);
         var service = new RequestExecutorService(
             mockThreadPool,
             RequestExecutorService.DEFAULT_QUEUE_CREATOR,
@@ -779,7 +820,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
+            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR,
+            null
         );
 
         service.shutdown();
@@ -787,6 +829,50 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         verify(mockExecutorService, times(1)).submit(any(Runnable.class));
     }
+
+    public void testWhenInflightRequestSemaphoreAllowsOnlyOneRequest_ThrowsOnSecondOne() throws ExecutionException, InterruptedException,
+        TimeoutException {
+        var queueCapacity = 100;
+        var allowedConcurrentInFlightRequests = 1;
+        var requestSender = mock(RetryingHttpSender.class);
+
+        // Queue capacity is way larger than number of allowed concurrent in flight requests
+        var settings = createRequestExecutorServiceSettings(queueCapacity, allowedConcurrentInFlightRequests);
+        var service = new RequestExecutorService(threadPool, null, settings, requestSender, null);
+
+        // One in flight request -> allowed
+        service.execute(
+            RequestManagerTests.createMockWithRateLimitingEnabled(requestSender),
+            new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()),
+            null,
+            new PlainActionFuture<>()
+        );
+        // TODO: correct?
+        assertThat(service.queueSize(), is(1));
+        assertThat(service.inflightRequests(), is(1));
+
+        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+        var requestManager = RequestManagerTests.createMockWithRateLimitingEnabled(requestSender, "id");
+
+        // Second request should fail -> too many inflight requests
+        service.execute(requestManager, new EmbeddingsInput(List.of(), InputTypeTests.randomIngest()), null, listener);
+
+        var thrownException = expectThrows(EsRejectedExecutionException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is("Failed to process task for inference id [id]. Too many in flight inference requests"));
+
+        service.shutdown();
+        service.start();
+
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+        assertTrue(service.isShutdown());
+        assertTrue(service.isTerminated());
+    }
+
+    // TODO: semaphore released on rate-limited request
+
+    // TODO: semaphore released on non-rate-limited request
+
+    // TODO: think about scenarios, where the semaphore is not released correctly?
 
     private Future<?> submitShutdownRequest(
         CountDownLatch waitToShutdown,
@@ -812,6 +898,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
     }
 
     private RequestExecutorService createRequestExecutorService(@Nullable CountDownLatch startupLatch, RetryingHttpSender requestSender) {
-        return new RequestExecutorService(threadPool, startupLatch, createRequestExecutorServiceSettingsEmpty(), requestSender);
+        return new RequestExecutorService(threadPool, startupLatch, createRequestExecutorServiceSettingsEmpty(), requestSender, null);
     }
 }

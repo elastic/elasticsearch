@@ -24,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -72,7 +73,8 @@ public class RequestTaskTests extends ESTestCase {
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             mockThreadPool,
-            listener
+            listener,
+            mock(Semaphore.class)
         );
 
         requestTask.getListener().onFailure(new IllegalArgumentException("failed"));
@@ -92,7 +94,8 @@ public class RequestTaskTests extends ESTestCase {
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,
-            listener
+            listener,
+            mock(Semaphore.class)
         );
 
         var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
@@ -116,7 +119,8 @@ public class RequestTaskTests extends ESTestCase {
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,
-            listener
+            listener,
+            mock(Semaphore.class)
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -145,7 +149,8 @@ public class RequestTaskTests extends ESTestCase {
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             threadPool,
-            listener
+            listener,
+            mock(Semaphore.class)
         );
 
         calledOnFailureLatch.await(ESTestCase.TEST_REQUEST_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
@@ -172,7 +177,8 @@ public class RequestTaskTests extends ESTestCase {
             new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             ONE_MILLISECOND,
             mockThreadPool,
-            listener
+            listener,
+            mock(Semaphore.class)
         );
 
         requestTask.getListener().onResponse(mock(InferenceServiceResults.class));
@@ -183,6 +189,12 @@ public class RequestTaskTests extends ESTestCase {
         onTimeout.get().run();
         verifyNoMoreInteractions(listener);
     }
+
+    // TODO: test that semaphore is released once on request success
+
+    // TODO: test that semaphore is released once on request failure
+
+    // TODO: test that semaphore is released only once, if request task times out and onFailure is called afterwards
 
     private ThreadPool mockThreadPoolForTimeout(AtomicReference<Runnable> onTimeoutRunnable) {
         var mockThreadPool = mock(ThreadPool.class);

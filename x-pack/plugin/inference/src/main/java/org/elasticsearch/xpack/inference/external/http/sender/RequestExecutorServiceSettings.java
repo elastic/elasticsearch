@@ -32,6 +32,18 @@ public class RequestExecutorServiceSettings {
         Setting.Property.Dynamic
     );
 
+    // TODO: document, why it's not dynamic (updating Semaphore state)
+    // TODO: docs
+    /**
+     *
+     */
+    static final Setting<Integer> ALLOWED_CONCURRENT_IN_FLIGHT_REQUESTS = Setting.intSetting(
+        "xpack.inference.http.request_executor.allowed_concurrent_in_flight_requests",
+        100,
+        1,
+        Setting.Property.NodeScope
+    );
+
     private static final TimeValue DEFAULT_TASK_POLL_FREQUENCY_TIME = TimeValue.timeValueMillis(50);
     /**
      * Defines how often all the rate limit groups are polled for tasks. Setting this to very low number could result
@@ -72,18 +84,23 @@ public class RequestExecutorServiceSettings {
             TASK_QUEUE_CAPACITY_SETTING,
             TASK_POLL_FREQUENCY_SETTING,
             RATE_LIMIT_GROUP_CLEANUP_INTERVAL_SETTING,
-            RATE_LIMIT_GROUP_STALE_DURATION_SETTING
+            RATE_LIMIT_GROUP_STALE_DURATION_SETTING,
+            ALLOWED_CONCURRENT_IN_FLIGHT_REQUESTS
         );
     }
 
     private volatile int queueCapacity;
     private volatile TimeValue taskPollFrequency;
     private volatile Duration rateLimitGroupStaleDuration;
+
+    // TODO: docs why not volatile
+    private int allowedConcurrentInFlightRequests;
     private final ConcurrentMap<String, Consumer<Integer>> queueCapacityCallbacks = new ConcurrentHashMap<>();
 
     public RequestExecutorServiceSettings(Settings settings) {
         queueCapacity = TASK_QUEUE_CAPACITY_SETTING.get(settings);
         taskPollFrequency = TASK_POLL_FREQUENCY_SETTING.get(settings);
+        allowedConcurrentInFlightRequests = ALLOWED_CONCURRENT_IN_FLIGHT_REQUESTS.get(settings);
         setRateLimitGroupStaleDuration(RATE_LIMIT_GROUP_STALE_DURATION_SETTING.get(settings));
     }
 
@@ -141,5 +158,9 @@ public class RequestExecutorServiceSettings {
 
     Duration getRateLimitGroupStaleDuration() {
         return rateLimitGroupStaleDuration;
+    }
+
+    int allowedConcurrentInFlightRequests() {
+        return allowedConcurrentInFlightRequests;
     }
 }

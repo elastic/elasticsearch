@@ -18,13 +18,17 @@ public class RequestExecutorServiceSettingsTests {
         return createRequestExecutorServiceSettings(Settings.EMPTY);
     }
 
-    public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(@Nullable Integer queueCapacity) {
-        return createRequestExecutorServiceSettings(queueCapacity, null);
+    public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(
+        @Nullable Integer queueCapacity,
+        @Nullable Integer allowedConcurrentInflightRequests
+    ) {
+        return createRequestExecutorServiceSettings(queueCapacity, null, allowedConcurrentInflightRequests);
     }
 
     public static RequestExecutorServiceSettings createRequestExecutorServiceSettings(
         @Nullable Integer queueCapacity,
-        @Nullable TimeValue staleDuration
+        @Nullable TimeValue staleDuration,
+        @Nullable Integer allowedConcurrentInflightRequests
     ) {
         var settingsBuilder = Settings.builder();
 
@@ -34,6 +38,13 @@ public class RequestExecutorServiceSettingsTests {
 
         if (staleDuration != null) {
             settingsBuilder.put(RequestExecutorServiceSettings.RATE_LIMIT_GROUP_STALE_DURATION_SETTING.getKey(), staleDuration);
+        }
+
+        if (allowedConcurrentInflightRequests != null) {
+            settingsBuilder.put(
+                RequestExecutorServiceSettings.ALLOWED_CONCURRENT_IN_FLIGHT_REQUESTS.getKey(),
+                allowedConcurrentInflightRequests
+            );
         }
 
         return createRequestExecutorServiceSettings(settingsBuilder.build());

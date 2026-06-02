@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.resolveTaskType;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS;
@@ -69,6 +70,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     UpdateInferenceModelAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportUpdateInferenceModelAction.class);
+
+    private static final Pattern DEFAULT_ENDPOINT_ID_PATTERN = Pattern.compile("\\.[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z0-9])?");
 
     private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
@@ -133,6 +136,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     );
                     return;
                 }
+
+                validateEndpointIsNotDefault(inferenceEntityId);
 
                 if (InferenceLicenceCheck.isServiceLicenced(optionalService.get().name(), licenseState) == false) {
                     listener.onFailure(InferenceLicenceCheck.complianceException(optionalService.get().name()));
@@ -203,6 +208,12 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                 (listener, modelConfig) -> listener.onResponse(new UpdateInferenceModelAction.Response(modelConfig))
             )
             .addListener(masterListener);
+    }
+
+    private static void validateEndpointIsNotDefault(String inferenceEntityId) {
+        if (DEFAULT_ENDPOINT_ID_PATTERN.matcher(inferenceEntityId).matches()) {
+            throw ExceptionsHelper.badRequestException("Default endpoint [{}] is not eligible for an update", inferenceEntityId);
+        }
     }
 
     protected static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {

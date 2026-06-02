@@ -56,19 +56,19 @@ Functions that map a multi-value to a new multi-value.
 Functions that return a boolean value based on the properties of a multi-value.
 These provide optimized shorthand expressions for common operations.
 
-:::{note}
-`null` is interpreted as an empty set. To reject "unknown" or absent values, check for `null` before calling the function.
-```esql
-WHERE field2 IS NOT null AND MV_CONTAINS(field1, field2)
-```
-:::
-
 * [`MV_CONTAINS`](./mv-functions/mv_contains.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_contains.md
   :::
 * [`MV_INTERSECTS`](./mv-functions/mv_intersects.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
   :::{include} ../_snippets/generated/x-pack-esql/functions/briefSummary/mv_intersects.md
   :::
+
+:::{note}
+`null` is interpreted as an empty set. To reject "unknown" or absent values, check for `null` before calling the function.
+```esql
+WHERE field2 IS NOT null AND MV_CONTAINS(field1, field2)
+```
+:::
 
 ## Reduction functions
 Functions that reduce a multi-value to a single value.

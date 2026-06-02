@@ -1172,7 +1172,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(1, 3));
         try {
             StoreMetrics callerMetrics = threadStoreMetrics.get();
-            var wrapped = new DefaultSearchContext.StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
+            var wrapped = new StoreMetricsAwareExecutor(executor, currentThreadStoreMetrics);
 
             final long bytesPerTask = randomLongBetween(1L, 10_000L);
             int numTasks = randomIntBetween(2, 10);
@@ -1206,7 +1206,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
         Executor executor = Runnable::run;
-        var wrapped = new DefaultSearchContext.StoreMetricsAwareExecutor(executor, threadStoreMetrics::get);
+        var wrapped = new StoreMetricsAwareExecutor(executor, threadStoreMetrics::get);
         final long bytes = randomLongBetween(1L, 1000L);
 
         try {

@@ -262,41 +262,6 @@ final class DefaultSearchContext extends SearchContext {
         }
     }
 
-    /**
-     * helper class to ensure that tasks executes within the passed executor are accounted properly into a
-     * long adder
-     */
-    static final class StoreMetricsAwareExecutor implements Executor {
-
-        private final Executor executor;
-        private final Supplier<StoreMetrics> storeMetricsSupplier;
-        private final LongAdder workerBytesRead;
-
-        StoreMetricsAwareExecutor(Executor executor, Supplier<StoreMetrics> storeMetricsSupplier) {
-            this.executor = executor;
-            this.storeMetricsSupplier = storeMetricsSupplier;
-            this.workerBytesRead = new LongAdder();
-        }
-
-        @Override
-        public void execute(Runnable runnable) {
-            executor.execute(() -> {
-                final StoreMetrics workerStoreMetrics = storeMetricsSupplier.get();
-                final long before = workerStoreMetrics.getBytesRead();
-                try {
-                    runnable.run();
-                } finally {
-                    workerBytesRead.add(workerStoreMetrics.getBytesRead() - before);
-                }
-            });
-        }
-
-        // bytes captured from worker threads forked through this executor
-        long workerBytesRead() {
-            return workerBytesRead.sum();
-        }
-    }
-
     @Override
     public long getWorkerThreadsBytesRead() {
         return metricsAwareExecutor == null ? 0L : metricsAwareExecutor.workerBytesRead();

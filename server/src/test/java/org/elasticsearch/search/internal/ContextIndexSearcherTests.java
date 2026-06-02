@@ -86,6 +86,7 @@ import org.elasticsearch.index.store.StoreMetricsDirectory;
 import org.elasticsearch.index.store.ThreadLocalDirectoryMetricHolder;
 import org.elasticsearch.lucene.util.CombinedBits;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.search.StoreMetricsAwareExecutor;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -756,8 +757,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
         ThreadLocalDirectoryMetricHolder<StoreMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
-        LongAdder pending = new LongAdder();
-        Executor wrapped = wrapExecutorForBytesTracking(executor, holder, pending);
+        StoreMetricsAwareExecutor wrapped = new StoreMetricsAwareExecutor(executor, holder::instance);
         boolean wrapWithExitableDirectoryReader = randomBoolean();
 
         try (Directory directory = newRecordingDirectory(holder)) {
@@ -794,17 +794,13 @@ public class ContextIndexSearcherTests extends ESTestCase {
 
                 StoreMetrics caller = holder.instance();
                 long callerBytesBefore = caller.getBytesRead();
-                assertThat(pending.sum(), equalTo(0L));
+                assertThat(wrapped.workerBytesRead(), equalTo(0L));
                 vectorQuery.rewrite(searcher);
 
                 assertBusy(() -> {
-                    long parallelBytes = (caller.getBytesRead() - callerBytesBefore) + pending.sum();
-                    assertThat("parallel rewrite must read bytes", parallelBytes, greaterThan(0L));
-                    assertThat(
-                        "parallel rewrite must report at least as many bytes as sequential against the same index",
-                        parallelBytes,
-                        equalTo(totalBytesSequential)
-                    );
+                    long parallelBytes = (caller.getBytesRead() - callerBytesBefore) + wrapped.workerBytesRead();
+                    assertThat(parallelBytes, greaterThan(0L));
+                    assertEquals(parallelBytes, totalBytesSequential);
                 });
             }
         } finally {
@@ -816,7 +812,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocalDirectoryMetricHolder<StoreMetrics> holder = new ThreadLocalDirectoryMetricHolder<>(StoreMetrics::new);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(randomIntBetween(2, 5));
-        LongAdder pending = new LongAdder();
         TermQuery termQuery = new TermQuery(new Term("field", "value"));
         boolean wrapWithExitableDirectoryReader = randomBoolean();
 
@@ -841,13 +836,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
             assertThat("sequential search must read bytes", sequentialBytes, greaterThan(0L));
 
             try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                var storeMetricsAwareExecutor = new StoreMetricsAwareExecutor(executor, holder::instance);
                 ContextIndexSearcher searcher = new ContextIndexSearcher(
                     directoryReader,
                     IndexSearcher.getDefaultSimilarity(),
                     IndexSearcher.getDefaultQueryCache(),
                     IndexSearcher.getDefaultQueryCachingPolicy(),
                     wrapWithExitableDirectoryReader,
-                    wrapExecutorForBytesTracking(executor, holder, pending),
+                    storeMetricsAwareExecutor,
                     Integer.MAX_VALUE,
                     1
                 );
@@ -857,36 +853,14 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 searcher.search(termQuery, new TotalHitCountCollectorManager(searcher.getSlices()));
 
                 assertBusy(() -> {
-                    long parallelBytes = (caller.getBytesRead() - before) + pending.sum();
-                    assertThat("parallel search must read bytes", parallelBytes, greaterThan(0L));
-                    assertThat(
-                        "parallel search must report at least as many bytes as sequential against the same index",
-                        parallelBytes,
-                        equalTo(sequentialBytes)
-                    );
+                    long parallelBytes = (caller.getBytesRead() - before) + storeMetricsAwareExecutor.workerBytesRead();
+                    assertThat(parallelBytes, greaterThan(0L));
+                    assertEquals(parallelBytes, equalTo(sequentialBytes));
                 });
             }
         } finally {
             terminate(executor);
         }
-    }
-
-    private static Executor wrapExecutorForBytesTracking(
-        Executor executor,
-        ThreadLocalDirectoryMetricHolder<StoreMetrics> holder,
-        LongAdder pending
-    ) {
-        return r -> {
-            executor.execute(() -> {
-                StoreMetrics workerStoreMetrics = holder.instance();
-                long before = workerStoreMetrics.getBytesRead();
-                try {
-                    r.run();
-                } finally {
-                    pending.add(workerStoreMetrics.getBytesRead() - before);
-                }
-            });
-        };
     }
 
     private Directory newRecordingDirectory(ThreadLocalDirectoryMetricHolder<StoreMetrics> holder) {

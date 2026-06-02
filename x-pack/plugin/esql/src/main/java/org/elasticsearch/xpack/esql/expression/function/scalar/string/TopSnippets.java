@@ -283,8 +283,7 @@ public class TopSnippets extends EsqlScalarFunction
      *
      */
     private TypeResolution resolveParams() {
-        return isString(field(), sourceText(), FIRST).and(() -> resolveQuery())
-            .and(() -> resolveTopSnippetsOptions());
+        return isString(field(), sourceText(), FIRST).and(() -> resolveQuery()).and(() -> resolveTopSnippetsOptions());
     }
 
     private TypeResolution resolveTopSnippetsOptions() {

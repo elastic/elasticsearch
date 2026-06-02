@@ -728,7 +728,6 @@ public enum IndexMode {
 
     public static final FeatureFlag COLUMNAR_FEATURE_FLAG = new FeatureFlag("columnar_index_mode");
     public static final TransportVersion COLUMNAR_INDEX_MODES_ADDED = TransportVersion.fromName("columnar_index_modes_added");
-    public static final FeatureFlag VECTORDB_FEATURE_FLAG = new FeatureFlag("vectordb_document_index_mode");
 
     /**
      * Returns the minimum transport version a recipient node must run to deserialize this index mode.
@@ -747,12 +746,11 @@ public enum IndexMode {
 
     /**
      * Returns only the index modes that are available in the current build.
-     * Columnar and vectordb_document modes are excluded in non-snapshot builds where their feature flag is disabled.
+     * Columnar modes are excluded in non-snapshot builds where their feature flag is disabled.
      */
     public static IndexMode[] availableModes() {
         return Arrays.stream(values())
             .filter(m -> COLUMNAR_FEATURE_FLAG.isEnabled() || (m != COLUMNAR && m != LOGSDB_COLUMNAR))
-            .filter(m -> VECTORDB_FEATURE_FLAG.isEnabled() || m != VECTORDB_DOCUMENT)
             .toArray(IndexMode[]::new);
     }
 
@@ -877,9 +875,6 @@ public enum IndexMode {
         };
 
         if ((mode == IndexMode.COLUMNAR || mode == IndexMode.LOGSDB_COLUMNAR) && COLUMNAR_FEATURE_FLAG.isEnabled() == false) {
-            throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
-        }
-        if (mode == IndexMode.VECTORDB_DOCUMENT && VECTORDB_FEATURE_FLAG.isEnabled() == false) {
             throw new IllegalArgumentException("[" + value + "] index mode is only available in snapshot builds.");
         }
         return mode;

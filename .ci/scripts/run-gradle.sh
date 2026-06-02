@@ -45,7 +45,7 @@ set -e
 RUNNER_JAR="build-tools/gradle-runner/build/libs/gradle-runner.jar"
 if [[ ! -f "$RUNNER_JAR" ]]; then
   echo "--- Building gradle-runner"
-  ./gradlew --no-scan --console=plain :build-tools:gradle-runner:jar
+  ./gradlew --no-scan --no-daemon --console=plain :build-tools:gradle-runner:jar
 fi
 
 # Pass TESTS_SEED as Java system property if available

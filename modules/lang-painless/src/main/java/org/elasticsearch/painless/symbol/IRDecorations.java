@@ -370,7 +370,10 @@ public class IRDecorations {
         }
     }
 
-    /** like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic {@code #scriptThis} parameter */
+    /**
+     * like {@link IRCInstanceCancellationCheck} but for static lambdas, which receive the script as a synthetic
+     * {@code #scriptThis} parameter
+     */
     public static class IRCStaticCancellationCheck implements IRCondition {
 
         private IRCStaticCancellationCheck() {

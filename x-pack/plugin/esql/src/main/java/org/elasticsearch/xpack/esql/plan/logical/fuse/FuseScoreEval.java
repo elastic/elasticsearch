@@ -146,9 +146,12 @@ public class FuseScoreEval extends UnaryPlan
     }
 
     private void validateInput(Failures failures) {
-        // Score is aggregated with SUM
-        // discriminator (_fork) with VALUES
-        // All other columes use FIRST(col, NULL)
+        // FUSE rewrites passthrough columns as FIRST(col,NULL).
+        // FIRST does not support all field types, aggregate_metric_double, histogram and
+        // date_range are not yet supported.
+        // Score is aggregated with SUM, and the discriminator (_fork) with VALUES.
+        // We validate the input here to generate a FUSE-specific error, rather than
+        // a generic aggregation error.
 
         for (Attribute attr : child().output()) {
             if (attr.name().equals(scoreAttr.name()) || attr.name().equals(discriminatorAttr.name())) {

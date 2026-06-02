@@ -2,17 +2,14 @@ area: ES|QL
 breaking:
   area: ES|QL
   details: >-
-    `FUSE` previously used `VALUES` for passthrough columns,
-    i.e. columns that are not key columns (key columns, score column and fork group column).
-    `VALUES` does not support all field types, causing `FUSE` to reject fields like `dense_vector`.
-    `FUSE` now uses `FIRST`, which picks one non-null value from any matching fork. Thus, `FUSE`
-    now supports passing through all field types that `FIRST` supports. The only unsupported types
-    are `aggregate_metric_double` and `date_range`.
+    In previous versions `FUSE` merged rows with matching `key_columns` by keeping all distinct
+    values for each passthrough column. Now `FUSE` selects the first non-null value for each passthrough
+    column, or null in the absence of a value. `FUSE` now supports passing through all field
+    types except `aggregate_metric_double` and `date_range`.
   impact: >-
-    If a passthrough column holds different non-null values in different `FORK` branches for the same document,
-    the old version of `FUSE` would have returned a multi-valued result for that column. The new version
-    of `FUSE` will now return a single non-null value. Queries that relied on multi-valued passthrough
-    columns must be updated.
+    This has no impact if passthrough columns come from the same document with identical column values
+    across fork branches. Queries that relied on `FUSE` collecting multiple distinct values for a passthrough
+    column will need to aggregate those values separately.
   notable: false
   title: Rewire FUSE to use FIRST for passthrough columns
 issues:

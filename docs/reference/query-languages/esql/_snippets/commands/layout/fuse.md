@@ -34,10 +34,14 @@ When using `FUSE` after `FORK`, `FUSE` does not require an explicit `LIMIT` in e
 However, as a best practice and to avoid issues when upgrading to newer versions, it is advised to still add an explicit `LIMIT` before `FUSE`.
 :::
 
-:::{applies-item} stack: ga 9.5.0+
-`FUSE` supports passing through all field types except `aggregate_metric_double` or `date_range`. Queries that include these columns fail with a validation error. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) to remove them before `FUSE`.
-:::
+::::
 
+::::{applies-switch}
+:::{applies-item} stack: preview 9.5.0+
+In earlier versions, `FUSE` collected all values for each passthrough column across fork branches.
+Starting in 9.5.0, `FUSE` picks the first non-null value, or null in the absence of a value.
+Columns of type `aggregate_metric_double` and `date_range` are not yet supported and must be [`DROP`ped](/reference/query-languages/esql/commands/drop.md) before `FUSE`.
+:::
 ::::
 
 ## Syntax
@@ -93,7 +97,8 @@ When `fuse_method` is `LINEAR`, `options` supports the following parameters:
 :   Defaults to `_fork`. Designates which column represents the result set.
 
 `key_columns`
-:   Defaults to `_id, _index`. Rows with matching `key_columns` values are merged.
+:   Defaults to `_id, _index`. Rows with matching `key_columns` values are merged. Each remaining column value
+    of the merged row is the first non-null value across the fork branches, or null in the absence of a value.
 
 ## Examples
 

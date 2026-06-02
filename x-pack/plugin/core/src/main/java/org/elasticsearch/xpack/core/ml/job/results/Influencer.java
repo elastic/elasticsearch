@@ -71,7 +71,7 @@ public class Influencer implements ToXContentObject, Writeable {
         LENIENT_PARSER.declareDouble(Influencer::setInfluencerScore, INFLUENCER_SCORE);
         LENIENT_PARSER.declareDouble(Influencer::setInitialInfluencerScore, INITIAL_INFLUENCER_SCORE);
         LENIENT_PARSER.declareBoolean(Influencer::setInterim, Result.IS_INTERIM);
-        LENIENT_PARSER.declareObject(Influencer::setEventIngested, (p, c) -> TimeUtils.parseEventIngested(p), new ParseField("event"));
+        LENIENT_PARSER.declareObject(Influencer::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
     }
 
     private final String jobId;
@@ -151,8 +151,8 @@ public class Influencer implements ToXContentObject, Writeable {
             timestamp.getTime()
         );
         if (eventIngested != null) {
-            builder.startObject("event");
-            builder.field("ingested", eventIngested.toEpochMilli());
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
             builder.endObject();
         }
         return builder;

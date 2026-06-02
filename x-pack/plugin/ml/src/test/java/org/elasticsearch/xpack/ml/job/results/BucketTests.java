@@ -299,6 +299,12 @@ public class BucketTests extends AbstractXContentSerializingTestCase<Bucket> {
         Bucket old = copyInstance(instance, TransportVersionUtils.randomVersionNotSupporting(gate));
         assertNull(old.getEventIngested());
         instance.setEventIngested(null);
+        if (instance.getRecords() != null) {
+            instance.getRecords().forEach(r -> r.setEventIngested(null));
+        }
+        if (instance.getBucketInfluencers() != null) {
+            instance.getBucketInfluencers().forEach(bi -> bi.setEventIngested(null));
+        }
         assertEquals(instance, old);
     }
 }

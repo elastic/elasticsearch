@@ -74,7 +74,7 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         parser.declareDouble(BucketInfluencer::setRawAnomalyScore, RAW_ANOMALY_SCORE);
         parser.declareDouble(BucketInfluencer::setProbability, PROBABILITY);
         parser.declareBoolean(BucketInfluencer::setIsInterim, Result.IS_INTERIM);
-        parser.declareObject(BucketInfluencer::setEventIngested, (p, c) -> TimeUtils.parseEventIngested(p), new ParseField("event"));
+        parser.declareObject(BucketInfluencer::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
 
         return parser;
     }
@@ -153,8 +153,8 @@ public class BucketInfluencer implements ToXContentObject, Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(Result.IS_INTERIM.getPreferredName(), isInterim);
         if (eventIngested != null) {
-            builder.startObject("event");
-            builder.field("ingested", eventIngested.toEpochMilli());
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
             builder.endObject();
         }
         return builder;

@@ -106,7 +106,7 @@ public class Bucket implements ToXContentObject, Writeable {
         parser.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         parser.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
         parser.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
-        parser.declareObject(Bucket::setEventIngested, (p, c) -> TimeUtils.parseEventIngested(p), new ParseField("event"));
+        parser.declareObject(Bucket::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
 
         return parser;
     }
@@ -207,8 +207,8 @@ public class Bucket implements ToXContentObject, Writeable {
             builder.field(SCHEDULED_EVENTS.getPreferredName(), scheduledEvents);
         }
         if (eventIngested != null) {
-            builder.startObject("event");
-            builder.field("ingested", eventIngested.toEpochMilli());
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
             builder.endObject();
         }
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);

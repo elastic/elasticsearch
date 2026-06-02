@@ -144,7 +144,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             ignoreUnknownFields ? AnomalyScoreExplanation.LENIENT_PARSER : AnomalyScoreExplanation.STRICT_PARSER,
             ANOMALY_SCORE_EXPLANATION
         );
-        parser.declareObject(AnomalyRecord::setEventIngested, (p, c) -> TimeUtils.parseEventIngested(p), new ParseField("event"));
+        parser.declareObject(AnomalyRecord::setEventIngested, (p, c) -> Result.parseEventIngested(p), Result.EVENT);
 
         return parser;
     }
@@ -345,8 +345,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             builder.field(ANOMALY_SCORE_EXPLANATION.getPreferredName(), anomalyScoreExplanation);
         }
         if (eventIngested != null) {
-            builder.startObject("event");
-            builder.field("ingested", eventIngested.toEpochMilli());
+            builder.startObject(Result.EVENT.getPreferredName());
+            builder.field(Result.INGESTED.getPreferredName(), eventIngested.toEpochMilli());
             builder.endObject();
         }
 

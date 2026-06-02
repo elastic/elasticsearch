@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
@@ -292,6 +293,47 @@ public class TransportMultiSearchActionTests extends ESTestCase {
             );
         } finally {
             emptyHits.decRef();
+        }
+    }
+
+    public void testEstimateIsAtLeastActualHeap() throws Exception {
+        // Sanity-check that estimateActualBytes() never under-counts compared to what
+        // RamUsageEstimator measures by reflection. Under-counting would mean the circuit
+        // breaker could trip too late, so estimate >= measured is the safety invariant.
+        // RamUsageEstimator may itself under-count for interned/shared objects (e.g.
+        // ref-counting infrastructure), so this bound is conservative rather than tight.
+
+        // Hit with source bytes and stored field values covering String, Number, and Text types.
+        SearchHit hit = new SearchHit(0, "my-document-id");
+        hit.sourceRef(new BytesArray(new byte[4096]));
+        hit.addDocumentFields(
+            Map.of(
+                "keyword_field",
+                new DocumentField("keyword_field", List.of("some keyword value")),
+                "long_field",
+                new DocumentField("long_field", List.of(42L)),
+                "text_field",
+                new DocumentField("text_field", List.of(new Text("text field content")))
+            ),
+            Map.of("_routing", new DocumentField("_routing", List.of("my-routing")))
+        );
+
+        // Shard failure with a real captured call stack — tests estimateExceptionBytes.
+        RuntimeException cause = new RuntimeException("simulated shard failure with a longer message for realism");
+        ShardSearchFailure failure = new ShardSearchFailure(cause);
+
+        SearchHits searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f);
+        SearchResponse response = SearchResponseUtils.response(searchHits).shardFailures(failure).build();
+        searchHits.decRef();
+        try {
+            long estimate = TransportMultiSearchAction.estimateActualBytes(response);
+            long measured = RamUsageEstimator.sizeOfObject(response);
+            assertTrue(
+                "estimateActualBytes (" + estimate + ") must not under-count RamUsageEstimator (" + measured + ")",
+                estimate >= measured
+            );
+        } finally {
+            response.decRef();
         }
     }
 

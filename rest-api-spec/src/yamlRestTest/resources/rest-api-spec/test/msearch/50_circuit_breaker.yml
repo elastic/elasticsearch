@@ -25,43 +25,128 @@ teardown:
             number_of_shards: 1
             number_of_replicas: 0
 
-  - do:
-      index:
-        index: msearch-cb-test
-        id: "1"
-        body:
-          payload: placeholder
-
-  # Use a Painless script to set a 20000-char payload without embedding a long literal.
-  # Stored _source becomes {"payload":"x*20000"} ≈ 20015 B.
+  # Index 50 documents with a 100-char payload each.
+  # Each hit contributes PER_HIT_OBJECT_OVERHEAD (400) + rawSourceLength (~115) ≈ 515 B.
   # Per-sub-response estimate:
-  #   BASE_RESPONSE_OVERHEAD (512) + PER_HIT_OBJECT_OVERHEAD (400) + rawSourceLength (~20015) ≈ 20927 B
+  #   BASE_RESPONSE_OVERHEAD (512) + 50 × 515 ≈ 26262 B
   #
-  # In plain (non-CCS) mode the 40000 B limit lets sub-search 0's estimate (20927 B) fit, then
-  # trips on sub-search 1's estimate (20927 + 20927 = 41854 B > 40000 B).
+  # In plain (non-CCS) mode the 46000 B limit lets sub-search 0's estimate (26262 B) fit,
+  # then trips on sub-search 1's estimate (26262 + 26262 = 52524 B > 46000 B).
   #
-  # In CCS mode, RecyclerBytesStreamOutput additionally reserves 16384 B on the remote cluster's
-  # REQUEST breaker to serialise the shard response.  After sub-search 0's estimate is on the
-  # breaker, sub-search 1's transport peaks at 20927 + 16384 = 37311 B < 40000 B (fits), releases,
-  # then our estimation adds 20927 B: 20927 + 20927 = 41854 B > 40000 B → trips.
+  # In CCS mode, RecyclerBytesStreamOutput additionally reserves 16384 B on the remote
+  # cluster's REQUEST breaker. After sub-search 0's estimate is on the breaker, sub-search
+  # 1's transport peaks at 26262 + 16384 = 42646 B < 46000 B (fits, ~3354 B margin), then
+  # releases. Our estimation adds 26262 B more: 26262 + 26262 = 52524 B > 46000 B → trips.
   - do:
-      update:
-        index: msearch-cb-test
-        id: "1"
+      bulk:
         refresh: true
         body:
-          script:
-            lang: painless
-            source: >-
-              StringBuilder sb = new StringBuilder();
-              for (int i = 0; i < 20000; i++) { sb.append("x"); }
-              ctx._source.payload = sb.toString();
+          - { index: { _index: msearch-cb-test, _id: "1" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "2" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "3" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "4" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "5" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "6" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "7" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "8" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "9" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "10" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "11" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "12" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "13" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "14" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "15" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "16" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "17" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "18" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "19" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "20" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "21" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "22" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "23" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "24" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "25" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "26" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "27" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "28" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "29" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "30" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "31" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "32" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "33" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "34" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "35" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "36" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "37" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "38" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "39" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "40" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "41" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "42" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "43" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "44" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "45" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "46" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "47" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "48" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "49" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
+          - { index: { _index: msearch-cb-test, _id: "50" } }
+          - { payload: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" }
 
   - do:
       cluster.put_settings:
         body:
           persistent:
-            indices.breaker.request.limit: "40000b"
+            indices.breaker.request.limit: "46000b"
 
   # max_concurrent_searches=1 forces sequential execution so sub-search 0 completes and
   # its estimate is reserved before sub-search 1 starts.
@@ -70,13 +155,13 @@ teardown:
         max_concurrent_searches: 1
         body:
           - index: msearch-cb-test
-          - { query: { match_all: {} }, size: 1 }
+          - { query: { match_all: {} }, size: 50 }
           - index: msearch-cb-test
-          - { query: { match_all: {} }, size: 1 }
+          - { query: { match_all: {} }, size: 50 }
 
   # Sub-search 0 completes normally.
   - match: { responses.0.status: 200 }
-  - match: { responses.0.hits.hits.0._id: "1" }
+  - match: { responses.0.hits.total.value: 50 }
   # Sub-search 1 is rejected by the circuit breaker; the overall request still returns HTTP 200.
   - match: { responses.1.status: 429 }
   - match: { responses.1.error.type: circuit_breaking_exception }

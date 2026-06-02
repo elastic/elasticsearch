@@ -795,7 +795,6 @@ public class ObjectMapper extends Mapper {
         return mappers;
     }
 
-
     // TODO: rethink
     private final Set<String> cache = new HashSet<>();
 

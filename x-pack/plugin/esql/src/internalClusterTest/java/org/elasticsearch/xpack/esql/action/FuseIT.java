@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.junit.Before;
 
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FuseIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class);
+        return List.of(EsqlPluginWithEnterpriseOrTrialLicense.class, TestEncryptionServicePlugin.class);
     }
 
     @Before

@@ -1837,6 +1837,27 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testSparklineRejectsMultiValuedAggs() {
+        String sparklineArgs = "hire_date, 10, \"2024-01-01\", \"2024-02-01\"";
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), " + sparklineArgs + ")",
+            containsString(
+                "first argument of [SPARKLINE(TOP(avg_worked_seconds, 3, \"asc\"), "
+                    + sparklineArgs
+                    + ")] "
+                    + "must be a single-valued aggregate function, found [TOP(avg_worked_seconds, 3, \"asc\")]"
+            )
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(SAMPLE(avg_worked_seconds, 3), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [SAMPLE(avg_worked_seconds, 3)]")
+        );
+        defaultAnalyzer().error(
+            "from test | stats s = SPARKLINE(VALUES(avg_worked_seconds), " + sparklineArgs + ")",
+            containsString("must be a single-valued aggregate function, found [VALUES(avg_worked_seconds)]")
+        );
+    }
+
     public void testWeightedAvg() {
         defaultAnalyzer().error(
             "row v = [1, 2, 3] | stats w_avg = weighted_avg(v, null)",

@@ -14,10 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SequentialAckingBatchedTaskExecutor;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -31,6 +28,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
 import java.util.Collection;
@@ -99,7 +99,7 @@ public class DatasetService {
             throw new IllegalStateException("no validator registered for data source type [" + parent.type() + "]");
         }
         final Map<String, Object> validatedSettings = validator.validateDataset(
-            parent.settings(),
+            parent.settings().asMap(),
             request.resource(),
             request.rawSettings()
         );

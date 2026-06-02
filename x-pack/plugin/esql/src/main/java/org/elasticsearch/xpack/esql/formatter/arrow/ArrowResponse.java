@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.xpack.esql.formatter.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.compression.NoCompressionCodec;
@@ -31,26 +31,27 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     public static class Column {
-        private final BlockConverter converter;
+        private final BlockArrowFormatter converter;
         private final String name;
         private boolean multivalued;
 
-        public Column(String esqlType, String name) {
-            this.converter = ESQL_CONVERTERS.get(esqlType);
+        public Column(DataType esqlType, String name) {
+            this.converter = ESQL_FORMATTERS.get(esqlType);
             if (converter == null) {
-                throw new IllegalArgumentException("ES|QL type [" + esqlType + "] is not supported by the Arrow format");
+                throw new IllegalArgumentException("ES|QL type [" + esqlType.outputType() + "] is not supported by the Arrow format");
             }
             this.name = name;
         }
@@ -128,10 +129,6 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      * the schema header, the data buffers, and the trailer.
      */
     protected abstract static class ResponseSegment {
-        static {
-            // Init the Arrow memory manager shim
-            AllocationManagerShim.init();
-        }
 
         protected final ArrowResponse response;
 
@@ -270,7 +267,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             List<ArrowBuf> bufs = new ArrayList<>(page.getBlockCount() * 2);
 
             // Closures that will actually write a Block's data. Maps 1:1 to `bufs`.
-            List<BlockConverter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
+            List<BlockArrowFormatter.BufWriter> bufWriters = new ArrayList<>(page.getBlockCount() * 2);
 
             // Give Arrow a WriteChannel that will iterate on `bufWriters` when requested to write a buffer.
             WriteChannel arrowOut = new WriteChannel(arrowOut(out)) {
@@ -314,7 +311,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     // List node.
                     nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
                     // Value vector, does not contain nulls.
-                    nodes.add(new ArrowFieldNode(BlockConverter.valueCount(block), 0));
+                    nodes.add(new ArrowFieldNode(BlockArrowFormatter.valueCount(block), 0));
                 } else {
                     nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
                 }
@@ -368,56 +365,94 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     /**
      * Converters for every ES|QL type
      */
-    static final Map<String, BlockConverter> ESQL_CONVERTERS = Map.ofEntries(
+    static final EnumMap<DataType, BlockArrowFormatter> ESQL_FORMATTERS;
+
+    static {
+        ESQL_FORMATTERS = new EnumMap<>(DataType.class);
+        for (var type : DataType.values()) {
+            var formatter = formatterForType(type);
+            if (formatter != null) {
+                ESQL_FORMATTERS.put(type, formatter);
+            }
+        }
+    }
+
+    /**
+     * Converters for every ES|QL type. Returns null if the type is not supported in the output.
+     */
+    private static BlockArrowFormatter formatterForType(DataType type) {
         // For reference:
         // - DataType: list of ESQL data types (not all are present in outputs)
         // - PositionToXContent: conversions for ESQL JSON output
         // - EsqlDataTypeConverter: conversions to ESQL datatypes
         // Missing: multi-valued values
+        return switch (type) {
+            case UNSUPPORTED -> new BlockArrowFormatter.AsNull(type);
+            case NULL -> new BlockArrowFormatter.AsNull(type);
 
-        buildEntry(new BlockConverter.AsNull("null")),
-        buildEntry(new BlockConverter.AsNull("unsupported")),
+            case BOOLEAN -> new BlockArrowFormatter.AsBoolean(type);
 
-        buildEntry(new BlockConverter.AsBoolean("boolean")),
+            case INTEGER -> new BlockArrowFormatter.AsInt32(type);
+            case COUNTER_INTEGER -> new BlockArrowFormatter.AsInt32(type);
 
-        buildEntry(new BlockConverter.AsInt32("integer")),
-        buildEntry(new BlockConverter.AsInt32("counter_integer")),
+            case LONG -> new BlockArrowFormatter.AsInt64(type);
+            // FIXME: counters: are they signed?
+            case COUNTER_LONG -> new BlockArrowFormatter.AsInt64(type);
+            case UNSIGNED_LONG -> new BlockArrowFormatter.AsInt64(type, MinorType.UINT8);
 
-        buildEntry(new BlockConverter.AsInt64("long")),
-        // FIXME: counters: are they signed?
-        buildEntry(new BlockConverter.AsInt64("counter_long")),
-        buildEntry(new BlockConverter.AsInt64("unsigned_long", MinorType.UINT8)),
+            case DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
+            case COUNTER_DOUBLE -> new BlockArrowFormatter.AsFloat64(type);
 
-        buildEntry(new BlockConverter.AsFloat64("double")),
-        buildEntry(new BlockConverter.AsFloat64("counter_double")),
+            case KEYWORD -> new BlockArrowFormatter.AsVarChar(type);
+            case TEXT -> new BlockArrowFormatter.AsVarChar(type);
 
-        buildEntry(new BlockConverter.AsVarChar("keyword")),
-        buildEntry(new BlockConverter.AsVarChar("text")),
+            // date: array of int64 milliseconds since epoch
+            // FIXME: is it signed?
+            case DATETIME -> new BlockArrowFormatter.AsInt64(type, MinorType.TIMESTAMPMILLI);
 
-        // date: array of int64 seconds since epoch
-        // FIXME: is it signed?
-        buildEntry(new BlockConverter.AsInt64("date", MinorType.TIMESTAMPMILLI)),
+            // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
+            // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
+            // ipv4 addresses it would still be twice as big.
+            case IP -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses);
 
-        // ip are represented as 16-byte ipv6 addresses. We shorten mapped ipv4 addresses to 4 bytes.
-        // Another option would be to use a fixed size binary to avoid the offset array. But with mostly
-        // ipv4 addresses it would still be twice as big.
-        buildEntry(new BlockConverter.TransformedBytesRef("ip", MinorType.VARBINARY, ValueConversions::shortenIpV4Addresses)),
+            // geo_point: Keep WKB format (JSON converts to WKT)
+            case GEO_POINT -> new BlockArrowFormatter.AsVarBinary(type);
+            case GEO_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
+            case CARTESIAN_POINT -> new BlockArrowFormatter.AsVarBinary(type);
+            case CARTESIAN_SHAPE -> new BlockArrowFormatter.AsVarBinary(type);
 
-        // geo_point: Keep WKB format (JSON converts to WKT)
-        buildEntry(new BlockConverter.AsVarBinary("geo_point")),
-        buildEntry(new BlockConverter.AsVarBinary("geo_shape")),
-        buildEntry(new BlockConverter.AsVarBinary("cartesian_point")),
-        buildEntry(new BlockConverter.AsVarBinary("cartesian_shape")),
+            // version: convert to string
+            case VERSION -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::versionToString);
 
-        // version: convert to string
-        buildEntry(new BlockConverter.TransformedBytesRef("version", MinorType.VARCHAR, ValueConversions::versionToString)),
+            // _source: json
+            // TODO: support also CBOR and SMILE with an additional formatting parameter
+            case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
 
-        // _source: json
-        // TODO: support also CBOR and SMILE with an additional formatting parameter
-        buildEntry(new BlockConverter.TransformedBytesRef("_source", MinorType.VARCHAR, ValueConversions::sourceToJson))
-    );
+            // Explicitly list every unsupported type so that compilation fails when we add a new type and can take care of it.
+            case SHORT -> null;
+            case BYTE -> null;
+            case FLOAT -> null;
+            case HALF_FLOAT -> null;
+            case SCALED_FLOAT -> null;
 
-    private static Map.Entry<String, BlockConverter> buildEntry(BlockConverter converter) {
-        return Map.entry(converter.esqlType(), converter);
+            case DATE_NANOS -> null;
+            case DATE_RANGE -> null;
+
+            case OBJECT -> null;
+            case DATE_PERIOD -> null;
+            case TIME_DURATION -> null;
+            case GEOHASH -> null;
+            case GEOTILE -> null;
+            case GEOHEX -> null;
+            case DOC_DATA_TYPE -> null;
+            case TSID_DATA_TYPE -> null;
+            case PARTIAL_AGG -> null;
+            case AGGREGATE_METRIC_DOUBLE -> null;
+            case EXPONENTIAL_HISTOGRAM -> null;
+            case TDIGEST -> null;
+            case HISTOGRAM -> null;
+            case DENSE_VECTOR -> null;
+            case FLATTENED -> null;
+        };
     }
 }

@@ -1,5 +1,5 @@
 area: Data streams
 issues: []
 pr: 150457
-summary: Remove feature flag for DLM Frozen Tier while preserving BWC
+summary: DLM Frozen Tier - Enable data streams to transition to searchable snapshots after a specific period of time
 type: feature

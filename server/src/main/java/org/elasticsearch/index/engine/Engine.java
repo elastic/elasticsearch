@@ -370,8 +370,6 @@ public abstract class Engine implements Closeable {
         );
     }
 
-
-
     private static boolean validateLiveDocsClass(Bits liveDocs) {
         if (liveDocs instanceof LiveDocs) {
             return true;

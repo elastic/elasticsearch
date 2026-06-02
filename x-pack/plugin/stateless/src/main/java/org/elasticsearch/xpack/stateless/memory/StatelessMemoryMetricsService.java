@@ -798,7 +798,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         private final Set<String> seenIndices = new HashSet<>();
         private long mappingSizeInBytes;
         private long totalPostingsInMemoryBytes;
-        private long totalPointsInMemoryBytes;
         private long shardMemoryUsageInBytes;
         private long totalShardMemoryOverheadBytes;
         private int totalShards;
@@ -824,7 +823,6 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
             } else {
                 shardMemoryUsageInBytes += estimateShardMemoryUsageInBytes(shardMemoryMetrics);
                 totalPostingsInMemoryBytes += shardMemoryMetrics.getPostingsInMemoryBytes();
-                totalPointsInMemoryBytes += shardMemoryMetrics.getPointsInMemoryBytes();
             }
             totalShards++;
         }
@@ -832,8 +830,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         long getHeapUsageEstimate() {
             assert totalShards >= totalShardsWithSelfReportedOverhead;
             return totalShardMemoryOverheadBytes + shardMemoryUsageInBytes + mappingSizeInBytes + shardMergeMemoryEstimate
-                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + totalPostingsInMemoryBytes
-                + totalPointsInMemoryBytes;
+                + nodeBaseHeapEstimateInBytes + minimumRequiredHeapForAcceptingLargeIndexingOps + totalPostingsInMemoryBytes;
         }
     }
 
@@ -894,14 +891,16 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     /**
      * Computes the shard-level heap usage.
      * Ignores index-level heap usage, {@link #computeIndexHeapUsage} should be called for that.
-     * Same computation as {@link EstimatedHeapUsageBuilder#add}, except excludes index and node level overheads.
+     * Includes search-tier shard memory, such as points memory, that is not part of {@link EstimatedHeapUsageBuilder}'s indexing-tier
+     * node estimate.
      */
     // Visible for testing.
     public long computeShardHeapUsage(ShardMemoryMetrics shardMemoryMetrics) {
         if (isSelfReportedShardMemoryOverheadAvailable(shardMemoryMetrics)) {
             return shardMemoryMetrics.getShardMemoryOverheadBytes();
         }
-        return estimateShardMemoryUsageInBytes(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes() + shardMemoryMetrics.getPointsInMemoryBytes();
+        return estimateShardMemoryUsageInBytes(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes() + shardMemoryMetrics
+            .getPointsInMemoryBytes();
     }
 
     /**

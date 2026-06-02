@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.common.Strings;
@@ -169,6 +170,11 @@ public class TDigestHistogramFieldDownsamplerTests extends ESTestCase {
             @Override
             public HistogramValue histogram() {
                 return docIdToValue.get(currentDocId);
+            }
+
+            @Override
+            public DocIdSetIterator docIdSetIterator() {
+                return null;
             }
         };
     }

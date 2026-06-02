@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.rest.RestResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ParallelParsingCoordinator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -52,6 +54,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class NdJsonPageIteratorTests extends ESTestCase {
@@ -77,6 +82,59 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             // can be discarded).
             threadContext.stashContext();
         }
+    }
+
+    /**
+     * The byte-array fast path buffers a whole segment into one {@code byte[]}; it must only engage at or
+     * below {@link NdJsonPageIterator#BYTE_ARRAY_FAST_PATH_MAX_SIZE}, so a larger segment streams instead of
+     * allocating a humongous buffer. This bound is what keeps per-open-segment memory small under the
+     * {@code max_concurrent_open_segments} cap (so the count cap suffices without circuit-breaker
+     * accounting). Guards that invariant against regression.
+     */
+    public void testByteArrayFastPathIsBoundedBySegmentSize() {
+        assertTrue(
+            "at the threshold the whole segment may be buffered",
+            NdJsonPageIterator.canUseByteArrayFastPath(fixedLengthObject(NdJsonPageIterator.BYTE_ARRAY_FAST_PATH_MAX_SIZE))
+        );
+        assertFalse(
+            "above the threshold the segment must stream, not buffer the whole segment into one byte[]",
+            NdJsonPageIterator.canUseByteArrayFastPath(fixedLengthObject((long) NdJsonPageIterator.BYTE_ARRAY_FAST_PATH_MAX_SIZE + 1))
+        );
+    }
+
+    /** Minimal {@link StorageObject} that only reports a length — all the fast-path decision inspects. */
+    private static StorageObject fixedLengthObject(long length) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long len) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://fixed-length");
+            }
+        };
     }
 
     public void testIterator() throws IOException {
@@ -273,6 +331,45 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testTrimLastPartialLineCrLfAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\r\nbb\r\nPART".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                3,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
+            assertEquals("aa\r\nbb\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLoneCrAcrossSmallChunks() throws IOException {
+        byte[] payload = "aa\rbb\rPART".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                3,
+                ErrorPolicy.STRICT,
+                "test://input"
+            )
+        ) {
+            assertEquals("aa\rbb\r", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testSkipFirstLineHonorsMaxRecordBytes() {
+        IOException ex = expectThrows(
+            IOException.class,
+            () -> NdJsonPageIterator.skipToNextLine(
+                new ByteArrayInputStream("partial-without-boundary".getBytes(StandardCharsets.UTF_8)),
+                new NdJsonRecordSplitter(8)
+            )
+        );
+        assertThat(ex.getMessage(), Matchers.containsString("max_record_size [8]"));
+    }
+
     /**
      * Regression: after the consumer has advanced {@code readIdx}, growing the emit buffer must use
      * {@code writeIdx + emitLen}, not {@code unread + emitLen}, or a large carry + line can write past
@@ -360,23 +457,22 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
-    /**
-     * Without a record delimiter, {@link TrimLastPartialLineInputStream} must not grow {@code carry}
-     * past {@link TrimLastPartialLineInputStream#MAX_CARRY_BYTES} (defends against pathological lines).
-     */
+    /** Without a record delimiter, trimming must not grow {@code carry} past the configured record-size budget. */
     public void testTrimLastPartialLineCarryExceedsMaxThrows() throws IOException {
         int chunk = 8192;
-        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        int maxRecordBytes = 16 * 1024;
+        long streamLen = maxRecordBytes + chunk;
         try (
             InputStream trimmed = new TrimLastPartialLineInputStream(
                 new FiniteBytesWithoutNewline(streamLen),
                 chunk,
                 ErrorPolicy.STRICT,
-                "test://input"
+                "test://input",
+                new NdJsonRecordSplitter(maxRecordBytes)
             )
         ) {
             IOException ex = expectThrows(IOException.class, trimmed::readAllBytes);
-            assertThat(ex.getMessage(), Matchers.containsString(TrimLastPartialLineInputStream.MAX_CARRY.toString()));
+            assertThat(ex.getMessage(), Matchers.containsString("max_record_size [" + maxRecordBytes + "]"));
         }
     }
 
@@ -386,16 +482,63 @@ public class NdJsonPageIteratorTests extends ESTestCase {
      */
     public void testTrimLastPartialLineCarryOverLimitLenientSkipsBogusLine() throws IOException {
         int chunk = 8192;
-        long streamLen = TrimLastPartialLineInputStream.MAX_CARRY_BYTES + chunk;
+        int maxRecordBytes = 16 * 1024;
+        long streamLen = maxRecordBytes + chunk;
         try (
             InputStream trimmed = new TrimLastPartialLineInputStream(
                 new FiniteBytesWithoutNewline(streamLen),
                 chunk,
                 ErrorPolicy.LENIENT,
-                "test://input"
+                "test://input",
+                new NdJsonRecordSplitter(maxRecordBytes)
             )
         ) {
             assertEquals(0, trimmed.readAllBytes().length);
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsThroughDelimiterAfterOversizedLine() throws IOException {
+        byte[] payload = "aaaaaaaaa\nok\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                4,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsCrLfRemainderAfterOversizedLine() throws IOException {
+        byte[] payload = "aaaaaaaaa\r\nok\r\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                5,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\r\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testTrimLastPartialLineLenientDiscardsOversizedTailThroughDelimiter() throws IOException {
+        byte[] payload = "ok\naaaaaaaaa\nnext\npartial".getBytes(StandardCharsets.UTF_8);
+        try (
+            InputStream trimmed = new TrimLastPartialLineInputStream(
+                new ByteArrayInputStream(payload),
+                12,
+                ErrorPolicy.LENIENT,
+                "test://input",
+                new NdJsonRecordSplitter(8)
+            )
+        ) {
+            assertEquals("ok\nnext\n", new String(trimmed.readAllBytes(), StandardCharsets.UTF_8));
         }
     }
 
@@ -816,6 +959,37 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
             assertEquals(Instant.parse("2024-01-01T00:00:00Z").toEpochMilli(), ((LongBlock) page.getBlock(0)).getLong(0));
             assertTrue(page.getBlock(0).isNull(1)); // Boolean ignored
+        }
+    }
+
+    public void testMixedValuesToString() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"id": 1, "data": "a"}
+            {"id": 2, "data": 1}
+            {"id": 3, "data": 2.3}
+            {"id": 4, "data": null}
+            {"id": 5, "data": true}
+            {"id": 6, "data": false}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "data"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                      INT      |   BYTES_REF  \s
+                ---------------+---------------
+                1              |a             \s
+                2              |1             \s
+                3              |2.3           \s
+                4              |null          \s
+                5              |true          \s
+                6              |false         \s
+                """);
         }
     }
 
@@ -1849,5 +2023,51 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             case DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE ->
                 throw new IllegalArgumentException("Unsupported block type: " + block.elementType());
         };
+    }
+
+    /**
+     * Reads a single NDJSON buffer through {@link ParallelParsingCoordinator#parallelRead} with a small
+     * {@code segment_size} so the file splits into several byte-range segments, and asserts the total row
+     * count is exact. Localises where an over-count seen end-to-end actually lives: if this over-counts, the
+     * bug is in the NDJSON segmented read (record boundaries / per-segment range), independent of the
+     * EXTERNAL slice-queue layer and of the concurrency cap.
+     */
+    public void testParallelSegmentedReadCountsEachRowOnce() throws Exception {
+        int rows = 40000; // ~480 KB, several 64kb segments — same shape as the over-counting IT
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < rows; i++) {
+            sb.append("{\"a\":").append(i).append("}\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        // 64kb is the minimum allowed segment_size; the ~480 KB buffer still splits into several segments.
+        Settings settings = Settings.builder().put("esql.datasource.ndjson.segment_size", "64kb").build();
+        NdJsonFormatReader reader = new NdJsonFormatReader(settings, blockFactory);
+        BytesStorageObject obj = new BytesStorageObject("mem://multi-segment.ndjson", content);
+
+        int segmentCount = ParallelParsingCoordinator.computeSegments(reader, obj, content.length, 4, reader.minimumSegmentSize()).size();
+        assertThat(
+            "buffer must actually split into multiple segments for this test to be meaningful",
+            segmentCount,
+            Matchers.greaterThan(1)
+        );
+
+        long count = 0;
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try (CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("a"), 100, 4, exec)) {
+            while (iter.hasNext()) {
+                Page p = iter.next();
+                count += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+        assertThat(
+            "segmented NDJSON read must yield each row exactly once (segments=" + segmentCount + ")",
+            count,
+            Matchers.equalTo((long) rows)
+        );
     }
 }

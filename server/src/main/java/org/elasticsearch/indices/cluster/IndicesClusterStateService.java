@@ -77,6 +77,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -173,7 +174,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client
+        final NodeClient client,
+        final RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this(
             settings,
@@ -188,7 +190,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             snapshotShardsService,
             primaryReplicaSyncer,
             retentionLeaseSyncer,
-            client
+            client,
+            recoveryMetricsCollector
         );
     }
 
@@ -206,10 +209,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final NodeClient client
+        final NodeClient client,
+        final RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         this.settings = settings;
-        this.buildInIndexListener = Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService);
+        this.buildInIndexListener = Arrays.asList(
+            peerRecoverySourceService,
+            recoveryTargetService,
+            searchService,
+            snapshotShardsService,
+            recoveryMetricsCollector
+        );
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

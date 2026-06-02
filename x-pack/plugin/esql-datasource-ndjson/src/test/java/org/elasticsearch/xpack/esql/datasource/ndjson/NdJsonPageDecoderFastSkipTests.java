@@ -115,7 +115,8 @@ public class NdJsonPageDecoderFastSkipTests extends ESTestCase {
                 ROWS + 1,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test"
+                "test",
+                new NdJsonReaderCounters()
             )
         ) {
             Page page = decoder.decodePage();

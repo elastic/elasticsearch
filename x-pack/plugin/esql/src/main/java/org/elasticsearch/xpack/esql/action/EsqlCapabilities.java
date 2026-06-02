@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -443,6 +443,17 @@ public class EsqlCapabilities {
          * so they skip on mixed clusters where any data node still runs the per-row evaluator.
          */
         FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+
+        /**
+         * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
+         * keyword block for an array sub-field, a JSON-string keyword for a nested-object sub-field, and a
+         * null position for {@code VALUE_NULL}, instead of always going through {@code parser.text()} (which
+         * threw on every non-scalar value). Tests that exercise the parse path on a non-scalar sub-field
+         * must require this capability so they skip on mixed clusters where any data node still runs the
+         * pre-fix evaluator and would surface the legacy {@code Expected text at &lt;line&gt;:&lt;col&gt;
+         * but found START_ARRAY} warning instead of the new value.
+         */
+        FIELD_EXTRACT_RETURNS_MULTI_VALUE,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -1312,6 +1323,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
+         * (from a subquery in FROM) or a {@code Fork}.
+         */
+        SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
@@ -1320,9 +1337,21 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support IN non-correlated subqueries in WHERE command without View. When a view is referenced by an IN subquery, or there is an
+         * IN subquery inside the view definition(especially nested views), it is out of the scope of this capability.
+         * Add a new capability, so that integration tests don't run on nodes that only have WHERE_IN_SUBQUERY capability.
+         */
+        WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
+
+        /**
          * Support ROW as a source command inside subquery in the from command.
          */
         SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+
+        /**
+         * Support TS as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_TS(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1404,6 +1433,19 @@ public class EsqlCapabilities {
          * The {@code _query} API now gives a cast recommendation if multiple types are found in certain instances.
          */
         SUGGESTED_CAST,
+
+        /**
+         * Support for {@code TO_COUNTER} function and the {@code ::counter} cast operator, which converts
+         * {@code long}, {@code integer}, and {@code double} values to their counter-typed equivalents.
+         */
+        TO_COUNTER,
+
+        /**
+         * Support for {@code TO_GAUGE} function and the {@code ::gauge} cast operator, which converts
+         * {@code counter_long}, {@code counter_integer}, and {@code counter_double} values to their
+         * plain numeric (gauge) equivalents.
+         */
+        TO_GAUGE,
 
         /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
@@ -2087,9 +2129,16 @@ public class EsqlCapabilities {
         FIX_TIME_SERIES_WINDOW_BACKWARD(Build.current().isSnapshot()),
 
         /**
-         * PromQL uses TSTEP instead of TBUCKET.
+         * PromQL uses TSTEP instead of TBUCKET, with corrected open-ended range query bounds.
          */
-        FIX_PROMQL_TIME_BUCKET(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+        FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
+
+        /**
+         * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
+         * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
+         * https://github.com/elastic/elasticsearch-serverless/issues/6817
+         */
+        FIX_PROMQL_TIME_BUCKET_V3(false),
 
         /**
          * Support like/rlike parameters https://github.com/elastic/elasticsearch/issues/131356
@@ -2133,6 +2182,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for PromQL instant queries.
+         */
+        PROMQL_INSTANT_QUERY,
+
+        /**
          * Support for the {@code DATE_UNIT_COUNT} function.
          */
         ESQL_DATE_UNIT_COUNT_FN,
@@ -2169,6 +2223,13 @@ public class EsqlCapabilities {
          * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
          */
         PROMQL_IMPLICIT_RANGE_SELECTOR,
+
+        /**
+         * PromQL functions accept any numeric range vector. ES|QL translates mismatched counter/gauge
+         * types with implicit {@code to_counter()} or {@code to_gauge()} wraps based on each function's
+         * {@link org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition.CounterSupport}.
+         */
+        PROMQL_IMPLICIT_TYPE_COERCION,
 
         /**
          * Support for PromQL {@code without} grouping.
@@ -2265,6 +2326,13 @@ public class EsqlCapabilities {
          * Makes SUM(long) agg return null+warning instead of a 500 overflow.
          */
         FIX_SUM_AGG_LONG_OVERFLOW,
+
+        /**
+         * AVG(long) casts the field to double up-front in its surrogate, so the intermediate sum
+         * can no longer overflow.
+         * https://github.com/elastic/elasticsearch/issues/99575
+         */
+        FIX_AVG_AGG_LONG_OVERFLOW,
 
         /**
          * Support for requesting the "_tier" metadata field.
@@ -2448,25 +2516,25 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_IP_SUPPORT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the {@code header_row} (and the related {@code column_prefix}) CSV options
          * on the {@code EXTERNAL} command, used to read headerless CSV files.
          */
-        EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_HEADER_ROW_OPTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Per-file planner-resolved read schema is threaded down to runtime readers via
          * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
          * preventing reader self-inference that drifts across files in a multi-file glob.
          */
-        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_READ_SCHEMA(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
@@ -2475,7 +2543,7 @@ public class EsqlCapabilities {
          * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
          * this capability rather than on {@link #EXTERNAL_COMMAND}.
          */
-        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
@@ -2486,7 +2554,7 @@ public class EsqlCapabilities {
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
-        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
@@ -2495,13 +2563,13 @@ public class EsqlCapabilities {
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
          * See esql-planning#794.
          */
-        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
-        DATASET_IN_FROM_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.
@@ -2841,6 +2909,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Match function and match operator support for runtime expressions, not just ES mapped fields.
+         */
+        MATCH_SUPPORT_RUNTIME_TEXT(Build.current().isSnapshot()),
+
+        /**
          * Fix for column pruning when FORK branches return no columns.
          */
         FORK_PROJECT_AWAY_COLUMNS_FIX,
@@ -2897,6 +2970,11 @@ public class EsqlCapabilities {
         FIRST_AGG_EXTENDED_TYPES,
 
         /**
+         * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram, tdigest.
+         */
+        FIRST_AGG_EXTENDED_TYPES_2,
+
+        /**
          * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
          * Snapshot-only.
          */
@@ -2906,6 +2984,26 @@ public class EsqlCapabilities {
          * Support for COALESCE with date_range type.
          */
         COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+
+        /**
+         * Support for ESQL parameters in PromQL label matchers:
+         * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
+         */
+        PROMQL_LABEL_MATCHER_PARAMS,
+
+        /**
+         * Fix for PromQL scalar integer division losing the fractional part.
+         * Integer literals like {@code 4/6} were folded with integer division (result: 0)
+         * instead of float64 division (result: ~0.667).
+         * https://github.com/elastic/elasticsearch/issues/149792
+         */
+        FIX_PROMQL_SCALAR_FLOAT_DIV,
+
+        /**
+         * Bugfix in query approximation to not rewrite non-approximable FORK branches:
+         * <a href="https://github.com/elastic/elasticsearch/issues/149501">#149501</a>
+         */
+        APPROXIMATION_FIX_NON_APPROXIMABLE_FORK_BRANCHES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

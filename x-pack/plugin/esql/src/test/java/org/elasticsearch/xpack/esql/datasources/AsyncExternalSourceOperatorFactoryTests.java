@@ -165,7 +165,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ).build();
 
         String description = factory.describe();
-        assertTrue(description.contains("AsyncExternalSourceOperator"));
+        assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("csv"));
         assertTrue(description.contains("sync-wrapper"));
         assertTrue(description.contains("file:///data/test.csv"));
@@ -200,7 +200,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         ).build();
 
         String description = factory.describe();
-        assertTrue(description.contains("AsyncExternalSourceOperator"));
+        assertTrue(description.contains("ExternalDataSourceOperator"));
         assertTrue(description.contains("parquet"));
         assertTrue(description.contains("native-async"));
         assertTrue(description.contains("s3://bucket/data.parquet"));

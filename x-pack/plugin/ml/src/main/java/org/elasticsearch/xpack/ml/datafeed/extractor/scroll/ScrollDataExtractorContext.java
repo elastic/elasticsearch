@@ -34,7 +34,8 @@ class ScrollDataExtractorContext {
         long end,
         Map<String, String> headers,
         IndicesOptions indicesOptions,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        String projectRouting
     ) {
         this.jobId = jobId;
         this.extractedFields = Objects.requireNonNull(extractedFields);
@@ -48,7 +49,8 @@ class ScrollDataExtractorContext {
             end,
             headers,
             indicesOptions,
-            runtimeMappings
+            runtimeMappings,
+            projectRouting
         );
     }
 }

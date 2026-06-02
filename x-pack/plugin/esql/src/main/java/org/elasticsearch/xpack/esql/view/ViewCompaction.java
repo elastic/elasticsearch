@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -328,11 +329,22 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /** Merge the unresolved relation unless the index patterns contain matching index names. */
-    private static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
+    static UnresolvedRelation mergeIfPossible(UnresolvedRelation main, UnresolvedRelation other) {
         for (String mainPattern : main.indexPattern().indexPattern().split(",")) {
             for (String otherPattern : other.indexPattern().indexPattern().split(",")) {
                 if (mainPattern.equals(otherPattern)) {
                     // A duplicate index name was found, fail this attempt to merge.
+                    return null;
+                }
+                // Prevent merging when a wildcard in one pattern matches a concrete name in the other.
+                // Merging would produce a single UnresolvedRelation that deduplicates the overlapping index
+                // during resolution, collapsing what should be two independent data copies into one.
+                if (Regex.isSimpleMatchPattern(otherPattern) == false && Regex.simpleMatch(mainPattern, otherPattern)) {
+                    return null;
+                }
+                if (Regex.isSimpleMatchPattern(otherPattern)
+                    && Regex.isSimpleMatchPattern(mainPattern) == false
+                    && Regex.simpleMatch(otherPattern, mainPattern)) {
                     return null;
                 }
             }

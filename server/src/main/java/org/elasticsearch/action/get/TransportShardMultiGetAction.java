@@ -340,7 +340,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     item.fetchSourceContext(),
                     request.isForceSyntheticSource(),
                     mget,
-                    request.getSplitShardCountSummary()
+                    request.getSplitShardCountSummary(),
+                    request.refresh()
                 );
             response.add(request.locations.get(location), new GetResponse(getResult));
         } catch (RuntimeException e) {

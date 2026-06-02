@@ -91,7 +91,9 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             plan.matchFields(),
             plan.joinOnConditions(),
             plan.query(),
-            plan.emptyResult()
+            plan.emptyResult(),
+            plan.bulkLookupLeft(),
+            plan.bulkLookupRight()
         );
     }
 

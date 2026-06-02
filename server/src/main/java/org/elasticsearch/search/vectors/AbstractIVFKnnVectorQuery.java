@@ -139,7 +139,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 
-        TopDocs topK = mergeLeafResults(k, perLeafResults);
+        TopDocs topK = mergeLeafResults(k, perLeafResults, knnCollectorManager.getMinCompetitiveDocScore());
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
             return Queries.NO_DOCS_INSTANCE;
@@ -147,7 +147,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults) {
+    private TopDocs mergeLeafResults(int mergeK, TopDocs[] perLeafResults, long minCompetitiveDocScore) {
         // During merge across segments, always favor bulk pivot collection.
         // Segment-level unsorted gathering avoids per-segment sorting work.
         BulkNeighborQueue mergeQueue = BulkNeighborQueue.forMerging(mergeK);
@@ -173,7 +173,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     bestScore = scoreDoc.score;
                 }
             }
-            mergeQueue.insertWithOverflowBulk(docs, scores, count, bestScore);
+            mergeQueue.insertWithOverflowBulk(docs, scores, count, bestScore, minCompetitiveDocScore);
         }
         ScoreDoc[] mergedScoreDocs = new ScoreDoc[mergeQueue.size()];
         int[] index = new int[] { mergedScoreDocs.length - 1 };
@@ -264,6 +264,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context)
             throws IOException {
             return new MaxScoreTopKnnCollector(k, visitedLimit, searchStrategy);
+        }
+
+        public long getMinCompetitiveDocScore() {
+            return longAccumulator == null ? LEAST_COMPETITIVE : longAccumulator.get();
         }
     }
 }

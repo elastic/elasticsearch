@@ -114,18 +114,27 @@ public class BulkNeighborQueue {
 
     /**
      * Adds a batch of node-and-score elements using insert-with-overflow semantics.
+     * <p>
+     * {@code minCompetitiveDocScore} is an inclusive lower bound (encoded with
+     * {@link NeighborQueue#encodeRaw}) shared across segments: candidates whose encoded value is
+     * below this bound are rejected without being inserted, even when they may technically be greater than the current internally
+     * observed minimum threshold. Pass {@code Long.MIN_VALUE} to apply no additional filtering beyond the queue's own threshold.
+     * <p>
+     * Note: {@code minCompetitiveDocScore} is not applied when a tiny heap is used.
+     *
      * @param docs node ids
      * @param scores node scores
      * @param count number of entries to read from docs/scores
      * @param bestScore best score in the batch, used for fast rejection
+     * @param minCompetitiveDocScore encoded inclusive lower bound, or {@code Long.MIN_VALUE} to disable
      * @return the number of elements that were accepted (added or replaced).
      */
-    public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+    public int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore, long minCompetitiveDocScore) {
         if (tinyHeap != null) {
             return insertWithOverflowTiny(docs, scores, count, bestScore);
         }
         assert collector != null;
-        return collector.insertWithOverflowBulk(docs, scores, count, bestScore);
+        return collector.insertWithOverflowBulk(docs, scores, count, bestScore, minCompetitiveDocScore);
     }
 
     /**
@@ -210,7 +219,7 @@ public class BulkNeighborQueue {
             return threshold;
         }
 
-        private int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore) {
+        private int insertWithOverflowBulk(int[] docs, float[] scores, int count, float bestScore, long minCompetitiveDocScore) {
             if (count <= 0) {
                 return 0;
             }
@@ -232,17 +241,23 @@ public class BulkNeighborQueue {
             if (bestScore < thresholdScore) {
                 return accepted;
             }
-            return accepted + insertBranchless(docs, scores, i, count);
+            return accepted + insertBranchless(docs, scores, i, count, minCompetitiveDocScore);
         }
 
-        private int insertBranchless(int[] docs, float[] scores, int start, int count) {
+        private int insertBranchless(int[] docs, float[] scores, int start, int count, long minCompetitiveDocScore) {
             int accepted = 0;
+            // this.threshold is always applied (exclusive). minCompetitiveDocScore is an optional external
+            // constraint (inclusive); shift by one to align with the exclusive comparison, bypassing it
+            // entirely when Long.MIN_VALUE is passed to avoid underflow.
+            long effectiveThreshold = minCompetitiveDocScore == Long.MIN_VALUE
+                ? this.threshold
+                : Math.max(this.threshold, minCompetitiveDocScore - 1);
             for (int i = start; i < count; i++) {
                 float score = scores[i];
                 int doc = docs[i];
                 long encoded = encodeRaw(doc, score);
                 values[size] = encoded;
-                int acceptedDelta = encoded > threshold ? 1 : 0;
+                int acceptedDelta = encoded > effectiveThreshold ? 1 : 0;
                 size += acceptedDelta;
                 accepted += acceptedDelta;
                 if (size == capacity) {

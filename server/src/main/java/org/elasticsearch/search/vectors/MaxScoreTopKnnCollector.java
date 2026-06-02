@@ -76,7 +76,7 @@ class MaxScoreTopKnnCollector extends AbstractMaxScoreKnnCollector implements Bu
 
     @Override
     public int bulkCollect(int[] docs, float[] scores, int count, float bestScore) {
-        return queue.insertWithOverflowBulk(docs, scores, count, bestScore);
+        return queue.insertWithOverflowBulk(docs, scores, count, bestScore, minCompetitiveDocScore);
     }
 
     @Override

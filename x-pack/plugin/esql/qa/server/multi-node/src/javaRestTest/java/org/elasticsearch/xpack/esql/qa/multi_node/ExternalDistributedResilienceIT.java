@@ -191,6 +191,33 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
     }
 
     /**
+     * The strongest exactly-once check: run a multi-aggregate query clean, then run the identical query with a
+     * mid-read reset injected, and assert the faulted result is byte-for-byte equal to the clean baseline. If a
+     * resume dropped or replayed a byte, COUNT/SUM/MAX would diverge and the comparison fails.
+     */
+    public void testFaultedMidReadResultEqualsCleanBaseline() throws Exception {
+        int rows = 200_000;
+        byte[] ndjson = generateNdjson(rows);
+        String key = WAREHOUSE + "/baseline/data.ndjson";
+        s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
+
+        String query = externalS3Query(key) + " | STATS c = COUNT(*), s = SUM(salary), m = MAX(salary)";
+        for (String mode : DISTRIBUTION_MODES) {
+            @SuppressWarnings("unchecked")
+            List<List<Object>> clean = (List<List<Object>>) runQueryWithMode(query, mode, 4).get("values");
+
+            faultHandler().setMidBodyResetFault(2, 256, path -> path.endsWith("data.ndjson"));
+            @SuppressWarnings("unchecked")
+            List<List<Object>> faulted = (List<List<Object>>) runQueryWithMode(query, mode, 4).get("values");
+
+            assertEquals(Strings.format("faulted result must equal the clean baseline for mode %s", mode), clean, faulted);
+            assertEquals(Strings.format("all injected resets consumed for mode %s", mode), 0, faultHandler().remainingFaults());
+            faultHandler().clearFault();
+        }
+    }
+
+
+    /**
      * End-to-end regression for the idle/connection reset on an already-open external segment stream. Unlike
      * {@link #testMultiSegmentNdjsonReadRecoversFromConnectionReset} (which resets at stream-open, where the
      * object-store layer retries), this drops the connection <b>mid-body</b> on a segment read — a reset on an

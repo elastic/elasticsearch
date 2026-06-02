@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -387,7 +388,7 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
      * compensation.
      */
     private static int rowPositionSlot(List<String> projectedColumns) {
-        return projectedColumns == null ? -1 : projectedColumns.indexOf(ColumnExtractor.ROW_POSITION_COLUMN);
+        return SyntheticColumns.rowPositionIndexInNames(projectedColumns);
     }
 
     /**

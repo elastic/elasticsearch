@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
@@ -581,7 +582,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 // Synthetic file-global row index, not an ORC column. Typed LONG (not NULL) so the
                 // producer pipeline reads it as a LongBlock; OrcPageIterator fills it from
                 // RecordReader.getRowNumber() rather than from the ORC vectors.
-                projected.add(new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.LONG, Nullability.FALSE, null, false));
+                projected.add(SyntheticColumns.newRowPositionAttribute());
                 continue;
             }
             Attribute attr = attributeMap.get(columnName);
@@ -1059,14 +1060,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.stripeSkipTable = stripeSkipTable;
             this.counters = counters;
 
-            int rowPosIdx = -1;
-            for (int i = 0; i < attributes.size(); i++) {
-                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(attributes.get(i).name())) {
-                    rowPosIdx = i;
-                    break;
-                }
-            }
-            this.rowPositionColumnIndex = rowPosIdx;
+            this.rowPositionColumnIndex = SyntheticColumns.rowPositionIndexInAttributes(attributes);
 
             this.fieldNameToPath = new HashMap<>(attributes.size());
             // Top-level field index, computed once for literal-name lookups.

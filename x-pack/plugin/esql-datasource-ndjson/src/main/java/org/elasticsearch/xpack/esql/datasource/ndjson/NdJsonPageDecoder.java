@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -315,14 +316,7 @@ public class NdJsonPageDecoder implements Closeable {
         this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
         this.initialSliceStart = sourceOffset;
-        int rowPosIdx = -1;
-        for (int i = 0; i < projectedAttributes.size(); i++) {
-            if (ColumnExtractor.ROW_POSITION_COLUMN.equals(projectedAttributes.get(i).name())) {
-                rowPosIdx = i;
-                break;
-            }
-        }
-        this.rowPositionSlot = rowPosIdx;
+        this.rowPositionSlot = SyntheticColumns.rowPositionIndexInAttributes(projectedAttributes);
 
         if (sourceBytes != null) {
             this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);

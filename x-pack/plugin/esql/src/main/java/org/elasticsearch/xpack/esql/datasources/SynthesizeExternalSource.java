@@ -43,12 +43,10 @@ public final class SynthesizeExternalSource {
 
     /**
      * Framework-known synthetic / channel-bookkeeping column names that must never appear in the
-     * rendered {@code _source}. Restricted to columns the producer pipeline injects itself
-     * (currently only {@link ColumnExtractor#ROW_POSITION_COLUMN}). User data columns whose names
-     * happen to start with {@code _} (e.g. Spark's {@code _corrupt_record}, a user-supplied
-     * {@code _status}) are real data and pass through to the rendered object.
+     * rendered {@code _source}. Sourced from {@link SyntheticColumns#NAMES} so the canonical list
+     * of reader-synthesized internal channels lives in one place.
      */
-    static final Set<String> SYNTHETIC_COLUMN_NAMES = Set.of(ColumnExtractor.ROW_POSITION_COLUMN);
+    static final Set<String> SYNTHETIC_COLUMN_NAMES = SyntheticColumns.NAMES;
 
     private SynthesizeExternalSource() {}
 

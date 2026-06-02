@@ -875,7 +875,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Used by deferred-extraction wiring to know which channel the encoder must rewrite.
      */
     private static int rowPositionChannelIndex(List<String> projectedColumns) {
-        return projectedColumns == null ? -1 : projectedColumns.indexOf(ColumnExtractor.ROW_POSITION_COLUMN);
+        return SyntheticColumns.rowPositionIndexInNames(projectedColumns);
     }
 
     /**

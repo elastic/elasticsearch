@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -68,15 +67,7 @@ public class InjectRowPositionForExternalId extends PhysicalOptimizerRules.Param
             return source;
         }
 
-        MetadataAttribute rowPositionAttribute = new MetadataAttribute(
-            source.source(),
-            ColumnExtractor.ROW_POSITION_COLUMN,
-            DataType.LONG,
-            Nullability.FALSE,
-            null,
-            true,
-            false
-        );
+        MetadataAttribute rowPositionAttribute = SyntheticColumns.newRowPositionMetadataAttribute(source.source());
 
         List<Attribute> extended = new ArrayList<>(source.output().size() + 1);
         extended.addAll(source.output());

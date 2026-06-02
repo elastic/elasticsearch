@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -271,8 +270,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
             // when the resolved reader actually advertises ColumnExtractorAware — without that
             // capability the builder would refuse to set the flag.
             boolean deferredExtraction = format instanceof ColumnExtractorAware
-                && context.projectedColumns() != null
-                && context.projectedColumns().contains(ColumnExtractor.ROW_POSITION_COLUMN);
+                && SyntheticColumns.rowPositionIndexInNames(context.projectedColumns()) >= 0;
 
             return AsyncExternalSourceOperatorFactory.builder(
                 storage,

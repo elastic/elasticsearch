@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -1763,15 +1764,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 if (projectedIdx[i] < 0) {
                     projectedTypes[i] = DataType.LONG;
-                    projectedAttrs[i] = new ReferenceAttribute(
-                        Source.EMPTY,
-                        null,
-                        ColumnExtractor.ROW_POSITION_COLUMN,
-                        DataType.LONG,
-                        Nullability.FALSE,
-                        null,
-                        false
-                    );
+                    projectedAttrs[i] = SyntheticColumns.newRowPositionAttribute();
                     continue;
                 }
                 Attribute attr = schema.get(projectedIdx[i]);

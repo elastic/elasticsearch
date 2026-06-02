@@ -113,7 +113,7 @@ public class SecretSettingsTests extends ESTestCase {
             ValidationException.class,
             () -> SecretSettings.validateExactlyOneField(new TreeMap<>(Map.of(key1, "val1", key2, "val2")), errorMessage)
         );
-        assertThat(thrownException.getMessage(), containsString(Strings.format("%s received: [%s, %s]", errorMessage, key1, key2)));
+        assertThat(thrownException.getMessage(), containsString(Strings.format("%s, received: [%s, %s]", errorMessage, key1, key2)));
     }
 
     /**

@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -101,12 +103,14 @@ public class ElasticsearchMappings {
 
     private ElasticsearchMappings() {}
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, int minVersion) {
+    static String[] mappingRequiresUpdate(ProjectMetadata projectMetadata, String[] concreteIndices, int minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
-        Map<String, MappingMetadata> currentMapping = state.metadata()
-            .getProject()
-            .findMappings(concreteIndices, MapperPlugin.NOOP_FIELD_FILTER, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+        Map<String, MappingMetadata> currentMapping = projectMetadata.findMappings(
+            concreteIndices,
+            MapperPlugin.NOOP_FIELD_FILTER,
+            Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+        );
 
         for (String index : concreteIndices) {
             MappingMetadata metadata = currentMapping.get(index);
@@ -153,6 +157,12 @@ public class ElasticsearchMappings {
         return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
     }
 
+    /**
+     * @deprecated Use {@link #addDocMappingIfMissing(String, CheckedSupplier, Client, ProjectMetadata, TimeValue, ActionListener, int)}
+     * instead.
+     */
+    @Deprecated(forRemoval = true)
+    @FixForMultiProject(description = "Migrate callers to the ProjectId overload and remove this one.")
     public static void addDocMappingIfMissing(
         String alias,
         CheckedSupplier<String, IOException> mappingSupplier,
@@ -162,7 +172,31 @@ public class ElasticsearchMappings {
         ActionListener<Boolean> listener,
         int minVersion
     ) {
-        IndexAbstraction indexAbstraction = state.metadata().getProject().getIndicesLookup().get(alias);
+        doAddDocMappingIfMissing(alias, mappingSupplier, client, state.metadata().getProject(), masterNodeTimeout, listener, minVersion);
+    }
+
+    public static void addDocMappingIfMissing(
+        String alias,
+        CheckedSupplier<String, IOException> mappingSupplier,
+        Client client,
+        ProjectMetadata projectMetadata,
+        TimeValue masterNodeTimeout,
+        ActionListener<Boolean> listener,
+        int minVersion
+    ) {
+        doAddDocMappingIfMissing(alias, mappingSupplier, client, projectMetadata, masterNodeTimeout, listener, minVersion);
+    }
+
+    private static void doAddDocMappingIfMissing(
+        String alias,
+        CheckedSupplier<String, IOException> mappingSupplier,
+        Client client,
+        ProjectMetadata projectMetadata,
+        TimeValue masterNodeTimeout,
+        ActionListener<Boolean> listener,
+        int minVersion
+    ) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(alias);
         if (indexAbstraction == null) {
             // The index has never been created yet
             listener.onResponse(true);
@@ -174,7 +208,7 @@ public class ElasticsearchMappings {
             protected void doRun() throws Exception {
                 String[] concreteIndices = indexAbstraction.getIndices().stream().map(Index::getName).toArray(String[]::new);
 
-                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, minVersion);
+                final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(projectMetadata, concreteIndices, minVersion);
                 if (indicesThatRequireAnUpdate.length > 0) {
                     String mapping = mappingSupplier.get();
                     PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);

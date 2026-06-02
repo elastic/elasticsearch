@@ -1404,11 +1404,27 @@ public abstract class FieldMapper extends Mapper {
         }
 
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
-            return Parameter.boolParam("store", false, initializer, defaultValue);
+            return new Parameter<>("store", false, defaultValue ? () -> true : () -> false, (n, c, o) -> {
+                boolean store = XContentMapValues.nodeBooleanValue(o);
+                if (store && c.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new IllegalArgumentException(
+                        "[store] cannot be enabled on field [" + n + "] in [" + c.getIndexSettings().getMode() + "] index mode"
+                    );
+                }
+                return store;
+            }, initializer, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> storeParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValue) {
-            return Parameter.boolParam("store", false, initializer, defaultValue);
+            return new Parameter<>("store", false, defaultValue, (n, c, o) -> {
+                boolean store = XContentMapValues.nodeBooleanValue(o);
+                if (store && c.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new IllegalArgumentException(
+                        "[store] cannot be enabled on field [" + n + "] in [" + c.getIndexSettings().getMode() + "] index mode"
+                    );
+                }
+                return store;
+            }, initializer, XContentBuilder::field, Objects::toString);
         }
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {

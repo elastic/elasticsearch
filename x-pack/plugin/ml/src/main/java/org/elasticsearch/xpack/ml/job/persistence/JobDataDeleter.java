@@ -44,8 +44,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -110,9 +110,9 @@ public class JobDataDeleter {
      *
      * @param modelSnapshots the model snapshots to delete
      */
-    public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
+    public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByPaginatedSearchResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(emptyBulkByScrollResponse());
+            listener.onResponse(emptyBulkByPaginatedSearchResponse());
             return;
         }
 
@@ -133,7 +133,7 @@ public class JobDataDeleter {
             new ArrayList<>(indices),
             listener,
             "model snapshots",
-            () -> listener.onResponse(emptyBulkByScrollResponse())
+            () -> listener.onResponse(emptyBulkByPaginatedSearchResponse())
         );
         if (indicesToQuery.length == 0) return;
 
@@ -147,8 +147,8 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener);
     }
 
-    private static BulkByScrollResponse emptyBulkByScrollResponse() {
-        return new BulkByScrollResponse(
+    private static BulkByPaginatedSearchResponse emptyBulkByPaginatedSearchResponse() {
+        return new BulkByPaginatedSearchResponse(
             TimeValue.ZERO,
             new BulkByPaginatedSearchTask.Status(Collections.emptyList(), null, 0f),
             Collections.emptyList(),
@@ -321,12 +321,12 @@ public class JobDataDeleter {
      *
      * @param listener Response listener
      */
-    public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
+    public void deleteDatafeedTimingStats(ActionListener<BulkByPaginatedSearchResponse> listener) {
         String[] indicesToQuery = removeReadOnlyIndices(
             List.of(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)),
             listener,
             "datafeed timing stats",
-            () -> listener.onResponse(emptyBulkByScrollResponse())
+            () -> listener.onResponse(emptyBulkByPaginatedSearchResponse())
         );
         if (indicesToQuery.length == 0) return;
 
@@ -338,7 +338,7 @@ public class JobDataDeleter {
             ML_ORIGIN,
             TransportDeleteAction.TYPE,
             deleteRequest,
-            listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(emptyBulkByScrollResponse()))
+            listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(emptyBulkByPaginatedSearchResponse()))
         );
     }
 
@@ -361,22 +361,22 @@ public class JobDataDeleter {
         );
 
         // Step 9. If we did not drop the indices and after DBQ state done, we delete the aliases
-        ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(bulkByScrollResponse -> {
-            if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
+        ActionListener<BulkByPaginatedSearchResponse> dbqHandler = ActionListener.wrap(bulkByPaginatedSearchResponse -> {
+            if (bulkByPaginatedSearchResponse == null) { // no action was taken by DBQ, assume indices were deleted
                 completionHandler.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
             } else {
-                if (bulkByScrollResponse.isTimedOut()) {
+                if (bulkByPaginatedSearchResponse.isTimedOut()) {
                     logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                 }
-                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                if (bulkByPaginatedSearchResponse.getBulkFailures().isEmpty() == false) {
                     logger.warn(
                         "[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
                         jobId,
-                        bulkByScrollResponse.getBulkFailures().size(),
-                        bulkByScrollResponse.getVersionConflicts(),
+                        bulkByPaginatedSearchResponse.getBulkFailures().size(),
+                        bulkByPaginatedSearchResponse.getVersionConflicts(),
                         String.join(", ", indexNames.get())
                     );
-                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                    for (BulkItemResponse.Failure failure : bulkByPaginatedSearchResponse.getBulkFailures()) {
                         logger.warn("DBQ failure: " + failure);
                     }
                 }
@@ -501,7 +501,7 @@ public class JobDataDeleter {
         );
 
         // Step 2. Delete state done, delete the quantiles
-        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
+        ActionListener<BulkByPaginatedSearchResponse> deleteStateHandler = ActionListener.wrap(
             bulkResponse -> deleteQuantiles(jobId, deleteQuantilesHandler),
             failureHandler
         );
@@ -513,7 +513,7 @@ public class JobDataDeleter {
     private void deleteResultsByQuery(
         @SuppressWarnings("HiddenField") String jobId,
         String[] indices,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByPaginatedSearchResponse> listener
     ) {
         assert indices.length > 0;
 
@@ -524,7 +524,7 @@ public class JobDataDeleter {
                 List.of(indices),
                 listener,
                 "results",
-                () -> listener.onResponse(emptyBulkByScrollResponse())
+                () -> listener.onResponse(emptyBulkByPaginatedSearchResponse())
             );
             if (indicesToQuery.length == 0) return;
             DeleteByQueryRequest request = new DeleteByQueryRequest(indicesToQuery).setQuery(query)
@@ -623,7 +623,7 @@ public class JobDataDeleter {
         );
     }
 
-    private void deleteModelState(@SuppressWarnings("HiddenField") String jobId, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteModelState(@SuppressWarnings("HiddenField") String jobId, ActionListener<BulkByPaginatedSearchResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(response -> {

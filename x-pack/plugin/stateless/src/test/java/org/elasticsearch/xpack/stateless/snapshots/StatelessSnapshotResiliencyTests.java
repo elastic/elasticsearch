@@ -144,6 +144,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryReloc
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
@@ -384,6 +385,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_ENABLED_SETTING);
             res.add(StatelessSnapshotSettings.STATELESS_SNAPSHOT_WAIT_FOR_ACTIVE_PRIMARY_TIMEOUT_SETTING);
             res.add(StatelessSnapshotSettings.RELOCATION_DURING_SNAPSHOT_ENABLED_SETTING);
+            res.add(ObjectStoreService.OBJECT_STORE_UPLOAD_HOT_THREADS_LOG_INTERVAL);
             res.add(RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING);
             return Set.copyOf(res);
         }
@@ -1083,7 +1085,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheService,
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
-                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings())
+                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
+                        new ReshardSearchFilters(Settings.EMPTY)
                     );
                 }
             });

@@ -547,9 +547,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testGroupOnManyLongs
   issue: https://github.com/elastic/elasticsearch/issues/150104
-- class: org.elasticsearch.index.query.IntervalQueryBuilderTests
-  method: testCacheability
-  issue: https://github.com/elastic/elasticsearch/issues/150117
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitChunksPressure
   issue: https://github.com/elastic/elasticsearch/issues/150123

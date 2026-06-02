@@ -645,3 +645,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlDisruptionIT
   method: testWhereNegatedCondition
   issue: https://github.com/elastic/elasticsearch/issues/150441
+- class: org.elasticsearch.upgrades.TransformSurvivesUpgradeIT
+  method: testTransformRollingUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/150442

@@ -58,13 +58,13 @@ pivot:
     breaking-change:
       labels: ">breaking"
       subtypes:
-        api:
-        behavioral:
-        configuration:
-        dependency:
-        subscription:
-        plugin:
-        security:
+        api: 
+        behavioral: 
+        configuration: 
+        dependency: 
+        subscription: 
+        plugin: 
+        security: 
         other: ">breaking-java"
     # Simple string form: labels as comma-separated string
     bug-fix: ">bug"
@@ -74,7 +74,7 @@ pivot:
     feature: ">feature"
     known-issue:
     regression: ">regression"
-    security:
+    security: 
     other: ">upgrade"
 
   # Area definitions with labels
@@ -316,7 +316,7 @@ bundle:
   # Use YAML literal block scalar (|) for multiline descriptions. See docs/contribute/changelog.md for examples.
   # description: |
   #   Download the release binaries: https://github.com/{owner}/{repo}/releases/tag/v{version}
-  #
+  #   
 
   # Named bundle profiles for different release scenarios.
   # Profiles can be used with both 'changelog bundle' and 'changelog remove':

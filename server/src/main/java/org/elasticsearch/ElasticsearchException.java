@@ -93,6 +93,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldN
 import static org.elasticsearch.index.SliceIndexing.SLICE_MISSING_EXCEPTION_VERSION;
 import static org.elasticsearch.index.engine.OCCNotSupportedException.OCC_NOT_SUPPORTED_EXCEPTION_VERSION;
 import static org.elasticsearch.index.reindex.TaskRelocatedException.TASK_RELOCATED_EXCEPTION_VERSION;
+import static org.elasticsearch.indices.recovery.RecoveryCancelledException.RECOVERY_CANCELLED_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
 import static org.elasticsearch.search.crossproject.InvalidProjectRoutingException.INVALID_PROJECT_ROUTING_EXCEPTION_VERSION;
 
@@ -2103,6 +2104,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.action.SliceMissingException::new,
             194,
             SLICE_MISSING_EXCEPTION_VERSION
+        ),
+        RECOVERY_CANCELLED_EXCEPTION(
+            org.elasticsearch.indices.recovery.RecoveryCancelledException.class,
+            org.elasticsearch.indices.recovery.RecoveryCancelledException::new,
+            195,
+            RECOVERY_CANCELLED_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

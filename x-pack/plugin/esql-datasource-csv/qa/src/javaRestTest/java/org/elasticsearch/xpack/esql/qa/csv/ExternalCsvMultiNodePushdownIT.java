@@ -76,7 +76,10 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
     public void testCountStarColdThenWarmShortCircuitsAcrossNodes() throws Exception {
         assumeTrue("LOCAL fixtures unavailable (packaged in a JAR)", localFixturesPath != null);
         String uri = localFixturesPath.resolve("standalone/employees.csv").toUri().toString();
-        String query = "EXTERNAL \"" + uri + "\" | STATS c = COUNT(*)";
+        // employees.csv encodes multi-value columns with bracket syntax (e.g. [val1,val2]); without
+        // this option the commas inside brackets are treated as column separators, producing a
+        // column-count mismatch at row 1.
+        String query = "EXTERNAL \"" + uri + "\" WITH { \"multi_value_syntax\": \"brackets\" } | STATS c = COUNT(*)";
 
         // Cold: coordinator (no data role) dispatches the scan to the data node, which captures the
         // file's stats in its own JVM and ships them back via DriverCompletionInfo.

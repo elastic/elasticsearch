@@ -263,9 +263,6 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchActionIT
   method: testCleanupOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/153662
-- class: org.elasticsearch.index.query.IntervalQueryBuilderTests
-  method: testCacheability
-  issue: https://github.com/elastic/elasticsearch/issues/153743
 
 # Examples:
 #

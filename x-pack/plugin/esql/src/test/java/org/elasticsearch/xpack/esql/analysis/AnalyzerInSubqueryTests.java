@@ -3119,7 +3119,7 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             .map(TimeSeriesMetadataAttribute.class::cast)
             .findFirst()
             .orElseThrow(() -> new AssertionError("Expected _timeseries metadata attribute on the k8s relation"));
-        assertThat(lowered.withoutFields(), equalTo(expectedWithoutFields));
+        assertThat(lowered.excludedFields(), equalTo(expectedWithoutFields));
     }
 
     // -- helpers --

@@ -27,6 +27,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -66,7 +67,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {};
+        public void validateMapping(MappingLookup lookup, Settings settings) {};
 
         @Override
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
@@ -166,9 +167,41 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {
+        public void validateMapping(MappingLookup lookup, Settings settings) {
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
+            }
+            validateTemporalityField(lookup, settings);
+        }
+
+        private static void validateTemporalityField(MappingLookup lookup, Settings settings) {
+            String temporalityFieldName = IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.get(settings);
+            if (temporalityFieldName == null || temporalityFieldName.isEmpty()) {
+                return;
+            }
+            MappedFieldType fieldType = lookup.getFieldType(temporalityFieldName);
+            if (fieldType == null) {
+                return;
+            }
+            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                        + "] field ["
+                        + temporalityFieldName
+                        + "] must be of type [keyword] but is ["
+                        + fieldType.typeName()
+                        + "]"
+                );
+            }
+            if (fieldType.isDimension() == false) {
+                throw new IllegalArgumentException(
+                    "["
+                        + IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey()
+                        + "] field ["
+                        + temporalityFieldName
+                        + "] must be a [time_series_dimension]"
+                );
             }
         }
 
@@ -257,7 +290,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {}
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -344,7 +377,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {};
+        public void validateMapping(MappingLookup lookup, Settings settings) {};
 
         @Override
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
@@ -411,7 +444,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {}
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -504,7 +537,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {}
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {
@@ -599,7 +632,7 @@ public enum IndexMode {
         }
 
         @Override
-        public void validateMapping(MappingLookup lookup) {}
+        public void validateMapping(MappingLookup lookup, Settings settings) {}
 
         @Override
         public void validateAlias(String indexRouting, String searchRouting) {}
@@ -771,7 +804,7 @@ public enum IndexMode {
     /**
      * Validate the mapping for this index.
      */
-    public abstract void validateMapping(MappingLookup lookup);
+    public abstract void validateMapping(MappingLookup lookup, Settings settings);
 
     /**
      * Validate aliases targeting this index.

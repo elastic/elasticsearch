@@ -275,6 +275,59 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         return super.compileScript(script, context);
     }
 
+    public void testTemporalityFieldValid() throws IOException {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        createMapperService(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("temporality").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }));
+    }
+
+    public void testTemporalityFieldMissingFromMapping() throws IOException {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        createMapperService(
+            s,
+            mapping(b -> { b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject(); })
+        );
+    }
+
+    public void testTemporalityFieldNotKeyword() {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("temporality").field("type", "integer").field("time_series_dimension", true).endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            equalTo("[index.time_series.temporality_field] field [temporality] must be of type [keyword] but is [integer]")
+        );
+    }
+
+    public void testTemporalityFieldNotDimension() {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        Settings s = Settings.builder()
+            .put(getSettings("dim"))
+            .put(IndexSettings.TIME_SERIES_TEMPORALITY_FIELD.getKey(), "temporality")
+            .build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("temporality").field("type", "keyword").endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("[index.time_series.temporality_field] field [temporality] must be a [time_series_dimension]"));
+    }
+
     public void testIndexDisabledByDefault() {
         assumeTrue(
             "index_disabled_by_default feature flag must be enabled",

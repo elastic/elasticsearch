@@ -149,7 +149,7 @@ public class DocumentMapper {
             );
         }
 
-        settings.getMode().validateMapping(mappingLookup);
+        settings.getMode().validateMapping(mappingLookup, settings.getSettings());
         /*
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.

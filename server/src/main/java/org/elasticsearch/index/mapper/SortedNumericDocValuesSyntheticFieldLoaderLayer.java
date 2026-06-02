@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.codec.Prefetchable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -101,6 +102,13 @@ public class SortedNumericDocValuesSyntheticFieldLoaderLayer implements Composit
 
         ImmediateDocValuesLoader(SortedNumericDocValues dv) {
             this.dv = dv;
+        }
+
+        @Override
+        public void prefetch(int docId) throws IOException {
+            if (dv instanceof Prefetchable p) {
+                p.prefetch(docId);
+            }
         }
 
         @Override

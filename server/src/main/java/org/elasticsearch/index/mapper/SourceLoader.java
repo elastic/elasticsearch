@@ -406,6 +406,12 @@ public interface SourceLoader {
              * @return whether or not there are any values for this field
              */
             boolean advanceToDoc(int docId) throws IOException;
+
+            /**
+             * Hint that the given document will be accessed soon. Implementations
+             * should issue non-blocking I/O prefetch hints for the backing data.
+             */
+            default void prefetch(int docId) throws IOException {}
         }
     }
 

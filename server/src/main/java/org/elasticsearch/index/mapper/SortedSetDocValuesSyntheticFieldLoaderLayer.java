@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.Prefetchable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -109,6 +110,13 @@ public abstract class SortedSetDocValuesSyntheticFieldLoaderLayer implements Com
 
         ImmediateDocValuesLoader(SortedSetDocValues dv) {
             this.dv = dv;
+        }
+
+        @Override
+        public void prefetch(int docId) throws IOException {
+            if (dv instanceof Prefetchable p) {
+                p.prefetch(docId);
+            }
         }
 
         @Override

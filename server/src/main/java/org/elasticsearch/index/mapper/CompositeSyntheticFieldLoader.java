@@ -75,14 +75,23 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
             return null;
         }
 
-        return docId -> {
-            boolean hasDocs = false;
-            for (var loader : loaders) {
-                hasDocs |= loader.advanceToDoc(docId);
+        return new DocValuesLoader() {
+            @Override
+            public void prefetch(int docId) throws IOException {
+                for (var loader : loaders) {
+                    loader.prefetch(docId);
+                }
             }
 
-            this.docValuesLoadersHaveValues = hasDocs;
-            return hasDocs;
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                boolean hasDocs = false;
+                for (var loader : loaders) {
+                    hasDocs |= loader.advanceToDoc(docId);
+                }
+                docValuesLoadersHaveValues = hasDocs;
+                return hasDocs;
+            }
         };
     }
 

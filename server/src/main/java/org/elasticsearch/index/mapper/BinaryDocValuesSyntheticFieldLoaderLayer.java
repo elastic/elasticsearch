@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.codec.Prefetchable;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,9 +52,19 @@ public class BinaryDocValuesSyntheticFieldLoaderLayer implements CompositeSynthe
             ? MultiValuedSortedBinaryDocValues.from(leafReader, name)
             : MultiValuedSortedBinaryDocValues.fromMultiValued(leafReader, name, docValues);
 
-        return docId -> {
-            hasValue = bytesValues.advanceExact(docId);
-            return hasValue;
+        return new DocValuesLoader() {
+            @Override
+            public void prefetch(int docId) throws IOException {
+                if (bytesValues instanceof Prefetchable p) {
+                    p.prefetch(docId);
+                }
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                hasValue = bytesValues.advanceExact(docId);
+                return hasValue;
+            }
         };
     }
 

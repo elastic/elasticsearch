@@ -16,6 +16,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.codec.Prefetchable;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ import java.io.IOException;
 /**
  * Wrapper around {@link BinaryDocValues} to decode the typical multivalued encoding
  */
-public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues {
+public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocValues implements Prefetchable {
 
     final ByteArrayStreamInput in = new ByteArrayStreamInput();
     final BytesRef scratch = new BytesRef();
@@ -32,6 +33,13 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
     private MultiValuedSortedBinaryDocValues(BinaryDocValues values) {
         this.values = values;
+    }
+
+    @Override
+    public void prefetch(int docId) throws IOException {
+        if (values instanceof Prefetchable p) {
+            p.prefetch(docId);
+        }
     }
 
     /**

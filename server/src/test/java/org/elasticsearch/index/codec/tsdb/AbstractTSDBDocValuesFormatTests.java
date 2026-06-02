@@ -40,6 +40,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Prefetchable;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseDenseNumericValues;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.BaseSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer.TSDBBinaryDocValues;
@@ -2717,5 +2718,114 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             actual.add(scoreDoc.doc);
         }
         assertEquals("hit set for range [" + lower + "," + upper + "]", expected, actual);
+    }
+
+    public void testPrefetchableOnNumericDocValues() throws Exception {
+        try (var directory = newDirectory()) {
+            var config = newIndexWriterConfig();
+            config.setCodec(getCodec());
+            config.setIndexSort(new Sort(new SortedNumericSortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)));
+            try (var writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, 100 - i));
+                    doc.add(new NumericDocValuesField("numeric", randomLong()));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (var reader = DirectoryReader.open(directory)) {
+                var leaf = reader.leaves().get(0).reader();
+                NumericDocValues ndv = leaf.getNumericDocValues("numeric");
+                assertNotNull(ndv);
+                assertThat(ndv, instanceOf(Prefetchable.class));
+                var prefetchable = (Prefetchable) ndv;
+                prefetchable.prefetch(0);
+                prefetchable.prefetch(50);
+                prefetchable.prefetch(99);
+            }
+        }
+    }
+
+    public void testPrefetchableOnSortedSetDocValues() throws Exception {
+        try (var directory = newDirectory()) {
+            var config = newIndexWriterConfig();
+            config.setCodec(getCodec());
+            config.setIndexSort(new Sort(new SortedNumericSortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)));
+            try (var writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, 100 - i));
+                    doc.add(new SortedSetDocValuesField("keyword", newBytesRef("value_a_" + i)));
+                    doc.add(new SortedSetDocValuesField("keyword", newBytesRef("value_b_" + i)));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (var reader = DirectoryReader.open(directory)) {
+                var leaf = reader.leaves().get(0).reader();
+                var ssdv = leaf.getSortedSetDocValues("keyword");
+                assertNotNull(ssdv);
+                assertThat(ssdv, instanceOf(Prefetchable.class));
+                var prefetchable = (Prefetchable) ssdv;
+                prefetchable.prefetch(0);
+                prefetchable.prefetch(50);
+                prefetchable.prefetch(99);
+            }
+        }
+    }
+
+    public void testPrefetchableOnSortedDocValues() throws Exception {
+        try (var directory = newDirectory()) {
+            var config = newIndexWriterConfig();
+            config.setCodec(getCodec());
+            config.setIndexSort(new Sort(new SortedNumericSortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)));
+            try (var writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, 100 - i));
+                    doc.add(new SortedDocValuesField("sorted", newBytesRef("value_" + i)));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (var reader = DirectoryReader.open(directory)) {
+                var leaf = reader.leaves().get(0).reader();
+                SortedDocValues sdv = leaf.getSortedDocValues("sorted");
+                assertNotNull(sdv);
+                assertThat(sdv, instanceOf(Prefetchable.class));
+                var prefetchable = (Prefetchable) sdv;
+                prefetchable.prefetch(0);
+                prefetchable.prefetch(50);
+                prefetchable.prefetch(99);
+            }
+        }
+    }
+
+    public void testPrefetchableOnBinaryDocValues() throws Exception {
+        try (var directory = newDirectory()) {
+            var config = newIndexWriterConfig();
+            config.setCodec(getCodec());
+            config.setIndexSort(new Sort(new SortedNumericSortField(DataStream.TIMESTAMP_FIELD_NAME, SortField.Type.LONG)));
+            try (var writer = new IndexWriter(directory, config)) {
+                for (int i = 0; i < 100; i++) {
+                    Document doc = new Document();
+                    doc.add(new SortedNumericDocValuesField(DataStream.TIMESTAMP_FIELD_NAME, 100 - i));
+                    doc.add(new BinaryDocValuesField("binary", newBytesRef("binary_value_" + i)));
+                    writer.addDocument(doc);
+                }
+                writer.forceMerge(1);
+            }
+            try (var reader = DirectoryReader.open(directory)) {
+                var leaf = reader.leaves().get(0).reader();
+                BinaryDocValues bdv = leaf.getBinaryDocValues("binary");
+                assertNotNull(bdv);
+                assertThat(bdv, instanceOf(Prefetchable.class));
+                var prefetchable = (Prefetchable) bdv;
+                prefetchable.prefetch(0);
+                prefetchable.prefetch(50);
+                prefetchable.prefetch(99);
+            }
+        }
     }
 }

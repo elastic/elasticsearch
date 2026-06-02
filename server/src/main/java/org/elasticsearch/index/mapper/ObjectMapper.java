@@ -1059,7 +1059,17 @@ public class ObjectMapper extends Mapper {
             }
 
             @Override
+            public void prefetch(int docId) throws IOException {
+                for (DocValuesLoader loader : loaders) {
+                    loader.prefetch(docId);
+                }
+            }
+
+            @Override
             public boolean advanceToDoc(int docId) throws IOException {
+                for (DocValuesLoader loader : loaders) {
+                    loader.prefetch(docId);
+                }
                 boolean anyLeafHasDocValues = false;
                 for (DocValuesLoader docValueLoader : loaders) {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);

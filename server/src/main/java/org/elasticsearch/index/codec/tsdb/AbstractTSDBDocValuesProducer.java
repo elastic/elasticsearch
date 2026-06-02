@@ -50,6 +50,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.codec.Prefetchable;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -283,6 +284,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
+                    public void prefetch(int docId) throws IOException {
+                        bytesSlice.prefetch((long) docId * length, length);
+                    }
+
+                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
@@ -348,6 +354,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+
+                    @Override
+                    public void prefetch(int docId) throws IOException {
+                        long startOffset = addresses.get(docId);
+                        long endOffset = addresses.get(docId + 1L);
+                        bytesSlice.prefetch(startOffset, endOffset - startOffset);
+                    }
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
@@ -496,6 +509,11 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     entry.maxNumDocsInAnyBlock,
                     offsetsDecoder
                 );
+
+                @Override
+                public void prefetch(int docId) throws IOException {
+                    decoder.prefetch(docId, entry.numCompressedBlocks);
+                }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -875,6 +893,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             return index;
         }
 
+        void prefetch(int docNumber, int numBlocks) throws IOException {
+            long blockId = findBlock(docNumber, numBlocks, 0);
+            long blockStart = addresses.get(blockId);
+            long blockEnd = addresses.get(blockId + 1);
+            compressedData.prefetch(blockStart, blockEnd - blockStart);
+        }
+
         int computeMultipleBlockBufferSize(long firstBlockId, long lastBlockId) throws IOException {
             int requiredBufferSize = 0;
             for (long blockId = firstBlockId; blockId <= lastBlockId; blockId++) {
@@ -891,7 +916,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class TSDBBinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalLengthReader {}
+            BlockLoader.OptionalLengthReader,
+            Prefetchable {
+
+        @Override
+        public void prefetch(int docId) throws IOException {}
+    }
 
     abstract static class DenseBinaryDocValues extends TSDBBinaryDocValues {
 
@@ -1132,6 +1162,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         return new BaseSortedDocValues(entry) {
 
             @Override
+            public void prefetch(int docId) throws IOException {
+                if (ords instanceof Prefetchable p) {
+                    p.prefetch(docId);
+                }
+            }
+
+            @Override
             public int ordValue() throws IOException {
                 return (int) ords.longValue();
             }
@@ -1241,7 +1278,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract class BaseSortedDocValues extends SortedDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            PartitionedDocValues {
+            PartitionedDocValues,
+            Prefetchable {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1250,6 +1288,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             this.entry = entry;
             this.termsEnum = termsEnum();
         }
+
+        @Override
+        public void prefetch(int docId) throws IOException {}
 
         @Override
         public int getValueCount() {
@@ -1315,13 +1356,17 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public abstract static class BaseDenseNumericValues extends NumericDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            BlockLoader.OptionalNumericRangeReader {
+            BlockLoader.OptionalNumericRangeReader,
+            Prefetchable {
         private final int maxDoc;
         protected int doc = -1;
 
         BaseDenseNumericValues(int maxDoc) {
             this.maxDoc = maxDoc;
         }
+
+        @Override
+        public void prefetch(int docId) throws IOException {}
 
         @Override
         public final int docID() {
@@ -1375,12 +1420,18 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         abstract SortedOrdinalReader sortedOrdinalReader();
     }
 
-    abstract static class BaseSparseNumericValues extends NumericDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+    abstract static class BaseSparseNumericValues extends NumericDocValues
+        implements
+            BlockLoader.OptionalColumnAtATimeReader,
+            Prefetchable {
         protected final IndexedDISI disi;
 
         BaseSparseNumericValues(IndexedDISI disi) {
             this.disi = disi;
         }
+
+        @Override
+        public void prefetch(int docId) throws IOException {}
 
         @Override
         public final int advance(int target) throws IOException {
@@ -1421,7 +1472,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
+    abstract static class BaseSortedSetDocValues extends SortedSetDocValues implements Prefetchable {
 
         final SortedSetEntry entry;
         final IndexInput data;
@@ -1436,6 +1487,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             this.termsDictBlockLz4Shift = termsDictBlockLz4Shift;
             this.termsEnum = termsEnum();
         }
+
+        @Override
+        public void prefetch(int docId) throws IOException {}
 
         @Override
         public long getValueCount() {
@@ -1710,6 +1764,13 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             int i = 0;
             int count = 0;
             boolean set = false;
+
+            @Override
+            public void prefetch(int docId) throws IOException {
+                if (ords instanceof Prefetchable p) {
+                    p.prefetch(docId);
+                }
+            }
 
             @Override
             public long nextOrd() throws IOException {
@@ -2243,6 +2304,15 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 private IndexInput lookaheadData = null;
 
                 @Override
+                public void prefetch(int docId) throws IOException {
+                    final long blockIndex = docId >>> numericBlockShift;
+                    final long numIndexEntries = 1 + ((entry.numValues - 1) >>> numericBlockShift);
+                    final long blockStart = indexReader.get(blockIndex);
+                    final long blockEnd = (blockIndex + 1 < numIndexEntries) ? indexReader.get(blockIndex + 1) : entry.valuesLength;
+                    valuesData.prefetch(blockStart, blockEnd - blockStart);
+                }
+
+                @Override
                 public int docIDRunEnd() {
                     return maxDoc;
                 }
@@ -2600,11 +2670,34 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numValues
             );
+            final RandomAccessInput prefetchJumpTable = entry.jumpTableEntryCount > 0
+                ? IndexedDISI.createJumpTable(data, entry.docsWithFieldOffset, entry.docsWithFieldLength, entry.jumpTableEntryCount)
+                : null;
             return new BaseSparseNumericValues(disi) {
                 private final BlockDecoder decoder = blockDecoder(entry, maxOrd);
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
+
+                @Override
+                public void prefetch(int docId) throws IOException {
+                    if (prefetchJumpTable == null) {
+                        return;
+                    }
+                    final int disiBlockIndex = docId >>> 16;
+                    if (disiBlockIndex >= entry.jumpTableEntryCount) {
+                        return;
+                    }
+                    final int approxIndex = prefetchJumpTable.readInt(disiBlockIndex * (long) Integer.BYTES * 2);
+                    final long blockIndex = approxIndex >>> numericBlockShift;
+                    final long numIndexEntries = 1 + ((entry.numValues - 1) >>> numericBlockShift);
+                    if (blockIndex >= numIndexEntries) {
+                        return;
+                    }
+                    final long blockStart = indexReader.get(blockIndex);
+                    final long blockEnd = (blockIndex + 1 < numIndexEntries) ? indexReader.get(blockIndex + 1) : entry.valuesLength;
+                    valuesData.prefetch(blockStart, blockEnd - blockStart);
+                }
 
                 @Override
                 public int docIDRunEnd() throws IOException {

@@ -253,8 +253,8 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label noRunnable = new Label();
             pollCancellation.loadThis();
             pollCancellation.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
+            pollCancellation.dup();
             pollCancellation.visitVarInsn(Opcodes.ASTORE, 1);
-            pollCancellation.visitVarInsn(Opcodes.ALOAD, 1);
             pollCancellation.ifNull(noRunnable);
             writePersistentCancellationDecrement(pollCancellation, 0, 1);
             pollCancellation.mark(noRunnable);

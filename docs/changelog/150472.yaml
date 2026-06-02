@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 150472
+summary: Expose datafeed `auth_type` on GET for CPS operator visibility
+type: enhancement

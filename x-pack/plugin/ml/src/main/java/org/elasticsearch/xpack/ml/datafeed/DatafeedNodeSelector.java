@@ -194,7 +194,11 @@ public class DatafeedNodeSelector {
                 );
             }
         } catch (Exception e) {
-            if (cannotVerifyLocally) {
+            // In CPS mode an unqualified name may resolve only on a linked project, so a local
+            // IndexNotFoundException is expected and must not block assignment. Qualified alias:index
+            // names are filtered out of `index` above and never resolved here, so a remote index
+            // elsewhere in the datafeed does not justify ignoring a genuinely missing local index.
+            if (indicesOptions.resolveCrossProjectIndexExpression()) {
                 return null;
             }
             String msg = format(

@@ -50,8 +50,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final Setting<Boolean> CLUSTER_COLUMNAR_ENABLED = Setting.boolSetting(
-        "cluster.columnar.enabled",
+    public static final Setting<Boolean> CLUSTER_LOGSDB_COLUMNAR_ENABLED = Setting.boolSetting(
+        "cluster.logsdb_columnar.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -87,7 +87,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
         clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_COLUMNAR_ENABLED,
+            CLUSTER_LOGSDB_COLUMNAR_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeColumnarEnabled
         );
         // Nothing to share here:
@@ -121,7 +121,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
             )
         );
         if (IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled()) {
-            settings.add(CLUSTER_COLUMNAR_ENABLED);
+            settings.add(CLUSTER_LOGSDB_COLUMNAR_ENABLED);
         }
         return settings;
     }

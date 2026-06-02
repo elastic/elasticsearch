@@ -77,7 +77,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
-            .put("cluster.columnar.enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean())
+            .put("cluster.logsdb_columnar.enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean())
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }

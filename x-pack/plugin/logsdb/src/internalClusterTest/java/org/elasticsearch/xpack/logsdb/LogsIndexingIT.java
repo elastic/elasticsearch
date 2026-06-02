@@ -105,7 +105,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         return Settings.builder()
             .put(super.nodeSettings())
             .put("cluster.logsdb.enabled", "true")
-            .put("cluster.columnar.enabled", columnarEnabled)
+            .put("cluster.logsdb_columnar.enabled", columnarEnabled)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }

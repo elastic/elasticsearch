@@ -65,7 +65,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         .user(USER, PASS)
         .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .setting("cluster.columnar.enabled", () -> Boolean.toString(columnarEnabled))
+        .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled))
         .build();
 
     @ClassRule

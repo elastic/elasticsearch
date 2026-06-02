@@ -66,7 +66,7 @@ public class LogsdbRestIT extends ESRestTestCase {
             .user(USER, PASS)
             .keystore("bootstrap.password", "x-pack-test-password")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("cluster.columnar.enabled", () -> Boolean.toString(columnarEnabled));
+            .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled));
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(1);

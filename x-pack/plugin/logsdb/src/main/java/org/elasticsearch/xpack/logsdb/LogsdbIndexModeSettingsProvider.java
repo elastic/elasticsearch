@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
-import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_COLUMNAR_ENABLED;
+import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_COLUMNAR_ENABLED;
 import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED;
 
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
@@ -84,7 +84,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     LogsdbIndexModeSettingsProvider(LogsdbLicenseService licenseService, final Settings settings) {
         this.licenseService = licenseService;
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
-        this.isColumnarEnabled = CLUSTER_COLUMNAR_ENABLED.get(settings);
+        this.isColumnarEnabled = CLUSTER_LOGSDB_COLUMNAR_ENABLED.get(settings);
     }
 
     void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {

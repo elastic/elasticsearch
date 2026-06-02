@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -31,9 +31,9 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.Executor;
 
 /// Abstract transport action for resuming BulkByScrollAction operations asynchronously. Delegates to the corresponding action on the local
-/// node, then returns a [ResumeBulkByScrollResponse] containing the task id of the delegate action.
+/// node, then returns a [ResumeBulkByPaginatedSearchResponse] containing the task id of the delegate action.
 public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractBulkByPaginatedSearchRequest<Request>> extends
-    HandledTransportAction<ResumeBulkByPaginatedSearchRequest, ResumeBulkByScrollResponse> {
+    HandledTransportAction<ResumeBulkByPaginatedSearchRequest, ResumeBulkByPaginatedSearchResponse> {
 
     private static final Logger logger = LogManager.getLogger(AbstractResumeBulkByScrollAction.class);
 
@@ -58,7 +58,11 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
     }
 
     @Override
-    protected void doExecute(Task task, ResumeBulkByPaginatedSearchRequest request, ActionListener<ResumeBulkByScrollResponse> listener) {
+    protected void doExecute(
+        Task task,
+        ResumeBulkByPaginatedSearchRequest request,
+        ActionListener<ResumeBulkByPaginatedSearchResponse> listener
+    ) {
         // ResumeBulkByPaginatedSearchRequest.validate() rejects requests with no ResumeInfo
         assert request.getDelegate().getResumeInfo().isPresent();
         final ResumeInfo resumeInfo = request.getDelegate().getResumeInfo().get();
@@ -74,6 +78,6 @@ public abstract class AbstractResumeBulkByScrollAction<Request extends AbstractB
             taskId
         );
 
-        listener.onResponse(new ResumeBulkByScrollResponse(taskId));
+        listener.onResponse(new ResumeBulkByPaginatedSearchResponse(taskId));
     }
 }

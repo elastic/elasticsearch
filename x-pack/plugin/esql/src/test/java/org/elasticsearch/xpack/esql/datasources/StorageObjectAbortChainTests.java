@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.hamcrest.Matchers;
 
@@ -127,7 +128,13 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
 
         long stride = fileLength / 4;
-        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, chain, fileLength, stride);
+        List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(
+            csvReader,
+            chain,
+            fileLength,
+            stride,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
         assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= starts.size() - 1);

@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
@@ -119,7 +118,7 @@ public class PromqlFunctionRegistry {
         Log.PROMQL_LOG2_DEFINITION,
         Log.PROMQL_LN_DEFINITION,
         Floor.PROMQL_DEFINITION,
-        Round.PROMQL_DEFINITION,
+        PromqlBuiltinFunctionDefinitions.ROUND,
         //
         Asin.PROMQL_DEFINITION,
         Acos.PROMQL_DEFINITION,

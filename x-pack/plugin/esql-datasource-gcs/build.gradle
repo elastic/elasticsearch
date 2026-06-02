@@ -17,7 +17,7 @@ esplugin {
   name = 'esql-datasource-gcs'
   description = 'Google Cloud Storage provider for ESQL external data sources'
   classname = 'org.elasticsearch.xpack.esql.datasource.gcs.GcsDataSourcePlugin'
-  extendedPlugins = ['x-pack-esql']
+  extendedPlugins = ['x-pack-esql', 'workload-identity']
 }
 
 base {
@@ -33,6 +33,9 @@ dependencies {
   // Apache Arrow BufferAllocator API for breaker-accounted direct memory in readBytesAsync.
   // Runtime classes are loaded via the x-pack-esql plugin's classloader (extendedPlugins).
   compileOnly project(':libs:arrow')
+
+  // OIDC JWT issuer-client SPI, provided at runtime via the 'workload-identity' extended plugin.
+  compileOnly project(':modules:workload-identity:spi')
 
   // Google Cloud Storage client library - versions consistent with repository-gcs module
   implementation 'com.google.cloud:google-cloud-storage:2.50.0'

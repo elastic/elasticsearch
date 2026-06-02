@@ -8,12 +8,20 @@ package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.encryption.ProjectEncryptionKeyMetadata.KeyEntry;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -22,33 +30,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.crypto.SecretKey;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
-    private static byte[] randomKeyBytes() {
-        byte[] keyBytes = new byte[32];
-        random().nextBytes(keyBytes);
-        return keyBytes;
+    private static final String PASSWORD_ID = "v1";
+
+    private static byte[] randomWrappedBytes() {
+        // Vary the wrap length by up to 64 extra bytes around the canonical SALT + OVERHEAD + PEK_LENGTH length so the metadata
+        // round-trip tests catch any field that accidentally couples to a fixed payload length.
+        int min = PasswordBasedEncryption.SALT_LENGTH_BYTES + AesGcm.OVERHEAD_BYTES + PasswordBasedEncryption.PEK_LENGTH_BYTES;
+        return randomByteArrayOfLength(randomIntBetween(min, min + 64));
     }
 
-    private static Map<String, KeyEntry> randomEntriesWithLastActive(int count, String[] activeIdHolder) {
+    private record RandomEntries(Map<String, KeyEntry> entries, String activeKeyId) {}
+
+    private static RandomEntries randomEntriesWithLastActive(int count) {
         // Generate entries with strictly-increasing generatedAt so the last-inserted entry is the newest.
         Map<String, KeyEntry> entries = new HashMap<>();
         long ts = randomLongBetween(0L, Long.MAX_VALUE - count);
         String lastId = null;
         for (int i = 0; i < count; i++) {
             lastId = ProjectEncryptionKeyMetadata.generateKeyId();
-            entries.put(lastId, new KeyEntry(randomKeyBytes(), ts++));
+            entries.put(lastId, new KeyEntry(randomWrappedBytes(), ts++));
         }
-        activeIdHolder[0] = lastId;
-        return entries;
+        return new RandomEntries(entries, lastId);
     }
 
     private static ProjectEncryptionKeyMetadata randomPekMetadata() {
-        String[] activeHolder = new String[1];
-        Map<String, KeyEntry> entries = randomEntriesWithLastActive(randomIntBetween(1, 5), activeHolder);
-        return new ProjectEncryptionKeyMetadata(entries, activeHolder[0]);
+        RandomEntries r = randomEntriesWithLastActive(randomIntBetween(1, 5));
+        return new ProjectEncryptionKeyMetadata(r.entries(), r.activeKeyId(), PASSWORD_ID);
     }
 
     @Override
@@ -68,15 +80,15 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
             // Add a new entry strictly newer than the current active, and make it active.
             String newId = ProjectEncryptionKeyMetadata.generateKeyId();
             long newTs = randomLongBetween(activeTs + 1, Long.MAX_VALUE);
-            entries.put(newId, new KeyEntry(randomKeyBytes(), newTs));
-            return new ProjectEncryptionKeyMetadata(entries, newId);
+            entries.put(newId, new KeyEntry(randomWrappedBytes(), newTs));
+            return new ProjectEncryptionKeyMetadata(entries, newId, pek.getPasswordId());
         }
         // Mutate a non-active entry's timestamp (active stays newest by construction).
         String id = randomValueOtherThan(activeId, () -> randomFrom(entries.keySet()));
         KeyEntry old = entries.get(id);
         long newTs = randomValueOtherThan(old.generatedAt(), () -> randomLongBetween(0L, activeTs - 1));
         entries.put(id, new KeyEntry(old.bytes(), newTs));
-        return new ProjectEncryptionKeyMetadata(entries, activeId);
+        return new ProjectEncryptionKeyMetadata(entries, activeId, pek.getPasswordId());
     }
 
     @Override
@@ -112,39 +124,63 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
         );
     }
 
-    public void testContextIsGatewayOnly() {
-        ProjectEncryptionKeyMetadata metadata = randomPekMetadata();
-        assertEquals(EnumSet.of(Metadata.XContentContext.GATEWAY), metadata.context());
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
     }
 
-    public void testToSecretKey() {
-        String[] activeHolder = new String[1];
-        Map<String, KeyEntry> entries = randomEntriesWithLastActive(3, activeHolder);
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(entries, activeHolder[0]);
-        for (var entry : entries.entrySet()) {
-            SecretKey key = metadata.toSecretKey(entry.getKey());
-            assertNotNull(key);
-            assertEquals("AES", key.getAlgorithm());
-            assertArrayEquals(entry.getValue().bytes(), key.getEncoded());
+    public void testContextIsGatewayAndApi() {
+        ProjectEncryptionKeyMetadata metadata = randomPekMetadata();
+        assertEquals(EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.API), metadata.context());
+    }
+
+    public void testApiContextRedactsWrappedBytesButKeepsOperationalFields() throws IOException {
+        ProjectEncryptionKeyMetadata metadata = randomPekMetadata();
+        String apiJson = chunkedToXContent(metadata, new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, "API")));
+        String gatewayJson = chunkedToXContent(metadata, new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, "GATEWAY")));
+
+        // Operational metadata the control plane reads must remain visible under API.
+        assertThat(apiJson, containsString("\"active_key_id\":\"" + metadata.getActiveKeyId() + "\""));
+        assertThat(apiJson, containsString("\"password_id\":\"" + metadata.getPasswordId() + "\""));
+        assertThat(apiJson, containsString("\"generated_at\""));
+        // Wrapped key bytes must be omitted under API but present under GATEWAY (so disk round-trip works).
+        assertThat("API context must not emit a 'bytes' field for any key entry", apiJson, not(containsString("\"bytes\"")));
+        assertThat(
+            "GATEWAY context must still emit 'bytes' so on-disk reload can reconstruct the wrapped key",
+            gatewayJson,
+            containsString("\"bytes\"")
+        );
+        // None of the wrapped key payloads should leak verbatim under API context.
+        for (KeyEntry entry : metadata.getKeys().values()) {
+            String base64 = java.util.Base64.getEncoder().encodeToString(entry.bytes());
+            assertThat("API context must not leak wrapped key bytes (base64)", apiJson, not(containsString(base64)));
         }
-        assertNull(metadata.toSecretKey("nonexistent"));
-        // No-arg overload returns the active key.
-        assertArrayEquals(metadata.toSecretKey(activeHolder[0]).getEncoded(), metadata.toSecretKey().getEncoded());
     }
 
-    public void testGetKeyBytesReturnsDefensiveCopy() {
-        ProjectEncryptionKeyMetadata metadata = randomPekMetadata();
-        String keyId = metadata.getActiveKeyId();
-        byte[] keyBytes1 = metadata.getKeyBytes(keyId);
-        byte[] keyBytes2 = metadata.getKeyBytes(keyId);
-        assertArrayEquals(keyBytes1, keyBytes2);
-        keyBytes1[0] = (byte) ~keyBytes1[0];
-        assertNotEquals(keyBytes1[0], metadata.getKeyBytes(keyId)[0]);
+    private static String chunkedToXContent(ChunkedToXContent instance, ToXContent.Params params) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        instance.toXContentChunked(params).forEachRemaining(c -> {
+            try {
+                c.toXContent(builder, params);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+        builder.endObject();
+        return Strings.toString(builder);
     }
 
-    public void testGetKeyBytesForMissingKeyId() {
-        ProjectEncryptionKeyMetadata metadata = randomPekMetadata();
-        assertNull(metadata.getKeyBytes("nonexistent"));
+    public void testGetEncryptedKeyReturnsEncryptedDataUnderPasswordId() {
+        RandomEntries r = randomEntriesWithLastActive(3);
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(r.entries(), r.activeKeyId(), PASSWORD_ID);
+        for (var entry : r.entries().entrySet()) {
+            EncryptedData encrypted = metadata.getEncryptedKey(entry.getKey());
+            assertNotNull(encrypted);
+            assertEquals(PASSWORD_ID, encrypted.keyId());
+            assertArrayEquals(entry.getValue().bytes(), encrypted.payload());
+        }
+        assertNull(metadata.getEncryptedKey("nonexistent"));
     }
 
     public void testGetGeneratedAtForMissingKeyId() {
@@ -155,65 +191,116 @@ public class ProjectEncryptionKeyMetadataTests extends ChunkedToXContentDiffable
     public void testToStringDoesNotLeakKey() {
         ProjectEncryptionKeyMetadata metadata = randomPekMetadata();
         String str = metadata.toString();
-        assertFalse(str.contains(java.util.Base64.getEncoder().encodeToString(metadata.getKeyBytes(metadata.getActiveKeyId()))));
+        for (KeyEntry entry : metadata.getKeys().values()) {
+            assertFalse(str.contains(java.util.Base64.getEncoder().encodeToString(entry.bytes())));
+        }
         assertTrue(str.contains("[keys secret]"));
-    }
-
-    public void testInvalidKeyLength() {
-        expectThrows(IllegalArgumentException.class, () -> new KeyEntry(new byte[16], 0L));
+        assertTrue(str.contains("passwordId=" + PASSWORD_ID));
     }
 
     public void testActiveKeyIdNotInEntries() {
         String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
         expectThrows(
             IllegalArgumentException.class,
-            () -> new ProjectEncryptionKeyMetadata(Map.of(keyId, new KeyEntry(randomKeyBytes(), 0L)), "nonexistent")
+            () -> new ProjectEncryptionKeyMetadata(Map.of(keyId, new KeyEntry(randomWrappedBytes(), 0L)), "nonexistent", PASSWORD_ID)
         );
     }
 
     public void testEmptyEntriesMap() {
-        expectThrows(IllegalArgumentException.class, () -> new ProjectEncryptionKeyMetadata(Map.of(), "any"));
+        expectThrows(IllegalArgumentException.class, () -> new ProjectEncryptionKeyMetadata(Map.of(), "any", PASSWORD_ID));
+    }
+
+    public void testNullPasswordIdRejected() {
+        String keyId = ProjectEncryptionKeyMetadata.generateKeyId();
+        expectThrows(
+            NullPointerException.class,
+            () -> new ProjectEncryptionKeyMetadata(Map.of(keyId, new KeyEntry(randomWrappedBytes(), 0L)), keyId, null)
+        );
     }
 
     public void testFromXContentMissingActiveKeyId() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"keys\": {\"abc\": {\"bytes\": \"AAAA\"}}}")) {
+        try (
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                "{\"password_id\":\"v1\",\"keys\":{\"abc\":{\"bytes\":\"AAAA\",\"generated_at\":0}}}"
+            )
+        ) {
             expectThrows(IllegalArgumentException.class, () -> ProjectEncryptionKeyMetadata.fromXContent(parser));
         }
     }
 
     public void testFromXContentMissingKeys() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"active_key_id\": \"abc\"}")) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"active_key_id\":\"abc\",\"password_id\":\"v1\"}")) {
             expectThrows(IllegalArgumentException.class, () -> ProjectEncryptionKeyMetadata.fromXContent(parser));
         }
     }
 
+    public void testFromXContentMissingPasswordIdDefaultsToEmpty() throws IOException {
+        try (
+            XContentParser parser = createParser(
+                JsonXContent.jsonXContent,
+                "{\"active_key_id\":\"abc\",\"keys\":{\"abc\":{\"bytes\":\"AAAA\",\"generated_at\":0}}}"
+            )
+        ) {
+            ProjectEncryptionKeyMetadata reconstructed = (ProjectEncryptionKeyMetadata) ProjectEncryptionKeyMetadata.fromXContent(parser);
+            assertEquals("", reconstructed.getPasswordId());
+            assertEquals("abc", reconstructed.getActiveKeyId());
+        }
+    }
+
+    public void testReadFromPreAtRestWireFormatDefaultsPasswordIdToEmpty() throws IOException {
+        RandomEntries r = randomEntriesWithLastActive(randomIntBetween(1, 4));
+        Map<String, String> handlerKeyIds = randomBoolean() ? Map.of() : Map.of("handler-A", r.activeKeyId());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_ROTATION);
+        out.writeMap(r.entries(), StreamOutput::writeString, (o, e) -> e.writeTo(o));
+        out.writeString(r.activeKeyId());
+        out.writeMap(handlerKeyIds, StreamOutput::writeString, StreamOutput::writeString);
+
+        StreamInput in = out.bytes().streamInput();
+        in.setTransportVersion(ProjectEncryptionKeyMetadata.PRIMARY_ENCRYPTION_KEY_ROTATION);
+        ProjectEncryptionKeyMetadata read = new ProjectEncryptionKeyMetadata(in);
+
+        assertEquals(r.activeKeyId(), read.getActiveKeyId());
+        assertEquals("", read.getPasswordId());
+        assertEquals(r.entries().keySet(), read.getKeys().keySet());
+        assertEquals(handlerKeyIds, read.getHandlerKeyIds());
+    }
+
     private static KeyEntry entry(long generatedAt) {
-        byte[] keyBytes = new byte[32];
-        random().nextBytes(keyBytes);
-        return new KeyEntry(keyBytes, generatedAt);
+        return new KeyEntry(randomWrappedBytes(), generatedAt);
     }
 
     public void testFindRetireableKeyIdsExcludesActive() {
-        // Even with active.generatedAt below the cutoff, active is never retired.
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L), "k2", entry(100L)), "k2");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(50L), "k2", entry(100L)),
+            "k2",
+            PASSWORD_ID
+        );
         assertEquals(Set.of("k1"), metadata.findRetireableKeyIds(Long.MAX_VALUE));
     }
 
     public void testFindRetireableKeyIdsUsesDeactivationTimeNotGenerationTime() {
         ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
             Map.of("k1", entry(100L), "k2", entry(400L), "k3", entry(500L)),
-            "k3"
+            "k3",
+            PASSWORD_ID
         );
         assertEquals(Set.of("k1"), metadata.findRetireableKeyIds(450L));
     }
 
     public void testFindRetireableKeyIdsReturnsEmptyWhenNoNonActiveKeys() {
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("only", entry(100L)), "only");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("only", entry(100L)), "only", PASSWORD_ID);
         assertTrue(metadata.findRetireableKeyIds(Long.MAX_VALUE).isEmpty());
     }
 
     public void testFindRetireableKeyIdsKeyDeactivatedAtRotation() {
-        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L), "k2", entry(1_000_000L)), "k2");
+        ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L), "k2", entry(1_000_000L)),
+            "k2",
+            PASSWORD_ID
+        );
         assertTrue(metadata.findRetireableKeyIds(500_000L).isEmpty());
         assertEquals(Set.of("k1"), metadata.findRetireableKeyIds(2_000_000L));
     }

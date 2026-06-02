@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolCall;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -86,18 +91,15 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
             var expectedStop = List.of("stop");
             var expectedTemp = randomDoubleBetween(1, 10, true);
             var expectedTopP = randomDoubleBetween(1, 10, true);
+            var expectedTopK = randomDoubleBetween(1, 10, true);
 
-            var content = new UnifiedCompletionRequest.ContentString("content");
-            var toolCall = new UnifiedCompletionRequest.ToolCall(
-                "id",
-                new UnifiedCompletionRequest.ToolCall.FunctionField("function", expectedModel),
-                ""
-            );
-            var message = new UnifiedCompletionRequest.Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
+            var content = new ContentString("content");
+            var toolCall = new ToolCall("id", new ToolCall.FunctionField("function", expectedModel), "");
+            var message = new Message(content, "user", "tooluse_Z7IP83_eTt2y_TECni1ULw", List.of(toolCall));
             var expectedMessages = List.of(message);
 
-            var expectedToolChoice = new UnifiedCompletionRequest.ToolChoiceString("any");
-            var tools = List.of(new UnifiedCompletionRequest.Tool("type", null));
+            var expectedToolChoice = new ToolChoiceString("any");
+            var tools = List.of(new Tool("type", null));
 
             var request = new UnifiedCompletionRequest(
                 expectedMessages,
@@ -109,7 +111,7 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
                 tools,
                 (float) expectedTopP
             );
-            var model = model(provider, expectedTemp, expectedTopP, (int) expectedMaxToken);
+            var model = model(provider, expectedTemp, expectedTopP, (int) expectedMaxToken, expectedTopK);
 
             var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
 
@@ -121,6 +123,89 @@ public class AmazonBedrockChatCompletionEntityFactoryTests extends ESTestCase {
             assertThat(entity.temperature(), equalTo((float) expectedTemp));
             assertThat(entity.toolChoice(), equalTo(expectedToolChoice));
             assertThat(entity.topP(), equalTo((float) expectedTopP));
+            // top_k can never be set on the request, so it must always come from task settings.
+            assertThat(entity.topK(), equalTo(expectedTopK));
+        });
+    }
+
+    public void testEntitiesForChatCompletionFallBackToTaskSettingsWhenRequestValuesAreNull() {
+        // task_settings on the endpoint must be honoured when the per-request values are null
+        // instead of being silently ignored.
+        List.of(ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL).forEach(provider -> {
+            var taskTemp = randomDoubleBetween(1, 10, true);
+            var taskTopP = randomDoubleBetween(1, 10, true);
+            var taskMaxToken = randomIntBetween(1, 10);
+            var taskTopK = randomDoubleBetween(1, 10, true);
+            var model = model(provider, taskTemp, taskTopP, taskMaxToken, taskTopK);
+
+            var content = new ContentString("content");
+            var message = new Message(content, "user", null, null);
+            var request = new UnifiedCompletionRequest(List.of(message), "modelId", null, null, null, null, null, null);
+
+            var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
+
+            assertThat(entity, notNullValue());
+            assertThat(entity.maxCompletionTokens(), equalTo((long) taskMaxToken));
+            assertThat(entity.temperature(), equalTo((float) taskTemp));
+            assertThat(entity.topP(), equalTo((float) taskTopP));
+            assertThat(entity.topK(), equalTo(taskTopK));
+        });
+    }
+
+    public void testEntitiesForChatCompletionRequestValuesTakePrecedenceOverTaskSettings() {
+        // The request body should always win when the user explicitly sets a value, so the task
+        // settings only act as a fallback for null fields.
+        List.of(ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL).forEach(provider -> {
+            long requestMaxToken = 11L;
+            float requestTemp = 0.4f;
+            float requestTopP = 0.6f;
+
+            // Distinct from request so we can assert it isn't used.
+            double taskTemp = 5.5;
+            double taskTopP = 6.6;
+            int taskMaxToken = 99;
+            double taskTopK = 7.7;
+            var model = model(provider, taskTemp, taskTopP, taskMaxToken, taskTopK);
+
+            var content = new ContentString("content");
+            var message = new Message(content, "user", null, null);
+            var request = new UnifiedCompletionRequest(
+                List.of(message),
+                "modelId",
+                requestMaxToken,
+                null,
+                requestTemp,
+                null,
+                null,
+                requestTopP
+            );
+
+            var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
+
+            assertThat(entity, notNullValue());
+            assertThat(entity.maxCompletionTokens(), equalTo(requestMaxToken));
+            assertThat(entity.temperature(), equalTo(requestTemp));
+            assertThat(entity.topP(), equalTo(requestTopP));
+            // top_k still comes from task settings since the request has no field for it.
+            assertThat(entity.topK(), equalTo(taskTopK));
+        });
+    }
+
+    public void testEntitiesForChatCompletionLeaveFieldsNullWhenNeitherRequestNorTaskSettingsProvideThem() {
+        List.of(ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL).forEach(provider -> {
+            var model = model(provider, null, null, null, null);
+
+            var content = new ContentString("content");
+            var message = new Message(content, "user", null, null);
+            var request = new UnifiedCompletionRequest(List.of(message), "modelId", null, null, null, null, null, null);
+
+            var entity = AmazonBedrockChatCompletionEntityFactory.createEntity(model, request);
+
+            assertThat(entity, notNullValue());
+            assertThat(entity.maxCompletionTokens(), nullValue());
+            assertThat(entity.temperature(), nullValue());
+            assertThat(entity.topP(), nullValue());
+            assertThat(entity.topK(), nullValue());
         });
     }
 

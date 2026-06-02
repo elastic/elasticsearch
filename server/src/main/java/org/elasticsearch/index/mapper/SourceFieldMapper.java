@@ -163,6 +163,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private final IndexMode indexMode;
         private boolean serializeMode;
+        private Mode fallbackMode;
 
         private final boolean supportsNonDefaultParameterValues;
         private final boolean sourceModeIsNoop;
@@ -208,6 +209,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private boolean isDefault() {
             return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -271,6 +277,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return sourceFieldMapper;
         }
 
+        public boolean isSynthetic() {
+            return resolveSourceMode() == Mode.SYNTHETIC;
+        }
+
         private Mode resolveSourceMode() {
             // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
@@ -281,8 +291,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // If `_source.mode` is not set we need to apply a default according to index mode.
             if (mode.get() == null || sourceModeIsNoop) {
                 if (indexMode == null || indexMode == IndexMode.STANDARD) {
-                    // Special case to avoid serializing mode.
-                    return null;
+                    return fallbackMode;
                 }
 
                 return indexMode.defaultSourceMode();
@@ -300,34 +309,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
-        final IndexMode indexMode = c.getIndexSettings().getMode();
-
-        if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
-            return DEFAULT;
-        }
-
-        final Mode settingSourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
-        // Needed for bwc so that "mode" is not serialized in case of standard index with stored source.
-        if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
-            return DEFAULT;
-        }
-        SourceFieldMapper sourceFieldMapper;
-        if (onOrAfterDeprecateModeVersion(c.indexVersionCreated())) {
-            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
-        } else {
-            sourceFieldMapper = new SourceFieldMapper(
-                settingSourceMode,
-                Explicit.IMPLICIT_TRUE,
-                Strings.EMPTY_ARRAY,
-                Strings.EMPTY_ARRAY,
-                true,
-                c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
-            );
-        }
-        indexMode.validateSourceFieldMapper(sourceFieldMapper);
-        return sourceFieldMapper;
-    },
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
@@ -368,11 +350,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (enabled) {
-                BlockLoaderFunctionConfig config = blContext.blockLoaderFunctionConfig();
-                if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_DIMENSIONS) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, false);
-                } else if (config != null && config.function() == BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS) {
-                    return new TimeSeriesMetadataFieldBlockLoader(blContext, true, true);
+                var config = blContext.blockLoaderFunctionConfig();
+                if (config instanceof BlockLoaderFunctionConfig.TimeSeriesMetadata tsm) {
+                    return new TimeSeriesMetadataFieldBlockLoader(blContext, tsm.loadMetrics());
                 }
                 return new SourceFieldBlockLoader();
             }
@@ -442,9 +422,25 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        XContentType contentType = context.sourceToParse().getXContentType();
+        SourceToParse.Source sourceObject = context.sourceToParse().source();
+        XContentType contentType = sourceObject.xContentType();
+        final boolean recoverySourceEnabled = context.indexSettings().isRecoverySourceEnabled();
+        final boolean syntheticRecovery = recoverySourceEnabled && context.indexSettings().isRecoverySourceSyntheticEnabled();
 
-        final var originalSource = context.sourceToParse().source();
+        // Materializing the source bytes is only required when something downstream needs them:
+        // - storing the regular _source field (stored() == true), or
+        // - storing the reduced _recovery_source field (recovery enabled, non-synthetic).
+        // The recovery-disabled case needs nothing at all, and the synthetic-recovery case needs
+        // only a byte-size estimate, which the EIRF row can supply without re-serializing.
+        if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
+            if (syntheticRecovery) {
+                assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, sourceObject.estimatedSizeInBytes()));
+            }
+            return;
+        }
+
+        final var originalSource = sourceObject.originalBytes();
         final var storedSource = stored() ? removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType) : null;
         final var adaptedStoredSource = applyFilters(context.mappingLookup(), storedSource, contentType, false);
 
@@ -453,12 +449,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
 
-        if (context.indexSettings().isRecoverySourceEnabled() == false) {
-            // Recovery source is disabled; skip adding recovery source fields.
+        if (recoverySourceEnabled == false) {
             return;
         }
 
-        if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+        if (syntheticRecovery) {
             assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
             // Synthetic source recovery is enabled; omit the full recovery source.
             // Instead, store only the size of the uncompressed original source.
@@ -558,7 +553,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode).init(this);
+        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode);
+        b.fallbackMode = this.mode;
+        b.init(this);
+        return b;
     }
 
     public boolean isSynthetic() {

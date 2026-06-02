@@ -22,6 +22,7 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SkipBlockRangeIterator;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.IntsRef;
 
@@ -199,7 +200,9 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
         protected abstract int docCount();
 
         final void updateCompetitiveIterator() throws IOException {
-            if (hitsThresholdReached == false) {
+            // When a top value is set (search_after), we can build the competitive iterator immediately
+            // because we already know the upper bound and don't need to wait for the hits threshold.
+            if (hitsThresholdReached == false && leafTopSet == false) {
                 return;
             }
             if (leafTopSet == false && queueFull == false) {
@@ -474,7 +477,7 @@ public abstract class XNumericComparator<T extends Number> extends FieldComparat
 
         @Override
         protected void doUpdateCompetitiveIterator() {
-            competitiveIterator.update(new XSkipBlockRangeIterator(skipper, minValueAsLong, maxValueAsLong));
+            competitiveIterator.update(new SkipBlockRangeIterator(skipper, minValueAsLong, maxValueAsLong));
         }
     }
 }

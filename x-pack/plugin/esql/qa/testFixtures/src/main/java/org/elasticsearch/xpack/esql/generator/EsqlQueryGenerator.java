@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DedupGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropAllGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
@@ -19,23 +20,31 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.InlineStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LimitByGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SampleGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.UserAgentGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.RowGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,6 +54,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.COMMONLY_SUPPORTED_TYPES;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.areUnmappedFieldsAllowed;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.binaryMathFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.caseFunction;
@@ -55,6 +65,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.concatFun
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.conversionFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.fullTextFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.greatestLeastFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.ipPrefixFunction;
@@ -68,6 +79,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.splitFunc
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToBoolFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToIntFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.typeSafeExpression;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.randomUnmappedFieldName;
 
 public class EsqlQueryGenerator {
@@ -79,7 +91,7 @@ public class EsqlQueryGenerator {
     /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
-    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE, RowGenerator.INSTANCE);
 
     /**
      * Commands at the beginning of queries that begin queries on time series indices, eg. TS
@@ -94,9 +106,10 @@ public class EsqlQueryGenerator {
     /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
-    static List<CommandGenerator> PIPE_COMMANDS = List.of(
+    public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
+        DedupGenerator.INSTANCE,
         DropGenerator.INSTANCE,
         DropAllGenerator.INSTANCE,
         EnrichGenerator.INSTANCE,
@@ -105,6 +118,7 @@ public class EsqlQueryGenerator {
         GrokGenerator.INSTANCE,
         KeepGenerator.INSTANCE,
         InlineStatsGenerator.INSTANCE,
+        LimitByGenerator.INSTANCE,
         LimitGenerator.INSTANCE,
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
@@ -113,6 +127,8 @@ public class EsqlQueryGenerator {
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
+        UserAgentGenerator.INSTANCE,
+        RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
 
@@ -157,22 +173,19 @@ public class EsqlQueryGenerator {
         final CommandGenerator.QuerySchema schema,
         Executor executor,
         boolean isTimeSeries,
-        QueryExecutor queryExecutor
+        QueryExecutor queryExecutor,
+        GenerationContext context
     ) {
         boolean canGenerateTimeSeries = isTimeSeries;
         CommandGenerator.CommandDescription desc;
 
         if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
-            // do a dummy query to get available fields first
-            // TODO: modify when METRICS_INFO available https://github.com/elastic/elasticsearch/issues/141413
             String index = promQLGenerator.generateIndices(schema);
-            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, Map.of());
-            executor.run(FromGenerator.INSTANCE, fromDesc);
-            executor.clearCommandHistory();
-            desc = promQLGenerator.generateWithIndices(List.of(), executor.currentSchema(), schema, queryExecutor, index);
+            List<Column> fieldSchema = discoverFieldsViaMetricsInfo(index, queryExecutor);
+            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, context, index);
             canGenerateTimeSeries = false;
         } else {
-            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
+            desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor, context);
         }
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
@@ -201,7 +214,7 @@ public class EsqlQueryGenerator {
                 }
             }
 
-            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor, context);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
             }
@@ -215,21 +228,12 @@ public class EsqlQueryGenerator {
 
     /**
      * Generates a boolean expression.
-     * @deprecated Use {@link #booleanExpression(List, List)} instead to properly handle unmapped fields
-     */
-    @Deprecated
-    public static String booleanExpression(List<Column> previousOutput) {
-        return booleanExpression(previousOutput, null);
-    }
-
-    /**
-     * Generates a boolean expression.
      * @param previousOutput the columns available in the current schema
      * @param previousCommands the list of commands executed so far (used to determine if unmapped fields are allowed)
      */
     public static String booleanExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
-        return switch (randomIntBetween(0, 11)) {
+        return switch (randomIntBetween(0, 13)) {
             case 0, 1, 2 -> {
                 String field = randomNumericField(previousOutput);
                 if (field == null) {
@@ -245,6 +249,7 @@ public class EsqlQueryGenerator {
             case 8 -> likeExpression(previousOutput, allowUnmapped);
             case 9 -> rlikeExpression(previousOutput, allowUnmapped);
             case 10 -> cidrMatchFunction(previousOutput, allowUnmapped);
+            case 11, 12 -> fullTextFunction(previousOutput, previousCommands);
             default -> {
                 // Numeric comparison on function result
                 String funcExpr = stringToIntFunction(previousOutput, allowUnmapped);
@@ -264,9 +269,9 @@ public class EsqlQueryGenerator {
         };
     }
 
-    public static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(List<CsvTestsDataLoader.EnrichConfig> policies) {
+    public static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(Collection<CsvTestsDataLoader.EnrichConfig> policies) {
         // TODO make it smarter and extend it to other types
-        return policies.stream().filter(x -> Set.of("languages_policy").contains(x.policyName())).toList();
+        return policies.stream().filter(x -> Objects.equals("languages_policy", x.policyName())).toList();
     }
 
     public static String randomName(List<Column> previousOutput) {
@@ -285,7 +290,7 @@ public class EsqlQueryGenerator {
     }
 
     public static boolean needsQuoting(String rawName) {
-        return rawName.contains("`") || rawName.contains("-");
+        return rawName.contains("`") || rawName.contains("-") || rawName.contains("(") || rawName.contains(")");
     }
 
     /**
@@ -497,14 +502,14 @@ public class EsqlQueryGenerator {
             case 6, 7 -> {
                 // top() accepts: boolean, double, integer, long, date, ip, keyword, text
                 Set<String> topTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
-                String topField = FunctionGenerator.typeSafeExpression(previousOutput, topTypes, allowUnmapped);
+                String topField = typeSafeExpression(previousOutput, topTypes, allowUnmapped);
                 if (topField == null) topField = anyName;
                 String order = randomIntBetween(0, 1) == 0 ? "asc" : "desc";
                 yield "top(" + topField + ", " + randomIntBetween(1, 5) + ", \"" + order + "\")";
             }
             case 8 -> {
                 // sample() - use a commonly supported field to avoid type issues
-                String sampleField = randomName(previousOutput, FunctionGenerator.COMMONLY_SUPPORTED_TYPES);
+                String sampleField = randomName(previousOutput, COMMONLY_SUPPORTED_TYPES);
                 if (sampleField == null) sampleField = anyName;
                 yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
             }
@@ -653,7 +658,7 @@ public class EsqlQueryGenerator {
             case 13 -> greatestLeastFunction(previousOutput, allowUnmapped);
             case 14 -> mvSliceZipFunction(previousOutput, allowUnmapped);
             case 15 -> splitFunction(previousOutput, allowUnmapped);
-            case 16 -> clampFunction(previousOutput, allowUnmapped);
+            case 16 -> clampFunction(previousOutput);
             case 17 -> dateDiffFunction(previousOutput, allowUnmapped);
             default -> ipPrefixFunction(previousOutput, allowUnmapped);
         };
@@ -663,25 +668,12 @@ public class EsqlQueryGenerator {
         return randomBoolean() ? indexName : indexName.substring(0, randomIntBetween(0, indexName.length())) + "*";
     }
 
-    public static String row() {
-        StringBuilder cmd = new StringBuilder("row ");
-        int nFields = randomIntBetween(1, 10);
-        for (int i = 0; i < nFields; i++) {
-            String name = randomIdentifier();
-            String expression = constantExpression();
-            if (i > 0) {
-                cmd.append(",");
-            }
-            cmd.append(" ");
-            cmd.append(name);
-            cmd.append(" = ");
-            cmd.append(expression);
-        }
-        return cmd.toString();
-    }
-
     public static String constantExpression() {
         // TODO not only simple values, but also foldable expressions
+        if (randomIntBetween(0, 9) == 0) {
+            return multivalueConstant();
+        }
+        // TODO: Add more types (double, geo, ranges...)
         return switch (randomIntBetween(0, 4)) {
             case 0 -> "" + randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE);
             case 1 -> "" + randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
@@ -689,7 +681,45 @@ public class EsqlQueryGenerator {
             case 3 -> "" + randomBoolean();
             default -> "null";
         };
+    }
 
+    /**
+     * Generates a multivalue array literal of numeric, string, or boolean types.
+     */
+    public static String multivalueConstant() {
+        int n = randomIntBetween(1, 10);
+        StringBuilder sb = new StringBuilder("[");
+        // TODO: Add more types (double, geo, ranges...)
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE));
+                }
+                yield sb.append("]").toString();
+            }
+            case 1 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE));
+                }
+                yield sb.append("]").toString();
+            }
+            case 2 -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append("\"").append(randomAlphaOfLength(randomIntBetween(1, 10))).append("\"");
+                }
+                yield sb.append("]").toString();
+            }
+            default -> {
+                for (int i = 0; i < n; i++) {
+                    if (i > 0) sb.append(", ");
+                    sb.append(randomBoolean());
+                }
+                yield sb.append("]").toString();
+            }
+        };
     }
 
     /**
@@ -734,6 +764,124 @@ public class EsqlQueryGenerator {
             return ParserUtils.unquoteIdString(colName);
         }
         return colName;
+    }
+
+    /**
+     * Runs {@code TS <index> | METRICS_INFO} or {@code TS <index> | TS_INFO} (chosen randomly)
+     * and converts the result rows into {@link Column} objects suitable for {@link PromQLGenerator}.
+     * <p>
+     * Each metric row produces a Column whose name is the metric field name and whose type
+     * reflects the metric_type (gauge → raw field_type, counter → "counter_" + field_type).
+     * Dimension fields are added as keyword columns, and {@code @timestamp} is always included.
+     */
+    static List<Column> discoverFieldsViaMetricsInfo(String index, QueryExecutor queryExecutor) {
+        String command = randomBoolean() ? "METRICS_INFO" : "TS_INFO";
+        QueryExecuted result = queryExecutor.execute("TS " + index + " | " + command, 0);
+        if (result.exception() != null || result.outputSchema() == null || result.result() == null) {
+            return List.of();
+        }
+
+        int metricNameIdx = -1;
+        int metricTypeIdx = -1;
+        int fieldTypeIdx = -1;
+        int dimFieldsIdx = -1;
+        List<Column> outputSchema = result.outputSchema();
+        for (int i = 0; i < outputSchema.size(); i++) {
+            switch (outputSchema.get(i).name()) {
+                case "metric_name" -> metricNameIdx = i;
+                case "metric_type" -> metricTypeIdx = i;
+                case "field_type" -> fieldTypeIdx = i;
+                case "dimension_fields" -> dimFieldsIdx = i;
+                default -> {
+                }
+            }
+        }
+        if (metricNameIdx < 0 || metricTypeIdx < 0 || fieldTypeIdx < 0) {
+            return List.of();
+        }
+
+        Set<String> seenMetrics = new HashSet<>();
+        Set<String> dimensionFields = new LinkedHashSet<>();
+        List<Column> columns = new ArrayList<>();
+        columns.add(new Column("@timestamp", "datetime", List.of("datetime")));
+
+        for (List<Object> row : result.result()) {
+            String metricName = asString(row.get(metricNameIdx));
+            String metricType = asString(row.get(metricTypeIdx));
+            String fieldType = asString(row.get(fieldTypeIdx));
+
+            if (metricName != null && isAggMetricSubField(metricName) == false) {
+                if (seenMetrics.add(metricName)) {
+                    String type = resolveColumnType(metricType, fieldType);
+                    columns.add(new Column(metricName, type, List.of(type)));
+                }
+            }
+
+            if (dimFieldsIdx >= 0) {
+                Object dimFieldsVal = row.get(dimFieldsIdx);
+                if (dimFieldsVal instanceof List<?> dimList) {
+                    for (Object dim : dimList) {
+                        String dimName = dim instanceof String s ? s : null;
+                        if (dimName != null && isAggMetricSubField(dimName) == false) {
+                            dimensionFields.add(dimName);
+                        }
+                    }
+                } else if (dimFieldsVal instanceof String dimStr) {
+                    if (isAggMetricSubField(dimStr) == false) {
+                        dimensionFields.add(dimStr);
+                    }
+                }
+            }
+        }
+
+        for (String dim : dimensionFields) {
+            columns.add(new Column(dim, "keyword", List.of("keyword")));
+        }
+
+        return columns;
+    }
+
+    private static final List<String> AGG_METRIC_SUFFIXES = List.of(".value_count", ".sum", ".max", ".min");
+
+    /**
+     * Returns {@code true} if the metric name looks like an {@code aggregate_metric_double} sub-field
+     * (e.g. {@code network.eth0.rx.value_count}). These sub-fields appear in METRICS_INFO / TS_INFO
+     * output for downsampled indices and should be dropped — the parent field (e.g.
+     * {@code network.eth0.rx}) already covers them with type {@code aggregate_metric_double}.
+     */
+    private static boolean isAggMetricSubField(String metricName) {
+        for (String suffix : AGG_METRIC_SUFFIXES) {
+            if (metricName.endsWith(suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Safely extracts a {@code String} from a REST API result cell that may be a plain String
+     * or a single-element List (for multi-valued columns). Returns the first element if a list,
+     * the string itself if scalar, or {@code null} otherwise.
+     */
+    private static String asString(Object value) {
+        if (value instanceof String s) {
+            return s;
+        }
+        if (value instanceof List<?> list && list.isEmpty() == false) {
+            Object first = list.get(0);
+            return first instanceof String s ? s : null;
+        }
+        return null;
+    }
+
+    private static String resolveColumnType(String metricType, String fieldType) {
+        if (fieldType == null) {
+            return "unsupported";
+        }
+        if ("counter".equals(metricType)) {
+            return "counter_" + fieldType;
+        }
+        return fieldType;
     }
 
 }

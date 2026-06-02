@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -19,9 +18,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
@@ -31,19 +32,27 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage.ContentObjectImageUrl;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
@@ -55,19 +64,18 @@ import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloat
 import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -75,8 +83,6 @@ import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,16 +92,18 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
-import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
+import static org.elasticsearch.inference.DataFormat.BASE64;
+import static org.elasticsearch.inference.DataType.IMAGE;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -111,38 +119,17 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ElasticInferenceServiceTests extends ESTestCase {
+public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
 
     private static final String URL_VALUE = "http://eis-gateway.com";
     private static final String INFERENCE_ENTITY_ID = "id";
     private static final String MODEL_ID_VALUE = "some model id";
-
-    private final MockWebServer webServer = new MockWebServer();
-
-    private ThreadPool threadPool;
-
-    private HttpClientManager clientManager;
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
 
     public void testParseRequestConfig_CreatesASparseEmbeddingsModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
@@ -322,43 +309,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_CreatesASparseEmbeddingModel() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
+            var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getBaseSparseEmbeddingConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -401,7 +365,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 chunkingSettingsMap,
                 Map.of()
             );
-            var model = service.parsePersistedConfigWithSecrets("id", taskType, config.config(), config.secrets());
+            var model = service.parsePersistedConfig(
+                new UnparsedModel("id", taskType, ElasticInferenceService.NAME, config.config(), config.secrets())
+            );
 
             assertThat(model, instanceOf(ElasticInferenceServiceDenseEmbeddingsModel.class));
             assertThat(model.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
@@ -417,45 +383,22 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
+    public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
+            var mockedPersistedConfig = getExtraKeyInConfig();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInConfig();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -471,43 +414,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
+            var mockedPersistedConfig = getExtraKeyInServiceSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -519,43 +439,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
+            var mockedPersistedConfig = getRateLimitInServiceSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getRateLimitInServiceSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -573,43 +470,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
+            var mockedPersistedConfig = getExtraKeyInTaskSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInTaskSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -620,43 +494,20 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testParseStoredConfig_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createServiceWithMockSender()) {
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
+            var mockedPersistedConfig = getExtraKeyInSecretsSettings();
 
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
-                        new UnparsedModel(
-                            INFERENCE_ENTITY_ID,
-                            TaskType.SPARSE_EMBEDDING,
-                            ElasticInferenceService.NAME,
-                            mockedPersistedConfig.config(),
-                            mockedPersistedConfig.secrets()
-                        )
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfigWithSecrets(
+            assertSparseEmbeddingModelFromPersistedConfig(
+                service.parsePersistedConfig(
+                    new UnparsedModel(
                         INFERENCE_ENTITY_ID,
                         TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
                         mockedPersistedConfig.config(),
                         mockedPersistedConfig.secrets()
-                    ),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
-
-            {
-                var mockedPersistedConfig = getExtraKeyInSecretsSettings();
-                assertSparseEmbeddingModelFromPersistedConfig(
-                    service.parsePersistedConfig(INFERENCE_ENTITY_ID, TaskType.SPARSE_EMBEDDING, mockedPersistedConfig.config()),
-                    ElserModels.ELSER_V2_MODEL
-                );
-            }
+                    )
+                ),
+                ElserModels.ELSER_V2_MODEL
+            );
         }
     }
 
@@ -677,59 +528,22 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         assertThat(sparseEmbeddingsModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
     }
 
-    public void testInfer_ThrowsErrorWhenModelIsNotAValidModel() throws IOException {
-        var sender = createMockSender();
-
-        var factory = mock(HttpRequestSender.Factory.class);
-        when(factory.createSender()).thenReturn(sender);
-
-        var mockModel = getInvalidModel("model_id", "service_name", TaskType.SPARSE_EMBEDDING);
-
-        try (var service = createService(factory)) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
-            MatcherAssert.assertThat(
-                thrownException.getMessage(),
-                is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
-            );
-
-            verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
-        }
-
-        verify(sender, times(1)).close();
-        verifyNoMoreInteractions(factory);
-        verifyNoMoreInteractions(sender);
-    }
-
-    public void testInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
+    public void testRerankInfer_ThrowsValidationErrorForInvalidRerankParams() throws IOException {
         try (var service = createServiceWithMockSender()) {
             var model = ElasticInferenceServiceRerankModelTests.createModel(getUrl(webServer), "my-rerank-model-id");
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(
+            var returnDocuments = randomBoolean();
+            service.rerankInfer(
                 model,
-                "search query",
-                Boolean.TRUE,
-                10,
-                List.of("doc1", "doc2", "doc3"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new RerankRequest(
+                    InferenceString.fromStringList(List.of("doc1")),
+                    InferenceString.ofText("search query"),
+                    randomNonNegativeIntOrNull(),
+                    returnDocuments,
+                    Map.of()
+                ),
+                null,
                 listener
             );
 
@@ -737,7 +551,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             assertThat(
                 thrownException.getMessage(),
-                is("Validation Failed: 1: Invalid return_documents [true]. The return_documents option is not supported by this service;")
+                is(
+                    Strings.format(
+                        "Validation Failed: 1: Invalid return_documents [%s]. "
+                            + "The return_documents option is not supported by this service;",
+                        returnDocuments
+                    )
+                )
             );
         }
     }
@@ -751,33 +571,21 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var mockModel = getInvalidModel("model_id", "service_name", TaskType.CHAT_COMPLETION);
 
         try (var service = createService(factory)) {
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                mockModel,
-                null,
-                null,
-                null,
-                List.of(""),
-                false,
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(mockModel, List.of(""), false, new HashMap<>(), InputType.INGEST, null, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is(
                     "Inference entity [model_id] does not support task type [chat_completion] "
-                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank, completion]. "
+                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, completion]. "
                         + "The task type for the inference entity is chat_completion, "
                         + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -804,19 +612,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input text"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.infer(model, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(
@@ -858,21 +655,10 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 elasticInferenceServiceURL,
                 modelId
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             var input = "input text";
             var inputType = "search";
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of(input),
-                false,
-                new HashMap<>(),
-                InputType.fromString(inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, List.of(input), false, new HashMap<>(), InputType.fromString(inputType), null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             assertThat(result, instanceOf(DenseEmbeddingFloatResults.class));
@@ -888,13 +674,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testRerank_SendsRerankRequest() throws IOException {
+    public void testRerankInfer_SendsRerankRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         var elasticInferenceServiceURL = getUrl(webServer);
 
         try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
-            var modelId = "my-model-id";
-            var topN = 2;
             String responseJson = """
                 {
                     "results": [
@@ -907,21 +691,23 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            var modelId = randomAlphaOfLength(8);
             var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, modelId);
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            service.infer(
-                model,
-                "search query",
-                null,
+            var docsStrings = List.of(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8));
+            var queryString = randomAlphaOfLength(8);
+            var topN = randomNonNegativeIntOrNull();
+            var rerankRequest = new RerankRequest(
+                InferenceString.fromStringList(docsStrings),
+                InferenceString.ofText(queryString),
                 topN,
-                List.of("doc1", "doc2", "doc3"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
+                null,
+                Map.of()
             );
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.rerankInfer(model, rerankRequest, null, listener);
+
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             var resultMap = result.asMap();
@@ -933,6 +719,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             Map<String, Object> rankedDocThree = (Map<String, Object>) rerankResults.get(2).get("ranked_doc");
 
             assertThat(rankedDocOne.get("index"), equalTo(0));
+            assertThat(rankedDocOne.get("relevance_score"), equalTo(0.95f));
             assertThat(rankedDocTwo.get("index"), equalTo(1));
             assertThat(rankedDocThree.get("index"), equalTo(2));
 
@@ -943,17 +730,99 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             // Verify the outgoing request body
             Map<String, Object> requestMap = entityAsMap(request.getBody());
-            Map<String, Object> expectedRequestMap = Map.of(
-                "query",
-                "search query",
-                "model",
-                modelId,
-                "top_n",
-                topN,
-                "documents",
-                List.of("doc1", "doc2", "doc3")
+            Map<String, Object> expectedRequestMap = new HashMap<>(
+                Map.of("query", queryString, "model", modelId, "documents", docsStrings)
             );
+            if (topN != null) {
+                expectedRequestMap.put("top_n", topN);
+            }
             assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    public void testRerankInfer_PropagatesProductUseCaseHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            String responseJson = """
+                {
+                    "results": [
+                        {"index": 0, "relevance_score": 0.95},
+                        {"index": 1, "relevance_score": 0.85},
+                        {"index": 2, "relevance_score": 0.75}
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            // Set up the product use case in the thread context
+            String productUseCase = "test-product-use-case";
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+
+            var model = ElasticInferenceServiceRerankModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(
+                model,
+                new RerankRequest(
+                    InferenceString.fromStringList(List.of("doc1")),
+                    InferenceString.ofText("search query"),
+                    randomNonNegativeIntOrNull(),
+                    null,
+                    Map.of()
+                ),
+                null,
+                listener
+            );
+
+            listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the header was sent in the request
+            var request = webServer.requests().getFirst();
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+
+            // Check that the product use case header was set correctly
+            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            assertThat(productUseCaseHeaders, contains(productUseCase));
+        }
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+        var model = mock(ElasticInferenceServiceRerankModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("The elastic service does not support rerank with non-text inputs or queries"));
         }
     }
 
@@ -980,23 +849,12 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             // Set up the product use case in the thread context
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.infer(
-                model,
-                null,
-                null,
-                null,
-                List.of("input text"),
-                false,
-                new HashMap<>(),
-                InputType.SEARCH,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            service.infer(model, List.of("input text"), false, new HashMap<>(), InputType.SEARCH, null, listener);
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             // Verify the response was processed correctly
@@ -1017,7 +875,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
             assertThat(productUseCaseHeaders, contains("internal_search", productUseCase));
 
             // Verify request body
@@ -1049,7 +907,55 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = UnifiedCompletionRequest.of(List.of(new Message(new ContentString("Hello"), "user", null, null)));
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.unifiedCompletionInfer(model, request, null, listener);
+
+            // We don't need to check the actual response as we're only testing header propagation
+            listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the request was sent
+            assertThat(webServer.requests(), hasSize(1));
+            var httpRequest = webServer.requests().getFirst();
+
+            // Check that the product use case header was set correctly
+            assertThat(httpRequest.getHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_SupportsMultimodalInputs() throws IOException {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            // Mock a successful streaming response
+            String responseJson = """
+                data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
+
+                data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
+
+                data: [DONE]
+
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // Create completion model
             var model = new ElasticInferenceServiceCompletionModel(
@@ -1060,22 +966,305 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             var request = UnifiedCompletionRequest.of(
-                List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello"), "user", null, null))
+                List.of(
+                    new Message(
+                        new ContentObjects(List.of(new ContentObjectImage(new ContentObjectImageUrl("image data", null)))),
+                        "user",
+                        null,
+                        null
+                    )
+                )
             );
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
 
-            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.unifiedCompletionInfer(model, request, null, listener);
 
             // We don't need to check the actual response as we're only testing header propagation
             listener.actionGet(TEST_REQUEST_TIMEOUT);
 
             // Verify the request was sent
             assertThat(webServer.requests(), hasSize(1));
-            var httpRequest = webServer.requests().getFirst();
+            var requestBody = webServer.requests().getFirst().getBody();
 
-            // Check that the product use case header was set correctly
-            assertThat(httpRequest.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+            // Check that the image content was included in the request
+            String expectedJson = stripWhitespace("""
+                {
+                    "messages":[
+                        {
+                            "content":[
+                                {"image_url":{"url":"image data"},"type":"image_url"}
+                            ],
+                            "role":"user"
+                        }
+                    ],
+                    "model":"my-model-id",
+                    "n":1,
+                    "stream":true,
+                    "stream_options":{"include_usage":true}
+                }
+                """);
+            assertThat(requestBody, is(expectedJson));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_SupportsReasoning() throws Exception {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            // Mock a successful streaming response with reasoning
+            String mockedResponseJson = Strings.format("""
+                data: %s
+
+                data: %s
+
+                data: [DONE]
+
+                """, XContentHelper.stripWhitespace("""
+                {
+                    "id": "1",
+                    "object": "completion",
+                    "created": 1677858242,
+                    "model": "some model id",
+                    "choices": [{
+                            "finish_reason": null,
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "content": "Hello",
+                                "reasoning": "some_reasoning",
+                                "reasoning_details": [{
+                                        "type": "reasoning.encrypted",
+                                        "format": "some_encrypted_reasoning_detail_format",
+                                        "id": "some_id_0",
+                                        "index": 0,
+                                        "data": "some_encrypted_data"
+                                    }, {
+                                        "type": "reasoning.summary",
+                                        "format": "some_summary_reasoning_detail_format",
+                                        "id": "some_id_1",
+                                        "index": 1,
+                                        "summary": "some_summary"
+                                    }, {
+                                        "type": "reasoning.text",
+                                        "format": "some_text_reasoning_detail_format",
+                                        "id": "some_id_2",
+                                        "index": 2,
+                                        "text": "some_text",
+                                        "signature": "some_signature"
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+                """), XContentHelper.stripWhitespace("""
+                {
+                    "id": "2",
+                    "object": "completion",
+                    "created": 1677858242,
+                    "model": "some model id",
+                    "choices": [{
+                            "finish_reason": "stop",
+                            "index": 0,
+                            "delta": {
+                                "content": " world!"
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "completion_tokens": 15,
+                        "prompt_tokens": 5,
+                        "total_tokens": 30,
+                        "prompt_tokens_details": {
+                            "cached_tokens": 0
+                        },
+                        "completion_tokens_details": {
+                            "reasoning_tokens": 10
+                        }
+                    }
+                }
+                """));
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(mockedResponseJson));
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = new UnifiedCompletionRequest(
+                List.of(
+                    new Message(
+                        new ContentString("Say `Hello world!`"),
+                        "user",
+                        null,
+                        null,
+                        "some_reasoning",
+                        List.of(
+                            new ReasoningDetail.EncryptedReasoningDetail(
+                                "some_encrypted_reasoning_detail_format",
+                                "some_id_0",
+                                0L,
+                                "some_encrypted_data"
+                            ),
+                            new ReasoningDetail.SummaryReasoningDetail(
+                                "some_summary_reasoning_detail_format",
+                                "some_id_1",
+                                1L,
+                                "some_summary"
+                            ),
+                            new ReasoningDetail.TextReasoningDetail(
+                                "some_text_reasoning_detail_format",
+                                "some_id_2",
+                                2L,
+                                "some_text",
+                                "some_signature"
+                            )
+                        )
+                    )
+                ),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new Reasoning(Reasoning.ReasoningEffort.MEDIUM, Reasoning.ReasoningSummary.DETAILED, false, false)
+            );
+
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.unifiedCompletionInfer(model, request, null, listener);
+
+            // Receiving results for validation
+            InferenceServiceResults inferenceServiceResults = listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the request was sent
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            // Check that reasoning was included in request
+            String expectedRequestJson = stripWhitespace("""
+                {
+                    "messages": [{
+                            "content": "Say `Hello world!`",
+                            "role": "user",
+                            "reasoning": "some_reasoning",
+                            "reasoning_details": [{
+                                    "type": "reasoning.encrypted",
+                                    "format": "some_encrypted_reasoning_detail_format",
+                                    "id": "some_id_0",
+                                    "index": 0,
+                                    "data": "some_encrypted_data"
+                                }, {
+                                    "type": "reasoning.summary",
+                                    "format": "some_summary_reasoning_detail_format",
+                                    "id": "some_id_1",
+                                    "index": 1,
+                                    "summary": "some_summary"
+                                }, {
+                                    "type": "reasoning.text",
+                                    "format": "some_text_reasoning_detail_format",
+                                    "id": "some_id_2",
+                                    "index": 2,
+                                    "text": "some_text",
+                                    "signature": "some_signature"
+                                }
+                            ]
+                        }
+                    ],
+                    "model": "some model id",
+                    "reasoning": {
+                        "effort": "medium",
+                        "summary": "detailed",
+                        "exclude": false,
+                        "enabled": false
+                    },
+                    "n": 1,
+                    "stream": true,
+                    "stream_options": {
+                        "include_usage": true
+                    }
+                }
+
+                """);
+            assertThat(requestBody, is(expectedRequestJson));
+            // Check that reasoning details were mapped correctly
+            InferenceEventsAssertion.assertThat(inferenceServiceResults)
+                .hasFinishedStream()
+                .hasNoErrors()
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "1",
+                        "choices": [{
+                                "delta": {
+                                    "content": "Hello",
+                                    "role": "assistant",
+                                    "reasoning": "some_reasoning",
+                                    "reasoning_details": [{
+                                            "type": "reasoning.encrypted",
+                                            "format": "some_encrypted_reasoning_detail_format",
+                                            "id": "some_id_0",
+                                            "index": 0,
+                                            "data": "some_encrypted_data"
+                                        }, {
+                                            "type": "reasoning.summary",
+                                            "format": "some_summary_reasoning_detail_format",
+                                            "id": "some_id_1",
+                                            "index": 1,
+                                            "summary": "some_summary"
+                                        }, {
+                                            "type": "reasoning.text",
+                                            "format": "some_text_reasoning_detail_format",
+                                            "id": "some_id_2",
+                                            "index": 2,
+                                            "text": "some_text",
+                                            "signature": "some_signature"
+                                        }
+                                    ]
+                                },
+                                "index": 0
+                            }
+                        ],
+                        "model": "some model id",
+                        "object": "completion"
+                    }
+                    """))
+                .hasEvent(XContentHelper.stripWhitespace("""
+                    {
+                        "id": "2",
+                        "choices": [{
+                                "delta": {
+                                    "content": " world!"
+                                },
+                                "finish_reason": "stop",
+                                "index": 0
+                            }
+                        ],
+                        "model": "some model id",
+                        "object": "completion",
+                        "usage": {
+                            "completion_tokens": 15,
+                            "prompt_tokens": 5,
+                            "total_tokens": 30,
+                            "prompt_tokens_details": {
+                                "cached_tokens": 0
+                            },
+                            "completion_tokens_details": {
+                                "reasoning_tokens": 10
+                            }
+                        }
+                    }
+                    """));
         }
     }
 
@@ -1110,17 +1299,16 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(getUrl(webServer), "my-dense-model-id");
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             // 2 inputs
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput("hello world"), new ChunkInferenceInput("dense embedding")),
                 new HashMap<>(),
                 InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1138,7 +1326,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             // Check that the product use case header was set correctly
-            var productUseCaseHeaders = request.getHeaders().get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+            var productUseCaseHeaders = request.getHeaders().get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
             assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
 
         }
@@ -1169,13 +1357,13 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             String productUseCase = "test-product-use-case";
-            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+            threadPool.getThreadContext().putHeader(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(List.of(new InferenceStringGroup("first_input")), InputType.INGEST, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1187,7 +1375,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var productUseCaseHeaders = webServer.requests()
                 .getFirst()
                 .getHeaders()
-                .get(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
+                .get(InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER);
             assertThat(productUseCaseHeaders, contains("internal_ingest", productUseCase));
         }
 
@@ -1228,18 +1416,17 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 """, Arrays.toString(firstEmbedding), Arrays.toString(secondEmbedding));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
             // 2 inputs
             var firstInput = "hello world";
             var secondInput = "dense embedding";
             var inputType = "ingest";
             service.chunkedInfer(
                 model,
-                null,
                 List.of(new ChunkInferenceInput(firstInput), new ChunkInferenceInput(secondInput)),
                 new HashMap<>(),
                 InputType.fromString(inputType),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                null,
                 listener
             );
 
@@ -1309,16 +1496,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = createService(senderFactory, getUrl(webServer))) {
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(
-                model,
-                null,
-                List.of(),
-                new HashMap<>(),
-                InputType.INGEST,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            TestPlainActionFuture<List<ChunkedInference>> listener = new TestPlainActionFuture<>();
+            service.chunkedInfer(model, List.of(), new HashMap<>(), InputType.INGEST, null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(results, empty());
@@ -1350,20 +1529,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 """, Arrays.toString(firstEmbedding), Arrays.toString(secondEmbedding));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
+            // Inputs containing non-text, and multiple items per content object
             var inputs = List.of(
-                new InferenceStringGroup("first_input"),
-                new InferenceStringGroup(new InferenceString(IMAGE, BASE64, "second_input"))
+                new InferenceStringGroup("first_text_input"),
+                new InferenceStringGroup(
+                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), InferenceString.ofText("second_text_input"))
+                )
             );
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
@@ -1395,13 +1572,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             var inputType = randomFrom(InputType.INGEST, InputType.SEARCH);
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.embeddingInfer(
-                model,
-                new EmbeddingRequest(inputs, inputType, Map.of()),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+            service.embeddingInfer(model, new EmbeddingRequest(inputs, inputType, Map.of()), null, listener);
 
             var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
             assertThat(
@@ -1602,31 +1774,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testSupportedStreamingTasks_ReturnsChatCompletion() throws Exception {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = createService(senderFactory)) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
-            assertTrue(service.defaultConfigIds().isEmpty());
-
-            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
-            service.defaultConfigs(listener);
-            assertTrue(listener.actionGet(TEST_REQUEST_TIMEOUT).isEmpty());
-        }
-    }
-
     public void testDefaultConfigs_ReturnsEmptyLists() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory)) {
             assertTrue(service.defaultConfigIds().isEmpty());
 
-            PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<List<Model>> listener = new TestPlainActionFuture<>();
             service.defaultConfigs(listener);
             assertTrue(listener.actionGet(TEST_REQUEST_TIMEOUT).isEmpty());
         }
     }
 
-    public void testSupportedTaskTypes_Returns_Unsupported() throws Exception {
+    public void testSupportedTaskTypes_ThrowsUnsupported() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory)) {
             expectThrows(UnsupportedOperationException.class, service::supportedTaskTypes);
@@ -1704,13 +1863,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings(MODEL_ID_VALUE),
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.unifiedCompletionInfer(
                 model,
-                UnifiedCompletionRequest.of(
-                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
-                ),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                UnifiedCompletionRequest.of(List.of(new Message(new ContentString("hello"), "user", null, null))),
+                null,
                 listener
             );
 
@@ -1776,31 +1933,22 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
-        var modelConfigurations = new ModelConfigurations(
-            INFERENCE_ENTITY_ID,
-            TaskType.ANY,
-            ElasticInferenceService.NAME,
-            mock(ServiceSettings.class)
-        );
+        // Need to use a mock here because ModelConfigurations does not accept TaskType.ANY as a valid argument
+        var modelConfigurationsMock = mock(ModelConfigurations.class);
+        when(modelConfigurationsMock.getInferenceEntityId()).thenReturn(INFERENCE_ENTITY_ID);
+        when(modelConfigurationsMock.getTaskType()).thenReturn(TaskType.ANY);
+        when(modelConfigurationsMock.getService()).thenReturn(ElasticInferenceService.NAME);
+        when(modelConfigurationsMock.getServiceSettings()).thenReturn(mock(ServiceSettings.class));
+
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var inferenceService = createService(senderFactory)) {
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurationsMock, mock(ModelSecrets.class))
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID,
-                        ElasticInferenceService.NAME,
-                        ElasticInferenceService.NAME,
-                        TaskType.ANY
-                    )
-                )
+                is(Strings.format("The [%s] service does not support task type [%s]", ElasticInferenceService.NAME, TaskType.ANY))
 
             );
         }
@@ -1828,5 +1976,31 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
             assertThat(resultModel, is(model));
         }
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService(HttpRequestSenderTests.createSenderFactory(threadPool, clientManager));
+    }
+
+    @Override
+    public Model createEmbeddingModel(SimilarityMeasure similarity) {
+        var settings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(randomAlphaOfLength(8), similarity, null, null);
+        return ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(randomAlphaOfLength(8), settings, null);
+    }
+
+    @Override
+    public SimilarityMeasure getDefaultSimilarity() {
+        return SimilarityMeasure.COSINE;
+    }
+
+    @Override
+    public EnumSet<TaskType> expectedStreamingTasks() {
+        return EnumSet.of(TaskType.CHAT_COMPLETION);
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(7000));
     }
 }

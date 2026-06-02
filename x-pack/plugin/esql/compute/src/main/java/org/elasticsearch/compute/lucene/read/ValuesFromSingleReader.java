@@ -26,7 +26,77 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Loads values from a single leaf. Much more efficient than {@link ValuesFromManyReader}.
+ * Loads values from a single shard. Much more efficient than {@link ValuesFromManyReader}.
+ * See {@link ValuesSourceReaderOperator} for an introduction. This takes a page with a
+ * {@link DocVector} like:
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐
+ * │          doc          │
+ * ├───────┬─────────┬─────┤
+ * │ shard │ segment │ doc │
+ * ├───────┼─────────┼─────┤
+ * │     0 │       0 │   0 │
+ * │     0 │       0 │   1 │
+ * │     0 │       0 │   2 │
+ * │     0 │       0 │   3 │
+ * │     0 │       0 │  12 │
+ * └───────┴─────────┴─────┘
+ * }
+ * <p>
+ *     and loads columns from lucene:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬─────┐
+ * │          doc          │     │
+ * ├───────┬─────────┬─────┤ ref │
+ * │ shard │ segment │ doc │     │
+ * ├───────┼─────────┼─────┼─────┤
+ * │     0 │       0 │   0 │ 173 │
+ * │     0 │       0 │   1 │ 049 │
+ * │     0 │       0 │   2 │ 096 │
+ * │     0 │       0 │   3 │ 682 │
+ * │     0 │       0 │  12 │ 055 │
+ * └───────┴─────────┴─────┴─────┘
+ * }
+ * <h2>Are the documents non-decreasing?</h2>
+ * <p>
+ *     Lucene's tools for loading values need to load documents in non-decreasing order.
+ *     Think {@code 1, 2, 3, 4, 4, 4, 5, 9, 1000, etc}. The reader can only go "forwards".
+ *     It can go forwards {@code 0} documents, but never backwards. This implementation
+ *     always loads values in this order, regardless of the order in the actual page.
+ *     If we're lucky then they are already in that order, like the example above. If,
+ *     instead, the incoming page looks like:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┬────┐
+ * │          doc          │    │
+ * ├───────┬─────────┬─────┤  i │
+ * │ shard │ segment │ doc │    │
+ * ├───────┼─────────┼─────┼────┤
+ * │     0 │       0 │   1 │ 20 │
+ * │     0 │       0 │   0 │ 10 │
+ * │     0 │       0 │   2 │ 30 │
+ * │     0 │       0 │  12 │ 50 │
+ * │     0 │       0 │   3 │ 40 │
+ * └───────┴─────────┴─────┴────┘
+ * }
+ * <p>
+ *     Then we map the rows <strong>into</strong> non-decreasing order. We load in that
+ *     order. Then put them back in order:
+ * </p>
+ * {@snippet lang="txt" :
+ * ┌───────────────────────┐   ┌───────────────────────┐   ┌───────────────────────┬─────┐   ┌───────────────────────┬─────┐
+ * │          doc          │   │          doc          │   │          doc          │     │   │          doc          │     │
+ * ├───────┬─────────┬─────┤   ├───────┬─────────┬─────┤   ├───────┬─────────┬─────┼─────┤   ├───────┬─────────┬─────┼─────┤
+ * │ shard │ segment │ doc │   │ shard │ segment │ doc │   │ shard │ segment │ doc │ ref │   │ shard │ segment │ doc │ ref │
+ * ├───────┼─────────┼─────┤   ├───────┼─────────┼─────┤   ├───────┼─────────┼─────┼─────┤   ├───────┼─────────┼─────┼─────┤
+ * │     0 │       0 │   1 │   │     0 │       0 │   0 │   │     0 │       0 │   0 │ 173 │   │     0 │       0 │   1 │ 049 │
+ * │     0 │       0 │   0 │   │     0 │       0 │   1 │   │     0 │       0 │   1 │ 049 │   │     0 │       0 │   0 │ 173 │
+ * │     0 │       0 │   2 │ ⟶ │     0 │       0 │   2 │ ⟶ │     0 │       0 │   2 │ 096 │ ⟶ │     0 │       0 │   2 │ 096 │
+ * │     0 │       0 │  12 │   │     0 │       0 │   3 │   │     0 │       0 │   3 │ 682 │   │     0 │       0 │  12 │ 055 │
+ * │     0 │       0 │   3 │   │     0 │       0 │  12 │   │     0 │       0 │  12 │ 055 │   │     0 │       0 │   3 │ 682 │
+ * └───────┴─────────┴─────┘   └───────┴─────────┴─────┘   └───────┴─────────┴─────┴─────┘   └───────┴─────────┴─────┴─────┘
+ * }
  */
 class ValuesFromSingleReader extends ValuesReader {
     private static final Logger log = LogManager.getLogger(ValuesFromSingleReader.class);
@@ -146,19 +216,7 @@ class ValuesFromSingleReader extends ValuesReader {
             sourceLoader = shardContext.newSourceLoader().apply(storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
-        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-            throw new IllegalStateException(
-                "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
-            );
-        }
-        StoredFieldLoader storedFieldLoader;
-        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
-            storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, true);
-        } else {
-            storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, false);
-        }
+        StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
             sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
@@ -171,6 +229,7 @@ class ValuesFromSingleReader extends ValuesReader {
             for (RowStrideReaderWork work : rowStrideReaders) {
                 work.read(doc, storedFields);
             }
+            operator.trackSourceBytesAndRelease(storedFields);
             estimated = estimatedRamBytesUsed(rowStrideReaders);
             log.trace("{}: bytes loaded {}/{}", p, estimated, jumboBytes);
         }
@@ -186,6 +245,22 @@ class ValuesFromSingleReader extends ValuesReader {
             log.debug("loaded {} positions row stride estimated/actual {}/{} bytes", p - offset, estimated, actual);
         }
         docs.setCount(p);
+    }
+
+    private StoredFieldLoader storedFieldLoader(
+        StoredFieldsSpec storedFieldsSpec,
+        ValuesSourceReaderOperator.ShardContext shardContext,
+        ValuesReaderDocs docs
+    ) {
+        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+            return StoredFieldLoader.empty();
+        }
+        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
+            operator.trackStoredFields(storedFieldsSpec, true);
+            return StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
+        }
+        operator.trackStoredFields(storedFieldsSpec, false);
+        return StoredFieldLoader.fromSpec(storedFieldsSpec);
     }
 
     /**

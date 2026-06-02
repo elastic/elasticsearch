@@ -39,6 +39,11 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getPositionCount() {
         return vector.getPositionCount();
     }
@@ -46,6 +51,11 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public ElementType elementType() {
         return vector.elementType();
+    }
+
+    @Override
+    public LongBlock slice(int beginInclusive, int endExclusive) {
+        return vector.slice(beginInclusive, endExclusive).asBlock();
     }
 
     @Override

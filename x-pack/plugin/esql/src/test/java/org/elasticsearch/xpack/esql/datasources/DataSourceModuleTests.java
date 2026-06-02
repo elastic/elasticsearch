@@ -13,21 +13,42 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.brotli.BrotliDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.bzip2.Bzip2DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.gzip.GzipDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.lz4.Lz4DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.snappy.SnappyDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.zstd.ZstdDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * Integration tests for DataSourceModule verifying SPI discovery and registration.
@@ -44,7 +65,7 @@ public class DataSourceModuleTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+        blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
     }
 
     /**
@@ -53,13 +74,23 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     private static class TestDataSourcePlugin implements DataSourcePlugin {
         @Override
+        public Set<String> supportedSchemes() {
+            return Set.of("file");
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("csv", ".csv"), FormatSpec.of("tsv", ".tsv"));
+        }
+
+        @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-            return Map.of("file", s -> new MockFileStorageProvider());
+            return Map.of("file", StorageProviderFactory.noConfigKeys(MockFileStorageProvider::new));
         }
 
         @Override
         public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-            return Map.of("csv", (s, bf) -> new MockCsvFormatReader());
+            return Map.of("csv", (s, bf) -> new MockCsvFormatReader("csv", List.of(".csv")), "tsv", (s, bf) -> new MockTsvFormatReader());
         }
     }
 
@@ -102,32 +133,239 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
-     * Mock CSV format reader for testing. Reports same format name and extensions
-     * as the real CsvFormatReader.
+     * Mock CSV format reader for testing.
      */
-    private static class MockCsvFormatReader implements FormatReader {
+    private static class MockCsvFormatReader implements NoConfigFormatReader {
+
+        private final String format;
+        private final List<String> extensions;
+
+        MockCsvFormatReader(String format, List<String> extensions) {
+            this.format = format;
+            this.extensions = extensions;
+        }
+
         @Override
         public SourceMetadata metadata(StorageObject object) {
             throw new UnsupportedOperationException("Mock reader");
         }
 
         @Override
-        public CloseableIterator<Page> read(StorageObject object, List<String> projectedColumns, int batchSize) {
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
             throw new UnsupportedOperationException("Mock reader");
         }
 
         @Override
         public String formatName() {
-            return "csv";
+            return format;
         }
 
         @Override
         public List<String> fileExtensions() {
-            return List.of(".csv", ".tsv");
+            return extensions;
         }
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Mock TSV format reader for testing.
+     */
+    private static class MockTsvFormatReader implements NoConfigFormatReader {
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public String formatName() {
+            return "tsv";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".tsv");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * Test-only plugin that exposes NDJSON as a segmentable format with in-memory file payloads.
+     * Used to verify FileSourceFactory's split provider path is wired with registries.
+     */
+    private static class RegistryAwareNdjsonPlugin implements DataSourcePlugin {
+        private final Map<String, byte[]> payloadByPath;
+
+        RegistryAwareNdjsonPlugin(Map<String, byte[]> payloadByPath) {
+            this.payloadByPath = payloadByPath;
+        }
+
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of("file");
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("ndjson", ".ndjson"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of("file", StorageProviderFactory.noConfigKeys(() -> new PayloadFileStorageProvider(payloadByPath)));
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("ndjson", (s, bf) -> new SegmentableTestNdjsonReader());
+        }
+    }
+
+    private static class PayloadFileStorageProvider implements StorageProvider {
+        private final Map<String, byte[]> payloadByPath;
+
+        PayloadFileStorageProvider(Map<String, byte[]> payloadByPath) {
+            this.payloadByPath = payloadByPath;
+        }
+
+        @Override
+        public List<String> supportedSchemes() {
+            return List.of("file");
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path) {
+            byte[] payload = payloadByPath.get(path.toString());
+            if (payload == null) {
+                throw new IllegalArgumentException("Missing payload for path [" + path + "]");
+            }
+            return newObject(path, payload.length, Instant.EPOCH);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length) {
+            return newObject(path, length, Instant.EPOCH);
+        }
+
+        @Override
+        public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
+            byte[] payload = payloadByPath.get(path.toString());
+            if (payload == null) {
+                throw new IllegalArgumentException("Missing payload for path [" + path + "]");
+            }
+            if (payload.length != length) {
+                throw new IllegalArgumentException("Length mismatch for path [" + path + "]: " + length + " vs " + payload.length);
+            }
+            return new StorageObject() {
+                @Override
+                public InputStream newStream() {
+                    return new ByteArrayInputStream(payload);
+                }
+
+                @Override
+                public InputStream newStream(long position, long rangeLength) {
+                    return new ByteArrayInputStream(payload, Math.toIntExact(position), Math.toIntExact(rangeLength));
+                }
+
+                @Override
+                public long length() {
+                    return payload.length;
+                }
+
+                @Override
+                public Instant lastModified() {
+                    return lastModified;
+                }
+
+                @Override
+                public boolean exists() {
+                    return true;
+                }
+
+                @Override
+                public StoragePath path() {
+                    return path;
+                }
+            };
+        }
+
+        @Override
+        public StorageIterator listObjects(StoragePath prefix, boolean recursive) {
+            throw new UnsupportedOperationException("Mock provider");
+        }
+
+        @Override
+        public boolean exists(StoragePath path) {
+            return payloadByPath.containsKey(path.toString());
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static class SegmentableTestNdjsonReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            throw new UnsupportedOperationException("Mock reader");
+        }
+
+        @Override
+        public String formatName() {
+            return "ndjson";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".ndjson");
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws java.io.IOException {
+            long consumed = 0;
+            int b;
+            while ((b = stream.read()) != -1) {
+                consumed++;
+                if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return 64;
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        return new DataSourceModule(
+            plugins,
+            capabilities,
+            settings,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new DataSourceCredentials()
+        );
     }
 
     /**
@@ -153,7 +391,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testStorageProviderRegistration() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
@@ -169,7 +407,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testFormatReaderRegistration() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
@@ -185,10 +423,17 @@ public class DataSourceModuleTests extends ESTestCase {
         assertNotNull("CSV reader should be found by .csv extension", csvByExtension);
         assertTrue("CSV reader by extension should be MockCsvFormatReader", csvByExtension instanceof MockCsvFormatReader);
 
-        // Verify TSV extension also works (CSV reader handles TSV)
-        assertTrue("CSV reader should be registered for .tsv extension", registry.hasExtension(".tsv"));
+        // Verify TSV reader is registered separately
+        assertTrue("TSV format reader should be registered by name", registry.hasFormat("tsv"));
+        FormatReader tsvReader = registry.byName("tsv");
+        assertNotNull("TSV format reader should be retrievable by name", tsvReader);
+        assertTrue("TSV reader should be MockTsvFormatReader", tsvReader instanceof MockTsvFormatReader);
+
+        // Verify TSV extension maps to the TSV reader
+        assertTrue("TSV reader should be registered for .tsv extension", registry.hasExtension(".tsv"));
         FormatReader tsvByExtension = registry.byExtension("data.tsv");
-        assertNotNull("CSV reader should be found by .tsv extension", tsvByExtension);
+        assertNotNull("TSV reader should be found by .tsv extension", tsvByExtension);
+        assertTrue("TSV reader by extension should be MockTsvFormatReader", tsvByExtension instanceof MockTsvFormatReader);
     }
 
     /**
@@ -203,7 +448,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            () -> createModule(plugins, Settings.EMPTY, blockFactory)
         );
         assertTrue(e.getMessage().contains("already registered"));
     }
@@ -220,7 +465,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            () -> createModule(plugins, Settings.EMPTY, blockFactory)
         );
         assertTrue(e.getMessage().contains("already registered"));
     }
@@ -230,17 +475,19 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testEmptyPluginList() {
         List<DataSourcePlugin> plugins = List.of();
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         // Registries should be empty but not null
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
-        assertNotNull(module.operatorFactories());
-        assertNotNull(module.filterPushdownRegistry());
+        assertNotNull(module.sourceFactories());
 
         // No providers should be registered
         assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));
         assertFalse("No CSV reader should be registered", module.formatReaderRegistry().hasFormat("csv"));
+
+        // The "file" fallback factory should always be present
+        assertTrue("File fallback factory should be registered", module.sourceFactories().containsKey("file"));
     }
 
     /**
@@ -248,7 +495,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testOperatorFactoryRegistryCreation() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         // Create OperatorFactoryRegistry with a simple executor
         OperatorFactoryRegistry operatorRegistry = module.createOperatorFactoryRegistry(Runnable::run);
@@ -256,22 +503,210 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
+     * {@link DataSourceModule#createOperatorFactoryRegistry(Executor, Executor)} must preserve both
+     * executors: compute coordination ({@link OperatorFactoryRegistry#executor()}, e.g. {@code esql_worker} in
+     * {@link org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction}) and
+     * {@link OperatorFactoryRegistry#fileReadExecutor()} (e.g. {@code generic} for file background reads).
+     */
+    public void testOperatorFactoryRegistryUsesDistinctExecutors() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        Executor main = Runnable::run;
+        Executor fileRead = Runnable::run;
+        OperatorFactoryRegistry registry = module.createOperatorFactoryRegistry(main, fileRead);
+        assertSame(main, registry.executor());
+        assertSame(fileRead, registry.fileReadExecutor());
+    }
+
+    /**
+     * Test that the "file" fallback factory is always present in sourceFactories.
+     */
+    public void testFileSourceFactoryFallbackPresent() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        assertTrue("File fallback factory should be in sourceFactories", module.sourceFactories().containsKey("file"));
+        assertEquals("file", module.sourceFactories().get("file").type());
+    }
+
+    /**
+     * Test that the "file" fallback factory can handle paths with known scheme + extension.
+     */
+    public void testFileSourceFactoryCanHandle() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        // file scheme + .csv extension should be handled
+        assertTrue("Should handle file:///tmp/data.csv", fileFactory.canHandle("file:///tmp/data.csv"));
+        // file scheme + .tsv extension should be handled (registered by MockTsvFormatReader)
+        assertTrue("Should handle file:///tmp/data.tsv", fileFactory.canHandle("file:///tmp/data.tsv"));
+        // Unknown extension should not be handled
+        assertFalse("Should not handle file:///tmp/data.xyz", fileFactory.canHandle("file:///tmp/data.xyz"));
+        // No extension should not be handled
+        assertFalse("Should not handle file:///tmp/data", fileFactory.canHandle("file:///tmp/data"));
+        // Unknown scheme should not be handled
+        assertFalse("Should not handle s3://bucket/data.csv", fileFactory.canHandle("s3://bucket/data.csv"));
+    }
+
+    /**
+     * Test that with gzip plugin, compressed paths (.csv.gz) are supported.
+     */
+    public void testFileSourceFactoryCanHandleCompressedPaths() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        assertTrue("Should handle file:///tmp/data.csv.gz", fileFactory.canHandle("file:///tmp/data.csv.gz"));
+        assertTrue("Should handle file:///tmp/data.tsv.gz", fileFactory.canHandle("file:///tmp/data.tsv.gz"));
+        assertFalse("Should not handle file:///tmp/data.parquet.gz", fileFactory.canHandle("file:///tmp/data.parquet.gz"));
+    }
+
+    /**
+     * A format reader that does not support whole-file compression (mimics Parquet/ORC).
+     */
+    private static class MockNoWholeFileCompressionReader extends MockCsvFormatReader {
+        MockNoWholeFileCompressionReader() {
+            super("parq", List.of(".parq"));
+        }
+
+        @Override
+        public boolean supportsWholeFileCompression() {
+            return false;
+        }
+    }
+
+    /**
+     * A plugin that registers a format whose reader rejects whole-file compression.
+     */
+    private static class NoWholeFileCompressionPlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<FormatSpec> formatSpecs() {
+            return Set.of(FormatSpec.of("parq", ".parq"));
+        }
+
+        @Override
+        public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
+            return Map.of();
+        }
+
+        @Override
+        public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
+            return Map.of("parq", (s, bf) -> new MockNoWholeFileCompressionReader());
+        }
+    }
+
+    /**
+     * Tests that the registry throws a precise error when attempting to resolve a compound
+     * extension whose inner format does not support whole-file compression (e.g. Parquet/ORC).
+     */
+    public void testFormatRegistryRejectsWholeFileCompressionForIncompatibleFormats() {
+        List<DataSourcePlugin> plugins = List.of(
+            new TestDataSourcePlugin(),
+            new NoWholeFileCompressionPlugin(),
+            new GzipDataSourcePlugin(),
+            new ZstdDataSourcePlugin(),
+            new Bzip2DataSourcePlugin(),
+            new SnappyDataSourcePlugin(),
+            new Lz4DataSourcePlugin(),
+            new BrotliDataSourcePlugin()
+        );
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+
+        List<String> compressedExtensions = List.of("gz", "zst", "bz2", "snappy", "lz4", "br");
+        for (String comp : compressedExtensions) {
+            String objectName = "data.parq." + comp;
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> registry.byExtension(objectName));
+            assertThat(
+                "Expected rejection for " + objectName,
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString("does not support whole-file compression")
+            );
+            assertThat(ex.getMessage(), org.hamcrest.Matchers.containsString("parq"));
+        }
+
+        // Sequential formats must still be wrappable
+        assertNotNull(registry.byExtension("data.csv.gz"));
+        assertNotNull(registry.byExtension("data.tsv.gz"));
+    }
+
+    public void testFileSourceSplitProviderUsesRegistriesForNdjsonMacroSplits() {
+        String fileUri = "file:///tmp/registry-backed.ndjson";
+        byte[] payload = buildNdjsonPayload(8_000);
+        Map<String, byte[]> payloadByPath = new HashMap<>();
+        payloadByPath.put(fileUri, payload);
+
+        DataSourceModule module = createModule(List.of(new RegistryAwareNdjsonPlugin(payloadByPath)), Settings.EMPTY, blockFactory);
+        FileList fileList = GlobExpander.fileListOf(
+            List.of(new StorageEntry(StoragePath.of(fileUri), payload.length, Instant.EPOCH)),
+            "file:///tmp/*.ndjson"
+        );
+        SplitDiscoveryContext ctx = new SplitDiscoveryContext(
+            null,
+            fileList,
+            Map.of(FileSplitProvider.CONFIG_TARGET_SPLIT_SIZE, "1kb"),
+            PartitionMetadata.EMPTY,
+            List.of()
+        );
+
+        List<ExternalSplit> splits = module.sourceFactories().get("file").splitProvider().discoverSplits(ctx);
+        assertTrue("Expected newline-aligned macro splits from registry-backed provider", splits.size() > 1);
+
+        long totalLength = 0;
+        for (int i = 0; i < splits.size(); i++) {
+            FileSplit split = (FileSplit) splits.get(i);
+            assertEquals("true", split.config().get(FileSplitProvider.RECORD_ALIGNED_MACRO_SPLIT_KEY));
+            totalLength += split.length();
+            if (i == 0) {
+                assertEquals("true", split.config().get(FileSplitProvider.FIRST_SPLIT_KEY));
+            }
+            if (i == splits.size() - 1) {
+                assertEquals("true", split.config().get(FileSplitProvider.LAST_SPLIT_KEY));
+            }
+        }
+        assertEquals(payload.length, totalLength);
+    }
+
+    /**
+     * Test that with gzip plugin, byExtension returns delegating reader for compound extensions.
+     */
+    public void testFormatReaderRegistryCompressedExtension() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin(), new GzipDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        FormatReaderRegistry registry = module.formatReaderRegistry();
+        assertTrue("Should have compressed extension for data.csv.gz", registry.hasCompressedExtension("data.csv.gz"));
+        assertFalse("Should not have compressed extension for data.csv", registry.hasCompressedExtension("data.csv"));
+
+        FormatReader reader = registry.byExtension("data.csv.gz");
+        assertNotNull(reader);
+        assertEquals("csv", reader.formatName());
+        assertTrue(
+            "Reader should be CompressionDelegatingFormatReader",
+            reader.getClass().getSimpleName().contains("CompressionDelegating")
+        );
+    }
+
+    /**
      * Test that DataSourceModule correctly reports table catalog availability.
      */
     public void testTableCatalogAvailability() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         // TestDataSourcePlugin doesn't provide table catalogs
-        assertFalse("Test plugin should not have iceberg catalog", module.hasTableCatalog("iceberg"));
-        assertFalse("Test plugin should not have delta catalog", module.hasTableCatalog("delta"));
-
-        // Requesting non-existent catalog should throw
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> module.createTableCatalog("iceberg", Settings.EMPTY)
-        );
-        assertTrue(e.getMessage().contains("No table catalog registered"));
+        assertFalse("Test plugin should not have iceberg catalog", module.sourceFactories().containsKey("iceberg"));
+        assertFalse("Test plugin should not have delta catalog", module.sourceFactories().containsKey("delta"));
     }
 
     /**
@@ -279,7 +714,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testStorageProviderSchemeSupport() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
@@ -293,14 +728,17 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testFormatReaderMetadata() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         FormatReaderRegistry registry = module.formatReaderRegistry();
-        FormatReader csvReader = registry.byName("csv");
 
+        FormatReader csvReader = registry.byName("csv");
         assertEquals("CSV reader should report 'csv' as format name", "csv", csvReader.formatName());
         assertTrue("CSV reader should support .csv extension", csvReader.fileExtensions().contains(".csv"));
-        assertTrue("CSV reader should support .tsv extension", csvReader.fileExtensions().contains(".tsv"));
+
+        FormatReader tsvReader = registry.byName("tsv");
+        assertEquals("TSV reader should report 'tsv' as format name", "tsv", tsvReader.formatName());
+        assertTrue("TSV reader should support .tsv extension", tsvReader.fileExtensions().contains(".tsv"));
     }
 
     /**
@@ -311,7 +749,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
         // This should not throw - settings are passed to factories
-        DataSourceModule module = new DataSourceModule(plugins, customSettings, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, customSettings, blockFactory);
 
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
@@ -324,20 +762,23 @@ public class DataSourceModuleTests extends ESTestCase {
         // Create a custom plugin that provides a mock storage provider
         DataSourcePlugin customPlugin = new DataSourcePlugin() {
             @Override
-            public java.util.Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(
-                Settings settings
-            ) {
-                return java.util.Map.of("custom", s -> new MockStorageProvider());
+            public Set<String> supportedSchemes() {
+                return Set.of("custom");
+            }
+
+            @Override
+            public Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(Settings settings) {
+                return Map.of("custom", StorageProviderFactory.noConfigKeys(MockStorageProvider::new));
             }
         };
 
         List<DataSourcePlugin> plugins = List.of(customPlugin);
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         assertTrue("Custom provider should be registered", module.storageProviderRegistry().hasProvider("custom"));
         StorageProvider customProvider = module.storageProviderRegistry().provider(StoragePath.of("custom://bucket/file.txt"));
         assertNotNull("Custom provider should be retrievable", customProvider);
-        assertTrue("Custom provider should be MockStorageProvider", customProvider instanceof MockStorageProvider);
+        assertTrue("Custom provider should be wrapped with retry for non-file schemes", customProvider instanceof RetryableStorageProvider);
     }
 
     /**
@@ -427,7 +868,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testPluginClassloaderDifferentiation() {
         List<Class<? extends DataSourcePlugin>> discoveredPluginClasses = new ArrayList<>();
-        Map<ClassLoader, List<String>> pluginsByClassloader = new java.util.HashMap<>();
+        Map<ClassLoader, List<String>> pluginsByClassloader = new HashMap<>();
 
         SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
 
@@ -462,7 +903,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testInstantiatedPluginClassloaderTracking() {
         List<DataSourcePlugin> instantiatedPlugins = new ArrayList<>();
-        Map<String, ClassLoader> pluginClassloaders = new java.util.HashMap<>();
+        Map<String, ClassLoader> pluginClassloaders = new HashMap<>();
 
         SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
 
@@ -607,5 +1048,13 @@ public class DataSourceModuleTests extends ESTestCase {
             "Class identity test passed - DataSourcePlugin loaded from {} is consistent",
             testClassloader.getClass().getSimpleName()
         );
+    }
+
+    private static byte[] buildNdjsonPayload(int rows) {
+        StringBuilder sb = new StringBuilder(rows * 16);
+        for (int i = 0; i < rows; i++) {
+            sb.append("{\"a\":").append(i).append("}\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 }

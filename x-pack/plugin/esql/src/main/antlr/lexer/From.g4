@@ -14,8 +14,8 @@ FROM : 'from'                 -> pushMode(FROM_MODE);
 // TS command
 TS : 'ts' -> pushMode(FROM_MODE);
 
-// EXTERNAL command (development only)
-EXTERNAL : {this.isDevVersion()}? 'external' -> pushMode(FROM_MODE);
+// EXTERNAL command (gated by esql_external_datasources feature flag)
+DEV_EXTERNAL : {this.isExternalDataSourcesEnabled()}? 'external' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
@@ -33,7 +33,7 @@ FROM_PARAM : PARAM -> type(PARAM);
 FROM_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 // we need this for EXPLAIN
-// change to double popMode to accommodate subquerys in FROM, when see ')' pop out of subquery(default) mode and from mode
+// change to double popMode to accommodate subqueries in FROM, when see ')' pop out of subquery(default) mode and current command's mode
 FROM_RP : RP -> type(RP), popMode, popMode;
 
 // accommodate subQuery inside FROM

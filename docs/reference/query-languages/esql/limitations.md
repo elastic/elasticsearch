@@ -50,9 +50,9 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
 * TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
    * `counter`
    * `gauge`
-   * `aggregate_metric_double`
-   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
-   * `tdigest` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+   * `aggregate_metric_double`: Aggregation functions that do not natively support `aggregate_metric_double` will use the average value and treat it as a `double`. {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+, ga 9.4.0`
+   * `tdigest` {applies_to}`stack: preview 9.3+, ga 9.4.0`
 
 
 ### Unsupported types [_unsupported_types]
@@ -93,7 +93,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
-* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying an expression that evaluates to one of these types as a sort key will result in an error:
 
     * `geo_point`
     * `geo_shape`
@@ -137,14 +137,20 @@ Note that if you return both the original `location` and the extracted `x` and `
 #### Partial support in 9.2.0
 
 * {applies_to}`stack: preview 9.2.0` The following types are only partially supported on 9.2.0. This is fixed in 9.2.1:
-  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions.md#esql-knn) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_dense_vector) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
-  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions.md#esql-to_aggregate_metric_double) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
+  * `dense_vector`: The [`KNN` function](/reference/query-languages/esql/functions-operators/dense-vector-functions/knn.md) and the [`TO_DENSE_VECTOR` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_dense_vector.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` when these functions are not used.
+  * `aggregate_metric_double`: Using the [`TO_AGGREGATE_METRIC_DOUBLE` function](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md) will work and any field data will be retrieved as part of the results. However, the type will appear as `unsupported` if this function is not used.
 
     :::{note}
     This means that a simple query like `FROM test` will not retrieve `dense_vector` or `aggregate_metric_double` data. However, using the appropriate functions will work:
     * `FROM test WHERE KNN("dense_vector_field", [0, 1, 2, ...])`
     * `FROM test | EVAL agm_data = TO_AGGREGATE_METRIC_DOUBLE(aggregate_metric_double_field)`
     :::
+
+## Runtime fields [esql-limitations-runtime-fields]
+
+{{esql}} respects [runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) defined in the index mapping and treats them like regular mapped fields. However, you cannot define new runtime fields at search time in {{esql}}. Use the [`EVAL`](/reference/query-languages/esql/commands/eval.md) command to create computed columns instead.
+
+Runtime fields are different from unmapped fields. An unmapped field is a field that does not exist in the mapping at all. By default, {{esql}} returns an error when you reference an unmapped field, but you can change this behavior using the [`SET unmapped_fields`](/reference/query-languages/esql/commands/set.md#esql-unmapped_fields) directive.
 
 ## _source availability [esql-_source-availability]
 
@@ -153,7 +159,7 @@ Note that if you return both the original `location` and the extracted `x` and `
 ## Full-text search [esql-limitations-full-text-search]
 
 One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
-like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
+like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
 in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
 [`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
@@ -174,9 +180,9 @@ FROM books
 ```
 
 Note that any queries on `text` fields that do not explicitly use the full-text functions,
-[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
-[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
-[`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
+[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions/match.md),
+[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions/qstr.md) or
+[`KQL`](/reference/query-languages/esql/functions-operators/search-functions/kql.md),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
 
 
@@ -254,9 +260,35 @@ Work around this limitation by converting the field to single value with one of 
 
 ## INLINE STATS limitations [esql-limitations-inlinestats]
 
-[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions/categorize.md) grouping function is not currently supported.
 
 Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+
+
+## Subquery and view limitations [esql-limitations-subquery-views]
+
+[Subqueries](/reference/query-languages/esql/esql-subquery.md) and
+[views](/reference/query-languages/esql/esql-views.md) are closely related,
+since both extend the
+[`FROM`](/reference/query-languages/esql/commands/from.md) command with
+branched query plans. They share the overall branching constraints but each
+has its own additional limitations, described in turn below.
+
+### Subquery limitations [esql-limitations-subquery]
+
+:::{include} _snippets/common/subquery_limitations.md
+:::
+
+### View limitations [esql-limitations-views]
+
+[Views](/reference/query-languages/esql/esql-views.md) reuse the same
+branching model as subqueries, nested branching is generally not supported, but
+views can work around this limitation via
+[query compaction](/reference/query-languages/esql/esql-views.md#query-compaction).
+Beyond that, views have a few additional restrictions of their own, listed next.
+
+:::{include} _snippets/common/view_limitations.md
+:::
 
 
 ## Kibana limitations [esql-limitations-kibana]

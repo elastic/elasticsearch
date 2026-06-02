@@ -17,7 +17,6 @@ import org.elasticsearch.test.VersionUtils;
 import java.time.Instant;
 import java.util.Properties;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class FeatureFlagTests extends ESTestCase {
@@ -59,10 +58,10 @@ public class FeatureFlagTests extends ESTestCase {
         assertThat(flag.isEnabled(), is(true));
     }
 
-    public void testSetFeatureFlagCannotBeDisabledInSnapshotBuild() {
+    public void testSetFeatureFlagExplicitlyDisabledInSnapshotBuild() {
         final Properties properties = setProperty("es.test_feature_flag_enabled", "false");
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> newFeatureFlag(properties, true));
-        assertThat(ex.getMessage(), containsString("cannot be disabled in snapshot builds"));
+        final FeatureFlag flag = newFeatureFlag(properties, true);
+        assertThat(flag.isEnabled(), is(false));
     }
 
     private static FeatureFlag newFeatureFlag(Properties properties, boolean isSnapshot) {

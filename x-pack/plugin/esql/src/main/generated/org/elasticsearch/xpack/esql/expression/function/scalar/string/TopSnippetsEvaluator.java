@@ -7,12 +7,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.search.uhighlight.PassageFormatter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -20,17 +21,17 @@ import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link TopSnippets}.
+ * {@link ExpressionEvaluator} implementation for {@link TopSnippets}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class TopSnippetsEvaluator implements ExpressionEvaluator {
   private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TopSnippetsEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator field;
+  private final ExpressionEvaluator field;
 
-  private final EvalOperator.ExpressionEvaluator query;
+  private final String queryString;
 
   private final ChunkingSettings chunkingSettings;
 
@@ -38,28 +39,32 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
 
   private final int numSnippets;
 
+  private final boolean docOrder;
+
+  private final PassageFormatter highlightFormatter;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public TopSnippetsEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      EvalOperator.ExpressionEvaluator query, ChunkingSettings chunkingSettings,
-      MemoryIndexChunkScorer scorer, int numSnippets, DriverContext driverContext) {
+  public TopSnippetsEvaluator(Source source, ExpressionEvaluator field, String queryString,
+      ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
+      boolean docOrder, PassageFormatter highlightFormatter, DriverContext driverContext) {
     this.source = source;
     this.field = field;
-    this.query = query;
+    this.queryString = queryString;
     this.chunkingSettings = chunkingSettings;
     this.scorer = scorer;
     this.numSnippets = numSnippets;
+    this.docOrder = docOrder;
+    this.highlightFormatter = highlightFormatter;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
     try (BytesRefBlock fieldBlock = (BytesRefBlock) field.eval(page)) {
-      try (BytesRefBlock queryBlock = (BytesRefBlock) query.eval(page)) {
-        return eval(page.getPositionCount(), fieldBlock, queryBlock);
-      }
+      return eval(page.getPositionCount(), fieldBlock);
     }
   }
 
@@ -67,18 +72,14 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
     baseRamBytesUsed += field.baseRamBytesUsed();
-    baseRamBytesUsed += query.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock, BytesRefBlock queryBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
         if (!fieldBlock.isNull(p)) {
-          allBlocksAreNulls = false;
-        }
-        if (!queryBlock.isNull(p)) {
           allBlocksAreNulls = false;
         }
         if (allBlocksAreNulls) {
@@ -86,7 +87,7 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
           continue position;
         }
         try {
-          TopSnippets.process(result, p, fieldBlock, queryBlock, this.chunkingSettings, this.scorer, this.numSnippets);
+          TopSnippets.process(result, p, fieldBlock, this.queryString, this.chunkingSettings, this.scorer, this.numSnippets, this.docOrder, this.highlightFormatter);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -98,12 +99,12 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
 
   @Override
   public String toString() {
-    return "TopSnippetsEvaluator[" + "field=" + field + ", query=" + query + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
+    return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + ", docOrder=" + docOrder + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field, query);
+    Releasables.closeExpectNoException(field);
   }
 
   private Warnings warnings() {
@@ -113,12 +114,12 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory field;
 
-    private final EvalOperator.ExpressionEvaluator.Factory query;
+    private final String queryString;
 
     private final ChunkingSettings chunkingSettings;
 
@@ -126,25 +127,31 @@ public final class TopSnippetsEvaluator implements EvalOperator.ExpressionEvalua
 
     private final int numSnippets;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
-        EvalOperator.ExpressionEvaluator.Factory query, ChunkingSettings chunkingSettings,
-        MemoryIndexChunkScorer scorer, int numSnippets) {
+    private final boolean docOrder;
+
+    private final PassageFormatter highlightFormatter;
+
+    public Factory(Source source, ExpressionEvaluator.Factory field, String queryString,
+        ChunkingSettings chunkingSettings, MemoryIndexChunkScorer scorer, int numSnippets,
+        boolean docOrder, PassageFormatter highlightFormatter) {
       this.source = source;
       this.field = field;
-      this.query = query;
+      this.queryString = queryString;
       this.chunkingSettings = chunkingSettings;
       this.scorer = scorer;
       this.numSnippets = numSnippets;
+      this.docOrder = docOrder;
+      this.highlightFormatter = highlightFormatter;
     }
 
     @Override
     public TopSnippetsEvaluator get(DriverContext context) {
-      return new TopSnippetsEvaluator(source, field.get(context), query.get(context), chunkingSettings, scorer, numSnippets, context);
+      return new TopSnippetsEvaluator(source, field.get(context), queryString, chunkingSettings, scorer, numSnippets, docOrder, highlightFormatter, context);
     }
 
     @Override
     public String toString() {
-      return "TopSnippetsEvaluator[" + "field=" + field + ", query=" + query + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + "]";
+      return "TopSnippetsEvaluator[" + "field=" + field + ", queryString=" + queryString + ", chunkingSettings=" + chunkingSettings + ", scorer=" + scorer + ", numSnippets=" + numSnippets + ", docOrder=" + docOrder + "]";
     }
   }
 }

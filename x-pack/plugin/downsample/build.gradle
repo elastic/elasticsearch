@@ -17,10 +17,11 @@ dependencies {
   testImplementation project(xpackModule('ilm'))
   compileOnly project(xpackModule('analytics'))
   compileOnly project(xpackModule('mapper-aggregate-metric'))
-  compileOnly project(xpackModule('mapper-exponential-histogram'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('esql'))
+  testImplementation project(':x-pack:plugin:encryption')
+  testImplementation project(':x-pack:plugin:encryption:spi')
   testImplementation project(xpackModule('esql-core'))
 }
 

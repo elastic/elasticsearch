@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
@@ -21,8 +22,10 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 
@@ -56,8 +59,9 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public TelemetryProvider getTelemetryProvider(Settings settings) {
-        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(settings);
+    public TelemetryProvider getTelemetryProvider(Environment environment) {
+        Path diskBufferPath = environment.dataDirs()[0].resolve("telemetry-buffer");
+        final APMTelemetryProvider apmTelemetryProvider = new APMTelemetryProvider(environment.settings(), diskBufferPath);
         telemetryProvider.set(apmTelemetryProvider);
         return apmTelemetryProvider;
     }
@@ -88,11 +92,28 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
             APMAgentSettings.TELEMETRY_API_KEY_SETTING,
             // Metrics
             APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_INTERVAL,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENABLED,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_BUFFER_TTL,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_WRITE_WINDOW,
+            OtelSdkSettings.TELEMETRY_OTEL_METRICS_DISK_BUFFER_READ_MIN_AGE,
+            OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS,
+            OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF,
+            OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER,
+            OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT,
             // Tracing
             APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING,
             APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING,
-            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES
+            APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL,
+            OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH,
+            OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT,
+            OtelSdkSettings.TELEMETRY_OTEL_RESOURCE_ATTRIBUTES
         );
     }
 }

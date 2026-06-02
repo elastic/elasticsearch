@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -36,17 +37,29 @@ import static org.hamcrest.Matchers.equalTo;
 public class SumOverTimeTests extends AbstractAggregationTestCase {
     public SumOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = new ArrayList<TestCaseSupplier>();
+        FunctionAppliesTo histogramPreviewAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        FunctionAppliesTo histogramGaAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.4.0", "", true);
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100),
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+                .stream()
+                .map(s -> s.withAppliesTo(histogramPreviewAppliesTo).withAppliesTo(histogramGaAppliesTo))
+                .toList(),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(SumOverTimeTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
@@ -104,17 +117,40 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
         return new SumOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
             DataType type = fieldTypedData.type().widenSmallNumeric();
             var data = fieldTypedData.multiRowData();
+            String expectedWarning = null;
             Object expected = null;
             if (data.isEmpty() == false) {
                 expected = switch (type) {
                     case INTEGER -> data.stream().mapToLong(v -> (int) v).sum();
-                    case LONG -> data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                    case LONG -> {
+                        try {
+                            yield data.stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
+                        } catch (ArithmeticException e) {
+                            expectedWarning = e.toString();
+                            yield null;
+                        }
+                    }
                     case DOUBLE -> data.stream().mapToDouble(v -> (double) v).sum();
                     case AGGREGATE_METRIC_DOUBLE -> data.stream()
                         .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
@@ -122,7 +158,7 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                     case EXPONENTIAL_HISTOGRAM -> {
                         var sums = data.stream()
                             .map(obj -> (ExponentialHistogram) obj)
-                            .filter(obj -> obj.valueCount() > 0)
+                            .filter(obj -> obj.isEmpty() == false)
                             .mapToDouble(ExponentialHistogram::sum)
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();
@@ -130,7 +166,7 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                     case TDIGEST -> {
                         var sums = data.stream()
                             .map(obj -> (TDigestHolder) obj)
-                            .filter(obj -> obj.getValueCount() > 0)
+                            .filter(obj -> obj.size() > 0)
                             .mapToDouble(TDigestHolder::getSum)
                             .toArray();
                         yield sums.length == 0 ? null : Arrays.stream(sums).sum();
@@ -151,6 +187,13 @@ public class SumOverTimeTests extends AbstractAggregationTestCase {
                 standardAggregatorName(type == DataType.DOUBLE ? "LossySum" : "Sum", fieldSupplier.type()),
                 returnType,
                 expected instanceof Double d ? closeTo(d, Math.abs(d * 1e-10)) : equalTo(expected)
+            ).withWarnings(
+                expectedWarning == null
+                    ? null
+                    : List.of(
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: " + expectedWarning
+                    )
             );
         });
     }

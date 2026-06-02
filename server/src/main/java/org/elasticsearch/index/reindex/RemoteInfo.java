@@ -133,7 +133,9 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
 
     @Override
     public void close() throws IOException {
-        this.password.close();
+        if (password != null) {
+            password.close();
+        }
     }
 
     public String getScheme() {
@@ -195,13 +197,6 @@ public class RemoteInfo implements Writeable, ToXContentObject, Closeable {
         b.append("host=").append(host).append(" port=").append(port);
         if (pathPrefix != null) {
             b.append(" pathPrefix=").append(pathPrefix);
-        }
-        b.append(" query=").append(query.utf8ToString());
-        if (username != null) {
-            b.append(" username=").append(username);
-        }
-        if (password != null) {
-            b.append(" password=<<>>");
         }
         return b.toString();
     }

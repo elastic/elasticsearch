@@ -52,13 +52,29 @@ FROM books
 
 ::::
 
-**Syntax**
+## Syntax
+
+::::{applies-switch}
+
+:::{applies-item} {"stack": "ga 9.5+", "serverless": "ga"}
+
+```esql
+RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" [, "timeout" : "<timeout_duration>"] }]
+```
+
+:::
+
+:::{applies-item} {"stack": "preview 9.2-9.3, ga 9.4.0+"}
 
 ```esql
 RERANK [column =] query ON field [, field, ...] [WITH { "inference_id" : "my_inference_endpoint" }]
 ```
 
-**Parameters**
+:::
+
+::::
+
+## Parameters
 
 `column`
 :   (Optional) The name of the output column containing the reranked scores.
@@ -74,16 +90,22 @@ query used in the initial search.
 :   One or more fields to use for reranking. These fields should contain the
 text that the reranking model will evaluate.
 
-`my_inference_endpoint`
-:   The ID of
+`inference_id`
+:   (Optional) The ID of
 the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md)
 to use for the task.
 The inference endpoint must be configured with the `rerank` task type.
+If not specified, defaults to the preconfigured `.rerank-v1-elasticsearch`
+endpoint.
 
-**Description**
+`timeout` {applies_to}`stack: ga 9.4.1+` {applies_to}`serverless: ga`
+:   (Optional) Timeout for the inference request (for example, `"30s"`, `"1m"`).
+    If not specified, the default search timeout applies. Use this to set a
+    per-call timeout independent of the cluster-wide search timeout.
 
-The `RERANK` command uses an inference model to compute a new relevance score
-for an initial set of documents, directly within your ES|QL queries.
+## Description
+
+Use `RERANK` to re-score search results using a machine learning model for improved relevance.
 
 Typically, you first use a `WHERE` clause with a function like `MATCH` to
 retrieve an initial set of documents. This set is often sorted by `_score` and
@@ -95,76 +117,59 @@ When using `RERANK` with a multivalue column, each value is ranked individually.
 The score column is then assigned the maximum score resulting from ranking the
 individual values.
 
-**Requirements**
+## Requirements
 
-To use this command, you must deploy your reranking model in Elasticsearch as
-an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
-with the
-task type `rerank`.
+The `RERANK` command requires an
+[inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put)
+configured with the `rerank` task type. If you omit the `inference_id` option,
+`RERANK` uses the preconfigured `.rerank-v1-elasticsearch` endpoint, which is
+available by default.
 
-#### Handling timeouts
+For improved relevance, you can use the preconfigured
+`.jina-reranker-v3` endpoint, powered by the
+[Elastic Inference Service (EIS)](docs-content://explore-analyze/elastic-inference/eis.md).
+To use a different model, create a `rerank` inference endpoint and specify
+its ID in the `WITH` clause. Refer to
+[semantic reranking](docs-content://solutions/search/ranking/semantic-reranking.md)
+for a full list of supported reranking models.
+
+### Handling timeouts
 
 `RERANK` commands may time out when processing large datasets or complex
-queries. The default timeout is 10 minutes, but you can increase this limit if
-necessary.
+queries. The default timeout is 30 seconds.
 
-How you increase the timeout depends on your deployment type:
 
-::::{tab-set}
-:::{tab-item} {{ech}}
+You can set per-call timeout using the `"timeout"` option in the `WITH` clause: {applies_to}`stack: ga 9.5+` {applies_to}`serverless: ga`
+```esql
+RERANK "search query" ON title WITH { "inference_id": "my_inference_endpoint", "timeout": "1m" }
+```
 
-* You can adjust {{es}} settings in
-  the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
-* You can also adjust the `search.default_search_timeout` cluster setting
-  using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-  :::
 
-:::{tab-item} Self-managed
+If you can't modify your timeout limits, try the following:
 
-* You can configure at the cluster level by setting
-  `search.default_search_timeout` in `elasticsearch.yml` or updating
-  via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
-* You can also adjust the `search:timeout` setting
-  using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
-* Alternatively, you can add timeout parameters to individual queries
-  :::
-
-:::{tab-item} {{serverless-full}}
-
-* Requires a manual override from Elastic Support because you cannot modify
-  timeout settings directly
-  :::
-  ::::
-
-If you don't want to increase the timeout limit, try the following:
-
-* Reduce data volume with `LIMIT` or more selective filters before the `RERANK`
-  command
+* Reduce data volume with `LIMIT` or more selective filters before the `RERANK` command
 * Split complex operations into multiple simpler queries
-* Configure your HTTP client's response timeout (Refer
-  to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
-
-**Examples**
-
-Rerank search results using a simple query and a single field:
+* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
 
 
-:::{include} ../examples/rerank.csv-spec/simple-query.md
+## Examples
+
+### Rerank with a single field
+
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/simple-query.md
 :::
 
-Rerank search results using a query and multiple fields, and store the new score
-in a column named `rerank_score`:
+### Rerank with multiple fields and a custom score column
 
-:::{include} ../examples/rerank.csv-spec/two-queries.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/two-queries.md
 :::
 
-Combine the original score with the reranked score:
+### Combine original score with reranked score
 
-:::{include} ../examples/rerank.csv-spec/combine.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/combine.md
 :::
 
-Rerank using snippets extracted from the document with the `TOP_SNIPPETS`
-function:
+### Rerank using document snippets
 
-:::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/rerank-top-snippets.md
 :::

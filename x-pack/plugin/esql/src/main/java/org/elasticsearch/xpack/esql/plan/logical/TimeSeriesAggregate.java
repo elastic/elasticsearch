@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -44,9 +45,16 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
+    public static final TransportVersion TIME_SERIES_OUTPUT_BUCKET = TransportVersion.fromName("time_series_output_bucket");
+    // Retained for wire-format compatibility with nodes that wrote the now-removed `collapsed` flag; collapsing is
+    // handled by TimeSeriesCollapse rather than a flag on this node.
+    private static final TransportVersion TIME_SERIES_AGGREGATE_COLLAPSED = TransportVersion.fromName("time_series_aggregate_collapsed");
+    private static final TransportVersion TIME_SERIES_ORIGIN = TransportVersion.fromName("time_series_origin");
 
     private final Bucket timeBucket;
+    private final Bucket outputTimeBucket;
     private final Expression timestamp;
+    private final Origin origin;
 
     public TimeSeriesAggregate(
         Source source,
@@ -54,11 +62,32 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
-        Expression timestamp
+        Expression timestamp,
+        Origin origin
+    ) {
+        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, origin);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        Bucket outputTimeBucket,
+        Expression timestamp,
+        Origin origin
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.outputTimeBucket = outputTimeBucket;
         this.timestamp = timestamp;
+        this.origin = origin;
+    }
+
+    public enum Origin {
+        TS_COMMAND,
+        PROMQL_COMMAND
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
@@ -67,9 +96,20 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             this.timestamp = in.readOptionalNamedWriteable(Expression.class);
         } else {
-            // We only need the timestamp during analysis and logical optimization on the coordinator.
-            // Using null (when deserialized from an old node) in this case should be okay.
             this.timestamp = null;
+        }
+        if (in.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
+            this.outputTimeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        } else {
+            this.outputTimeBucket = this.timeBucket;
+        }
+        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
+            in.readBoolean(); // discarded: collapsing is handled by TimeSeriesCollapse
+        }
+        if (in.getTransportVersion().supports(TIME_SERIES_ORIGIN)) {
+            this.origin = in.readEnum(Origin.class);
+        } else {
+            this.origin = Origin.TS_COMMAND;
         }
     }
 
@@ -80,6 +120,15 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
         }
+        if (out.getTransportVersion().supports(TIME_SERIES_OUTPUT_BUCKET)) {
+            out.writeOptionalWriteable(outputTimeBucket);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_COLLAPSED)) {
+            out.writeBoolean(false);
+        }
+        if (out.getTransportVersion().supports(TIME_SERIES_ORIGIN)) {
+            out.writeEnum(origin);
+        }
     }
 
     @Override
@@ -89,34 +138,56 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
+        return NodeInfo.create(
+            this,
+            TimeSeriesAggregate::new,
+            child(),
+            groupings,
+            aggregates,
+            timeBucket,
+            outputTimeBucket,
+            timestamp,
+            origin
+        );
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, outputTimeBucket, timestamp, origin);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, outputTimeBucket, timestamp, origin);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, outputTimeBucket, newTimestamp, origin);
+    }
+
+    public Origin origin() {
+        return origin;
     }
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && (timeBucket == null || timeBucket.resolved()) && (timestamp == null || timestamp.resolved());
+        return super.expressionsResolved()
+            && (timeBucket == null || timeBucket.resolved())
+            && (outputTimeBucket == null || outputTimeBucket.resolved())
+            && (timestamp == null || timestamp.resolved());
     }
 
     @Nullable
     public Bucket timeBucket() {
         return timeBucket;
+    }
+
+    @Nullable
+    public Bucket outputTimeBucket() {
+        return outputTimeBucket;
     }
 
     @Override
@@ -126,7 +197,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, outputTimeBucket, timestamp, origin);
     }
 
     @Override
@@ -144,26 +215,30 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(timestamp, other.timestamp);
+            && Objects.equals(outputTimeBucket, other.outputTimeBucket)
+            && Objects.equals(timestamp, other.timestamp)
+            && origin == other.origin;
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
         super.postAnalysisVerification(failures);
-        // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
-        groupings().forEach(g -> g.forEachDown(e -> {
-            if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
-                failures.add(
-                    fail(
-                        fieldAttr,
-                        "cannot group by a metric field [{}] in a time-series aggregation. "
-                            + "If you want to group by a metric field, use the FROM "
-                            + "command instead of the TS command.",
-                        fieldAttr.sourceText()
-                    )
-                );
-            }
-        }));
+        if (origin != Origin.PROMQL_COMMAND) {
+            // We forbid grouping by a metric field itself. Metric fields are allowed only inside aggregate functions.
+            groupings().forEach(g -> g.forEachDown(e -> {
+                if (e instanceof FieldAttribute fieldAttr && fieldAttr.isMetric()) {
+                    failures.add(
+                        fail(
+                            fieldAttr,
+                            "cannot group by a metric field [{}] in a time-series aggregation. "
+                                + "If you want to group by a metric field, use the FROM "
+                                + "command instead of the TS command.",
+                            fieldAttr.sourceText()
+                        )
+                    );
+                }
+            }));
+        }
         child().forEachDown(p -> {
             // reject `TS metrics | SORT BY ... | STATS ...`
             if (p instanceof OrderBy orderBy) {
@@ -258,6 +333,10 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
                     // reject COUNT(keyword), but allow COUNT(numeric)
+                }
+                // reject `TS metrics | STATS SPARKLINE(...)`
+                if (outer instanceof Sparkline sparkline) {
+                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
                 }
                 outer.field().forEachDown(AggregateFunction.class, nested -> {
                     if (nested instanceof TimeSeriesAggregateFunction == false) {

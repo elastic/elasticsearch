@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
 
 import java.util.HashSet;
@@ -21,7 +20,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class MetricsInfoOperatorTests extends OperatorTestCase {
 
@@ -106,13 +109,34 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
-        assertNull(map);
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
+        assertMap(
+            map,
+            matchesMap().entry("mode", "INITIAL")
+                .entry("pages_received", input.size())
+                .entry("rows_received", totalInputRows)
+                .entry("rows_emitted", totalOutputRows)
+                .entry("metrics_accumulated", greaterThanOrEqualTo(0))
+        );
+    }
+
+    private Operator createInitialOperator() {
+        return createInitialOperator(SIMPLE_LOOKUP);
+    }
+
+    private Operator createInitialOperator(MetricsInfoOperator.MetricFieldLookup lookup) {
+        return new MetricsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
+    }
+
+    private Operator createFinalOperator() {
+        return new MetricsInfoOperator.FinalFactory(MetricsInfoOperatorTests.FINAL_CHANNELS).get(driverContext());
     }
 
     public void testSingleMetricSingleIndex() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "my-index");
             op.addInput(input);
             op.finish();
@@ -135,7 +159,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testMultipleMetricsSameIndex() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Both cpu_usage and disk_io are metric fields
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"disk_io\": 1024, \"host\": \"server1\"}", "my-index");
             op.addInput(input);
@@ -154,7 +178,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testSameMetricDifferentIndicesMergedBySignature() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Same metric from two different indices but with the same signature → merged into one row
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "index-a");
             op.addInput(input1);
@@ -180,9 +204,21 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testDifferentSignaturesNotMerged() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        // Lookup returns different types for the same metric name in different indices
-        try (MetricsInfoOperator op = getMetricsInfoOperator(blockFactory)) {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+
+        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
+            if ("cpu".equals(fieldName)) {
+                if ("index-a".equals(indexName)) {
+                    return new MetricFieldInfo("cpu", indexName, "double", "gauge", "percent");
+                } else {
+                    return new MetricFieldInfo("cpu", indexName, "float", "gauge", "percent");
+                }
+            }
+            return null;
+        };
+
+        try (Operator op = createInitialOperator(lookup)) {
             Page input1 = buildPage(blockFactory, "{\"cpu\": 0.5}", "index-a");
             op.addInput(input1);
 
@@ -200,24 +236,9 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static MetricsInfoOperator getMetricsInfoOperator(BlockFactory blockFactory) {
-        MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
-            if ("cpu".equals(fieldName)) {
-                if ("index-a".equals(indexName)) {
-                    return new MetricFieldInfo("cpu", indexName, "double", "gauge", "percent");
-                } else {
-                    return new MetricFieldInfo("cpu", indexName, "float", "gauge", "percent");
-                }
-            }
-            return null;
-        };
-
-        return new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
-    }
-
     public void testDimensionFieldsCollected() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // "host" and "region" are non-metric (dimension) fields
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\", \"region\": \"us-east\"}", "my-index");
             op.addInput(input);
@@ -244,7 +265,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             return null;
         };
 
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(lookup)) {
             Page input = buildPage(blockFactory, "{\"system\": {\"cpu\": 0.75}, \"host\": \"server1\"}", "my-index");
             op.addInput(input);
             op.finish();
@@ -268,7 +289,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testDimensionFieldsUnderPassthroughStylePath() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Metadata shaped like a passthrough: resource.attributes.service.name (dimension), cpu_usage (metric)
             String metadataJson = """
                 {"resource": {"attributes": {"service": {"name": "api"}}}, "cpu_usage": 0.5}
@@ -296,7 +317,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testBothTopLevelAndPassthroughDimensionPaths() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Two documents: one with top-level service.name, one with resource.attributes.service.name
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"service\": {\"name\": \"web\"}}", "my-index");
             Page input2 = buildPage(
@@ -321,7 +342,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testNullMetadataSkipped() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             try (
                 BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
                 BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
@@ -351,7 +372,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testNullIndexSkipped() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             try (
                 BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
                 BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
@@ -379,8 +400,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testEmptyInputProducesEmptyPage() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             op.finish();
 
             Page output = op.getOutput();
@@ -393,8 +413,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testGetOutputBeforeFinishReturnsNull() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             assertNull(op.getOutput());
             assertTrue(op.needsInput());
         }
@@ -402,7 +421,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testGetOutputCalledTwiceReturnsNullSecondTime() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
             op.addInput(input);
             op.finish();
@@ -418,8 +437,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testNeedsInputReturnsFalseAfterFinish() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             assertTrue(op.needsInput());
             op.finish();
             assertFalse(op.needsInput());
@@ -427,8 +445,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testIsFinishedOnlyAfterOutputProduced() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             assertFalse(op.isFinished());
 
             op.finish();
@@ -452,7 +469,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             return null;
         };
 
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(lookup)) {
             Page input = buildPage(blockFactory, "{\"temperature\": 36.6}", "my-index");
             op.addInput(input);
             op.finish();
@@ -470,39 +487,26 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testInvalidJsonSkipped() {
+    public void testInvalidJsonThrows() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             try (
-                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(2);
-                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(2)
+                BytesRefBlock.Builder metadataBuilder = blockFactory.newBytesRefBlockBuilder(1);
+                BytesRefBlock.Builder indexBuilder = blockFactory.newBytesRefBlockBuilder(1)
             ) {
-                // Row 1: invalid JSON
                 metadataBuilder.appendBytesRef(new BytesRef("not-valid-json"));
                 indexBuilder.appendBytesRef(new BytesRef("my-index"));
 
-                // Row 2: valid JSON with a metric
-                metadataBuilder.appendBytesRef(new BytesRef("{\"cpu_usage\": 0.5}"));
-                indexBuilder.appendBytesRef(new BytesRef("my-index"));
-
                 Page input = new Page(metadataBuilder.build(), indexBuilder.build());
-                op.addInput(input);
+                var e = expectThrows(IllegalStateException.class, () -> op.addInput(input));
+                assertThat(e.getMessage(), equalTo("failed to parse _timeseries_metadata at position [0]"));
             }
-            op.finish();
-
-            Page output = op.getOutput();
-            assertNotNull(output);
-            // Only the valid row contributes
-            assertThat(output.getPositionCount(), equalTo(1));
-            assertColumnValue(output, 0, 0, "cpu_usage");
-
-            output.releaseBlocks();
         }
     }
 
     public void testMultipleInputPages() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Page 1: cpu_usage from index-a
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "index-a");
             op.addInput(input1);
@@ -525,7 +529,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testDimensionFieldsAreUnionAcrossDocuments() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Document 1: dimension "host"
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
             op.addInput(input1);
@@ -554,8 +558,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testToString() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, 0, 1)) {
+        try (Operator op = createInitialOperator()) {
             assertThat(op.toString(), equalTo("MetricsInfoOperator[mode=INITIAL]"));
         }
     }
@@ -572,6 +575,11 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         assertThat(MetricsInfoOperator.resolveDataStreamName("index-a"), equalTo("index-a"));
         // Malformed → returned as-is
         assertThat(MetricsInfoOperator.resolveDataStreamName(".ds-incomplete"), equalTo(".ds-incomplete"));
+        // Cluster-prefixed backing index → prefix preserved
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:.ds-k8s-2024.01.15-000001"), equalTo("remote:k8s"));
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:.fs-my-stream-2024.01.15-000001"), equalTo("remote:my-stream"));
+        // Cluster-prefixed non-backing index → returned as-is
+        assertThat(MetricsInfoOperator.resolveDataStreamName("remote:my-index"), equalTo("remote:my-index"));
     }
 
     /**
@@ -582,7 +590,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     public void testDifferentMetricsHaveDifferentDimensions() {
         BlockFactory blockFactory = driverContext().blockFactory();
         // Lookup: cpu_usage and disk_io are metrics
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Tsid 1: has cpu_usage + dimension "host"
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
             // Tsid 2: has disk_io + dimension "mount"
@@ -620,7 +628,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testBackingIndicesSameDataStreamGroupedTogether() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Two backing indices of the same data stream "k8s"
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
             Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"b\"}", ".ds-k8s-2024.01.15-000002");
@@ -645,9 +653,10 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      * same data stream have conflicting values.
      */
     public void testConflictingValuesWithinSameDataStreamProduceMultiValuedFields() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         // Lookup returns different field_type depending on backing index
-        try (MetricsInfoOperator op = getInfoOperator(blockFactory)) {
+        try (MetricsInfoOperator op = getInfoOperator(ctx)) {
             // Two backing indices of the same data stream "k8s", different field_type
             Page input1 = buildPage(blockFactory, "{\"cpu\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
             Page input2 = buildPage(blockFactory, "{\"cpu\": 0.9, \"host\": \"b\"}", ".ds-k8s-2024.01.15-000002");
@@ -668,7 +677,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static MetricsInfoOperator getInfoOperator(BlockFactory blockFactory) {
+    private static MetricsInfoOperator getInfoOperator(DriverContext ctx) {
         MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
             if ("cpu".equals(fieldName)) {
                 if (indexName.endsWith("-000001")) {
@@ -679,7 +688,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             }
             return null;
         };
-        return new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        return (MetricsInfoOperator) new MetricsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
     }
 
     /**
@@ -687,9 +696,10 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      * separate rows (one per data stream).
      */
     public void testDifferentDataStreamsDifferentValuesProduceSeparateRows() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         // Lookup returns different unit depending on index
-        try (MetricsInfoOperator op = getOperator(blockFactory)) {
+        try (MetricsInfoOperator op = getOperator(ctx)) {
             Page input1 = buildPage(blockFactory, "{\"cpu\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
             Page input2 = buildPage(blockFactory, "{\"cpu\": 0.9, \"host\": \"b\"}", ".ds-other-2024.01.15-000001");
             op.addInput(input1);
@@ -718,7 +728,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    private static MetricsInfoOperator getOperator(BlockFactory blockFactory) {
+    private static MetricsInfoOperator getOperator(DriverContext ctx) {
         MetricsInfoOperator.MetricFieldLookup lookup = (indexName, fieldName) -> {
             if ("cpu".equals(fieldName)) {
                 if (indexName.contains("k8s")) {
@@ -729,7 +739,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             }
             return null;
         };
-        return new MetricsInfoOperator(blockFactory, lookup, METADATA_CHANNEL, INDEX_CHANNEL);
+        return (MetricsInfoOperator) new MetricsInfoOperator.Factory(lookup, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
     }
 
     /**
@@ -738,7 +748,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testDifferentDataStreamsSameValuesProduceMultiValuedDataStream() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator()) {
             // Two different data streams, same metric with the same signature
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", ".ds-k8s-2024.01.15-000001");
             Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"b\"}", ".ds-other-2024.01.15-000001");
@@ -761,7 +771,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFinalModeIdenticalRowsFromTwoDataNodesAreMerged() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             // Two data nodes produced identical rows for cpu_usage on index-a
             Page page1 = buildFinalPage(
                 blockFactory,
@@ -799,7 +809,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFinalModePartiallyOverlappingDataStreamsAreMerged() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             // Data node 1 saw index-a and index-b; data node 2 saw index-a and index-c
             Page page1 = buildFinalPage(
                 blockFactory,
@@ -835,7 +845,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFinalModeDifferentMetricNamesRemainSeparateRows() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             Page page1 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -870,7 +880,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFinalModeDifferentSignaturesProduceSeparateRows() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             // Same metric name but different field_type → different signatures → 2 rows
             Page page1 = buildFinalPage(
                 blockFactory,
@@ -904,8 +914,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testFinalModeEmptyInputProducesEmptyOutput() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             op.finish();
 
             Page output = op.getOutput();
@@ -919,7 +928,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFinalModeSingleDataNodeInputPassesThrough() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             Page page = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -949,7 +958,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
 
     public void testFinalModeDimensionFieldsAreUnionedAcrossDataNodes() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             // Data node 1 saw dimension "host"; data node 2 saw dimension "region"
             Page page1 = buildFinalPage(
                 blockFactory,
@@ -991,7 +1000,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testFinalModeSameDataStreamDifferentUnitsAcrossNodesProduceOneRow() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (Operator op = createFinalOperator()) {
             // Data node A has backing index 000001 (unit=usd)
             Page page1 = buildFinalPage(
                 blockFactory,
@@ -1029,6 +1038,99 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("metric.name")));
 
             output.releaseBlocks();
+        }
+    }
+
+    /**
+     * Simulates the cross-cluster scenario: INTERMEDIATE on the remote cluster merges INITIAL outputs from two different data streams —
+     * one with single-valued dimension_fields and another with multi-valued dimension_fields — into a single multi-row page.
+     * The FINAL operator on the coordinator must correctly process this mixed-cardinality page.
+     */
+    public void testFinalModeMultiRowPageMixedSingleAndMultiValuedDimensions() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createFinalOperator()) {
+            Page multiRowPage = buildMultiRowFinalPage(
+                blockFactory,
+                List.of("metric.value", "activemq.connections.count", "activemq.consumers.count"),
+                List.of(Set.of("ds-gauge"), Set.of("ds-activemq.broker"), Set.of("ds-activemq.broker")),
+                List.of(Set.of(), Set.of(), Set.of()),
+                List.of(Set.of("gauge"), Set.of("counter"), Set.of("gauge")),
+                List.of(Set.of("double"), Set.of("long"), Set.of("long")),
+                List.of(
+                    Set.of("metric.name"),
+                    Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name"),
+                    Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name")
+                )
+            );
+
+            op.addInput(multiRowPage);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(3));
+
+            boolean foundGauge = false;
+            boolean foundCounter = false;
+            boolean foundConsumers = false;
+            for (int row = 0; row < output.getPositionCount(); row++) {
+                BytesRefBlock nameBlock = output.getBlock(0);
+                String name = nameBlock.getBytesRef(nameBlock.getFirstValueIndex(row), new BytesRef()).utf8ToString();
+                Set<String> dims = collectMultiValues(output, 5, row);
+                Set<String> ds = collectMultiValues(output, 1, row);
+                if ("metric.value".equals(name)) {
+                    foundGauge = true;
+                    assertThat(ds, equalTo(Set.of("ds-gauge")));
+                    assertThat(dims, equalTo(Set.of("metric.name")));
+                } else if ("activemq.connections.count".equals(name)) {
+                    foundCounter = true;
+                    assertThat(ds, equalTo(Set.of("ds-activemq.broker")));
+                    assertThat(dims, equalTo(Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name")));
+                } else if ("activemq.consumers.count".equals(name)) {
+                    foundConsumers = true;
+                    assertThat(ds, equalTo(Set.of("ds-activemq.broker")));
+                    assertThat(dims, equalTo(Set.of("cloud.instance.id", "broker.name", "agent.id", "host.name")));
+                }
+            }
+            assertTrue("Missing metric.value row", foundGauge);
+            assertTrue("Missing activemq.connections.count row", foundCounter);
+            assertTrue("Missing activemq.consumers.count row", foundConsumers);
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * Build a multi-row 6-column page for FINAL mode input, simulating the output of
+     * an INTERMEDIATE operator that merged results from multiple data streams.
+     */
+    private static Page buildMultiRowFinalPage(
+        BlockFactory blockFactory,
+        List<String> metricNames,
+        List<Set<String>> dataStreamsList,
+        List<Set<String>> unitsList,
+        List<Set<String>> metricTypesList,
+        List<Set<String>> fieldTypesList,
+        List<Set<String>> dimensionFieldsList
+    ) {
+        int rowCount = metricNames.size();
+        try (
+            BytesRefBlock.Builder nameB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder dsB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder unitB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder mtB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder ftB = blockFactory.newBytesRefBlockBuilder(rowCount);
+            BytesRefBlock.Builder dfB = blockFactory.newBytesRefBlockBuilder(rowCount)
+        ) {
+            for (int i = 0; i < rowCount; i++) {
+                nameB.appendBytesRef(new BytesRef(metricNames.get(i)));
+                appendSet(dsB, dataStreamsList.get(i));
+                appendSet(unitB, unitsList.get(i));
+                appendSet(mtB, metricTypesList.get(i));
+                appendSet(ftB, fieldTypesList.get(i));
+                appendSet(dfB, dimensionFieldsList.get(i));
+            }
+            return new Page(nameB.build(), dsB.build(), unitB.build(), mtB.build(), ftB.build(), dfB.build());
         }
     }
 
@@ -1093,7 +1195,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testHistogramMetricRecognizedFromNestedSyntheticSource() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(HISTOGRAM_LOOKUP)) {
             String metadataJson = """
                 {"histogram": {"legacy": {"values": [1.0, 2.0, 3.0], "counts": [10, 20, 30]}}, "entity": {"id": "abc"}}""";
             Page input = buildPage(blockFactory, metadataJson.trim(), ".ds-histograms-2026.02.16-000001");
@@ -1123,7 +1225,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testExponentialHistogramMetricRecognizedFromNestedSyntheticSource() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(HISTOGRAM_LOOKUP)) {
             String metadataJson = """
                 {"histogram": {"exponential": {"scale": 3, "sum": 42.5, "min": 1.0, "max": 10.0,\
                  "zero": {"count": 0, "threshold": 0.0},\
@@ -1156,7 +1258,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testTdigestMetricRecognizedFromNestedSyntheticSource() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(HISTOGRAM_LOOKUP)) {
             String metadataJson = """
                 {"histogram": {"tdigest": {"min": 0.5, "max": 99.5, "sum": 500.0,\
                  "centroids": [1.0, 50.0, 99.0], "counts": [100, 200, 100]}},\
@@ -1187,7 +1289,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testMixedScalarAndHistogramMetrics() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(HISTOGRAM_LOOKUP)) {
             // cpu_usage is a scalar metric (leaf), histogram.legacy is a complex metric (nested Map)
             String metadataJson = """
                 {"cpu_usage": 0.75, "histogram": {"legacy": {"values": [1.0], "counts": [5]}}, "host": "srv1"}""";
@@ -1220,7 +1322,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
      */
     public void testDimensionsNotContaminatedByHistogramInternalFields() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (Operator op = createInitialOperator(HISTOGRAM_LOOKUP)) {
             // All three histogram types in one document, plus a dimension
             String metadataJson = """
                 {"histogram": {\
@@ -1324,25 +1426,29 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testInitialModeTracksMemoryOnNewEntries() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (
+            MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)
+                .get(ctx)
+        ) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterOne, greaterThan(usedBefore));
 
             // Second distinct metric adds another entry
             Page input2 = buildPage(blockFactory, "{\"disk_io\": 1024, \"host\": \"h1\"}", "index-a");
             op.addInput(input2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterTwo, greaterThan(usedAfterOne));
 
-            // Same metric again from a different index but same data stream name → no new entry
+            // Same metric again from a different index but same data stream name → no new entry or set values
             Page input3 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"h2\"}", "index-a");
             op.addInput(input3);
             long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterDuplicate, equalTo(usedAfterTwo));
 
             op.finish();
             Page output = op.getOutput();
@@ -1352,9 +1458,10 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testFinalModeTracksMemoryOnNewEntries() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.FinalFactory(FINAL_CHANNELS).get(ctx)) {
             Page page1 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -1366,7 +1473,7 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterOne, greaterThan(usedBefore));
 
             // Different metric name → new entry
             Page page2 = buildFinalPage(
@@ -1380,10 +1487,24 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            assertThat(usedAfterTwo, greaterThan(usedAfterOne));
 
-            // Same metric/data-stream again → no new entry
+            // Same metric/data-stream again with same set values → no new memory
             Page page3 = buildFinalPage(
+                blockFactory,
+                "cpu_usage",
+                Set.of("ds-a"),
+                Set.of("percent"),
+                Set.of("gauge"),
+                Set.of("double"),
+                Set.of("host")
+            );
+            op.addInput(page3);
+            long usedAfterDuplicate = blockFactory.breaker().getUsed();
+            assertThat(usedAfterDuplicate, equalTo(usedAfterTwo));
+
+            // Adding a new dimension field to an existing entry does track the new string
+            Page page4 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
                 Set.of("ds-a"),
@@ -1392,9 +1513,9 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
                 Set.of("double"),
                 Set.of("host", "region")
             );
-            op.addInput(page3);
-            long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * MetricsInfoOperator.SHALLOW_SIZE));
+            op.addInput(page4);
+            long usedAfterNewSetValue = blockFactory.breaker().getUsed();
+            assertThat(usedAfterNewSetValue, greaterThan(usedAfterDuplicate));
 
             op.finish();
             Page output = op.getOutput();
@@ -1403,14 +1524,88 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
         }
     }
 
-    public void testCloseReleasesTrackedMemory() {
+    /**
+     * In cross-cluster search, the _index block contains a cluster-alias prefix
+     * (e.g. "remote_cluster:my-index"). The operator preserves the prefix in the
+     * data_stream column so users can distinguish remote data streams.
+     */
+    public void testRemoteClusterPrefixPreservedInDataStream() {
         BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "remote_cluster:my-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertColumnValue(output, 1, 0, "remote_cluster:my-index");
+            assertColumnValue(output, 5, 0, "host");
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * When the _index block contains a cluster-prefixed backing index name
+     * (e.g. "remote_cluster:.ds-k8s-2024.01.15-000001"), resolveDataStreamName
+     * strips the backing-index suffix but preserves the cluster prefix, producing
+     * "remote_cluster:k8s".
+     */
+    public void testRemoteClusterPrefixPreservedForBackingIndex() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"a\"}", "remote_cluster:.ds-k8s-2024.01.15-000001");
+            Page input2 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"b\"}", "remote_cluster:.ds-k8s-2024.01.15-000002");
+            op.addInput(input1);
+            op.addInput(input2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("remote_cluster:k8s")));
+
+            output.releaseBlocks();
+        }
+    }
+
+    /**
+     * Local index names (no cluster prefix) pass through unchanged.
+     */
+    public void testLocalIndexNameUnchanged() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (Operator op = createInitialOperator()) {
+            Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "my-plain-index");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "cpu_usage");
+            assertColumnValue(output, 1, 0, "my-plain-index");
+
+            output.releaseBlocks();
+        }
+    }
+
+    public void testCloseReleasesTrackedMemory() {
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
 
-        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        MetricsInfoOperator op = (MetricsInfoOperator) new MetricsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(
+            ctx
+        );
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
-        assertThat(blockFactory.breaker().getUsed() - usedBefore, equalTo(MetricsInfoOperator.SHALLOW_SIZE));
+        assertThat(blockFactory.breaker().getUsed(), greaterThan(usedBefore));
 
         op.finish();
         Page output = op.getOutput();

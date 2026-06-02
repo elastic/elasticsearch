@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
@@ -207,6 +208,91 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
+    public void testParseRequestWithTopLevelSliceParam() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MultiSearchRequest request = parseMultiSearchRequestFromStringAndParams("""
+            {}
+            {"query":{"match_all":{}}}
+            """, Map.of(SliceIndexing.PARAM_NAME, "s1,s2"));
+        assertThat(request.requests().size(), equalTo(1));
+        SearchRequest searchRequest = request.requests().getFirst();
+        assertThat(searchRequest.routing(), equalTo("s1,s2"));
+        assertTrue(searchRequest.isRoutingFromSlice());
+        assertThat(searchRequest.searchSlice(), equalTo("s1,s2"));
+    }
+
+    public void testParseRequestRejectsRoutingAndSliceInSameMetadata() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
+            {"routing":"r1","_slice":"s1"}
+            {"query":{"match_all":{}}}
+            """));
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
+    }
+
+    public void testParseRequestRejectsTopLevelRoutingWithMetadataSlice() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
+            {"_slice":"s1"}
+            {"query":{"match_all":{}}}
+            """, Map.of("routing", "r1")));
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
+    }
+
+    public void testParseRequestRejectsTopLevelSliceWithMetadataRouting() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromStringAndParams("""
+            {"routing":"r1"}
+            {"query":{"match_all":{}}}
+            """, Map.of(SliceIndexing.PARAM_NAME, "s1")));
+        assertEquals("[routing] and [_slice] cannot be combined in the same _msearch request", ex.getMessage());
+    }
+
+    public void testParseRequestRejectsMetadataSliceWhenFeatureDisabled() throws IOException {
+        assumeFalse("slice indexing feature flag must be disabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseMultiSearchRequestFromString("""
+            {"_slice":"s1"}
+            {"query":{"match_all":{}}}
+            """));
+        assertEquals("request does not support [_slice]", ex.getMessage());
+    }
+
+    public void testParseRequestAllowsDifferentRoutingModesPerSubRequestWithoutTopLevel() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MultiSearchRequest request = parseMultiSearchRequestFromString("""
+            {"routing":"r1"}
+            {"query":{"match_all":{}}}
+            {"_slice":"s1"}
+            {"query":{"match_all":{}}}
+            """);
+        assertThat(request.requests().size(), equalTo(2));
+        SearchRequest routingRequest = request.requests().get(0);
+        assertThat(routingRequest.routing(), equalTo("r1"));
+        assertFalse(routingRequest.isRoutingFromSlice());
+        assertNull(routingRequest.searchSlice());
+        SearchRequest sliceRequest = request.requests().get(1);
+        assertThat(sliceRequest.routing(), equalTo("s1"));
+        assertTrue(sliceRequest.isRoutingFromSlice());
+        assertThat(sliceRequest.searchSlice(), equalTo("s1"));
+    }
+
+    public void testWriteSearchRequestParamsUsesSliceFieldWhenRoutingFromSlice() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest();
+        request.routing("s1");
+        request.searchSlice("s1");
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            MultiSearchRequest.writeSearchRequestParams(request, builder);
+            Map<String, Object> map = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                BytesReference.bytes(builder).streamInput(),
+                false
+            );
+            assertThat(map.get(SliceIndexing.PARAM_NAME), equalTo("s1"));
+            assertNull(map.get("routing"));
+        }
+    }
+
     public void testResponseErrorToXContent() throws IOException {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
@@ -238,7 +324,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                       "status": 500
                     }
                   ]
-                }""", tookInMillis)), Strings.toString(response));
+                }""", tookInMillis)), Strings.toTruncatedString(response));
         } finally {
             response.decRef();
         }
@@ -287,6 +373,10 @@ public class MultiSearchRequestTests extends ESTestCase {
         return parseMultiSearchRequest(createRestRequest(request.getBytes(StandardCharsets.UTF_8)));
     }
 
+    private MultiSearchRequest parseMultiSearchRequestFromStringAndParams(String request, Map<String, String> params) throws IOException {
+        return parseMultiSearchRequest(createRestRequest(request.getBytes(StandardCharsets.UTF_8), params));
+    }
+
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         return parseMultiSearchRequest(createRestRequest(sample));
     }
@@ -310,6 +400,12 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     private FakeRestRequest createRestRequest(byte[] data) {
         return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON).build();
+    }
+
+    private FakeRestRequest createRestRequest(byte[] data, Map<String, String> params) {
+        return new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON)
+            .withParams(params)
+            .build();
     }
 
     @Override
@@ -362,6 +458,51 @@ public class MultiSearchRequestTests extends ESTestCase {
             );
             assertEquals(originalRequest, parsedRequest);
         }
+    }
+
+    public void testMultiLineSerializationPreservesSliceProvenance() throws IOException {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        MultiSearchRequest originalRequest = new MultiSearchRequest();
+        originalRequest.add(new SearchRequest("index-1").routing("s1").searchSlice("s1"));
+        originalRequest.add(new SearchRequest("index-2").searchSlice(SliceIndexing.SLICE_ALL));
+
+        byte[] bytes = MultiSearchRequest.writeMultiLineFormat(originalRequest, XContentType.JSON.xContent());
+        MultiSearchRequest parsedRequest = new MultiSearchRequest();
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer = (r, p) -> {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().parseXContent(
+                p,
+                false,
+                new UsageService().getSearchUsageHolder(),
+                nf -> false
+            );
+            if (searchSourceBuilder.equals(new SearchSourceBuilder()) == false) {
+                r.source(searchSourceBuilder);
+            }
+            parsedRequest.add(r);
+        };
+        MultiSearchRequest.readMultiLineFormat(
+            XContentType.JSON.xContent(),
+            parserConfig(),
+            new BytesArray(bytes),
+            consumer,
+            null,
+            null,
+            null,
+            null,
+            null,
+            true,
+            Optional.empty(),
+            null
+        );
+        assertThat(parsedRequest.requests().size(), equalTo(2));
+        SearchRequest parsedSlice = parsedRequest.requests().get(0);
+        assertThat(parsedSlice.routing(), equalTo("s1"));
+        assertTrue(parsedSlice.isRoutingFromSlice());
+        assertThat(parsedSlice.searchSlice(), equalTo("s1"));
+        SearchRequest parsedAll = parsedRequest.requests().get(1);
+        assertNull(parsedAll.routing());
+        assertTrue(parsedAll.isRoutingFromSlice());
+        assertThat(parsedAll.searchSlice(), equalTo(SliceIndexing.SLICE_ALL));
     }
 
     public void testWritingExpandWildcards() throws IOException {
@@ -546,12 +687,11 @@ public class MultiSearchRequestTests extends ESTestCase {
                 """);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
-            // Jackson 2.21.0 changed the error message format
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': no open Object to close\n"
-                        + " at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
+                    "Unexpected close marker '}': expected ']' (for root starting at "
+                        + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );
         }

@@ -18,10 +18,13 @@ import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
@@ -33,7 +36,6 @@ import java.util.Objects;
  */
 public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> EXCHANGE_BUFFER_SIZE = Setting.intSetting("exchange_buffer_size", 10);
-    public static final Setting<Integer> EXCHANGE_CONCURRENT_CLIENTS = Setting.intSetting("exchange_concurrent_clients", 2);
     public static final Setting<Integer> ENRICH_MAX_WORKERS = Setting.intSetting("enrich_max_workers", 1);
 
     public static final Setting<Integer> TASK_CONCURRENCY = Setting.intSetting(
@@ -94,7 +96,90 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
 
-    public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
+    /**
+     * Query-level override for the maximum number of keyword sort fields allowed when pushing TopN to Lucene.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#MAX_KEYWORD_SORT_FIELDS} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     * The resolution logic lives in {@code PushTopNToSource}.
+     */
+    public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting("max_keyword_sort_fields", -1, -1);
+
+    /**
+     * Controls how external source queries are distributed across nodes.
+     * Valid values: "adaptive" (default), "coordinator_only", "round_robin".
+     */
+    public static final Setting<String> EXTERNAL_DISTRIBUTION = Setting.simpleString("external_distribution", "adaptive");
+
+    /**
+     * Query-level override for the IN subquery hash join threshold.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#IN_SUBQUERY_HASH_JOIN_THRESHOLD} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     */
+    public static final Setting<Integer> IN_SUBQUERY_HASH_JOIN_THRESHOLD = Setting.intSetting("in_subquery_hash_join_threshold", -1, -1);
+
+    /**
+     * The number of branches to execute in parallel. This is a safeguard to avoid overloading the cluster with too many parallel branches.
+     * This applies to forks and subqueries.
+     */
+    public static final Setting<Integer> BRANCH_PARALLEL_DEGREE = Setting.intSetting("branch_parallel_degree", 2, 1);
+
+    /**
+     * Number of parallel parser threads for intra-file text format parsing (CSV, NDJSON).
+     * Defaults to allocated processors. Set to 1 to disable parallel parsing.
+     */
+    public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
+        "parsing_parallelism",
+        EsExecutors.allocatedProcessors(Settings.EMPTY),
+        1
+    );
+
+    /**
+     * Per-file cap on the number of intra-file byte-range segments whose object-store read streams are
+     * open at once during parallel text parsing. Each open segment holds a storage read stream (one S3
+     * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
+     * consumer drains segments strictly in order, so this is a shallow read-ahead depth, not a
+     * parallelism. It is deliberately not {@code parsing_parallelism}: a file is already split into about
+     * {@code parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
+     * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
+     * {@link #BRANCH_PARALLEL_DEGREE}.
+     * <p>
+     * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
+     * {@code (data-node driver instances) × max_concurrent_open_segments × (files open per driver)} — tune
+     * with that product in mind, not this value alone. The default is sourced from
+     * {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting(
+        "max_concurrent_open_segments",
+        SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+        1
+    );
+
+    /**
+     * Bytes the streaming external-source parser may buffer for a single record before failing the query
+     * — guards against a scanner that never finds a boundary reading the input without bound. Defaults to
+     * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}. Bounded to {@code [1, Integer.MAX_VALUE]}
+     * bytes: the cap is held as an {@code int} downstream, so an out-of-range value is rejected at parse
+     * time rather than overflowing later.
+     */
+    public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
+        "max_record_size",
+        ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE)
+    );
+
+    /**
+     * When {@code true}, forces all non-single-segment pages through {@code ValuesFromDocSequence}
+     * regardless of the number of {@code BYTES_REF} fields. Intended for testing the correctness
+     * of doc-sequence loading.
+     */
+    public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
+
+    /**
+     *  When {@code true}, allows full-text functions to be used with expressions that are not indexed fields.
+     */
+    public static final Setting<Boolean> RUNTIME_LEXICAL_SEARCH = Setting.boolSetting("runtime_lexical_search", false);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -102,6 +187,13 @@ public final class QueryPragmas implements Writeable {
 
     public QueryPragmas(Settings settings) {
         this.settings = settings;
+    }
+
+    /**
+     * Returns the underlying settings.
+     */
+    public Settings settings() {
+        return settings;
     }
 
     public QueryPragmas(StreamInput in) throws IOException {
@@ -122,7 +214,7 @@ public final class QueryPragmas implements Writeable {
     }
 
     public int concurrentExchangeClients() {
-        return EXCHANGE_CONCURRENT_CLIENTS.get(settings);
+        return ExchangeSourceHandler.CONCURRENT_CLIENTS_SETTING.get(settings);
     }
 
     public DataPartitioning dataPartitioning(DataPartitioning defaultDataPartitioning) {
@@ -217,11 +309,40 @@ public final class QueryPragmas implements Writeable {
         return ROUNDTO_PUSHDOWN_THRESHOLD.get(settings);
     }
 
+    public int maxKeywordSortFields() {
+        return MAX_KEYWORD_SORT_FIELDS.get(settings);
+    }
+
+    public String externalDistribution() {
+        return EXTERNAL_DISTRIBUTION.get(settings);
+    }
+
+    public int parsingParallelism() {
+        return PARSING_PARALLELISM.get(settings);
+    }
+
+    public int maxConcurrentOpenSegments() {
+        return MAX_CONCURRENT_OPEN_SEGMENTS.get(settings);
+    }
+
+    public ByteSizeValue maxRecordSize() {
+        return MAX_RECORD_SIZE.get(settings);
+    }
+
+    public int branchParallelDegree() {
+        return BRANCH_PARALLEL_DEGREE.get(settings);
+    }
+
     /**
-     * Returns true if we should add the implicit LIMIT to FORK branches
+     * Returns the effective doc-sequence threshold. When {@link #FORCE_DOC_SEQUENCE} is
+     * {@code true}, returns {@code 0} so that all non-single-segment pages use
+     * {@code ValuesFromDocSequence}; otherwise returns {@code clusterDefault}.
      */
-    public boolean forkImplicitLimit() {
-        return FORK_IMPLICIT_LIMIT.get(settings);
+    public int docSequenceBytesRefFieldThreshold(int clusterDefault) {
+        if (FORCE_DOC_SEQUENCE.get(settings)) {
+            return 0;
+        }
+        return clusterDefault;
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {
@@ -236,6 +357,17 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
         }
         return defaultThreshold;
+    }
+
+    public int docsThresholdForAutoPartitioning(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
+            return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public boolean runtimeLexicalSearch() {
+        return RUNTIME_LEXICAL_SEARCH.get(settings);
     }
 
     public boolean isEmpty() {

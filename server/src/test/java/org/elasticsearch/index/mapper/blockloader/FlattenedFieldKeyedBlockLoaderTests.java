@@ -14,7 +14,8 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
+import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.IntStream;
 
-public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
+public class FlattenedFieldKeyedBlockLoaderTests extends BinaryDVBlockLoaderTestCase {
 
     private static final DataSourceHandler FLATTENED_DATA_GENERATOR = new DataSourceHandler() {
         @Override
@@ -96,32 +97,30 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        boolean useDocValues = hasDocValues(fieldMapping, true)
+            && (params.preference() != MappedFieldType.FieldExtractPreference.STORED || params.syntheticSource());
+
+        int ignoreAbove = fieldMapping.get("ignore_above") != null && useDocValues
+            ? ((Number) fieldMapping.get("ignore_above")).intValue()
+            : Integer.MAX_VALUE;
+
         var nullValue = (String) fieldMapping.get("null_value");
         if (value == null) {
-            return convert(null, nullValue);
+            return convert(null, nullValue, ignoreAbove);
         }
 
         if (value instanceof List<?> valueList) {
-            var valueStream = valueList.stream()
-                .map(v -> v == null ? nullValue : v)
-                .filter(Objects::nonNull)
-                .map(Object::toString)
-                .map(BytesRef::new);
-
-            boolean hasDocValues = hasDocValues(fieldMapping, true);
-            boolean useDocValues = params.syntheticSource() && testContext.forceFallbackSyntheticSource() == false;
-
-            if (hasDocValues && useDocValues) {
+            var valueStream = valueList.stream().map(v -> convert(v, nullValue, ignoreAbove)).filter(Objects::nonNull);
+            if (useDocValues) {
                 valueStream = valueStream.distinct().sorted();
             }
-
             return maybeFoldList(valueStream.toList());
         }
 
-        return convert(value, nullValue);
+        return convert(value, nullValue, ignoreAbove);
     }
 
-    private static BytesRef convert(Object value, String nullValue) {
+    private static BytesRef convert(Object value, String nullValue, int ignoreAbove) {
         if (value == null) {
             if (nullValue != null) {
                 value = nullValue;
@@ -130,11 +129,13 @@ public class FlattenedFieldKeyedBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
-        return new BytesRef(value.toString());
+        String valueStr = value.toString();
+
+        return valueStr.length() <= ignoreAbove ? new BytesRef(valueStr) : null;
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() {
-        assumeTrue("flattened fields do not support multi fields", false);
+    protected boolean supportsMultiField() {
+        return false;
     }
 }

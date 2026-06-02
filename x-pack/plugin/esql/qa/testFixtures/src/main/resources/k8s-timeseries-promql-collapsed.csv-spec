@@ -1,0 +1,111 @@
+// Tests for the TS_COLLAPSE pipe command.
+// In collapsed format each series is returned as a single row with multi-valued step and value columns.
+// These tests mirror expanded-format tests in k8s-timeseries-promql.csv-spec and
+// k8s-timeseries-promql-nested.csv-spec to verify that both formats produce the same data.
+
+// Multi-step, global scalar — mirrors promql_start_end_step.
+start_end_step_global_scalar
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=5m start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" (
+  sum(avg_over_time(network.cost[5m]))
+)
+| TS_COLLAPSE;
+
+sum(avg_over_time(network.cost[5m])):double | step:datetime
+[51.958333333333336, 51.59375]             | [2024-05-10T00:20:00.000Z, 2024-05-10T00:25:00.000Z]
+;
+
+// Single step, per-cluster — mirrors nested_within_series_sum_by_cluster_avg_over_time.
+single_step_per_cluster
+required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" result=(sum by (cluster) (avg_over_time(network.cost[1h])))
+| TS_COLLAPSE
+| SORT cluster;
+
+result:double          | step:datetime              | cluster:keyword
+[18.032269021739133]   | [2024-05-10T01:00:00.000Z] | prod
+[20.76903735632184]    | [2024-05-10T01:00:00.000Z] | qa
+[17.521233974358974]   | [2024-05-10T01:00:00.000Z] | staging
+;
+
+// Multiple steps, global scalar. Three steps at 00:08, 00:09, and 00:10; values derived from
+// avg_over_time_of_double_no_grouping_promql in k8s-timeseries-avg-over-time.csv-spec.
+multi_step_global_scalar
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+PROMQL index=k8s step=1m start="2024-05-10T00:08:00.000Z" end="2024-05-10T00:10:00.000Z" cost=(sum(avg_over_time(network.cost[1m])))
+| TS_COLLAPSE;
+
+cost:double              | step:datetime
+[31.229166666666664, 45.875, 69.6875] | [2024-05-10T00:08:00.000Z, 2024-05-10T00:09:00.000Z, 2024-05-10T00:10:00.000Z]
+;
+
+// Docs examples — tagged for CommandDocsTests.
+
+docs_ts_collapse_basic
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+// tag::ts_collapse[]
+PROMQL index=k8s step=1m start="2024-05-10T00:11:00.000Z" end="2024-05-10T00:14:00.000Z" cost=(round(sum(avg_over_time(network.cost[1m])), 0.0001))
+| TS_COLLAPSE
+// end::ts_collapse[]
+;
+
+// tag::ts_collapse-result[]
+cost:double                      | step:datetime
+[13.25, 36.375, 37.9375, 39.5417] | [2024-05-10T00:11:00.000Z, 2024-05-10T00:12:00.000Z, 2024-05-10T00:13:00.000Z, 2024-05-10T00:14:00.000Z]
+// end::ts_collapse-result[]
+;
+
+docs_ts_collapse_by_cluster
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+// tag::ts_collapse_by_cluster[]
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+| TS_COLLAPSE
+| SORT cluster
+// end::ts_collapse_by_cluster[]
+;
+
+// tag::ts_collapse_by_cluster-result[]
+clients:double        | step:datetime                                                                  | cluster:keyword
+[396.5, 632.5, 742.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | prod
+[440.0, 565.0, 454.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | qa
+[205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging
+// end::ts_collapse_by_cluster-result[]
+;
+
+docs_ts_collapse_eval
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket_v2
+required_capability: fix_tstep_bucket_rounding
+// tag::ts_collapse_eval[]
+PROMQL index=k8s step=1m start="2024-05-10T00:02:00.000Z" end="2024-05-10T00:04:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+| TS_COLLAPSE
+| EVAL avg_clients = MV_AVG(clients)
+| SORT avg_clients DESC
+| LIMIT 10
+// end::ts_collapse_eval[]
+;
+
+// tag::ts_collapse_eval-result[]
+clients:double        | step:datetime                                                                  | cluster:keyword | avg_clients:double
+[396.5, 632.5, 742.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | prod            | 590.3333333333334
+[440.0, 565.0, 454.0] | [2024-05-10T00:02:00.000Z, 2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z] | qa              | 486.3333333333333
+[205.0, 357.0]        | [2024-05-10T00:03:00.000Z, 2024-05-10T00:04:00.000Z]                           | staging         | 281.0
+// end::ts_collapse_eval-result[]
+;

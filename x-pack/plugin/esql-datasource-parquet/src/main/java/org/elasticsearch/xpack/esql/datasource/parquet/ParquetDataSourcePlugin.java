@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatSpec;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Data source plugin that provides Parquet format support for ESQL external data sources.
@@ -36,8 +41,25 @@ import java.util.Map;
  */
 public class ParquetDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Per-dataset configuration keys accepted by the Parquet format reader.
+     * Must stay in sync with {@code ParquetFormatReader.RECOGNIZED_KEYS}; verified
+     * by {@code ParquetFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
+     */
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("optimized_reader", "late_materialization");
+
+    @Override
+    public Set<FormatSpec> formatSpecs() {
+        return Set.of(FormatSpec.of(FormatNameResolver.FORMAT_PARQUET, ".parquet", FORMAT_CONFIG_KEYS));
+    }
+
     @Override
     public Map<String, FormatReaderFactory> formatReaders(Settings settings) {
-        return Map.of("parquet", (s, blockFactory) -> new ParquetFormatReader(blockFactory));
+        return Map.of(FormatNameResolver.FORMAT_PARQUET, (s, blockFactory) -> new ParquetFormatReader(blockFactory));
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(ParquetReaderStatus.ENTRY);
     }
 }

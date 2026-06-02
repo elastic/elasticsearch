@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: preview
-stack: preview
+stack: preview 9.4
 ```
 
 The `URI_PARTS` processing command parses a Uniform Resource Identifier (URI) string and extracts its components into new columns.
@@ -71,7 +71,7 @@ If the expression is not a valid URI, a warning is issued and all output columns
 
 The following example parses a URI and extracts its parts:
 
-:::{include} ../examples/uri_parts.csv-spec/basic.md
+:::{include} ../../generated/x-pack-esql/commands/examples/uri_parts.csv-spec/basic.md
 :::
 
 You can use the extracted parts in subsequent commands, for example to filter by domain:

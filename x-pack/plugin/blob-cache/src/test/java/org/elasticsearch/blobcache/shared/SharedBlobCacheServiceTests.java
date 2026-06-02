@@ -15,6 +15,7 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFileRegion;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.RangeMissingHandler;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService.SourceInputStreamFactory;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -47,6 +48,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -261,7 +264,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ioExecutor.shutdown();
     }
 
-    private static boolean tryEvict(SharedBlobCacheService.CacheFileRegion<TestCacheKey> region1) {
+    private static boolean tryEvict(CacheFileRegion<TestCacheKey> region1) {
         if (randomBoolean()) {
             return region1.tryEvict();
         } else {
@@ -657,6 +660,170 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * When freq0 is below threshold and the freelist is non-empty, allocation uses a free region
+     * and does not schedule decay.
+     */
+    public void testNoDecayWhenFreelistNonEmptyAndFreq0BelowThreshold() throws IOException {
+        final int numRegions = between(20, 100);
+        final int threshold = Math.max(1, (int) (numRegions * 0.05));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        long fileLength = size(numRegions + 10);
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cache = new SharedBlobCacheService<TestCacheKey>(
+                env,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            var keys = new ArrayList<TestCacheKey>(numRegions);
+            var regions = new ArrayList<CacheFileRegion<TestCacheKey>>(numRegions);
+            for (int i = 0; i < numRegions; i++) {
+                var key = generateCacheKey();
+                keys.add(key);
+                regions.add(cache.get(key, fileLength, 0));
+            }
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            for (int i = 0; i < numRegions - 1; i++) {
+                cache.get(keys.get(i), fileLength, 0);
+            }
+            long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
+            assertThat("freq0 count must be below threshold", freq0Count, lessThan((long) threshold));
+
+            var soleFreq0Region = cache.get(keys.get(numRegions - 1), fileLength, 0);
+            synchronized (cache) {
+                assertTrue(tryEvict(soleFreq0Region));
+            }
+            taskQueue.runAllRunnableTasks();
+            assertThat(cache.freeRegionCount(), equalTo(1));
+            long epochBefore = cache.epoch();
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            assertThat("no decay when freelist is non-empty even though freq0 is below threshold", cache.epoch(), equalTo(epochBefore));
+        }
+    }
+
+    /**
+     * When freq0 is below threshold and the freelist is empty, allocation that triggers eviction
+     * does schedule decay.
+     */
+    public void testDecayWhenFreelistEmptyAndFreq0BelowThreshold() throws IOException {
+        final int numRegions = between(20, 100);
+        final int threshold = Math.max(1, (int) (numRegions * 0.05));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        long fileLength = size(numRegions + 10);
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cache = new SharedBlobCacheService<TestCacheKey>(
+                env,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            var keys = new ArrayList<TestCacheKey>(numRegions);
+            var regions = new ArrayList<CacheFileRegion<TestCacheKey>>(numRegions);
+            for (int i = 0; i < numRegions; i++) {
+                var key = generateCacheKey();
+                keys.add(key);
+                regions.add(cache.get(key, fileLength, 0));
+            }
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            for (int i = 0; i < numRegions - 1; i++) {
+                cache.get(keys.get(i), fileLength, 0);
+            }
+            long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
+            assertThat("freq0 below threshold", freq0Count, lessThan((long) threshold));
+            assertThat(cache.freeRegionCount(), equalTo(0));
+
+            long epochBefore = cache.epoch();
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            assertThat(
+                "decay is provoked when freelist is empty and freq0 is below threshold (5% of numRegions)",
+                cache.epoch(),
+                equalTo(epochBefore + 1L)
+            );
+        }
+    }
+
+    /**
+     * When freq0 is at or above threshold (5% of numRegions), allocation that triggers eviction
+     * does not schedule decay (right time, not sooner).
+     */
+    public void testNoDecayWhenFreq0AtOrAboveThreshold() throws IOException {
+        final int numRegions = between(20, 100);
+        final int threshold = Math.max(1, (int) (numRegions * 0.05));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        long fileLength = size(numRegions + 10);
+        DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cache = new SharedBlobCacheService<TestCacheKey>(
+                env,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            var keys = new ArrayList<TestCacheKey>(numRegions);
+            var regions = new ArrayList<CacheFileRegion<TestCacheKey>>(numRegions);
+            for (int i = 0; i < numRegions; i++) {
+                var key = generateCacheKey();
+                keys.add(key);
+                regions.add(cache.get(key, fileLength, 0));
+            }
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            int promoted = 0;
+            for (int i = 0; i < numRegions && promoted < numRegions - threshold - 1; i++) {
+                if (regions.get(i).isEvicted() == false) {
+                    cache.get(keys.get(i), fileLength, 0);
+                    promoted++;
+                }
+            }
+            long freq0Count = regions.stream().filter(r -> r.isEvicted() == false).filter(r -> cache.getFreq(r) == 0).count();
+            assertThat("freq0 must be at or above threshold so decay is not triggered", freq0Count, greaterThanOrEqualTo((long) threshold));
+            assertThat(cache.freeRegionCount(), equalTo(0));
+
+            long epochBefore = cache.epoch();
+            cache.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+            assertThat(
+                "decay is not provoked when freq0 is at or above threshold (5% of numRegions), even with empty freelist",
+                cache.epoch(),
+                equalTo(epochBefore)
+            );
+        }
+    }
+
     private static long recordedEpochs(RecordingMeterRegistry recordingMeterRegistry) {
         long epochs = recordingMeterRegistry.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.epoch.total")
@@ -786,7 +953,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                         ready.await();
                         for (int i = 0; i < iterations; ++i) {
                             try {
-                                SharedBlobCacheService.CacheFileRegion<TestCacheKey> cacheFileRegion;
+                                CacheFileRegion<TestCacheKey> cacheFileRegion;
                                 try {
                                     cacheFileRegion = cacheService.get(cacheKeys[i], fileLength, regions[i]);
                                 } catch (AlreadyClosedException e) {
@@ -1049,10 +1216,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 BlobCacheMetrics.NOOP
             )
         ) {
-            final Map<TestCacheKey, SharedBlobCacheService.CacheFileRegion<TestCacheKey>> cacheEntries = new HashMap<>();
+            final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> cacheEntries = new HashMap<>();
 
             assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
-            assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(false));
 
             // use all regions in cache
             for (int i = 0; i < numRegions; i++) {
@@ -1071,13 +1238,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheEntries.put(cacheKey, entry);
             }
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat(
+                "Expected no entries old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
 
             taskQueue.runAllRunnableTasks();
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat(
+                "Expected no entries old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
 
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
@@ -1094,13 +1269,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
             );
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat(
+                "Expected no entries old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
 
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
             cacheEntries.forEach(
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(2) : equalTo(0))
             );
@@ -1108,11 +1287,19 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             var zeroFrequencyCacheEntries = cacheEntries.size() - usedCacheKeys.size();
             for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
-                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
+                assertThat(
+                    "Expected at least one entry old enough to be evicted",
+                    cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                    is(true)
+                );
                 assertThat(cacheService.freeRegionCount(), equalTo(i + 1));
             }
 
-            assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat(
+                "Expected no more entries old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
             assertThat(cacheService.freeRegionCount(), equalTo(zeroFrequencyCacheEntries));
         }
     }
@@ -1217,10 +1404,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(0, cacheService.freeRegionCount());
                 final var cacheKey = generateCacheKey();
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                final int region = randomIntBetween(0, 10);
                 cacheService.maybeFetchRegion(
                     cacheKey,
-                    randomIntBetween(0, 10),
-                    randomLongBetween(1L, regionSize),
+                    region,
+                    regionSize * (region + 1),
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
                         completionListener,
                         () -> {
@@ -1584,7 +1772,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRange(
                     cacheKey,
-                    randomIntBetween(0, 10),
+                    0, // first region since blobLength fits in the size of a region
                     ByteRange.of(0L, blobLength),
                     blobLength,
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
@@ -1757,7 +1945,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.fetchRange(
                     cacheKey,
-                    randomIntBetween(0, 10),
+                    0, // first region since blobLength fits in the size of a region
                     ByteRange.of(0L, blobLength),
                     blobLength,
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
@@ -1876,6 +2064,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             assertThat(future1.isDone(), is(false));
             assertThat(taskQueue.hasRunnableTasks(), is(true));
+            assertFalse(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
 
             // start populating the second region
             entry = cacheService.get(cacheKey, blobLength, 1);
@@ -1893,7 +2082,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 future2
             );
 
-            // start populating again the first region, listener should be called immediately
+            assertFalse(entry.tracker.waitForRangeIfPending(ByteRange.of(0, regionSize - 1), ActionListener.noop()));
+
+            taskQueue.runAllRunnableTasks();
+
+            // start populating again the first region; populate completes directly
             entry = cacheService.get(cacheKey, blobLength, 0);
             final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
             entry.populate(
@@ -1912,8 +2105,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(future3.isDone(), is(true));
             var written = future3.get(10L, TimeUnit.SECONDS);
             assertThat(written, is(false));
-
-            taskQueue.runAllRunnableTasks();
 
             written = future1.get(10L, TimeUnit.SECONDS);
             assertThat(future1.isDone(), is(true));
@@ -1968,7 +2159,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                BlobCacheMetrics.NOOP,
+                new DefaultEvictionPolicy<>()
             ) {
                 @Override
                 protected int computeCacheFileRegionSize(long fileLength, int region) {
@@ -2112,6 +2304,845 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertBusy(() -> assertThat(factoryClosed.get(), is(true)));
         } finally {
             threadPool.shutdown();
+        }
+    }
+
+    // Verifies that withByteBufferSlice returns false before data is populated, and provides
+    // a readable byte buffer with correct content after population. Single region of size(10), file size(8).
+    public void testWithByteBufferSlice() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8); // fits in a single region
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // before populating, withByteBufferSlice should return false (data not available)
+            assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
+
+            // populate the cache with known data
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            final int bytesRead = cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+            assertThat(bytesRead, equalTo((int) fileLength));
+
+            // now withByteBufferSlice should provide a valid slice
+            int sliceOffset = randomIntBetween(0, (int) fileLength / 2);
+            int sliceLength = randomIntBetween(1, (int) fileLength - sliceOffset);
+            boolean available = cacheFile.withByteBufferSlice(sliceOffset, sliceLength, slice -> {
+                assertTrue(slice.isReadOnly());
+                assertEquals(sliceLength, slice.remaining());
+                byte[] sliceData = new byte[sliceLength];
+                slice.get(sliceData);
+                for (int i = 0; i < sliceLength; i++) {
+                    assertEquals(testData[sliceOffset + i], sliceData[i]);
+                }
+            });
+            assertTrue(available);
+        }
+        ioExecutor.shutdown();
+    }
+
+    // Verifies that the byte buffer ref held during the callback prevents the region from being
+    // evicted. 2 regions of size(10), file size(8); eviction pressure is applied inside the callback.
+    public void testWithByteBufferSlicePreventsEviction() throws Exception {
+        final int regionSize = (int) size(10);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(20)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(2, cacheService.freeRegionCount());
+
+            // populate region 0 with known data for cacheKey1
+            final long fileLength = size(8); // fits in one region
+            final var cacheKey1 = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile1 = cacheService.getCacheFile(
+                cacheKey1,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile1.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // inside the callback, the ref is held — eviction should not reclaim the region
+            boolean available = cacheFile1.withByteBufferSlice(0, (int) fileLength, slice -> {
+                // fill the remaining region with a different key, using up all free regions
+                final var cacheKey2 = generateCacheKey();
+                cacheService.get(cacheKey2, fileLength, 0);
+
+                // now all regions are used; requesting yet another key triggers eviction pressure
+                final var cacheKey3 = generateCacheKey();
+                cacheService.get(cacheKey3, fileLength, 0);
+                taskQueue.runAllRunnableTasks();
+
+                // the buffer should still contain the original data (region not evicted while ref held)
+                byte[] readBack = new byte[(int) fileLength];
+                slice.get(readBack);
+                assertArrayEquals(testData, readBack);
+            });
+            assertTrue(available);
+
+        }
+        ioExecutor.shutdown();
+    }
+
+    // Verifies that withByteBufferSlice returns false and the callback is not invoked after a
+    // region has been evicted. 2 regions of size(10), file size(8); eviction forced by cache pressure.
+    public void testWithByteBufferSliceReturnsFalseAfterEviction() throws Exception {
+        final int regionSize = (int) size(10);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(20)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(2, cacheService.freeRegionCount());
+
+            final long fileLength = size(8); // fits in one region
+            final var cacheKey1 = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile1 = cacheService.getCacheFile(
+                cacheKey1,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // populate the region
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile1.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // confirm the slice is accessible before eviction
+            assertTrue(cacheFile1.withByteBufferSlice(0, (int) fileLength, slice -> {}));
+
+            // fill the second region, then request a third key to force eviction of cacheKey1's region
+            cacheService.get(generateCacheKey(), fileLength, 0);
+            cacheService.get(generateCacheKey(), fileLength, 0);
+            taskQueue.runAllRunnableTasks();
+
+            // after eviction the action must not be invoked and the method must return false
+            boolean available = cacheFile1.withByteBufferSlice(
+                0,
+                (int) fileLength,
+                slice -> { fail("action should not be invoked after eviction"); }
+            );
+            assertFalse(available);
+        }
+    }
+
+    // Verifies that withByteBufferSlice returns false when the requested range spans multiple
+    // regions. Regions of size(10), file size(25) spanning 3 regions; slice straddles the boundary.
+    public void testWithByteBufferSliceCrossRegionReturnsFalse() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(25); // spans 3 regions
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // request a slice that spans the region boundary (region 0 -> region 1)
+            // region 0 covers [0, regionSize), region 1 covers [regionSize, 2*regionSize)
+            int crossBoundaryOffset = regionSize - 100;
+            int crossBoundaryLength = 200; // crosses into region 1
+            boolean available = cacheFile.withByteBufferSlice(crossBoundaryOffset, crossBoundaryLength, slice -> {
+                fail("action should not be invoked for cross-region slice");
+            });
+            assertFalse(available);
+        }
+    }
+
+    // Verifies that withByteBufferSlice returns false when mmap is disabled, even after the
+    // region has been fully populated. Single region of size(10), file size(8), mmap=false.
+    public void testWithByteBufferSliceNoMmapReturnsFalse() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // populate the cache
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // without mmap, withByteBufferSlice should return false even with data populated
+            boolean available = cacheFile.withByteBufferSlice(
+                0,
+                100,
+                slice -> { fail("action should not be invoked when mmap is not enabled"); }
+            );
+            assertFalse(available);
+        }
+        ioExecutor.shutdown();
+    }
+
+    // Verifies that withByteBufferSlices resolves multiple ranges within a single region
+    // and across regions, returning the correct data for each slice.
+    public void testWithByteBufferSlices() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(25); // spans 3 regions
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // before populating, withByteBufferSlices should return false
+            long[] offsets = { 0, (long) regionSize + 10, (long) regionSize * 2 + 5 };
+            int sliceLen = 50;
+            assertFalse(cacheFile.withByteBufferSlices(offsets, sliceLen, 3, slices -> fail("should not be invoked")));
+
+            // populate all regions
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // now withByteBufferSlices should succeed for slices within regions
+            boolean available = cacheFile.withByteBufferSlices(offsets, sliceLen, 3, slices -> {
+                assertEquals(3, slices.length);
+                for (int i = 0; i < 3; i++) {
+                    assertNotNull(slices[i]);
+                    assertTrue(slices[i].isReadOnly());
+                    assertEquals(sliceLen, slices[i].remaining());
+                    byte[] sliceData = new byte[sliceLen];
+                    slices[i].get(sliceData);
+                    for (int j = 0; j < sliceLen; j++) {
+                        assertEquals(testData[(int) offsets[i] + j], sliceData[j]);
+                    }
+                }
+            });
+            assertTrue(available);
+        }
+    }
+
+    // Verifies that withByteBufferSlices correctly handles multiple slices from the same region,
+    // only acquiring one ref-count for deduplication.
+    public void testWithByteBufferSlicesSameRegion() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8); // fits in a single region
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // multiple slices all within the same region
+            int sliceLen = 20;
+            long[] offsets = { 0, 30, 60, 100 };
+            int count = offsets.length;
+            boolean available = cacheFile.withByteBufferSlices(offsets, sliceLen, count, slices -> {
+                assertEquals(count, slices.length);
+                for (int i = 0; i < count; i++) {
+                    assertEquals(sliceLen, slices[i].remaining());
+                    byte[] sliceData = new byte[sliceLen];
+                    slices[i].get(sliceData);
+                    for (int j = 0; j < sliceLen; j++) {
+                        assertEquals(testData[(int) offsets[i] + j], sliceData[j]);
+                    }
+                }
+            });
+            assertTrue(available);
+        }
+    }
+
+    // Verifies that withByteBufferSlices returns false when any range crosses a region boundary,
+    // even when other ranges are valid. Regions of size(10), file size(25) spanning 3 regions.
+    public void testWithByteBufferSlicesCrossRegionReturnsFalse() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(25); // spans 3 regions
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            int sliceLen = 200;
+            int crossBoundaryOffset = regionSize - 100; // straddles region 0 -> region 1
+            long[] offsets = { 10, crossBoundaryOffset, (long) regionSize * 2 + 5 };
+            boolean available = cacheFile.withByteBufferSlices(offsets, sliceLen, 3, slices -> {
+                fail("action should not be invoked when a range crosses a region boundary");
+            });
+            assertFalse(available);
+        }
+    }
+
+    // Verifies that withByteBufferSlices returns false when mmap is disabled.
+    public void testWithByteBufferSlicesNoMmapReturnsFalse() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), false)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            long[] offsets = { 0, 50 };
+            assertFalse(cacheFile.withByteBufferSlices(offsets, 20, 2, slices -> fail("should not be invoked")));
+        }
+    }
+
+    public void testWithByteBufferSlicesPartialPopulationReleasesRefs() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(25); // spans 3 regions
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            // populate only region 0, leaving regions 1 and 2 unpopulated
+            byte[] testData = randomByteArrayOfLength(regionSize);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, regionSize),
+                ByteRange.of(0L, regionSize),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            // request slices in region 0 (populated) and region 1 (not populated);
+            // the loop acquires a ref on region 0, then hits the population check failure on region 1
+            var region0 = cacheService.get(cacheKey, fileLength, 0);
+            long[] offsets = { 50, (long) regionSize + 10 };
+            int sliceLen = 50;
+            assertFalse(cacheFile.withByteBufferSlices(offsets, sliceLen, 2, slices -> fail("should not be invoked")));
+
+            // region 0's ref should have been released by the finally block
+            synchronized (cacheService) {
+                assertTrue("region 0 should be evictable after mid-loop failure released its ref", tryEvict(region0));
+            }
+        }
+    }
+
+    public void testWithByteBufferSlicesReleasesRefsOnException() throws Exception {
+        final int regionSize = (int) size(10);
+        final long fileLength = size(8); // fits in a single region
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), true)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        ExecutorService ioExecutor = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                ioExecutor,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<TestCacheKey>.CacheFile cacheFile = cacheService.getCacheFile(
+                cacheKey,
+                fileLength,
+                SharedBlobCacheService.CacheMissHandler.NOOP
+            );
+
+            byte[] testData = randomByteArrayOfLength((int) fileLength);
+            ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            var region = cacheService.get(cacheKey, fileLength, 0);
+            int freeBeforeCall = cacheService.freeRegionCount();
+
+            long[] offsets = { 0, 50 };
+            IOException thrown = expectThrows(IOException.class, () -> cacheFile.withByteBufferSlices(offsets, 20, 2, slices -> {
+                throw new IOException("test exception");
+            }));
+            assertEquals("test exception", thrown.getMessage());
+
+            assertEquals(freeBeforeCall, cacheService.freeRegionCount());
+
+            synchronized (cacheService) {
+                assertTrue("region should be evictable after refs released by finally block", tryEvict(region));
+            }
+        }
+    }
+
+    public void testGetIfPresentDoesNotAllocateRegionWhenAbsent() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 19));
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), randomBoolean())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheFile = cacheService.getCacheFile(generateCacheKey(), fileLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+            final int initialFreeRegions = cacheService.freeRegionCount();
+
+            assertFalse(cacheFile.tryRead(ByteBuffer.allocate(100), 0));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.tryPrefetch(0, fileLength));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+
+            assertFalse(cacheFile.withByteBufferSlices(new long[] { 0L }, 100, 1, slices -> fail("should not be invoked")));
+            assertThat(cacheService.freeRegionCount(), equalTo(initialFreeRegions));
+        }
+    }
+
+    public void testGetIfPresentFindsPopulatedEntry() throws Exception {
+        final long regionSize = size(10);
+        final long fileLength = size(randomIntBetween(5, 19));
+        final boolean mmapEnabled = randomBoolean();
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSize).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), mmapEnabled)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var cacheKey = generateCacheKey();
+            final var cacheFile = cacheService.getCacheFile(cacheKey, fileLength, SharedBlobCacheService.CacheMissHandler.NOOP);
+
+            final byte[] testData = randomByteArrayOfLength((int) fileLength);
+            final ByteBuffer writeBuffer = ByteBuffer.allocate(SharedBytes.PAGE_SIZE);
+            cacheFile.populateAndRead(
+                ByteRange.of(0L, fileLength),
+                ByteRange.of(0L, fileLength),
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    SharedBytes.copyToCacheFileAligned(
+                        channel,
+                        new java.io.ByteArrayInputStream(testData, relativePos, len),
+                        channelPos,
+                        relativePos,
+                        len,
+                        progressUpdater,
+                        writeBuffer.clear()
+                    );
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                "test"
+            );
+
+            final int singleRegionBound = (int) Math.min(regionSize, fileLength);
+            final int readOffset = randomIntBetween(0, singleRegionBound / 2);
+            final int readLength = randomIntBetween(1, singleRegionBound - readOffset);
+            final byte[] expected = Arrays.copyOfRange(testData, readOffset, readOffset + readLength);
+            final byte[] actual = new byte[readLength];
+
+            assertTrue(cacheFile.tryRead(ByteBuffer.wrap(actual), readOffset));
+            assertArrayEquals(expected, actual);
+
+            if (mmapEnabled) {
+                Arrays.fill(actual, (byte) 0);
+                final boolean sliceAvailable = cacheFile.withByteBufferSlice(readOffset, readLength, slice -> {
+                    assertTrue(slice.isReadOnly());
+                    slice.get(actual);
+                });
+                assertTrue(sliceAvailable);
+                assertArrayEquals(expected, actual);
+
+                Arrays.fill(actual, (byte) 0);
+                final boolean slicesAvailable = cacheFile.withByteBufferSlices(new long[] { readOffset }, readLength, 1, slices -> {
+                    assertThat(slices.length, equalTo(1));
+                    assertThat(slices[0], notNullValue());
+                    assertTrue(slices[0].isReadOnly());
+                    slices[0].get(actual);
+                });
+                assertTrue(slicesAvailable);
+                assertArrayEquals(expected, actual);
+            }
         }
     }
 

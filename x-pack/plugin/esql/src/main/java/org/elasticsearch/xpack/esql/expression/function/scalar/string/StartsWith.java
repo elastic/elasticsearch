@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -24,7 +24,9 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -46,6 +48,9 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         "StartsWith",
         StartsWith::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StartsWith.class)
+        .binary(StartsWith::new)
+        .name("starts_with");
 
     private final Expression str;
     private final Expression prefix;
@@ -120,6 +125,14 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         return Arrays.equals(str.bytes, str.offset, str.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
     }
 
+    @Evaluator(extraName = "Constant")
+    static boolean processConstant(BytesRef str, @Fixed(jitConstant = true) BytesRef prefix) {
+        if (str.length < prefix.length) {
+            return false;
+        }
+        return Arrays.equals(str.bytes, str.offset, str.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new StartsWith(source(), newChildren.get(0), newChildren.get(1));
@@ -132,6 +145,13 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (prefix.foldable()) {
+            Object folded = prefix.fold(toEvaluator.foldCtx());
+            BytesRef constantPrefix = BytesRefs.toBytesRef(folded);
+            if (constantPrefix != null) {
+                return new StartsWithConstantEvaluator.Factory(source(), toEvaluator.apply(str), constantPrefix);
+            }
+        }
         return new StartsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(prefix));
     }
 
@@ -146,9 +166,9 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
 
         // TODO: Get the real FoldContext here
-        var wildcardQuery = QueryParser.escape(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
+        var wildcardQuery = StringUtils.escapeWildcardLiteral(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
 
-        return new WildcardQuery(source(), fieldName, wildcardQuery, false, false);
+        return new WildcardQuery(source(), fieldName, wildcardQuery, false, pushdownPredicates.flags().stringLikeOnIndex());
     }
 
     @Override

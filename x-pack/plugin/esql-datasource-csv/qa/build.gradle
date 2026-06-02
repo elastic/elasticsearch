@@ -33,21 +33,173 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   // The CSV datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-gzip'))
+  clusterPlugins project(xpackModule('esql-datasource-zstd'))
+  clusterPlugins project(xpackModule('esql-datasource-bzip2'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The CSV fixtures (employees.csv and csv-basic.csv-spec) are included
-// directly in this module's javaRestTest/resources directory
+// Standalone CSVs under iceberg-fixtures/ are copied from esql:qa:testFixtures (single source of truth).
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def serverProject = project(xpackModule('esql:qa:server'))
+def csvIcebergFixtureRoot = file("${buildDir}/csv-iceberg-fixtures")
+def tsvFixtureOutputRoot = file("${buildDir}/generated-tsv-fixtures")
+
+tasks.register('syncCsvIcebergFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'employees.csv', 'web_logs.csv', 'books.csv', 'apps.csv', 'mv_sample.csv', 'employees_no_mv.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone")
+}
+
+// Two-file headerless fixture set with anchor-vs-other type-drift on col1. Used by the
+// csv-headerless.csv-spec multi-file glob test to prove the anchor schema is honored end-to-end.
+tasks.register('syncCsvIcebergMultifileFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_a_anchor.csv', 'multifile_b_other.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile")
+}
+
+// UNION_BY_NAME fixture set with divergent schemas across files: a has [name, age:int],
+// b has [age:long, name, city]. Used by csv-headerless.csv-spec to prove the UBN recipe
+// (reorder + null-fill + widening cast) works end-to-end across the full pipeline.
+tasks.register('syncCsvIcebergMultifileUbnFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_ubn_a.csv', 'multifile_ubn_b.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_ubn")
+}
+
+// UNION_BY_NAME KEYWORD-fallback fixture set: two CSVs with un-typed headers so the sampler
+// infers different per-file types for the `col` column (INTEGER in file A, KEYWORD in file B).
+// The reconciler must widen `col` to KEYWORD with a warning instead of throwing. Used by
+// csv-union-by-name.csv-spec to prove the end-to-end stringification path under UBN.
+tasks.register('syncCsvIcebergMultifileTypeDriftFixtures', Sync) {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  duplicatesStrategy = DuplicatesStrategy.FAIL
+  from(testFixturesProject.file('src/main/resources/data')) {
+    include 'multifile_type_drift_a.csv', 'multifile_type_drift_b.csv'
+  }
+  into file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_type_drift")
+}
+
+// Generate multifile CSV fixtures by splitting employees.csv into 3 parts (analogous to
+// the Parquet 3-way split in esql-datasource-parquet/qa/build.gradle). This enables the
+// shared external-multifile.csv-spec tests to run for CSV format. The split preserves raw
+// line content (no parsing) so multi-value bracket syntax and typed headers stay intact.
+def multifileSplitDir = file("${csvIcebergFixtureRoot}/iceberg-fixtures/multifile_split")
+def multifileEmployeesCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
+def multifileSplitParts = 3
+tasks.register('generateMultifileCsvSplit_employees') {
+  dependsOn testFixturesProject.tasks.named('processResources')
+  inputs.file(multifileEmployeesCsv)
+  outputs.dir(multifileSplitDir)
+  doLast {
+    def lines = multifileEmployeesCsv.readLines('UTF-8')
+    if (lines.isEmpty()) {
+      throw new GradleException("Source CSV is empty: ${multifileEmployeesCsv}")
+    }
+    def header = lines[0]
+    def data = lines.subList(1, lines.size())
+    int total = data.size()
+    int partSize = ((total + multifileSplitParts - 1).intdiv(multifileSplitParts))
+    multifileSplitDir.mkdirs()
+    def baseName = multifileEmployeesCsv.name.replaceFirst(/\.csv$/, '')
+    for (int part = 0; part < multifileSplitParts; part++) {
+      int from = part * partSize
+      int to = Math.min(from + partSize, total)
+      if (from >= total) {
+        break
+      }
+      def fileName = String.format(Locale.ROOT, "%s_%02d.csv", baseName, part)
+      def out = new File(multifileSplitDir, fileName)
+      out.withWriter('UTF-8') { w ->
+        w.writeLine(header)
+        for (int i = from; i < to; i++) {
+          w.writeLine(data[i])
+        }
+      }
+    }
+  }
+}
+
+// Same basenames as syncCsvIcebergFixtures — external-basic.csv-spec uses {{employees}}, {{web_logs}}, {{books}}.
+def csvBasenamesForTsv = ['employees', 'web_logs', 'books', 'mv_sample', 'employees_no_mv']
+
+def generateStandaloneTsvTasks = []
+csvBasenamesForTsv.each { baseName ->
+  def taskName = "generateStandaloneTsv_${baseName}"
+  def csvSynced = file("${csvIcebergFixtureRoot}/iceberg-fixtures/standalone/${baseName}.csv")
+  def tsvOut = file("${tsvFixtureOutputRoot}/iceberg-fixtures/standalone/${baseName}.tsv")
+  tasks.register(taskName, JavaExec) {
+    dependsOn tasks.named('syncCsvIcebergFixtures'), serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+    classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+    args = [csvSynced.path, tsvOut.path]
+    inputs.file(csvSynced)
+    outputs.file(tsvOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateStandaloneTsvTasks.add(tasks.named(taskName))
+}
+
+// Multifile-split TSV fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.tsv.
+// Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
+// TsvFormatSpecIT's readScriptSpec is broadened to include them.
+def tsvMultifileSplitDir = file("${tsvFixtureOutputRoot}/iceberg-fixtures/multifile_split")
+def tsvMultifileSplitCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
+tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+  args = [tsvMultifileSplitCsv.path, tsvMultifileSplitDir.path, '3']
+  inputs.file(tsvMultifileSplitCsv)
+  outputs.dir(tsvMultifileSplitDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'))
+
+tasks.register('generateStandaloneTsvFixtures') {
+  dependsOn generateStandaloneTsvTasks
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.tsv'
+}
+
+sourceSets.javaRestTest.resources {
+  srcDir csvIcebergFixtureRoot
+  srcDir tsvFixtureOutputRoot
+}
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
+}
 
 tasks.named('javaRestTest') {
+  dependsOn 'syncCsvIcebergFixtures', 'syncCsvIcebergMultifileFixtures', 'syncCsvIcebergMultifileUbnFixtures', 'syncCsvIcebergMultifileTypeDriftFixtures', 'generateStandaloneTsvFixtures', 'generateMultifileCsvSplit_employees'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
 
   // Increase timeouts for S3 operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'

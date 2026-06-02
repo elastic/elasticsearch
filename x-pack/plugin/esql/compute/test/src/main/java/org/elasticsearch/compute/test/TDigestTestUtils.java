@@ -7,14 +7,20 @@
 
 package org.elasticsearch.compute.test;
 
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.aggregation.TDigestStates;
 import org.elasticsearch.compute.data.TDigestHolder;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.MemoryTrackingTDigestArrays;
 import org.elasticsearch.tdigest.Centroid;
+import org.elasticsearch.tdigest.TDigest;
 
 import java.util.Collection;
 
 public class TDigestTestUtils {
+
+    private static final CircuitBreaker NOOP_BREAKER = new NoopCircuitBreaker("test-breaker");
+    private static final MemoryTrackingTDigestArrays NOOP_ARRAYS = new MemoryTrackingTDigestArrays(NOOP_BREAKER);
 
     /**
      * Utility method for verifying that a TDigestHolder is a correct merge of a collection of TDigestHolders.
@@ -29,21 +35,21 @@ public class TDigestTestUtils {
         double sum = 0.0;
         boolean anyValuesNonNull = false;
 
-        TDigestState reference = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
+        TDigest reference = TDigest.createMergingDigest(NOOP_ARRAYS, TDigestStates.COMPRESSION);
 
         for (var tdigest : inputValues) {
             if (tdigest != null) {
                 anyValuesNonNull = true;
-                totalCount += tdigest.getValueCount();
+                totalCount += tdigest.size();
                 min = Double.isNaN(tdigest.getMin()) ? min : Math.min(min, tdigest.getMin());
                 max = Double.isNaN(tdigest.getMax()) ? max : Math.max(max, tdigest.getMax());
                 sum += Double.isNaN(tdigest.getSum()) ? 0.0 : tdigest.getSum();
-
-                TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
-                tdigest.addTo(decoded);
-                tdigest.addTo(reference);
+                reference.add(tdigest);
             }
         }
+
+        TDigest mergedAsTDigest = TDigest.createMergingDigest(NOOP_ARRAYS, TDigestStates.COMPRESSION);
+        mergedAsTDigest.add(merged);
 
         if (anyValuesNonNull == false) {
             return merged == null;
@@ -71,24 +77,22 @@ public class TDigestTestUtils {
                 return false;
             }
         }
-        if (totalCount != merged.getValueCount()) {
+        if (totalCount != merged.size()) {
             return false;
         }
 
-        TDigestState decoded = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
-        merged.addTo(decoded);
         long tDigestTotalCount = 0;
-        for (Centroid centroid : decoded.centroids()) {
+        for (Centroid centroid : merged.centroids()) {
             tDigestTotalCount += centroid.count();
         }
         if (tDigestTotalCount != totalCount) {
             return false;
         }
         if (tDigestTotalCount > 0) {
-            if (Math.abs(decoded.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
+            if (Math.abs(mergedAsTDigest.quantile(0.01) - reference.quantile(0.01)) > 0.1) {
                 return false;
             }
-            if (Math.abs(decoded.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
+            if (Math.abs(mergedAsTDigest.quantile(0.99) - reference.quantile(0.99)) > 0.1) {
                 return false;
             }
         }

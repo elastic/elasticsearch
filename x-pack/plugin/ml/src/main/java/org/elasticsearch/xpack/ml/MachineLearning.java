@@ -32,12 +32,9 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -72,7 +69,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -313,6 +309,7 @@ import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
+import org.elasticsearch.xpack.ml.datafeed.CrossClusterSearchStats;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -729,6 +726,19 @@ public class MachineLearning extends Plugin
     );
 
     /**
+     * Open anomaly detection jobs whose datafeed is stopped and that have not received data for
+     * longer than this duration will be automatically closed during nightly maintenance. Set to
+     * {@code -1} to disable auto-close.
+     */
+    public static final Setting<TimeValue> IDLE_JOB_AUTO_CLOSE_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.idle_job_auto_close_timeout",
+        TimeValue.timeValueHours(48),
+        TimeValue.MINUS_ONE,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
+
+    /**
      * This is the maximum possible node size for a machine learning node. It is useful when determining if a job could ever be opened
      * on the cluster.
      *
@@ -750,6 +760,44 @@ public class MachineLearning extends Plugin
         "xpack.ml.delayed_data_check_freq",
         TimeValue.timeValueMinutes(15),
         TimeValue.timeValueSeconds(1),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Maximum total time to retry the job opening pipeline when a system-initiated reassignment encounters transient failures
+     * (e.g. during rolling upgrades). User-initiated opens are not retried. Minimum is 1 minute.
+     */
+    public static final Setting<TimeValue> JOB_OPEN_RETRY_TIMEOUT = Setting.timeSetting(
+        "xpack.ml.job_open_retry_timeout",
+        TimeValue.timeValueMinutes(60),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(365),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum number of consecutive search cycles a cross-cluster scope change must persist before being
+     * confirmed. Lowering this value (together with {@link #CCS_STABILIZATION_FLOOR}) enables faster
+     * detection in integration tests without waiting for production timeouts.
+     */
+    public static final Setting<Integer> CCS_STABILIZATION_CYCLES = Setting.intSetting(
+        "xpack.ml.ccs_stabilization_cycles",
+        CrossClusterSearchStats.DEFAULT_STABILIZATION_CYCLES,
+        1,
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum wall-clock duration since a cross-cluster scope change was first observed before it can
+     * be confirmed. Works in conjunction with {@link #CCS_STABILIZATION_CYCLES}.
+     */
+    public static final Setting<TimeValue> CCS_STABILIZATION_FLOOR = Setting.timeSetting(
+        "xpack.ml.ccs_stabilization_floor",
+        CrossClusterSearchStats.DEFAULT_MIN_STABILIZATION_DURATION,
+        TimeValue.ZERO,
         Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -853,6 +901,7 @@ public class MachineLearning extends Plugin
             ALLOCATED_PROCESSORS_SCALE,
             MachineLearningField.AUTODETECT_PROCESS,
             PROCESS_CONNECT_TIMEOUT,
+            MachineLearningField.MODEL_GRAPH_VALIDATION_ENABLED,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
             MachineLearningField.MAX_LAZY_ML_NODES,
@@ -867,9 +916,13 @@ public class MachineLearning extends Plugin
             ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
             NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
             RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+            IDLE_JOB_AUTO_CLOSE_TIMEOUT,
             MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
             MAX_ML_NODE_SIZE,
             DELAYED_DATA_CHECK_FREQ,
+            JOB_OPEN_RETRY_TIMEOUT,
+            CCS_STABILIZATION_CYCLES,
+            CCS_STABILIZATION_FLOOR,
             DUMMY_ENTITY_MEMORY,
             DUMMY_ENTITY_PROCESSORS,
             SCALE_UP_COOLDOWN_TIME,
@@ -1073,7 +1126,9 @@ public class MachineLearning extends Plugin
             jobConfigProvider,
             xContentRegistry,
             settings,
-            client
+            client,
+            machineLearningExtension.get(),
+            anomalyDetectionAuditor
         );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
@@ -1175,7 +1230,8 @@ public class MachineLearning extends Plugin
             System::currentTimeMillis,
             jobResultsPersister,
             settings,
-            clusterService
+            clusterService,
+            () -> machineLearningExtension.get().getCloudCredentialManager()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,
@@ -1376,6 +1432,7 @@ public class MachineLearning extends Plugin
             settings,
             threadPool,
             clusterService,
+            anomalyDetectionAuditor,
             client,
             adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
@@ -1393,7 +1450,6 @@ public class MachineLearning extends Plugin
             autodetectProcessManager,
             dataFrameAnalyticsManager
         );
-
         return List.of(
             mlLifeCycleService,
             new MlControllerHolder(mlController),
@@ -1483,13 +1539,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

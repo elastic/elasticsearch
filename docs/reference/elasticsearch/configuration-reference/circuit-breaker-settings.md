@@ -142,6 +142,16 @@ This circuit breaker can be configured using the following settings:
 
 
 
+## ES|QL circuit breaker [circuit-breakers-page-esql]
+
+{{esql}} executes queries by building blocks of data (columns, aggregations, and other pipeline structures) in memory. When processing large datasets or running queries with high-cardinality aggregations, the memory used by these structures can grow significantly and potentially exceed the available JVM heap, which could cause an `OutOfMemoryError` and bring down the node.
+
+To prevent this, {{esql}} uses the [request circuit breaker](#request-circuit-breaker), which limits memory allocation during query execution. There is no dedicated {{esql}} circuit breaker; {{esql}} shares the request breaker with other per-request operations such as aggregations. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException` is thrown and a descriptive error message including `circuit_breaking_exception` is returned to the user.
+
+The request breaker settings (`indices.breaker.request.limit`, `indices.breaker.request.overhead`, and `indices.breaker.request.type`) are documented in the [Request circuit breaker](#request-circuit-breaker) section.
+
+
+
 ### {{ml-cap}} circuit breaker [circuit-breakers-page-model-inference]
 
 `breaker.model_inference.limit`
@@ -152,4 +162,18 @@ This circuit breaker can be configured using the following settings:
 
 `breaker.model_inference.type`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The underlying type of the circuit breaker. There are two valid options: `noop` and `memory`. `noop` means the circuit breaker does nothing to prevent too much memory usage. `memory` means the circuit breaker tracks the memory used by trained models and can potentially break and prevent `OutOfMemory` errors. The default value is `memory`.
+
+
+## Synonym circuit breaker [circuit-breakers-page-synonym]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+The [`synonym`](/reference/text-analysis/analysis-synonym-tokenfilter.md) and [`synonym_graph`](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) token filters check real heap memory usage when building the synonyms map, to prevent large synonym sets from causing out-of-memory errors. This check uses the [parent circuit breaker](#parent-circuit-breaker), which trips when memory usage exceeds the `indices.breaker.total.limit` threshold (defaults to 95% of JVM heap when `indices.breaker.total.use_real_memory` is `true`).
+
+The threshold is configurable using the [parent circuit breaker settings](#parent-circuit-breaker). {applies_to}`serverless: unavailable`
+
+For details on behavior when the circuit breaker trips, refer to the [synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md#synonym-tokenizer-circuit-breaker) and [synonym graph token filter](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md#synonym-graph-tokenizer-circuit-breaker) documentation.
 

@@ -82,6 +82,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -90,7 +91,6 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -109,7 +109,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -174,7 +173,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -220,11 +218,14 @@ public class IndicesService extends AbstractLifecycleComponent
         TimeValue.timeValueMinutes(1),
         Property.NodeScope
     );
+
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE) // To be removed in v10
     public static final Setting<Boolean> INDICES_ID_FIELD_DATA_ENABLED_SETTING = Setting.boolSetting(
         "indices.id_field_data.enabled",
         false,
         Property.Dynamic,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     public static final Setting<Boolean> WRITE_DANGLING_INDICES_INFO_SETTING = Setting.boolSetting(
@@ -275,9 +276,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
-
-    private final Function<IndexMode, IdFieldMapper> idFieldMappers;
-
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = ConcurrentCollections.newConcurrentSet();
@@ -393,12 +391,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 closeLatch.countDown();
             }
         });
-
-        Map<IndexMode, IdFieldMapper> idFieldMappers = new EnumMap<>(IndexMode.class);
-        for (IndexMode mode : IndexMode.values()) {
-            idFieldMappers.put(mode, mode.buildIdFieldMapper(() -> idFieldDataEnabled));
-        }
-        this.idFieldMappers = idFieldMappers::get;
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
@@ -850,7 +842,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            idFieldMappers.apply(idxSettings.getMode()),
+            () -> idFieldDataEnabled,
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers
@@ -1319,7 +1311,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public IndexMetadata verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index (name + uuid) is not part of the cluster state
-        if (clusterState.metadata().getProject().index(index) != null) {
+        if (clusterState.metadata().lookupProject(index).isPresent()) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
         if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
@@ -1671,7 +1663,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
+            if (settings.isRequestCacheEnabled() == false) {
                 return false;
             } else if (context.size() != 0) {
                 // If no request cache query parameter and shard request cache
@@ -1694,13 +1686,27 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
-     * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
-     * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
-     * the same cache.
-     */
+    * Equivalent to {@link #loadIntoContext(ShardSearchRequest, SearchContext, Consumer)} with
+    * {@code cancellationRegistrar == null}.
+    */
     public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
-        assert canCache(request, context);
+        loadIntoContext(request, context, null);
+    }
+
+    /**
+    * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
+    * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
+    * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
+    * the same cache.
+    *
+    * @param request the shard search request
+    * @param context the search context to populate
+    * @param cancellationRegistrar registers cancellation handling for the underlying work; may be {@code null}
+    * @throws Exception if loading, computing, or deserialization fails
+    */
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context, Consumer<Runnable> cancellationRegistrar)
+        throws Exception {
+        assert IndicesService.canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
@@ -1714,7 +1720,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
-            }
+            },
+            cancellationRegistrar
         );
 
         if (loadedFromCache[0]) {
@@ -1757,6 +1764,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
      * @param cacheKey key for the thing being cached within this shard
      * @param loader loads the data into the cache if needed
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(
@@ -1764,7 +1772,8 @@ public class IndicesService extends AbstractLifecycleComponent
         MappingLookup.CacheKey mappingCacheKey,
         DirectoryReader reader,
         BytesReference cacheKey,
-        CheckedConsumer<StreamOutput, IOException> loader
+        CheckedConsumer<StreamOutput, IOException> loader,
+        Consumer<Runnable> cancellationRegistrar
     ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
@@ -1783,7 +1792,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey, cancellationRegistrar);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
@@ -1923,7 +1932,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexService service = indexService(shardId.getIndex());
         if (service != null) {
             IndexShard shard = service.getShardOrNull(shardId.id());
-            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, fields);
+            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, requestCache, fields);
             if ((requestCache || (clearedAtLeastOne == false && fields.length == 0)) && shard != null) {
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }

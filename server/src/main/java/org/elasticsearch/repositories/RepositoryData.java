@@ -301,6 +301,7 @@ public final class RepositoryData {
     public boolean hasMissingDetails(SnapshotId snapshotId) {
         final SnapshotDetails snapshotDetails = getSnapshotDetails(snapshotId);
         return snapshotDetails == null
+            || snapshotDetails.getSnapshotState() == null
             || snapshotDetails.getVersion() == null
             || snapshotDetails.getVersion().id() == NUMERIC_INDEX_VERSION_MARKER.id()
             || snapshotDetails.getStartTimeMillis() == -1

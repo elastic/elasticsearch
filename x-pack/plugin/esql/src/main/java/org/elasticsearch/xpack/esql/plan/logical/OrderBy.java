@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.SemiJoin;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,6 +39,9 @@ public class OrderBy extends UnaryPlan
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
+
+    public static final String UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE = "{} [{}] cannot yet have an unbounded SORT [{}]"
+        + " before it: either move the SORT after it, or add a LIMIT after the SORT";
 
     public OrderBy(Source source, LogicalPlan child, List<Order> order) {
         super(source, child);
@@ -129,9 +133,37 @@ public class OrderBy extends UnaryPlan
                         orderBy -> failures.add(
                             fail(
                                 inlineJoin,
-                                "INLINE STATS [{}] cannot yet have an unbounded SORT [{}] before it : either move the SORT after it,"
-                                    + " or add a LIMIT before the SORT",
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "INLINE STATS",
                                 inlineJoin.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof MvExpand mvExpand) {
+                mvExpand.child()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                mvExpand,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "MV_EXPAND",
+                                mvExpand.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof SemiJoin semiJoin) {
+                semiJoin.right()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                semiJoin,
+                                UNBOUNDED_SORT_NOT_SUPPORTED_FOR_COMMAND_MESSAGE,
+                                "IN subquery",
+                                semiJoin.sourceText(),
                                 orderBy.sourceText()
                             )
                         )

@@ -17,10 +17,11 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.tasks.Task;
@@ -36,8 +37,6 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.core.Strings.format;
-
 /**
  * This class was created to extract out the logic from {@link Node#prepareForClose()} to facilitate testing.
  * <p>
@@ -48,6 +47,13 @@ import static org.elasticsearch.core.Strings.format;
  * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
  */
 public class ShutdownPrepareService {
+
+    /// Allows setting the system property `es.reindex.disable_relocation` as an escape hatch to disable triggering reindex relocation.
+    // TODO(#2715): Remove this when we're confident relocation works
+    private static final boolean DISABLE_REINDEX_RELOCATION = Booleans.parseBooleanLenient(
+        System.getProperty("es.reindex.disable_relocation", "false"),
+        false
+    );
 
     private record ShutdownHook(String name, Runnable action) {}
 
@@ -184,25 +190,14 @@ public class ShutdownPrepareService {
                 final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
-                    logger.warn(
-                        "timed out after waiting [{}] for [{}] {} tasks to finish",
-                        timeout.toString(),
-                        tasksRemaining.size(),
-                        taskName
-                    );
+                    logger.warn("timed out after waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
                     return;
                 }
-                logger.debug(format("waiting for [%s] " + taskName + " tasks to finish, next poll in [%s]", tasksRemaining, pollPeriod));
+                logger.debug("waiting for [{}] {} tasks to finish, next poll in [{}]", tasksRemaining.size(), taskName, pollPeriod);
                 try {
                     Thread.sleep(pollPeriod.millis());
                 } catch (InterruptedException ex) {
-                    logger.warn(
-                        format(
-                            "interrupted while waiting [%s] for [%d] " + taskName + " tasks to finish",
-                            timeout.toString(),
-                            tasksRemaining
-                        )
-                    );
+                    logger.warn("interrupted while waiting [{}] for [{}] {} tasks to finish", timeout, tasksRemaining.size(), taskName);
                     return;
                 }
             }
@@ -218,27 +213,38 @@ public class ShutdownPrepareService {
             asyncReindexTimeout,
             ReindexAction.NAME,
             taskManager,
-            ShutdownPrepareService::maybeRequestRelocationForBulkByScroll
+            ShutdownPrepareService::maybeRequestRelocationForBulkByPaginatedSearch
         );
     }
 
     // package-private for tests
-    static void maybeRequestRelocationForBulkByScroll(Task task) {
-        if (task instanceof BulkByScrollTask bulkByScrollTask) {
-            if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
-                if (bulkByScrollTask.isLeader()) {
-                    logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
+    static void maybeRequestRelocationForBulkByPaginatedSearch(Task task) {
+        if (task instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
+            if (bulkByPaginatedSearchTask.isEligibleForRelocationOnShutdown()
+                && bulkByPaginatedSearchTask.isRelocationRequested() == false) {
+                if (DISABLE_REINDEX_RELOCATION) {
+                    logger.info(
+                        "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
+                        task.getId()
+                    );
+                    return;
+                }
+                if (bulkByPaginatedSearchTask.isLeader()) {
+                    logger.info(
+                        "Requesting relocation task for leader bulk-by-paginated-search task {} and its workers",
+                        bulkByPaginatedSearchTask.getId()
+                    );
                 } else {
                     logger.debug(
-                        "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
-                        bulkByScrollTask.getId(),
-                        bulkByScrollTask.getParentTaskId()
+                        "Requesting relocation task for worker bulk-by-paginated-search task {} (leader: {})",
+                        bulkByPaginatedSearchTask.getId(),
+                        bulkByPaginatedSearchTask.getParentTaskId()
                     );
                 }
-                bulkByScrollTask.requestRelocation();
+                bulkByPaginatedSearchTask.requestRelocation();
             }
         } else {
-            logger.warn("Requested relocation task for non-bulk-by-scroll task {}", task);
+            logger.warn("Requested relocation task for non-bulk-by-paginated-search task {}", task);
         }
     }
 }

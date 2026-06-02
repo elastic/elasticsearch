@@ -11,13 +11,15 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.gpu.CuVSGPUSupport;
 import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -28,14 +30,16 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
+    static final GPUSupport gpuSupport = CuVSGPUSupport.instance();
+
     @BeforeClass
     public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
+        assumeTrue("cuvs not supported", gpuSupport.isSupported());
     }
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        var plugin = new GPUPlugin(Settings.EMPTY) {
+        var plugin = new GPUPlugin(Settings.EMPTY, gpuSupport) {
             @Override
             protected boolean isGpuIndexingFeatureAllowed() {
                 return true;
@@ -62,6 +66,19 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         assertTrue(knnVectorsFormat.toString().startsWith(expectedStr));
     }
 
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
+        if (randomBoolean()) {
+            // GPU int8_hnsw does not support max_inner_product
+            VectorSimilarity similarity = randomValueOtherThan(
+                VectorSimilarity.MAX_INNER_PRODUCT,
+                () -> randomFrom(VectorSimilarity.values())
+            );
+            b.field("index", true).field("similarity", similarity.toString());
+        }
+    }
+
     private KnnVectorsFormat getKnnVectorsFormat(String indexOptionsType) throws IOException {
         final int dims = randomIntBetween(128, 4096);
         MapperService mapperService = createMapperService(fieldMapping(b -> {
@@ -75,15 +92,10 @@ public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests 
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG) {
-            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            return ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
+        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            codec = deduplicateFieldInfosCodec.delegate();
         }
+        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+        return ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
     }
 }

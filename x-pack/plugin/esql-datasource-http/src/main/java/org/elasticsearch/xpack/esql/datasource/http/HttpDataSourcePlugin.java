@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -36,14 +37,19 @@ import java.util.concurrent.ExecutorService;
 public class HttpDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
+    public Set<String> supportedSchemes() {
+        return Set.of("http", "https", "file");
+    }
+
+    @Override
     public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
         return Map.of(
             "http",
-            s -> new HttpStorageProvider(HttpConfiguration.defaults(), executor),
+            StorageProviderFactory.noConfigKeys(() -> new HttpStorageProvider(HttpConfiguration.defaults(), executor)),
             "https",
-            s -> new HttpStorageProvider(HttpConfiguration.defaults(), executor),
+            StorageProviderFactory.noConfigKeys(() -> new HttpStorageProvider(HttpConfiguration.defaults(), executor)),
             "file",
-            s -> new LocalStorageProvider()
+            StorageProviderFactory.noConfigKeys(LocalStorageProvider::new)
         );
     }
 }

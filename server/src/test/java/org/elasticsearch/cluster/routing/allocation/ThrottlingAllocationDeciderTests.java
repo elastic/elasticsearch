@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -28,8 +27,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
 
@@ -108,15 +105,9 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         /* Decider Testing */
 
         // Set up RoutingAllocation in non-simulation mode.
-        var routingAllocation = new RoutingAllocation(
-            null,
-            harness.mutableRoutingNodes,
-            harness.clusterState,
-            ClusterInfo.builder().build(),
-            null,
-            System.nanoTime(),
-            false // Turn off isSimulating
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .routingNodes(harness.mutableRoutingNodes)
+            .mutable();
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.unthrottle_replica_assignment_in_simulation", randomBoolean() ? true : false)
@@ -182,15 +173,10 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
         /* Decider Testing */
 
         // Set up RoutingAllocation in simulation mode.
-        var routingAllocation = new RoutingAllocation(
-            null,
-            mutableRoutingNodes,
-            harness.clusterState,
-            ClusterInfo.builder().build(),
-            null,
-            System.nanoTime(),
-            true // Turn on isSimulating
-        );
+        var routingAllocation = TestRoutingAllocationFactory.forClusterState(harness.clusterState)
+            .routingNodes(mutableRoutingNodes)
+            .mutable()
+            .mutableCloneForSimulation();
 
         Settings settings = Settings.builder()
             .put("cluster.routing.allocation.unthrottle_replica_assignment_in_simulation", true)
@@ -205,7 +191,7 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             decider.canAllocate(harness.unassignedShardRouting1Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(
+        var initializingPrimary1 = mutableRoutingNodes.initializeShard(
             harness.unassignedShardRouting1Primary,
             harness.mutableRoutingNode1.nodeId(),
             null,
@@ -216,13 +202,15 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             decider.canAllocate(harness.unassignedShardRouting2Primary, harness.mutableRoutingNode1, routingAllocation),
             equalTo(Decision.YES)
         );
-        mutableRoutingNodes.initializeShard(
+        var initializingPrimary2 = mutableRoutingNodes.initializeShard(
             harness.unassignedShardRouting2Primary,
             harness.mutableRoutingNode1.nodeId(),
             null,
             0,
             RoutingChangesObserver.NOOP
         );
+        mutableRoutingNodes.startShard(initializingPrimary1, RoutingChangesObserver.NOOP, 0);
+        mutableRoutingNodes.startShard(initializingPrimary2, RoutingChangesObserver.NOOP, 0);
 
         // Replica path is unthrottled during simulation AND `unthrottle_replica_assignment_in_simulation` is set to true.
         assertThat(
@@ -247,8 +235,5 @@ public class ThrottlingAllocationDeciderTests extends ESAllocationTestCase {
             0,
             RoutingChangesObserver.NOOP
         );
-
-        // Note: INITIALIZING was chosen above, not STARTED, because the BalancedShardsAllocator only initializes. We want that path to be
-        // unthrottled in simulation.
     }
 }

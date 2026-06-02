@@ -12,8 +12,8 @@ package org.elasticsearch.windows.service;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.file.Files;
@@ -64,7 +64,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(args, "--StopMode", "jvm");
         addQuotedArg(args, "--StartPath", quote(pinfo.workingDir().toString()));
         addArg(args, "++JvmOptions", "-Dcli.name=windows-service-daemon");
-        addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/windows-service-cli");
+        addArg(args, "++JvmOptions", "-Dcli.libs=lib/tools/server-cli,lib/tools/server-launcher,lib/tools/windows-service-cli");
         addArg(args, "++Environment", String.format(java.util.Locale.ROOT, "HOSTNAME=%s", pinfo.envVars().get("COMPUTERNAME")));
 
         String serviceUsername = pinfo.envVars().get("SERVICE_USERNAME");

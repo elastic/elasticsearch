@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
@@ -54,6 +55,7 @@ public class BlockLoaderTestRunner {
     private final BlockLoaderTestCase.Params params;
     private boolean allowDummyDocs;
     private MapperService mapperService;
+    private CircuitBreaker breaker;
     private String fieldName;
     private ParsedDocument doc;
     private Map<String, Object> mapDoc;
@@ -78,6 +80,15 @@ public class BlockLoaderTestRunner {
      */
     public BlockLoaderTestRunner mapperService(MapperService mapperService) {
         this.mapperService = mapperService;
+        return this;
+    }
+
+    /**
+     * Set the {@link CircuitBreaker} used for the test. This must be provided before
+     * calling {@link #run}.
+     */
+    public BlockLoaderTestRunner breaker(CircuitBreaker breaker) {
+        this.breaker = breaker;
         return this;
     }
 
@@ -177,6 +188,9 @@ public class BlockLoaderTestRunner {
         if (mapperService == null) {
             throw new IllegalStateException("need to set mapperService");
         }
+        if (breaker == null) {
+            throw new IllegalStateException("need to set breaker");
+        }
         if (fieldName == null) {
             throw new IllegalStateException("need to set fieldName");
         }
@@ -201,8 +215,8 @@ public class BlockLoaderTestRunner {
 
     private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
-        var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
-        if (columnAtATimeReader != null) {
+        var columnAtATimeReaderSource = blockLoader.columnAtATimeReader(context);
+        if (columnAtATimeReaderSource != null) {
             int[] docArray;
             int offset;
             if (randomBoolean()) {
@@ -227,9 +241,11 @@ public class BlockLoaderTestRunner {
                 }
             }
             BlockLoader.Docs docs = TestBlock.docs(docArray);
-            var block = (TestBlock) columnAtATimeReader.get().read(TestBlock.factory(), docs, offset, false);
-            assertThat(block.size(), equalTo(docArray.length - offset));
-            return block.get(0);
+            try (BlockLoader.ColumnAtATimeReader reader = columnAtATimeReaderSource.apply(breaker)) {
+                var block = (TestBlock) reader.read(TestBlock.factory(), docs, offset, false);
+                assertThat(block.size(), equalTo(docArray.length - offset));
+                return block.get(0);
+            }
         }
 
         StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
@@ -248,11 +264,12 @@ public class BlockLoaderTestRunner {
         storedFieldsLoader.advanceTo(1);
 
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
-        blockLoader.rowStrideReader(context).read(1, storedFieldsLoader, builder);
-        var block = (TestBlock) builder.build();
-        assertThat(block.size(), equalTo(1));
-
-        return block.get(0);
+        try (BlockLoader.RowStrideReader reader = blockLoader.rowStrideReader(breaker, context)) {
+            reader.read(1, storedFieldsLoader, builder);
+            var block = (TestBlock) builder.build();
+            assertThat(block.size(), equalTo(1));
+            return block.get(0);
+        }
     }
 
     private BlockLoader createBlockLoader(String fieldName) {

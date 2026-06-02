@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 /**
  * Data source plugin providing S3 storage support for ESQL.
@@ -22,27 +25,23 @@ import java.util.Map;
 public class S3DataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
-    public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
-        StorageProviderFactory s3Factory = new StorageProviderFactory() {
-            @Override
-            public StorageProvider create(Settings settings) {
-                return new S3StorageProvider(null);
-            }
+    public Set<String> supportedSchemes() {
+        return Set.of("s3", "s3a", "s3n");
+    }
 
-            @Override
-            public StorageProvider create(Settings settings, Map<String, Object> config) {
-                if (config == null || config.isEmpty()) {
-                    return create(settings);
-                }
-                S3Configuration s3Config = S3Configuration.fromFields(
-                    (String) config.get("access_key"),
-                    (String) config.get("secret_key"),
-                    (String) config.get("endpoint"),
-                    (String) config.get("region")
-                );
-                return new S3StorageProvider(s3Config);
-            }
-        };
+    @Override
+    public Map<String, StorageProviderFactory> storageProviders(Settings settings, ExecutorService executor) {
+        StorageProviderFactory s3Factory = StorageProviderFactory.of(
+            () -> new S3StorageProvider(null),
+            S3Configuration::fromQueryConfig,
+            S3StorageProvider::new
+        );
         return Map.of("s3", s3Factory, "s3a", s3Factory, "s3n", s3Factory);
+    }
+
+    @Override
+    public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+        DataSourceValidator v = new FileDataSourceValidator("s3", S3Configuration::fromMap, supportedSchemes());
+        return Map.of(v.type(), v);
     }
 }

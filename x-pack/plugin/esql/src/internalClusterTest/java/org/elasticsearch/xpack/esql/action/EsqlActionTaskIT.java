@@ -160,7 +160,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         ValuesSourceReaderOperatorStatus oStatus = (ValuesSourceReaderOperatorStatus) o.status();
                         assertMap(
                             oStatus.readersBuilt(),
-                            matchesMap().entry("pause_me:column_at_a_time:ScriptLongs", greaterThanOrEqualTo(1))
+                            matchesMap().entry("pause_me:column_at_a_time:null", greaterThanOrEqualTo(1))
+                                .entry("pause_me:row_stride:ScriptLongs", greaterThanOrEqualTo(1))
                         );
                         assertThat(oStatus.pagesReceived(), greaterThanOrEqualTo(1));
                         assertThat(oStatus.pagesEmitted(), greaterThanOrEqualTo(1));
@@ -506,14 +507,12 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     assertThat(tasks, hasSize(1));
                     foundTasks.addAll(tasks);
                 });
-                final String sessionId = foundTasks.get(0).taskId().toString();
                 assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
                 List<String> sinkKeys = exchangeService.sinkKeys()
                     .stream()
                     .filter(
-                        s -> s.startsWith(sessionId)
-                            // exclude the node-level reduction sink
-                            && s.endsWith("[n]") == false
+                        // exclude the node-level reduction sink
+                        s -> s.endsWith("[n]") == false
                     )
                     .toList();
                 assertThat(sinkKeys.toString(), sinkKeys.size(), equalTo(1));

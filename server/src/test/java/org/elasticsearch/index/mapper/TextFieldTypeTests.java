@@ -48,8 +48,12 @@ import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
+import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,7 +132,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
@@ -350,7 +354,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         when(context.indexSettings()).thenReturn(indexSettings);
         BlockLoader blockLoader = ft.blockLoader(context);
 
@@ -400,7 +404,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         when(context.indexSettings()).thenReturn(indexSettings);
         BlockLoader blockLoader = ft.blockLoader(context);
 
@@ -495,7 +499,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType ft = new TextFieldType("field", true, false, keywordDelegate);
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         BlockLoader blockLoader = ft.blockLoader(context);
 
         // then
@@ -517,7 +521,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         var mockedSearchLookup = mock(SearchLookup.class);
         when(mockedSearchLookup.fieldType(parentFieldName)).thenReturn(parentKeywordType);
 
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         when(context.parentField(childFieldName)).thenReturn(parentFieldName);
         when(context.lookup()).thenReturn(mockedSearchLookup);
 
@@ -552,7 +556,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
             true,
-            false
+            false,
+            null
         );
 
         // when
@@ -592,7 +597,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             legacyVersion,
             false,
-            false
+            false,
+            null
         );
 
         // when
@@ -631,7 +637,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             legacyVersion,
             true,
-            false
+            false,
+            null
         );
 
         // when
@@ -660,11 +667,12 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            false
+            false,
+            null
         );
 
         // when
-        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        var context = mockContext();
         when(context.parentField("field")).thenReturn(null);
         BlockLoader blockLoader = ft.blockLoader(context);
 
@@ -688,7 +696,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             IndexVersion.current(),
             false,
-            true
+            true,
+            null
         );
 
         // when
@@ -698,6 +707,159 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         assertThat(blockLoader, instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
+    }
+
+    private static MappedFieldType.BlockLoaderContext mockContext() {
+        MappedFieldType.BlockLoaderContext context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.ordinalsByteSize()).thenReturn(MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE);
+        return context;
+    }
+
+    private static TextFieldType sortedSetDocValuesOnly() {
+        return new TextFieldType(
+            "field",
+            false,
+            false,
+            true,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            IndexVersion.current(),
+            false,
+            false,
+            null
+        );
+    }
+
+    private static TextFieldType binaryDocValuesOnly() {
+        return new TextFieldType(
+            "field",
+            false,
+            false,
+            true,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            IndexVersion.current(),
+            false,
+            true,
+            null
+        );
+    }
+
+    public void testPrefixQueryDocValuesOnly() {
+        // SortedSet DV, case-sensitive → PrefixQuery with DOC_VALUES_REWRITE
+        TextFieldType ft = sortedSetDocValuesOnly();
+        Query q = ft.prefixQuery("foo", null, false, MOCK_CONTEXT);
+        assertThat(q, instanceOf(PrefixQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((PrefixQuery) q).getRewriteMethod());
+
+        // SortedSet DV, case-insensitive → StringScriptFieldPrefixQuery
+        q = ft.prefixQuery("foo", null, true, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
+
+        // Binary DV, case-sensitive → StringScriptFieldPrefixQuery
+        TextFieldType binaryFt = binaryDocValuesOnly();
+        q = binaryFt.prefixQuery("foo", null, false, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
+
+        // Binary DV, case-insensitive → StringScriptFieldPrefixQuery
+        q = binaryFt.prefixQuery("foo", null, true, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldPrefixQuery.class));
+
+        // Neither indexed nor doc values → error
+        TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> neither.prefixQuery("foo", null, false, MOCK_CONTEXT)
+        );
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        // Doc-values only + expensive queries disallowed → error
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> ft.prefixQuery("foo", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(
+            ee.getMessage(),
+            equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
+        );
+    }
+
+    public void testWildcardQueryDocValuesOnly() {
+        // SortedSet DV, case-sensitive → WildcardQuery with DOC_VALUES_REWRITE
+        TextFieldType ft = sortedSetDocValuesOnly();
+        Query q = ft.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
+        assertThat(q, instanceOf(WildcardQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((WildcardQuery) q).getRewriteMethod());
+
+        // SortedSet DV, case-insensitive → StringScriptFieldWildcardQuery
+        q = ft.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldWildcardQuery.class));
+
+        // Binary DV → SlowCustomBinaryDocValuesWildcardQuery (both cases)
+        TextFieldType binaryFt = binaryDocValuesOnly();
+        q = binaryFt.wildcardQuery("foo*", null, false, MOCK_CONTEXT);
+        assertThat(q, instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
+        q = binaryFt.wildcardQuery("foo*", null, true, MOCK_CONTEXT);
+        assertThat(q, instanceOf(SlowCustomBinaryDocValuesWildcardQuery.class));
+
+        // Neither indexed nor doc values → error
+        TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> neither.wildcardQuery("foo*", null, false, MOCK_CONTEXT)
+        );
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        // Doc-values only + expensive queries disallowed → error
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> ft.wildcardQuery("foo*", null, false, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(
+            ee.getMessage(),
+            equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
+        );
+    }
+
+    public void testRegexpQueryDocValuesOnly() {
+        // SortedSet DV → RegexpQuery with DOC_VALUES_REWRITE
+        TextFieldType ft = sortedSetDocValuesOnly();
+        Query q = ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(RegexpQuery.class));
+        assertEquals(MultiTermQuery.DOC_VALUES_REWRITE, ((RegexpQuery) q).getRewriteMethod());
+
+        // Binary DV → StringScriptFieldRegexpQuery
+        TextFieldType binaryFt = binaryDocValuesOnly();
+        q = binaryFt.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT);
+        assertThat(q, instanceOf(StringScriptFieldRegexpQuery.class));
+
+        // Neither indexed nor doc values → error
+        TextFieldType neither = new TextFieldType("field", false, false, Collections.emptyMap());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> neither.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
+        );
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        // Doc-values only + expensive queries disallowed → error
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertThat(
+            ee.getMessage(),
+            equalTo("Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.")
+        );
     }
 
 }

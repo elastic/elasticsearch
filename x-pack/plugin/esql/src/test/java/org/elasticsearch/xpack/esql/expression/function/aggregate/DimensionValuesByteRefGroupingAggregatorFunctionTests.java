@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
@@ -105,14 +106,13 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
                 new BlockHash.GroupSpec(prefixBlocks + 1, ElementType.INT)
             );
         }
-        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
-            aggregateMode,
-            List.of(aggregatorFactory),
-            () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
-            Integer.MAX_VALUE,
-            1.0,
-            driverContext
-        );
+        HashAggregationOperator hashAggregationOperator = new HashAggregationOperator.Builder().mode(aggregateMode)
+            .aggregators(List.of(aggregatorFactory))
+            .groups(groupSpecs)
+            .maxPageSize(Integer.MAX_VALUE)
+            .partialEmit(randomIntBetween(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / 10), 1.0)
+            .build()
+            .get(driverContext);
         List<Page> outputPages = new ArrayList<>();
         Driver driver = TestDriverFactory.create(
             driverContext,

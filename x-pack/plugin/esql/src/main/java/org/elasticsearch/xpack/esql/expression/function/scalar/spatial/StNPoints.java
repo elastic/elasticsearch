@@ -15,7 +15,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -44,6 +45,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
         "StNPoints",
         StNPoints::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(StNPoints.class).unary(StNPoints::new).name("st_npoints");
     private static final GeometryPointCountVisitor pointCounter = new GeometryPointCountVisitor();
 
     @FunctionInfo(
@@ -80,7 +82,7 @@ public class StNPoints extends SpatialUnaryDocValuesFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (spatialDocValues) {
             return new StNPointsFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         } else {

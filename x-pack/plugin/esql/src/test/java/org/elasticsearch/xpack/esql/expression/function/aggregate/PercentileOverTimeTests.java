@@ -23,6 +23,9 @@ import java.util.function.Supplier;
 public class PercentileOverTimeTests extends AbstractAggregationTestCase {
     public PercentileOverTimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
+        if (testCase.getData().getFirst().type().isHistogram()) {
+            testCase = testCase.withInjectNullTemporality();
+        }
     }
 
     @Override
@@ -43,6 +46,21 @@ public class PercentileOverTimeTests extends AbstractAggregationTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new PercentileOverTime(source, args.get(0), args.get(1));
+    }
+
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
 
 }

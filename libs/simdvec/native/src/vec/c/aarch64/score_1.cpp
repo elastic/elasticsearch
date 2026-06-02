@@ -9,13 +9,144 @@
 
 #include <stddef.h>
 #include <arm_neon.h>
-#include <math.h>
 #include <limits>
 #include "vec.h"
 #include "vec_common.h"
 #include "aarch64/aarch64_vec_common.h"
 
 #include "score_common.h"
+
+// BQ corrections for different formats/layouts (DiskBBQ/BBQ).
+// Code is scalar; this is on purpose -- we tried to write vector (NEON) code for it, but it simply did
+// not show any improvement (see https://github.com/elastic/elasticsearch/pull/148594).
+// In case things change (e.g. we get much wider ARM SIMD registers and/or we dramatically increase bulkSize
+// in DiskBBQ) we can revisit that decision, otherwise we'll keep this code scalar (simpler). This is
+// *not* a hot-spot.
+
+
+// BBQ inline correction layout: corrections are stored after each vector's quantized bytes.
+// Per-vector layout at offset (node[i] * pitchInBytes + vectorSizeInBytes):
+//   float lowerInterval, float upperInterval, float additionalCorrection, short targetComponentSum
+EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
+        const void* const* addresses,
+        const int32_t bulkSize,
+        const int32_t vectorSizeInBytes,
+        const int32_t pitchInBytes,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
+        const int8_t readComponentSumAsInt,
+        f32_t* scores
+) {
+    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+    for (int i = 0; i < bulkSize; ++i) {
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes, readComponentSumAsInt);
+        const f32_t score = apply_base_corrections_common(
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryBitScale,
+            indexBitScale,
+            c.lowerInterval,
+            c.upperInterval,
+            c.targetComponentSum,
+            scores[i]
+        );
+        scores[i] = euclidean_correction(score, queryAdditionalCorrection, c.additionalCorrection);
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
+    }
+    return maxScore;
+}
+
+EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
+        const void* const* addresses,
+        const int32_t bulkSize,
+        const int32_t vectorSizeInBytes,
+        const int32_t pitchInBytes,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
+        const int8_t readComponentSumAsInt,
+        f32_t* scores
+) {
+    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+    for (int i = 0; i < bulkSize; ++i) {
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes, readComponentSumAsInt);
+        const f32_t score = apply_base_corrections_common(
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryBitScale,
+            indexBitScale,
+            c.lowerInterval,
+            c.upperInterval,
+            c.targetComponentSum,
+            scores[i]
+        );
+        scores[i] = maximum_inner_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrection,
+            centroidDp
+        );
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
+    }
+    return maxScore;
+}
+
+EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
+        const void* const* addresses,
+        const int32_t bulkSize,
+        const int32_t vectorSizeInBytes,
+        const int32_t pitchInBytes,
+        const int32_t dimensions,
+        const f32_t queryLowerInterval,
+        const f32_t queryUpperInterval,
+        const int32_t queryComponentSum,
+        const f32_t queryAdditionalCorrection,
+        const f32_t queryBitScale,
+        const f32_t indexBitScale,
+        const f32_t centroidDp,
+        const int8_t readComponentSumAsInt,
+        f32_t* scores
+) {
+    f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
+    for (int i = 0; i < bulkSize; ++i) {
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes, readComponentSumAsInt);
+        const f32_t score = apply_base_corrections_common(
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryBitScale,
+            indexBitScale,
+            c.lowerInterval,
+            c.upperInterval,
+            c.targetComponentSum,
+            scores[i]
+        );
+        scores[i] = dot_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrection,
+            centroidDp
+        );
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
+    }
+    return maxScore;
+}
 
 EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
         const int8_t* corrections,
@@ -36,23 +167,20 @@ EXPORT f32_t diskbbq_apply_corrections_euclidean_bulk(
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = apply_corrections_euclidean_inner(
+        const f32_t score = apply_base_corrections_common(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
             queryComponentSum,
-            queryAdditionalCorrection,
             queryBitScale,
             indexBitScale,
-            centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            scores[i]
         );
-        *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        scores[i] = legacy_euclidean_correction(score, queryAdditionalCorrection, c.additionalCorrections[i]);
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
     }
 
     return maxScore;
@@ -77,23 +205,25 @@ EXPORT f32_t diskbbq_apply_corrections_maximum_inner_product_bulk(
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = apply_corrections_maximum_inner_product_inner(
+        const f32_t score = apply_base_corrections_common(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
             queryComponentSum,
-            queryAdditionalCorrection,
             queryBitScale,
             indexBitScale,
-            centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            scores[i]
         );
-        *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        scores[i] = maximum_inner_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrections[i],
+            centroidDp
+        );
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
     }
 
     return maxScore;
@@ -118,23 +248,25 @@ EXPORT f32_t diskbbq_apply_corrections_dot_product_bulk(
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = apply_corrections_dot_product_inner(
+        const f32_t score = apply_base_corrections_common(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,
             queryComponentSum,
-            queryAdditionalCorrection,
             queryBitScale,
             indexBitScale,
-            centroidDp,
-            *(c.lowerIntervals + i),
-            *(c.upperIntervals + i),
-            *(c.targetComponentSums + i),
-            *(c.additionalCorrections + i),
-            *(scores + i)
+            c.lowerIntervals[i],
+            c.upperIntervals[i],
+            c.targetComponentSums[i],
+            scores[i]
         );
-        *(scores + i) = score;
-        maxScore = fmax(maxScore, score);
+        scores[i] = legacy_dot_product_correction(
+            score,
+            queryAdditionalCorrection,
+            c.additionalCorrections[i],
+            centroidDp
+        );
+        maxScore = __builtin_fmaxf(maxScore, scores[i]);
     }
 
     return maxScore;

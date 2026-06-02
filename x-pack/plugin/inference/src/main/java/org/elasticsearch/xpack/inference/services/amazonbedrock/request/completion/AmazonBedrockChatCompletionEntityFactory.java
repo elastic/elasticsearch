@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.util.List;
@@ -52,30 +53,32 @@ public final class AmazonBedrockChatCompletionEntityFactory {
         Objects.requireNonNull(model);
         Objects.requireNonNull(request);
         var serviceSettings = model.getServiceSettings();
+        var taskSettings = model.getTaskSettings();
 
         var messages = request.messages()
             .stream()
-            .map(
-                message -> new UnifiedCompletionRequest.Message(
-                    message.content(),
-                    message.role(),
-                    message.toolCallId(),
-                    message.toolCalls()
-                )
-            )
+            .map(message -> new Message(message.content(), message.role(), message.toolCallId(), message.toolCalls()))
             .toList();
 
         switch (serviceSettings.provider()) {
             case ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL -> {
+                // Task settings configured at endpoint creation must be used when the per-request value
+                // is null, otherwise endpoint-level configuration is silently ignored. top_k cannot be
+                // set on the request at all, so it always comes from task settings.
                 return new AmazonBedrockChatCompletionRequestEntity(
                     messages,
                     request.model(),
-                    request.maxCompletionTokens(),
+                    request.maxCompletionTokens() != null
+                        ? request.maxCompletionTokens()
+                        : (taskSettings.maxNewTokens() != null ? taskSettings.maxNewTokens().longValue() : null),
                     request.stop(),
-                    request.temperature(),
+                    request.temperature() != null
+                        ? request.temperature()
+                        : (taskSettings.temperature() != null ? taskSettings.temperature().floatValue() : null),
                     request.toolChoice(),
                     request.tools(),
-                    request.topP()
+                    request.topP() != null ? request.topP() : (taskSettings.topP() != null ? taskSettings.topP().floatValue() : null),
+                    taskSettings.topK()
                 );
             }
             default -> {

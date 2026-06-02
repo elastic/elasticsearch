@@ -10,9 +10,9 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 
@@ -27,13 +27,13 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RestOpenPointInTimeActionTests extends RestActionTestCase {
 
     public void testMaxConcurrentSearchRequests() {
-        RestOpenPointInTimeAction action = new RestOpenPointInTimeAction(Settings.EMPTY);
+        RestOpenPointInTimeAction action = new RestOpenPointInTimeAction(CrossProjectModeDecider.NOOP);
         controller().registerHandler(action);
         Queue<OpenPointInTimeRequest> transportRequests = ConcurrentCollections.newQueue();
         verifyingClient.setExecuteVerifier(((actionType, transportRequest) -> {
             assertThat(transportRequest, instanceOf(OpenPointInTimeRequest.class));
             transportRequests.add((OpenPointInTimeRequest) transportRequest);
-            return new OpenPointInTimeResponse(new BytesArray("n/a"), 1, 1, 0, 0);
+            return new OpenPointInTimeResponse(new BytesArray("n/a"), 1, 1, 0, 0, SearchResponse.Clusters.EMPTY);
         }));
         {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)

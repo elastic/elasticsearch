@@ -142,7 +142,7 @@ public class IdeltaTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField, sliceIndexType, nextTimestampType),
-                standardAggregatorName("Irate", fieldTypedData.type()),
+                standardAggregatorName("Idelta", fieldTypedData.type()),
                 DataType.DOUBLE,
                 matcher
             );

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.datageneration.DocumentGenerator;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.MappingGenerator;
@@ -18,6 +19,7 @@ import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,7 +42,7 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
-        this.runner = new BlockLoaderTestRunner(params);
+        this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
         if (randomBoolean()) {
             runner.allowDummyDocs();
         }
@@ -50,7 +52,10 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
     // of text multi field in a keyword field.
     public void testBlockLoaderOfParentField() throws IOException {
         var template = new Template(Map.of("parent", new Template.Leaf("parent", FieldType.KEYWORD.toString())));
-        var specification = buildSpecification(List.of(new MultifieldAddonHandler(Map.of(FieldType.KEYWORD, List.of(FieldType.TEXT)), 1f)));
+        var specification = buildSpecification(
+            List.of(new MultifieldAddonHandler(Map.of(FieldType.KEYWORD, List.of(FieldType.TEXT)), 1f)),
+            params.indexMode()
+        );
 
         var mapping = new MappingGenerator(specification).generate(template);
         var fieldMapping = mapping.lookup().get("parent");
@@ -60,11 +65,19 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
 
         Object expected = expected(fieldMapping, fieldValue, new BlockLoaderTestCase.TestContext(false, true));
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-        runner.mapperService(
-            params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent)
-        );
+        runner.mapperService(mapperServiceForParams(mappingXContent));
         runner.fieldName("parent.subfield_text");
         runner.run(expected);
+    }
+
+    private MapperService mapperServiceForParams(XContentBuilder mappingXContent) throws IOException {
+        // Columnar index modes preserve array order via offsets recorded on the keyword parent. The text subfield delegates its block
+        // loader to that parent, so the index must actually be built in columnar mode for the offsets to exist - otherwise the delegate
+        // falls back to sorted ordinal order and no longer matches the arrival-order expectation.
+        if (params.indexMode().isColumnar()) {
+            return createMapperService(BlockLoaderTestCase.getSettingsForParams(params).build(), mappingXContent);
+        }
+        return params.syntheticSource() ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
     }
 
     @SuppressWarnings("unchecked")

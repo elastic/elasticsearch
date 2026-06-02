@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 144351
+summary: "`CompletionSuggestion:` ref-count hits, released by `SearchResponse`"
+type: enhancement

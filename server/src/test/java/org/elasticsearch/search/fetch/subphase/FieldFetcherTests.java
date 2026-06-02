@@ -119,7 +119,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(Strings.toString(source)));
-        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        mergeDynamicUpdate(mapperService, doc.dynamicMappingsUpdate());
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo.bar");
         assertThat(fields.size(), equalTo(1));
@@ -1174,9 +1174,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             """;
 
         var results = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        SearchHit searchHit = SearchHit.unpooled(0);
-        searchHit.addDocumentFields(results, Map.of());
-        assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+        SearchHit searchHit = new SearchHit(0);
+        try {
+            searchHit.addDocumentFields(results, Map.of());
+            assertThat(Strings.toString(searchHit), containsString("\"ml.top_classes\":"));
+        } finally {
+            searchHit.decRef();
+        }
     }
 
     public void testNestedIOOB() throws IOException {

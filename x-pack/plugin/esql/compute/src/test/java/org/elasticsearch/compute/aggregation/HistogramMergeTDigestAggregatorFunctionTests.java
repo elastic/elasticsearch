@@ -57,13 +57,13 @@ public class HistogramMergeTDigestAggregatorFunctionTests extends AggregatorFunc
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
         List<TDigestHolder> inputValues = input.stream().flatMap(p -> allTDigests(p.getBlock(0))).toList();
-        TDigestHolder value = ((TDigestBlock) result).getTDigestHolder(0);
+        TDigestHolder value = ((TDigestBlock) result).getTDigestHolder(0, new TDigestHolder());
 
         assertThat(TDigestTestUtils.isMergedFrom(value, inputValues), equalTo(true));
     }
 
     protected static Stream<TDigestHolder> allTDigests(Block input) {
         TDigestBlock b = (TDigestBlock) input;
-        return allValueOffsets(b).mapToObj(b::getTDigestHolder);
+        return allValueOffsets(b).mapToObj(offset -> b.getTDigestHolder(offset, new TDigestHolder()));
     }
 }

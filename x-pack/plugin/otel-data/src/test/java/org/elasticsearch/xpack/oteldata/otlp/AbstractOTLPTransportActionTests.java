@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.oteldata.otlp;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -16,17 +17,18 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Arrays;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -77,29 +79,33 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
     public void testSuccess() throws Exception {
         OTLPActionResponse response = executeRequest(createRequestWithData());
 
-        assertThat(response.getStatus(), equalTo(RestStatus.OK));
         assertThat(parseHasPartialSuccess(response.getResponse().array()), equalTo(false));
     }
 
     public void testSuccessEmptyRequest() throws Exception {
         OTLPActionResponse response = executeRequest(createEmptyRequest());
 
-        assertThat(response.getStatus(), equalTo(RestStatus.OK));
         assertThat(parseHasPartialSuccess(response.getResponse().array()), equalTo(false));
     }
 
-    public void test429() throws Exception {
+    public void testMalformedProtobufReturnsBadRequest() {
+        OTLPActionRequest malformedRequest = new OTLPActionRequest(new BytesArray(new byte[] { (byte) 0x80 }));
+
+        Exception e = executeRequestExpectingFailure(malformedRequest, new BulkResponse(new BulkItemResponse[] {}, 0));
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("Invalid OTLP protobuf payload"));
+    }
+
+    public void test429() {
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[] {
             bulkItemFailure(dataStreamType() + "-generic.otel-default", RestStatus.TOO_MANY_REQUESTS, "too many requests"),
             successResponse() };
-        OTLPActionResponse response = executeRequest(createRequestWithData(), new BulkResponse(bulkItemResponses, 0));
 
-        assertThat(response.getStatus(), equalTo(RestStatus.TOO_MANY_REQUESTS));
-        assertThat(
-            parseRejectedCount(response.getResponse().array()),
-            equalTo(Arrays.stream(bulkItemResponses).filter(BulkItemResponse::isFailed).count())
-        );
-        assertThat(parseErrorMessage(response.getResponse().array()), containsString("too many requests"));
+        Exception e = executeRequestExpectingFailure(createRequestWithData(), new BulkResponse(bulkItemResponses, 0));
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        assertThat(e.getMessage(), containsString("too many requests"));
     }
 
     public void testPartialSuccess() throws Exception {
@@ -119,7 +125,6 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
             )
         );
 
-        assertThat(response.getStatus(), equalTo(RestStatus.OK));
         byte[] responseBytes = response.getResponse().array();
         assertThat(parseRejectedCount(responseBytes), equalTo(1L));
         // the error message contains only one message per unique index and error status
@@ -130,21 +135,19 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
         assertThat(errorMessage, containsString("internal server error"));
     }
 
-    public void testBulkError() throws Exception {
+    public void testBulkError() {
         assertExceptionStatus(new IllegalArgumentException("bazinga"), RestStatus.BAD_REQUEST);
         assertExceptionStatus(new IllegalStateException("bazinga"), RestStatus.INTERNAL_SERVER_ERROR);
     }
 
-    private void assertExceptionStatus(Exception exception, RestStatus restStatus) throws InvalidProtocolBufferException {
+    private void assertExceptionStatus(Exception exception, RestStatus restStatus) {
         if (randomBoolean()) {
             doThrow(exception).when(client).execute(any(), any(), any());
         }
-        OTLPActionResponse response = executeRequest(createRequestWithData(), exception);
+        Exception e = executeRequestExpectingFailure(createRequestWithData(), exception);
 
-        assertThat(response.getStatus(), equalTo(restStatus));
-        byte[] responseBytes = response.getResponse().array();
-        assertThat(parseRejectedCount(responseBytes), equalTo(1L));
-        assertThat(parseErrorMessage(responseBytes), equalTo(exception.getMessage()));
+        assertThat(ExceptionsHelper.status(e), equalTo(restStatus));
+        assertThat(e.getMessage(), equalTo(exception.getMessage()));
     }
 
     // --- shared test infrastructure ---
@@ -157,23 +160,48 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
         return executeRequest(request, listener -> listener.onResponse(bulkResponse));
     }
 
-    protected OTLPActionResponse executeRequest(OTLPActionRequest request, Exception bulkFailure) {
-        return executeRequest(request, listener -> listener.onFailure(bulkFailure));
-    }
-
     protected OTLPActionResponse executeRequest(OTLPActionRequest request, Consumer<ActionListener<BulkResponse>> bulkResponseConsumer) {
-        ArgumentCaptor<ActionListener<BulkResponse>> bulkResponseListener = ArgumentCaptor.captor();
-        doNothing().when(client).execute(any(), any(), bulkResponseListener.capture());
-
-        ActionListener<OTLPActionResponse> responseListener = mock();
-        action.doExecute(null, request, responseListener);
-        if (bulkResponseListener.getAllValues().isEmpty() == false) {
-            bulkResponseConsumer.accept(bulkResponseListener.getValue());
-        }
-
+        @SuppressWarnings("unchecked")
+        ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+        doExecuteRequest(request, bulkResponseConsumer, responseListener);
         ArgumentCaptor<OTLPActionResponse> response = ArgumentCaptor.forClass(OTLPActionResponse.class);
         verify(responseListener).onResponse(response.capture());
         return response.getValue();
+    }
+
+    protected Exception executeRequestExpectingFailure(OTLPActionRequest request, BulkResponse bulkResponse) {
+        return executeRequestExpectingFailure(request, listener -> listener.onResponse(bulkResponse));
+    }
+
+    protected Exception executeRequestExpectingFailure(OTLPActionRequest request, Exception bulkFailure) {
+        return executeRequestExpectingFailure(request, listener -> listener.onFailure(bulkFailure));
+    }
+
+    protected Exception executeRequestExpectingFailure(
+        OTLPActionRequest request,
+        Consumer<ActionListener<BulkResponse>> bulkResponseConsumer
+    ) {
+        @SuppressWarnings("unchecked")
+        ActionListener<OTLPActionResponse> responseListener = mock(ActionListener.class, CALLS_REAL_METHODS);
+        doExecuteRequest(request, bulkResponseConsumer, responseListener);
+        ArgumentCaptor<Exception> exception = ArgumentCaptor.forClass(Exception.class);
+        verify(responseListener).onFailure(exception.capture());
+        return exception.getValue();
+    }
+
+    private void doExecuteRequest(
+        OTLPActionRequest request,
+        Consumer<ActionListener<BulkResponse>> bulkResponseConsumer,
+        ActionListener<OTLPActionResponse> responseListener
+    ) {
+        ArgumentCaptor<ActionListener<BulkResponse>> bulkResponseListener = ArgumentCaptor.captor();
+        doNothing().when(client).execute(any(), any(), bulkResponseListener.capture());
+
+        action.doExecute(null, request, responseListener);
+
+        if (bulkResponseListener.getAllValues().isEmpty() == false) {
+            bulkResponseConsumer.accept(bulkResponseListener.getValue());
+        }
     }
 
     protected static BulkItemResponse successResponse() {

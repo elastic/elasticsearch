@@ -126,7 +126,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;

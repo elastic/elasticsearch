@@ -1733,8 +1733,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int schemaSize = schema.size();
             schemaColumnCount = schemaSize;
             if (projectedColumns == null) {
+                // Identity projection — every slot maps 1:1 to a source column; no synthetic kinds.
                 columnCount = schemaSize;
                 projectedIdx = new int[schemaSize];
+                syntheticKinds = new SyntheticColumns.Kind[schemaSize];
                 for (int i = 0; i < schemaSize; i++) {
                     projectedIdx[i] = i;
                 }

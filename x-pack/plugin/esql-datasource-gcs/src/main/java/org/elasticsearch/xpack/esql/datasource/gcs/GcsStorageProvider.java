@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
@@ -15,6 +18,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -104,23 +108,7 @@ public final class GcsStorageProvider implements StorageProvider {
             }
 
             StorageOptions.Builder builder = StorageOptions.newBuilder();
-
-            if (config != null && config.hasCredentials()) {
-                ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
-                    new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
-                );
-                // Override the token server URI if provided (used for testing with mock GCS fixtures)
-                if (config.tokenUri() != null) {
-                    credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
-                }
-                builder.setCredentials(credentials);
-            } else {
-                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
-                throw new IllegalArgumentException(
-                    "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
-                        + "or WITH (auth = 'none') for public buckets"
-                );
-            }
+            builder.setCredentials(credentials(config));
 
             if (config != null && config.projectId() != null) {
                 builder.setProjectId(config.projectId());
@@ -140,6 +128,38 @@ public final class GcsStorageProvider implements StorageProvider {
                 e
             );
         }
+    }
+
+    /**
+     * Builds the Google credentials for the given configuration:
+     * <ul>
+     *   <li>service account JSON — {@link ServiceAccountCredentials}</li>
+     *   <li>access_token — short-lived OAuth2 credentials</li>
+     * </ul>
+     * When both are supplied, the service account credentials take precedence. The node's ambient credential
+     * chain (Application Default Credentials) is deliberately never consulted: the node may run in a different
+     * cloud than the bucket it targets, so a data source must carry its own credentials.
+     */
+    static Credentials credentials(GcsConfiguration config) throws IOException {
+        if (config != null && config.serviceAccountCredentials() != null) {
+            ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
+                new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
+            );
+            // Override the token server URI if provided (used for testing with mock GCS fixtures)
+            if (config.tokenUri() != null) {
+                credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
+            }
+            return credentials;
+        }
+        if (config != null && Strings.hasText(config.accessToken())) {
+            return GoogleCredentials.create(new AccessToken(config.accessToken(), null));
+        }
+        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+        throw new IllegalArgumentException(
+            "GCS data source requires credentials: provide WITH (credentials = '...'), "
+                + "WITH (access_token = '...') for short-lived OAuth credentials, "
+                + "or WITH (auth = 'none') for public buckets"
+        );
     }
 
     @Override

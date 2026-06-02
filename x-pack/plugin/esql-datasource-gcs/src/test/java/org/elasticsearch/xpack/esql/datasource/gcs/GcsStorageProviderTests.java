@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -91,5 +95,26 @@ public class GcsStorageProviderTests extends ESTestCase {
         StoragePath base = StoragePath.of("gs://my-bucket/data");
         StoragePath appended = base.appendPath("sales.parquet");
         assertEquals("gs://my-bucket/data/sales.parquet", appended.toString());
+    }
+
+    public void testCredentialsFromAccessToken() throws Exception {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "ya29.token"));
+        Credentials creds = GcsStorageProvider.credentials(config);
+        assertThat(creds, instanceOf(GoogleCredentials.class));
+        assertEquals("ya29.token", ((GoogleCredentials) creds).getAccessToken().getTokenValue());
+    }
+
+    public void testCredentialsRequiresCredentials() {
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("project_id", "my-project"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        assertTrue(e.getMessage().contains("GCS data source requires credentials"));
+    }
+
+    public void testEmptyAccessTokenTreatedAsAbsent() {
+        // An empty access token is treated as absent rather than building OAuth credentials with an empty token.
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("access_token", "", "project_id", "my-project"));
+        assertFalse(config.hasCredentials());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
 }

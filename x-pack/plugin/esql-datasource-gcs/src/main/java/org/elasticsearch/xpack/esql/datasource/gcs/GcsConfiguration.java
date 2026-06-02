@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
@@ -21,19 +22,23 @@ import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefin
  * Supports authentication modes:
  * <ul>
  *   <li>Service account JSON credentials (inline)</li>
+ *   <li>Short-lived OAuth2 access token</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
- *   <li>Application Default Credentials (ADC) when no explicit credentials are provided</li>
  * </ul>
+ * The node's ambient credentials (Application Default Credentials) are never used: a data source must
+ * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  */
 public class GcsConfiguration extends FileDataSourceConfiguration {
 
     private static final DataSourceConfigDefinition CREDENTIALS = secret("credentials");
+    private static final DataSourceConfigDefinition ACCESS_TOKEN = secret("access_token");
     private static final DataSourceConfigDefinition PROJECT_ID = plaintext("project_id");
     private static final DataSourceConfigDefinition ENDPOINT = plaintext("endpoint");
     private static final DataSourceConfigDefinition TOKEN_URI = plaintext("token_uri");
 
     private static final Map<String, DataSourceConfigDefinition> FIELDS = DataSourceConfigDefinition.mapOf(
         CREDENTIALS,
+        ACCESS_TOKEN,
         PROJECT_ID,
         ENDPOINT,
         TOKEN_URI,
@@ -91,6 +96,10 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
         return get(CREDENTIALS.name());
     }
 
+    public String accessToken() {
+        return get(ACCESS_TOKEN.name());
+    }
+
     public String projectId() {
         return get(PROJECT_ID.name());
     }
@@ -104,6 +113,6 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     }
 
     public boolean hasCredentials() {
-        return serviceAccountCredentials() != null;
+        return serviceAccountCredentials() != null || Strings.hasText(accessToken());
     }
 }

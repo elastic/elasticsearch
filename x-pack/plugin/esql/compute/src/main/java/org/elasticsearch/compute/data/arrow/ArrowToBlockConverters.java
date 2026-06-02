@@ -5,26 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.types.Types;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.arrow.BooleanArrowBlock;
-import org.elasticsearch.compute.data.arrow.BytesRefArrowBlock;
-import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.Float16ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.FloatToDoubleArrowBlock;
-import org.elasticsearch.compute.data.arrow.Int16ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.Int8ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.LongMul1kArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.UInt16ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.UInt32ArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock;
 
 import java.util.EnumMap;
 import java.util.Map;

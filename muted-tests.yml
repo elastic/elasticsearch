@@ -584,9 +584,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288
-- class: org.elasticsearch.test.apmintegration.OTelMetricsBufferingIT
-  method: testJvmMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/150289
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexTaskRelocatesOnNodeShutdown
   issue: https://github.com/elastic/elasticsearch/issues/150294
@@ -605,9 +602,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testSnapshotShardsWhileHollowing
   issue: https://github.com/elastic/elasticsearch/issues/150301
-- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
-  method: testRenameBucketColumnHasNoMetadata
-  issue: https://github.com/elastic/elasticsearch/issues/150311
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerRetriesTests
   method: testWriteLargeBlob
   issue: https://github.com/elastic/elasticsearch/issues/150356

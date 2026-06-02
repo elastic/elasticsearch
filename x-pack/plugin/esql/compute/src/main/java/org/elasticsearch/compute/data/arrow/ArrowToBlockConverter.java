@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.types.Types;
@@ -14,8 +14,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 
 /**
  * Converts Apache Arrow FieldVector to ESQL Blocks.
- * This is the inverse operation of {@link BlockConverter} (Block → Arrow).
- * Together they provide symmetric conversion: Block ↔ Arrow.
  *
  * <p>Note: Timestamp types are converted to milliseconds or nanoseconds.
  * Float types (FLOAT2, FLOAT4) are converted to double (ESQL doesn't have a separate float type).

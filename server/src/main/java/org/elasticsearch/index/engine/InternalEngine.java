@@ -1668,6 +1668,7 @@ public class InternalEngine extends Engine {
             final DocIdAndVersion[] luceneResults = new DocIdAndVersion[luceneCount];
             performActionWithDirectoryReader(SearcherScope.INTERNAL, reader -> {
                 if (isTimeSeries) {
+                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
                     VersionsAndSeqNoResolver.timeSeriesBatchLoadDocIdAndVersion(
                         reader,
                         luceneUids,

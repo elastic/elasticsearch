@@ -347,13 +347,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        boolean cancellation = irFunctionNode.hasCondition(IRCInstanceCancellationCheck.class);
+        boolean instanceCancellation = irFunctionNode.hasCondition(IRCInstanceCancellationCheck.class);
         boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
-        if (cancellation || staticCancellation) {
+        if (instanceCancellation || staticCancellation) {
             Variable scriptThis;
-            if (cancellation) {
+            if (instanceCancellation) {
                 scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
                 methodWriter.loadThis();
                 methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());

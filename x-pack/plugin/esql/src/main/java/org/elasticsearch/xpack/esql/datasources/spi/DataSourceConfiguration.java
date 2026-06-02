@@ -85,6 +85,18 @@ public abstract class DataSourceConfiguration {
         return false;
     }
 
+    /** Returns true if any field marked as keyless auth has a value set. Null values are already excluded. */
+    public boolean hasKeylessAuth() {
+        for (var entry : values.entrySet()) {
+            DataSourceConfigDefinition def = fieldDefs.get(entry.getKey());
+            assert def != null : "values map should only contain known fields, got [" + entry.getKey() + "]";
+            if (def.keylessAuth()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs},
      * paired with the set of keys that were kept. Used at query time where a query-time configuration map

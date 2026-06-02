@@ -12,10 +12,13 @@ import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -103,6 +106,46 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawVector(BytesRefVector vVector) {
+    if (vVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized);
+      return;
+    }
+    if (vVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(vVector);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector vVector) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector vVector) {
     BytesRef vScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
@@ -111,6 +154,57 @@ public final class ValuesBytesRefAggregatorFunction implements AggregatorFunctio
   }
 
   private void addRawVector(BytesRefVector vVector, BooleanVector mask) {
+    if (vVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, mask);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector vVector, BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector vVector,
+      BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector vVector,
+      BooleanVector mask) {
+    BytesRef vScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef vValue = vVector.getBytesRef(valuesPosition, vScratch);
+      ValuesBytesRefAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector vVector, BooleanVector mask) {
     BytesRef vScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

@@ -11,10 +11,13 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -109,6 +112,43 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector instanceof DoubleArrayVector specialized) {
+      addRawVectorDoubleArrayVector(specialized);
+      return;
+    }
+    if (vVector instanceof DoubleArrowBufVector specialized) {
+      addRawVectorDoubleArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof ConstantDoubleVector specialized) {
+      addRawVectorConstantDoubleVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(vVector);
+  }
+
+  private void addRawVectorDoubleArrayVector(DoubleArrayVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      TopDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorDoubleArrowBufVector(DoubleArrowBufVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      TopDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantDoubleVector(ConstantDoubleVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      TopDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(DoubleVector vVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
       TopDoubleAggregator.combine(state, vValue);
@@ -116,6 +156,52 @@ public final class TopDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector instanceof DoubleArrayVector specialized) {
+      addRawVectorDoubleArrayVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof DoubleArrowBufVector specialized) {
+      addRawVectorDoubleArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof ConstantDoubleVector specialized) {
+      addRawVectorConstantDoubleVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, mask);
+  }
+
+  private void addRawVectorDoubleArrayVector(DoubleArrayVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double vValue = vVector.getDouble(valuesPosition);
+      TopDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorDoubleArrowBufVector(DoubleArrowBufVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double vValue = vVector.getDouble(valuesPosition);
+      TopDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantDoubleVector(ConstantDoubleVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double vValue = vVector.getDouble(valuesPosition);
+      TopDoubleAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(DoubleVector vVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

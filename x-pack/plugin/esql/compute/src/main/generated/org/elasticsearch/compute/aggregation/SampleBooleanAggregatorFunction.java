@@ -11,11 +11,14 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.BooleanArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -106,6 +109,43 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(BooleanVector valueVector) {
+    if (valueVector instanceof BooleanArrayVector specialized) {
+      addRawVectorBooleanArrayVector(specialized);
+      return;
+    }
+    if (valueVector instanceof BooleanArrowBufVector specialized) {
+      addRawVectorBooleanArrowBufVector(specialized);
+      return;
+    }
+    if (valueVector instanceof ConstantBooleanVector specialized) {
+      addRawVectorConstantBooleanVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(valueVector);
+  }
+
+  private void addRawVectorBooleanArrayVector(BooleanArrayVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorBooleanArrowBufVector(BooleanArrowBufVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorConstantBooleanVector(ConstantBooleanVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BooleanVector valueVector) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       boolean valueValue = valueVector.getBoolean(valuesPosition);
       SampleBooleanAggregator.combine(state, valueValue);
@@ -113,6 +153,54 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(BooleanVector valueVector, BooleanVector mask) {
+    if (valueVector instanceof BooleanArrayVector specialized) {
+      addRawVectorBooleanArrayVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof BooleanArrowBufVector specialized) {
+      addRawVectorBooleanArrowBufVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof ConstantBooleanVector specialized) {
+      addRawVectorConstantBooleanVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(valueVector, mask);
+  }
+
+  private void addRawVectorBooleanArrayVector(BooleanArrayVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorBooleanArrowBufVector(BooleanArrowBufVector valueVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorConstantBooleanVector(ConstantBooleanVector valueVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      boolean valueValue = valueVector.getBoolean(valuesPosition);
+      SampleBooleanAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BooleanVector valueVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

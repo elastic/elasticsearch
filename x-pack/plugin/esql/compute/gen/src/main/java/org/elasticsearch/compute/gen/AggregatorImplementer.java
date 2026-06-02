@@ -213,8 +213,8 @@ public class AggregatorImplementer {
         builder.addMethod(addRawInputExploded(true));
         builder.addMethod(addRawInputExploded(false));
         if (tryToUseVectors) {
-            builder.addMethod(addRawVector(false));
-            builder.addMethod(addRawVector(true));
+            addAddRawVectorMethods(builder, false);
+            addAddRawVectorMethods(builder, true);
         }
         builder.addMethod(addRawBlock(false));
         builder.addMethod(addRawBlock(true));
@@ -392,11 +392,104 @@ public class AggregatorImplementer {
         return blockStyle ? "addRawBlock" : "addRawVector";
     }
 
-    private MethodSpec addRawVector(boolean masked) {
-        MethodSpec.Builder builder = initAddRaw(false, masked);
+    /**
+     * Adds the {@code addRawVector} entry point plus, when the first argument's Vector type has a
+     * dispatch catalog in {@link Types#VECTOR_DISPATCH_SUBTYPES}, one specialized method per known
+     * subtype and a generic fallback. The dispatcher fans the call out via {@code instanceof}
+     * checks so the JIT can monomorphize each specialized loop body and inline the typed
+     * {@code getX} reads — see <a href="https://github.com/elastic/esql-planning/issues/696">
+     * esql-planning#696</a> for the motivating profile.
+     *
+     * <p>When no catalog entry exists the original single-method shape is preserved verbatim so
+     * aggregators on Vector hierarchies we haven't enumerated keep their existing behavior.
+     */
+    private void addAddRawVectorMethods(TypeSpec.Builder typeBuilder, boolean masked) {
         if (aggParams.getFirst() instanceof BlockArgument) {
             throw new IllegalStateException("The BlockArgument type does not support vectors because all values are multi-valued");
         }
+        List<ClassName> subtypes = vectorDispatchSubtypes();
+        if (subtypes.isEmpty()) {
+            typeBuilder.addMethod(buildAddRawVectorLoop(masked, null, false));
+            return;
+        }
+        typeBuilder.addMethod(buildAddRawVectorDispatcher(masked, subtypes));
+        for (ClassName subtype : subtypes) {
+            typeBuilder.addMethod(buildAddRawVectorLoop(masked, subtype, false));
+        }
+        typeBuilder.addMethod(buildAddRawVectorLoop(masked, null, true));
+    }
+
+    private List<ClassName> vectorDispatchSubtypes() {
+        TypeName firstVectorType = aggParams.getFirst().dataType(false);
+        if (firstVectorType instanceof ClassName c) {
+            return Types.VECTOR_DISPATCH_SUBTYPES.getOrDefault(c, List.of());
+        }
+        return List.of();
+    }
+
+    private MethodSpec buildAddRawVectorDispatcher(boolean masked, List<ClassName> subtypes) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawName(false)).addModifiers(Modifier.PRIVATE);
+        for (Argument a : aggParams) {
+            a.declareProcessParameter(builder, false);
+        }
+        if (masked) {
+            builder.addParameter(BOOLEAN_VECTOR, "mask");
+        }
+        String firstVectorName = aggParams.getFirst().vectorName();
+        for (ClassName subtype : subtypes) {
+            builder.beginControlFlow("if ($L instanceof $T specialized)", firstVectorName, subtype);
+            builder.addStatement(buildSpecializedDispatchCall(addRawVectorSpecializedName(subtype), masked, "specialized"));
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
+        builder.addStatement(buildSpecializedDispatchCall(addRawVectorGenericName(), masked, firstVectorName));
+        return builder.build();
+    }
+
+    private String buildSpecializedDispatchCall(String methodName, boolean masked, String firstArgName) {
+        StringBuilder sb = new StringBuilder(methodName).append('(').append(firstArgName);
+        for (int i = 1; i < aggParams.size(); i++) {
+            sb.append(", ").append(aggParams.get(i).vectorName());
+        }
+        if (masked) {
+            sb.append(", mask");
+        }
+        sb.append(')');
+        return sb.toString();
+    }
+
+    private static String addRawVectorSpecializedName(ClassName subtype) {
+        return "addRawVector" + subtype.simpleName();
+    }
+
+    private static String addRawVectorGenericName() {
+        return "addRawVectorGeneric";
+    }
+
+    /**
+     * Builds an {@code addRawVector*} loop method. The body is identical to the historical
+     * single-method emission; only the first argument's parameter type and the method name vary
+     * across the three roles:
+     * <ul>
+     *   <li>{@code specializedSubtype != null}: a specialized arm — the first arg is typed to the
+     *       concrete subtype so the JIT can inline {@code getX} reads.</li>
+     *   <li>{@code genericFallback}: the generic catch-all called by the dispatcher when no arm
+     *       matches; keeps today's polymorphic behavior so future Vector implementations remain
+     *       correct.</li>
+     *   <li>both flags off: the original single-method shape (used only when there is no dispatch
+     *       catalog entry for the first arg's Vector type).</li>
+     * </ul>
+     */
+    private MethodSpec buildAddRawVectorLoop(boolean masked, ClassName specializedSubtype, boolean genericFallback) {
+        String methodName;
+        if (genericFallback) {
+            methodName = addRawVectorGenericName();
+        } else if (specializedSubtype != null) {
+            methodName = addRawVectorSpecializedName(specializedSubtype);
+        } else {
+            methodName = addRawName(false);
+        }
+        MethodSpec.Builder builder = initAddRawWithFirstArg(methodName, masked, specializedSubtype);
 
         if (first != null) {
             builder.addComment("Find the first value up front in the Vector path which is more complex but should be faster");
@@ -423,6 +516,27 @@ public class AggregatorImplementer {
         }
         builder.endControlFlow();
         return builder.build();
+    }
+
+    private MethodSpec.Builder initAddRawWithFirstArg(String methodName, boolean masked, ClassName specializedFirstArgType) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName).addModifiers(Modifier.PRIVATE);
+        for (int i = 0; i < aggParams.size(); i++) {
+            Argument a = aggParams.get(i);
+            if (i == 0 && specializedFirstArgType != null) {
+                builder.addParameter(specializedFirstArgType, a.vectorName());
+            } else {
+                a.declareProcessParameter(builder, false);
+            }
+        }
+        if (masked) {
+            builder.addParameter(BOOLEAN_VECTOR, "mask");
+        }
+        for (Argument a : aggParams) {
+            if (a.scratchType() != null) {
+                builder.addStatement("$T $L = new $T()", a.scratchType(), a.scratchName(), a.scratchType());
+            }
+        }
+        return builder;
     }
 
     private void addRawVectorWithFirst(MethodSpec.Builder builder, boolean firstPass, boolean masked) {

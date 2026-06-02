@@ -11,14 +11,19 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -111,6 +116,65 @@ public final class StdDevIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector valueVector) {
+    if (valueVector instanceof IntArrayVector specialized) {
+      addRawVectorIntArrayVector(specialized);
+      return;
+    }
+    if (valueVector instanceof IntArrowBufVector specialized) {
+      addRawVectorIntArrowBufVector(specialized);
+      return;
+    }
+    if (valueVector instanceof Int16ArrowBufVector specialized) {
+      addRawVectorInt16ArrowBufVector(specialized);
+      return;
+    }
+    if (valueVector instanceof Int8ArrowBufVector specialized) {
+      addRawVectorInt8ArrowBufVector(specialized);
+      return;
+    }
+    if (valueVector instanceof ConstantIntVector specialized) {
+      addRawVectorConstantIntVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(valueVector);
+  }
+
+  private void addRawVectorIntArrayVector(IntArrayVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorIntArrowBufVector(IntArrowBufVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorInt16ArrowBufVector(Int16ArrowBufVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorInt8ArrowBufVector(Int8ArrowBufVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorConstantIntVector(ConstantIntVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(IntVector valueVector) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       int valueValue = valueVector.getInt(valuesPosition);
       StdDevIntAggregator.combine(state, valueValue);
@@ -118,6 +182,81 @@ public final class StdDevIntAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(IntVector valueVector, BooleanVector mask) {
+    if (valueVector instanceof IntArrayVector specialized) {
+      addRawVectorIntArrayVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof IntArrowBufVector specialized) {
+      addRawVectorIntArrowBufVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof Int16ArrowBufVector specialized) {
+      addRawVectorInt16ArrowBufVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof Int8ArrowBufVector specialized) {
+      addRawVectorInt8ArrowBufVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof ConstantIntVector specialized) {
+      addRawVectorConstantIntVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(valueVector, mask);
+  }
+
+  private void addRawVectorIntArrayVector(IntArrayVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorIntArrowBufVector(IntArrowBufVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorInt16ArrowBufVector(Int16ArrowBufVector valueVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorInt8ArrowBufVector(Int8ArrowBufVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorConstantIntVector(ConstantIntVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(IntVector valueVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

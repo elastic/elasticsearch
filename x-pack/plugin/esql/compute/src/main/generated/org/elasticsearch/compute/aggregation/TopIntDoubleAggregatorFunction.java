@@ -11,12 +11,17 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -148,6 +153,74 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(IntVector vVector, DoubleVector outputValueVector) {
+    if (vVector instanceof IntArrayVector specialized) {
+      addRawVectorIntArrayVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof IntArrowBufVector specialized) {
+      addRawVectorIntArrowBufVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof Int16ArrowBufVector specialized) {
+      addRawVectorInt16ArrowBufVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof Int8ArrowBufVector specialized) {
+      addRawVectorInt8ArrowBufVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof ConstantIntVector specialized) {
+      addRawVectorConstantIntVector(specialized, outputValueVector);
+      return;
+    }
+    addRawVectorGeneric(vVector, outputValueVector);
+  }
+
+  private void addRawVectorIntArrayVector(IntArrayVector vVector, DoubleVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorIntArrowBufVector(IntArrowBufVector vVector,
+      DoubleVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorInt16ArrowBufVector(Int16ArrowBufVector vVector,
+      DoubleVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorInt8ArrowBufVector(Int8ArrowBufVector vVector,
+      DoubleVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorConstantIntVector(ConstantIntVector vVector,
+      DoubleVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(IntVector vVector, DoubleVector outputValueVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       int vValue = vVector.getInt(valuesPosition);
       double outputValueValue = outputValueVector.getDouble(valuesPosition);
@@ -156,6 +229,91 @@ public final class TopIntDoubleAggregatorFunction implements AggregatorFunction 
   }
 
   private void addRawVector(IntVector vVector, DoubleVector outputValueVector, BooleanVector mask) {
+    if (vVector instanceof IntArrayVector specialized) {
+      addRawVectorIntArrayVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof IntArrowBufVector specialized) {
+      addRawVectorIntArrowBufVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof Int16ArrowBufVector specialized) {
+      addRawVectorInt16ArrowBufVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof Int8ArrowBufVector specialized) {
+      addRawVectorInt8ArrowBufVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof ConstantIntVector specialized) {
+      addRawVectorConstantIntVector(specialized, outputValueVector, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, outputValueVector, mask);
+  }
+
+  private void addRawVectorIntArrayVector(IntArrayVector vVector, DoubleVector outputValueVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorIntArrowBufVector(IntArrowBufVector vVector,
+      DoubleVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorInt16ArrowBufVector(Int16ArrowBufVector vVector,
+      DoubleVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorInt8ArrowBufVector(Int8ArrowBufVector vVector,
+      DoubleVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorConstantIntVector(ConstantIntVector vVector,
+      DoubleVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      double outputValueValue = outputValueVector.getDouble(valuesPosition);
+      TopIntDoubleAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(IntVector vVector, DoubleVector outputValueVector,
+      BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

@@ -14,12 +14,15 @@ import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -113,6 +116,46 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
   }
 
   private void addRawVector(BytesRefVector bytesVector) {
+    if (bytesVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized);
+      return;
+    }
+    if (bytesVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized);
+      return;
+    }
+    if (bytesVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(bytesVector);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector bytesVector) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector bytesVector) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector bytesVector) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector bytesVector) {
     BytesRef bytesScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
       BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
@@ -121,6 +164,58 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
   }
 
   private void addRawVector(BytesRefVector bytesVector, BooleanVector mask) {
+    if (bytesVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized, mask);
+      return;
+    }
+    if (bytesVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized, mask);
+      return;
+    }
+    if (bytesVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(bytesVector, mask);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector bytesVector,
+      BooleanVector mask) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector bytesVector,
+      BooleanVector mask) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector bytesVector,
+      BooleanVector mask) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector bytesVector, BooleanVector mask) {
     BytesRef bytesScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

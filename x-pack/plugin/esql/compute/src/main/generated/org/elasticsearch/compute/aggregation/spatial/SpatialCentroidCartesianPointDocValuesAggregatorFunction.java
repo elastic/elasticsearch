@@ -13,12 +13,15 @@ import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
@@ -115,6 +118,43 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
   }
 
   private void addRawVector(LongVector vVector) {
+    if (vVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized);
+      return;
+    }
+    if (vVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(vVector);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector vVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
       SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
@@ -122,6 +162,52 @@ public final class SpatialCentroidCartesianPointDocValuesAggregatorFunction impl
   }
 
   private void addRawVector(LongVector vVector, BooleanVector mask) {
+    if (vVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, mask);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      SpatialCentroidCartesianPointDocValuesAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector vVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

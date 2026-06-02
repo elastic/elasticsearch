@@ -78,6 +78,55 @@ public class Types {
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
     static final ClassName FLOAT_VECTOR = ClassName.get(DATA_PACKAGE, "FloatVector");
 
+    // Concrete Vector subtypes used to specialize the addRawVector dispatch in generated aggregators.
+    // See VECTOR_DISPATCH_SUBTYPES below; reflects production receiver evidence from CPU flames.
+    private static final String ARROW_DATA_PACKAGE = DATA_PACKAGE + ".arrow";
+    static final ClassName INT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "IntArrayVector");
+    static final ClassName LONG_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "LongArrayVector");
+    static final ClassName DOUBLE_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleArrayVector");
+    static final ClassName FLOAT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "FloatArrayVector");
+    static final ClassName BOOLEAN_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanArrayVector");
+    static final ClassName BYTES_REF_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefArrayVector");
+
+    static final ClassName CONSTANT_INT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantIntVector");
+    static final ClassName CONSTANT_LONG_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantLongVector");
+    static final ClassName CONSTANT_DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantDoubleVector");
+    static final ClassName CONSTANT_FLOAT_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantFloatVector");
+    static final ClassName CONSTANT_BOOLEAN_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBooleanVector");
+    static final ClassName CONSTANT_BYTES_REF_VECTOR = ClassName.get(DATA_PACKAGE, "ConstantBytesRefVector");
+
+    static final ClassName INT_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "IntArrowBufVector");
+    static final ClassName INT16_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "Int16ArrowBufVector");
+    static final ClassName INT8_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "Int8ArrowBufVector");
+    static final ClassName LONG_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "LongArrowBufVector");
+    static final ClassName DOUBLE_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "DoubleArrowBufVector");
+    static final ClassName FLOAT_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "FloatArrowBufVector");
+    static final ClassName BOOLEAN_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "BooleanArrowBufVector");
+    static final ClassName BYTES_REF_ARROW_BUF_VECTOR = ClassName.get(ARROW_DATA_PACKAGE, "BytesRefArrowBufVector");
+
+    /**
+     * Concrete Vector subtypes the generated aggregator code should {@code instanceof}-dispatch on
+     * before falling through to a generic loop. Keyed by the abstract Vector interface (e.g.
+     * {@link #INT_VECTOR}). Per-key lists are ordered most-common-first; arms not listed fall through
+     * to the generic loop, which preserves correctness for future Vector implementations.
+     * <p>
+     * Sized per the production receiver evidence cited in
+     * <a href="https://github.com/elastic/esql-planning/issues/696">esql-planning#696</a>: a typical
+     * call site sees 3-5 receivers in the bytecode profile, which is too many for the JIT's inline
+     * cache and degrades to an itable lookup.
+     */
+    public static final Map<ClassName, List<ClassName>> VECTOR_DISPATCH_SUBTYPES = Map.ofEntries(
+        Map.entry(
+            INT_VECTOR,
+            List.of(INT_ARRAY_VECTOR, INT_ARROW_BUF_VECTOR, INT16_ARROW_BUF_VECTOR, INT8_ARROW_BUF_VECTOR, CONSTANT_INT_VECTOR)
+        ),
+        Map.entry(LONG_VECTOR, List.of(LONG_ARRAY_VECTOR, LONG_ARROW_BUF_VECTOR, CONSTANT_LONG_VECTOR)),
+        Map.entry(DOUBLE_VECTOR, List.of(DOUBLE_ARRAY_VECTOR, DOUBLE_ARROW_BUF_VECTOR, CONSTANT_DOUBLE_VECTOR)),
+        Map.entry(FLOAT_VECTOR, List.of(FLOAT_ARRAY_VECTOR, FLOAT_ARROW_BUF_VECTOR, CONSTANT_FLOAT_VECTOR)),
+        Map.entry(BOOLEAN_VECTOR, List.of(BOOLEAN_ARRAY_VECTOR, BOOLEAN_ARROW_BUF_VECTOR, CONSTANT_BOOLEAN_VECTOR)),
+        Map.entry(BYTES_REF_VECTOR, List.of(BYTES_REF_ARRAY_VECTOR, BYTES_REF_ARROW_BUF_VECTOR, CONSTANT_BYTES_REF_VECTOR))
+    );
+
     static final ClassName BOOLEAN_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "Builder");
     static final ClassName BYTES_REF_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BytesRefVector", "Builder");
     static final ClassName INT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "Builder");

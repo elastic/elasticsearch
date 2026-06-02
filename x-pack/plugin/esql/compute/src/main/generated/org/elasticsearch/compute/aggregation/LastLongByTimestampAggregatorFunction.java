@@ -12,10 +12,13 @@ import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -93,6 +96,82 @@ public final class LastLongByTimestampAggregatorFunction implements AggregatorFu
   }
 
   private void addRawVector(LongVector valueVector, LongVector timestampVector) {
+    if (valueVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, timestampVector);
+      return;
+    }
+    if (valueVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, timestampVector);
+      return;
+    }
+    if (valueVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, timestampVector);
+      return;
+    }
+    addRawVectorGeneric(valueVector, timestampVector);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector valueVector,
+      LongVector timestampVector) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector valueVector,
+      LongVector timestampVector) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector valueVector,
+      LongVector timestampVector) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector valueVector, LongVector timestampVector) {
     // Find the first value up front in the Vector path which is more complex but should be faster
     int valuesPosition = 0;
     while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
@@ -112,6 +191,107 @@ public final class LastLongByTimestampAggregatorFunction implements AggregatorFu
   }
 
   private void addRawVector(LongVector valueVector, LongVector timestampVector,
+      BooleanVector mask) {
+    if (valueVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, timestampVector, mask);
+      return;
+    }
+    if (valueVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, timestampVector, mask);
+      return;
+    }
+    if (valueVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, timestampVector, mask);
+      return;
+    }
+    addRawVectorGeneric(valueVector, timestampVector, mask);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector valueVector, LongVector timestampVector,
+      BooleanVector mask) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastLongByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector valueVector, LongVector timestampVector,
       BooleanVector mask) {
     // Find the first value up front in the Vector path which is more complex but should be faster
     int valuesPosition = 0;

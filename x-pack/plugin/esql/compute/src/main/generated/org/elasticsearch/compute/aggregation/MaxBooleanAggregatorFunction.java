@@ -10,10 +10,13 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.BooleanArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -102,6 +105,46 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(BooleanVector vVector) {
+    if (vVector instanceof BooleanArrayVector specialized) {
+      addRawVectorBooleanArrayVector(specialized);
+      return;
+    }
+    if (vVector instanceof BooleanArrowBufVector specialized) {
+      addRawVectorBooleanArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof ConstantBooleanVector specialized) {
+      addRawVectorConstantBooleanVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(vVector);
+  }
+
+  private void addRawVectorBooleanArrayVector(BooleanArrayVector vVector) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
+    }
+  }
+
+  private void addRawVectorBooleanArrowBufVector(BooleanArrowBufVector vVector) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
+    }
+  }
+
+  private void addRawVectorConstantBooleanVector(ConstantBooleanVector vVector) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
+    }
+  }
+
+  private void addRawVectorGeneric(BooleanVector vVector) {
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       boolean vValue = vVector.getBoolean(valuesPosition);
@@ -110,6 +153,57 @@ public final class MaxBooleanAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(BooleanVector vVector, BooleanVector mask) {
+    if (vVector instanceof BooleanArrayVector specialized) {
+      addRawVectorBooleanArrayVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof BooleanArrowBufVector specialized) {
+      addRawVectorBooleanArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof ConstantBooleanVector specialized) {
+      addRawVectorConstantBooleanVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, mask);
+  }
+
+  private void addRawVectorBooleanArrayVector(BooleanArrayVector vVector, BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
+    }
+  }
+
+  private void addRawVectorBooleanArrowBufVector(BooleanArrowBufVector vVector,
+      BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
+    }
+  }
+
+  private void addRawVectorConstantBooleanVector(ConstantBooleanVector vVector,
+      BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      boolean vValue = vVector.getBoolean(valuesPosition);
+      state.booleanValue(MaxBooleanAggregator.combine(state.booleanValue(), vValue));
+    }
+  }
+
+  private void addRawVectorGeneric(BooleanVector vVector, BooleanVector mask) {
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

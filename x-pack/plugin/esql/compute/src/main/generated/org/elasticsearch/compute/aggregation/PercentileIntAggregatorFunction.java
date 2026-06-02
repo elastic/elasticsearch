@@ -14,10 +14,15 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.Int16ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.Int8ArrowBufVector;
+import org.elasticsearch.compute.data.arrow.IntArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -109,6 +114,65 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(IntVector vVector) {
+    if (vVector instanceof IntArrayVector specialized) {
+      addRawVectorIntArrayVector(specialized);
+      return;
+    }
+    if (vVector instanceof IntArrowBufVector specialized) {
+      addRawVectorIntArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof Int16ArrowBufVector specialized) {
+      addRawVectorInt16ArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof Int8ArrowBufVector specialized) {
+      addRawVectorInt8ArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof ConstantIntVector specialized) {
+      addRawVectorConstantIntVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(vVector);
+  }
+
+  private void addRawVectorIntArrayVector(IntArrayVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorIntArrowBufVector(IntArrowBufVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorInt16ArrowBufVector(Int16ArrowBufVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorInt8ArrowBufVector(Int8ArrowBufVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantIntVector(ConstantIntVector vVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(IntVector vVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       int vValue = vVector.getInt(valuesPosition);
       PercentileIntAggregator.combine(state, vValue);
@@ -116,6 +180,80 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(IntVector vVector, BooleanVector mask) {
+    if (vVector instanceof IntArrayVector specialized) {
+      addRawVectorIntArrayVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof IntArrowBufVector specialized) {
+      addRawVectorIntArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof Int16ArrowBufVector specialized) {
+      addRawVectorInt16ArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof Int8ArrowBufVector specialized) {
+      addRawVectorInt8ArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof ConstantIntVector specialized) {
+      addRawVectorConstantIntVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, mask);
+  }
+
+  private void addRawVectorIntArrayVector(IntArrayVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorIntArrowBufVector(IntArrowBufVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorInt16ArrowBufVector(Int16ArrowBufVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorInt8ArrowBufVector(Int8ArrowBufVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorConstantIntVector(ConstantIntVector vVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      int vValue = vVector.getInt(valuesPosition);
+      PercentileIntAggregator.combine(state, vValue);
+    }
+  }
+
+  private void addRawVectorGeneric(IntVector vVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

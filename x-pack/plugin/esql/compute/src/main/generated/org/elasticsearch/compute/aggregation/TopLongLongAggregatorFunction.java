@@ -11,10 +11,13 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -146,6 +149,48 @@ public final class TopLongLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vVector, LongVector outputValueVector) {
+    if (vVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, outputValueVector);
+      return;
+    }
+    addRawVectorGeneric(vVector, outputValueVector);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector vVector, LongVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopLongLongAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector vVector,
+      LongVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopLongLongAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector vVector,
+      LongVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopLongLongAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector vVector, LongVector outputValueVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       long vValue = vVector.getLong(valuesPosition);
       long outputValueValue = outputValueVector.getLong(valuesPosition);
@@ -154,6 +199,59 @@ public final class TopLongLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector vVector, LongVector outputValueVector, BooleanVector mask) {
+    if (vVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, outputValueVector, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, outputValueVector, mask);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector vVector, LongVector outputValueVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopLongLongAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector vVector,
+      LongVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopLongLongAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector vVector,
+      LongVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long vValue = vVector.getLong(valuesPosition);
+      long outputValueValue = outputValueVector.getLong(valuesPosition);
+      TopLongLongAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector vVector, LongVector outputValueVector,
+      BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

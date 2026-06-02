@@ -11,12 +11,15 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -148,6 +151,49 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector) {
+    if (valueVector instanceof DoubleArrayVector specialized) {
+      addRawVectorDoubleArrayVector(specialized, timestampVector);
+      return;
+    }
+    if (valueVector instanceof DoubleArrowBufVector specialized) {
+      addRawVectorDoubleArrowBufVector(specialized, timestampVector);
+      return;
+    }
+    if (valueVector instanceof ConstantDoubleVector specialized) {
+      addRawVectorConstantDoubleVector(specialized, timestampVector);
+      return;
+    }
+    addRawVectorGeneric(valueVector, timestampVector);
+  }
+
+  private void addRawVectorDoubleArrayVector(DoubleArrayVector valueVector,
+      LongVector timestampVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+    }
+  }
+
+  private void addRawVectorDoubleArrowBufVector(DoubleArrowBufVector valueVector,
+      LongVector timestampVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+    }
+  }
+
+  private void addRawVectorConstantDoubleVector(ConstantDoubleVector valueVector,
+      LongVector timestampVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+    }
+  }
+
+  private void addRawVectorGeneric(DoubleVector valueVector, LongVector timestampVector) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       double valueValue = valueVector.getDouble(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
@@ -156,6 +202,59 @@ public final class DerivDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector valueVector, LongVector timestampVector,
+      BooleanVector mask) {
+    if (valueVector instanceof DoubleArrayVector specialized) {
+      addRawVectorDoubleArrayVector(specialized, timestampVector, mask);
+      return;
+    }
+    if (valueVector instanceof DoubleArrowBufVector specialized) {
+      addRawVectorDoubleArrowBufVector(specialized, timestampVector, mask);
+      return;
+    }
+    if (valueVector instanceof ConstantDoubleVector specialized) {
+      addRawVectorConstantDoubleVector(specialized, timestampVector, mask);
+      return;
+    }
+    addRawVectorGeneric(valueVector, timestampVector, mask);
+  }
+
+  private void addRawVectorDoubleArrayVector(DoubleArrayVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+    }
+  }
+
+  private void addRawVectorDoubleArrowBufVector(DoubleArrowBufVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+    }
+  }
+
+  private void addRawVectorConstantDoubleVector(ConstantDoubleVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double valueValue = valueVector.getDouble(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      DerivDoubleAggregator.combine(state, valueValue, timestampValue);
+    }
+  }
+
+  private void addRawVectorGeneric(DoubleVector valueVector, LongVector timestampVector,
       BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

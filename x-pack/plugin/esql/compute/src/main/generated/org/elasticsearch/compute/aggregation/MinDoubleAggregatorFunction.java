@@ -12,10 +12,13 @@ import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantDoubleVector;
+import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -104,6 +107,46 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector) {
+    if (vVector instanceof DoubleArrayVector specialized) {
+      addRawVectorDoubleArrayVector(specialized);
+      return;
+    }
+    if (vVector instanceof DoubleArrowBufVector specialized) {
+      addRawVectorDoubleArrowBufVector(specialized);
+      return;
+    }
+    if (vVector instanceof ConstantDoubleVector specialized) {
+      addRawVectorConstantDoubleVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(vVector);
+  }
+
+  private void addRawVectorDoubleArrayVector(DoubleArrayVector vVector) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
+    }
+  }
+
+  private void addRawVectorDoubleArrowBufVector(DoubleArrowBufVector vVector) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
+    }
+  }
+
+  private void addRawVectorConstantDoubleVector(ConstantDoubleVector vVector) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      double vValue = vVector.getDouble(valuesPosition);
+      state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
+    }
+  }
+
+  private void addRawVectorGeneric(DoubleVector vVector) {
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       double vValue = vVector.getDouble(valuesPosition);
@@ -112,6 +155,55 @@ public final class MinDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(DoubleVector vVector, BooleanVector mask) {
+    if (vVector instanceof DoubleArrayVector specialized) {
+      addRawVectorDoubleArrayVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof DoubleArrowBufVector specialized) {
+      addRawVectorDoubleArrowBufVector(specialized, mask);
+      return;
+    }
+    if (vVector instanceof ConstantDoubleVector specialized) {
+      addRawVectorConstantDoubleVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, mask);
+  }
+
+  private void addRawVectorDoubleArrayVector(DoubleArrayVector vVector, BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double vValue = vVector.getDouble(valuesPosition);
+      state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
+    }
+  }
+
+  private void addRawVectorDoubleArrowBufVector(DoubleArrowBufVector vVector, BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double vValue = vVector.getDouble(valuesPosition);
+      state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
+    }
+  }
+
+  private void addRawVectorConstantDoubleVector(ConstantDoubleVector vVector, BooleanVector mask) {
+    state.seen(true);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      double vValue = vVector.getDouble(valuesPosition);
+      state.doubleValue(MinDoubleAggregator.combine(state.doubleValue(), vValue));
+    }
+  }
+
+  private void addRawVectorGeneric(DoubleVector vVector, BooleanVector mask) {
     state.seen(true);
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

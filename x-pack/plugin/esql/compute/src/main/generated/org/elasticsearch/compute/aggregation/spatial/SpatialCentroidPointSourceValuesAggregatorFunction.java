@@ -14,14 +14,17 @@ import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 
@@ -118,6 +121,46 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunction implements
   }
 
   private void addRawVector(BytesRefVector wkbVector) {
+    if (wkbVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized);
+      return;
+    }
+    if (wkbVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized);
+      return;
+    }
+    if (wkbVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(wkbVector);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector wkbVector) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector wkbVector) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector wkbVector) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector wkbVector) {
     BytesRef wkbScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
       BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
@@ -126,6 +169,57 @@ public final class SpatialCentroidPointSourceValuesAggregatorFunction implements
   }
 
   private void addRawVector(BytesRefVector wkbVector, BooleanVector mask) {
+    if (wkbVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized, mask);
+      return;
+    }
+    if (wkbVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized, mask);
+      return;
+    }
+    if (wkbVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(wkbVector, mask);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector wkbVector, BooleanVector mask) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector wkbVector,
+      BooleanVector mask) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector wkbVector,
+      BooleanVector mask) {
+    BytesRef wkbScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      BytesRef wkbValue = wkbVector.getBytesRef(valuesPosition, wkbScratch);
+      SpatialCentroidPointSourceValuesAggregator.combine(state, wkbValue);
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector wkbVector, BooleanVector mask) {
     BytesRef wkbScratch = new BytesRef();
     for (int valuesPosition = 0; valuesPosition < wkbVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

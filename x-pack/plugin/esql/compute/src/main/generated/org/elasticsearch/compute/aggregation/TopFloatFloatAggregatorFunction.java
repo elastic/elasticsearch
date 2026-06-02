@@ -11,10 +11,13 @@ import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantFloatVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.FloatArrayVector;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.FloatVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.FloatArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -146,6 +149,49 @@ public final class TopFloatFloatAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(FloatVector vVector, FloatVector outputValueVector) {
+    if (vVector instanceof FloatArrayVector specialized) {
+      addRawVectorFloatArrayVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof FloatArrowBufVector specialized) {
+      addRawVectorFloatArrowBufVector(specialized, outputValueVector);
+      return;
+    }
+    if (vVector instanceof ConstantFloatVector specialized) {
+      addRawVectorConstantFloatVector(specialized, outputValueVector);
+      return;
+    }
+    addRawVectorGeneric(vVector, outputValueVector);
+  }
+
+  private void addRawVectorFloatArrayVector(FloatArrayVector vVector,
+      FloatVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      float vValue = vVector.getFloat(valuesPosition);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopFloatFloatAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorFloatArrowBufVector(FloatArrowBufVector vVector,
+      FloatVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      float vValue = vVector.getFloat(valuesPosition);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopFloatFloatAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorConstantFloatVector(ConstantFloatVector vVector,
+      FloatVector outputValueVector) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      float vValue = vVector.getFloat(valuesPosition);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopFloatFloatAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(FloatVector vVector, FloatVector outputValueVector) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       float vValue = vVector.getFloat(valuesPosition);
       float outputValueValue = outputValueVector.getFloat(valuesPosition);
@@ -154,6 +200,59 @@ public final class TopFloatFloatAggregatorFunction implements AggregatorFunction
   }
 
   private void addRawVector(FloatVector vVector, FloatVector outputValueVector,
+      BooleanVector mask) {
+    if (vVector instanceof FloatArrayVector specialized) {
+      addRawVectorFloatArrayVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof FloatArrowBufVector specialized) {
+      addRawVectorFloatArrowBufVector(specialized, outputValueVector, mask);
+      return;
+    }
+    if (vVector instanceof ConstantFloatVector specialized) {
+      addRawVectorConstantFloatVector(specialized, outputValueVector, mask);
+      return;
+    }
+    addRawVectorGeneric(vVector, outputValueVector, mask);
+  }
+
+  private void addRawVectorFloatArrayVector(FloatArrayVector vVector, FloatVector outputValueVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      float vValue = vVector.getFloat(valuesPosition);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopFloatFloatAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorFloatArrowBufVector(FloatArrowBufVector vVector,
+      FloatVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      float vValue = vVector.getFloat(valuesPosition);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopFloatFloatAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorConstantFloatVector(ConstantFloatVector vVector,
+      FloatVector outputValueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      float vValue = vVector.getFloat(valuesPosition);
+      float outputValueValue = outputValueVector.getFloat(valuesPosition);
+      TopFloatFloatAggregator.combine(state, vValue, outputValueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(FloatVector vVector, FloatVector outputValueVector,
       BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {

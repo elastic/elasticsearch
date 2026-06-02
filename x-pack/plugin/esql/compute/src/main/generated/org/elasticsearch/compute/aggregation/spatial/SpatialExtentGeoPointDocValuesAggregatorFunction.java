@@ -13,12 +13,15 @@ import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -112,6 +115,43 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
   }
 
   private void addRawVector(LongVector encodedVector) {
+    if (encodedVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized);
+      return;
+    }
+    if (encodedVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized);
+      return;
+    }
+    if (encodedVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(encodedVector);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector encodedVector) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector encodedVector) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector encodedVector) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector encodedVector) {
     for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
       long encodedValue = encodedVector.getLong(valuesPosition);
       SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
@@ -119,6 +159,54 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
   }
 
   private void addRawVector(LongVector encodedVector, BooleanVector mask) {
+    if (encodedVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, mask);
+      return;
+    }
+    if (encodedVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, mask);
+      return;
+    }
+    if (encodedVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(encodedVector, mask);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector encodedVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector encodedVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector encodedVector,
+      BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector encodedVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

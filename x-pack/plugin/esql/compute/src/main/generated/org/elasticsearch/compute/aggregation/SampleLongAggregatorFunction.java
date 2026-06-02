@@ -13,10 +13,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantLongVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -107,6 +110,43 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector) {
+    if (valueVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized);
+      return;
+    }
+    if (valueVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized);
+      return;
+    }
+    if (valueVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized);
+      return;
+    }
+    addRawVectorGeneric(valueVector);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector valueVector) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       long valueValue = valueVector.getLong(valuesPosition);
       SampleLongAggregator.combine(state, valueValue);
@@ -114,6 +154,52 @@ public final class SampleLongAggregatorFunction implements AggregatorFunction {
   }
 
   private void addRawVector(LongVector valueVector, BooleanVector mask) {
+    if (valueVector instanceof LongArrayVector specialized) {
+      addRawVectorLongArrayVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof LongArrowBufVector specialized) {
+      addRawVectorLongArrowBufVector(specialized, mask);
+      return;
+    }
+    if (valueVector instanceof ConstantLongVector specialized) {
+      addRawVectorConstantLongVector(specialized, mask);
+      return;
+    }
+    addRawVectorGeneric(valueVector, mask);
+  }
+
+  private void addRawVectorLongArrayVector(LongArrayVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorLongArrowBufVector(LongArrowBufVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorConstantLongVector(ConstantLongVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        continue;
+      }
+      long valueValue = valueVector.getLong(valuesPosition);
+      SampleLongAggregator.combine(state, valueValue);
+    }
+  }
+
+  private void addRawVectorGeneric(LongVector valueVector, BooleanVector mask) {
     for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
       if (mask.getBoolean(valuesPosition) == false) {
         continue;

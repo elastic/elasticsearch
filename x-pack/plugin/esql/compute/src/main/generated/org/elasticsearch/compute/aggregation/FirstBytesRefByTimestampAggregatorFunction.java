@@ -13,12 +13,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefArrayVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.ConstantBytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -96,6 +99,85 @@ public final class FirstBytesRefByTimestampAggregatorFunction implements Aggrega
   }
 
   private void addRawVector(BytesRefVector valueVector, LongVector timestampVector) {
+    if (valueVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized, timestampVector);
+      return;
+    }
+    if (valueVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized, timestampVector);
+      return;
+    }
+    if (valueVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized, timestampVector);
+      return;
+    }
+    addRawVectorGeneric(valueVector, timestampVector);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector valueVector,
+      LongVector timestampVector) {
+    BytesRef valueScratch = new BytesRef();
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector valueVector,
+      LongVector timestampVector) {
+    BytesRef valueScratch = new BytesRef();
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector valueVector,
+      LongVector timestampVector) {
+    BytesRef valueScratch = new BytesRef();
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector valueVector, LongVector timestampVector) {
     BytesRef valueScratch = new BytesRef();
     // Find the first value up front in the Vector path which is more complex but should be faster
     int valuesPosition = 0;
@@ -116,6 +198,110 @@ public final class FirstBytesRefByTimestampAggregatorFunction implements Aggrega
   }
 
   private void addRawVector(BytesRefVector valueVector, LongVector timestampVector,
+      BooleanVector mask) {
+    if (valueVector instanceof BytesRefArrayVector specialized) {
+      addRawVectorBytesRefArrayVector(specialized, timestampVector, mask);
+      return;
+    }
+    if (valueVector instanceof BytesRefArrowBufVector specialized) {
+      addRawVectorBytesRefArrowBufVector(specialized, timestampVector, mask);
+      return;
+    }
+    if (valueVector instanceof ConstantBytesRefVector specialized) {
+      addRawVectorConstantBytesRefVector(specialized, timestampVector, mask);
+      return;
+    }
+    addRawVectorGeneric(valueVector, timestampVector, mask);
+  }
+
+  private void addRawVectorBytesRefArrayVector(BytesRefArrayVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    BytesRef valueScratch = new BytesRef();
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorBytesRefArrowBufVector(BytesRefArrowBufVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    BytesRef valueScratch = new BytesRef();
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorConstantBytesRefVector(ConstantBytesRefVector valueVector,
+      LongVector timestampVector, BooleanVector mask) {
+    BytesRef valueScratch = new BytesRef();
+    // Find the first value up front in the Vector path which is more complex but should be faster
+    int valuesPosition = 0;
+    while (state.seen() == false && valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.first(state, valueValue, timestampValue);
+      valuesPosition++;
+      state.seen(true);
+      break;
+    }
+    while (valuesPosition < valueVector.getPositionCount()) {
+      if (mask.getBoolean(valuesPosition) == false) {
+        valuesPosition++;
+        continue;
+      }
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      FirstBytesRefByTimestampAggregator.combine(state, valueValue, timestampValue);
+      valuesPosition++;
+    }
+  }
+
+  private void addRawVectorGeneric(BytesRefVector valueVector, LongVector timestampVector,
       BooleanVector mask) {
     BytesRef valueScratch = new BytesRef();
     // Find the first value up front in the Vector path which is more complex but should be faster

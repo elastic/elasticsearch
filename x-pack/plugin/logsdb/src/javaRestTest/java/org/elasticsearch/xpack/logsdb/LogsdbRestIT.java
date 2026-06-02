@@ -166,7 +166,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testEsqlRuntimeFields() throws IOException {
-        String indexName = "logs-test-esql-runtime-foo";
+        String dataStreamName = "logs-test-esql-runtime-foo";
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-runtime-template");
         templateRequest.setJsonEntity("""
             {
@@ -230,20 +230,20 @@ public class LogsdbRestIT extends ESRestTestCase {
         }
         var expectedMaxTimestamp = now;
 
-        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(sb.toString());
         bulkRequest.addParameter("refresh", "true");
         var bulkResponse = client().performRequest(bulkRequest);
         var bulkResponseBody = responseAsMap(bulkResponse);
         assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
 
-        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
         forceMergeRequest.addParameter("max_num_segments", "1");
         var forceMergeResponse = client().performRequest(forceMergeRequest);
         assertOK(forceMergeResponse);
 
         String query = "FROM "
-            + indexName
+            + dataStreamName
             + " | STATS count(*), min(@timestamp), max(@timestamp), min(message_length), max(message_length)"
             + " ,sum(message_length), avg(message_length), min(log.offset), max(log.offset) | LIMIT 1";
         final Request esqlRequest = new Request("POST", "/_query");
@@ -276,7 +276,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testEsqlScanWildcardField() throws IOException {
-        String indexName = "logs-test-esql-wildcard-foo";
+        String dataSteamName = "logs-test-esql-wildcard-foo";
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-wildcard-template");
         templateRequest.setJsonEntity("""
             {
@@ -320,7 +320,7 @@ public class LogsdbRestIT extends ESRestTestCase {
                 }
             }
 
-            var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+            var bulkRequest = new Request("POST", "/" + dataSteamName + "/_bulk");
             bulkRequest.setJsonEntity(sb.toString());
             bulkRequest.addParameter("refresh", "true");
             var bulkResponse = client().performRequest(bulkRequest);
@@ -330,7 +330,7 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         int documentsFound = 0;
         for (String level : new String[] { "info", "warning", "error", "fatal" }) {
-            String query = "FROM " + indexName + " | WHERE log.level == \\\"" + level + "\\\" | KEEP message | LIMIT " + numDocs * numBulks;
+            String query = "FROM " + dataSteamName + " | WHERE log.level == \\\"" + level + "\\\" | KEEP message | LIMIT " + numDocs * numBulks;
             final Request esqlRequest = new Request("POST", "/_query");
             esqlRequest.setJsonEntity("{\"query\": \"$query\"}".replace("$query", query));
             var esqlResponse = client().performRequest(esqlRequest);
@@ -463,7 +463,7 @@ public class LogsdbRestIT extends ESRestTestCase {
     }
 
     public void testSyntheticSourceRuntimeFieldQueries() throws IOException {
-        String indexName = "logs-test-esql-synthetic-foo";
+        String dataStreamName = "logs-test-esql-synthetic-foo";
         var templateRequest = new Request("PUT", "/_index_template/logs-test-esql-synthetic-template");
         templateRequest.setJsonEntity("""
             {
@@ -513,18 +513,18 @@ public class LogsdbRestIT extends ESRestTestCase {
             }
         }
 
-        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
         bulkRequest.setJsonEntity(sb.toString());
         bulkRequest.addParameter("refresh", "true");
         var bulkResponse = client().performRequest(bulkRequest);
         var bulkResponseBody = responseAsMap(bulkResponse);
         assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
 
-        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");
         var forceMergeResponse = client().performRequest(forceMergeRequest);
         assertOK(forceMergeResponse);
 
-        var searchRequest = new Request("POST", "/" + indexName + "/_search");
+        var searchRequest = new Request("POST", "/" + dataStreamName + "/_search");
 
         searchRequest.setJsonEntity("""
             {

@@ -80,20 +80,20 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private final SetOnce<Boolean> supportFallbackLogsdbRouting = new SetOnce<>();
 
     private volatile boolean isLogsdbEnabled;
-    private volatile boolean isColumnarEnabled;
+    private volatile boolean isLogsdbColumnarEnabled;
 
     LogsdbIndexModeSettingsProvider(LogsdbLicenseService licenseService, final Settings settings) {
         this.licenseService = licenseService;
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
-        this.isColumnarEnabled = CLUSTER_LOGSDB_COLUMNAR_ENABLED.get(settings);
+        this.isLogsdbColumnarEnabled = CLUSTER_LOGSDB_COLUMNAR_ENABLED.get(settings);
     }
 
     void updateClusterIndexModeLogsdbEnabled(boolean isLogsdbEnabled) {
         this.isLogsdbEnabled = isLogsdbEnabled;
     }
 
-    void updateClusterIndexModeColumnarEnabled(boolean isColumnarEnabled) {
-        this.isColumnarEnabled = isColumnarEnabled;
+    void updateClusterIndexModeLogsdbColumnarEnabled(boolean isLogsdbColumnarEnabled) {
+        this.isLogsdbColumnarEnabled = isLogsdbColumnarEnabled;
     }
 
     void init(
@@ -139,7 +139,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             && resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == null
             && matchesLogsPattern(dataStreamName)) {
             IndexMode indexMode;
-            if (isColumnarEnabled && Build.current().isSnapshot()) {
+            if (isLogsdbColumnarEnabled && Build.current().isSnapshot()) {
                 indexMode = IndexMode.LOGSDB_COLUMNAR;
             } else {
                 indexMode = IndexMode.LOGSDB;

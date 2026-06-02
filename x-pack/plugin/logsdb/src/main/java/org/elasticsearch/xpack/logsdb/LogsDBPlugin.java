@@ -88,7 +88,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin, MapperPlugin {
         );
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_LOGSDB_COLUMNAR_ENABLED,
-            logsdbIndexModeSettingsProvider::updateClusterIndexModeColumnarEnabled
+            logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbColumnarEnabled
         );
         // Nothing to share here:
         return super.createComponents(services);

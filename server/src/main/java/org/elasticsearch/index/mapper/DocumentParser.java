@@ -594,7 +594,9 @@ public final class DocumentParser {
                     );
                 }
             } else {
-                dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
+                dynamicObjectBuilder = context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+                    ? DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName)
+                    : DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
             }
             if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {

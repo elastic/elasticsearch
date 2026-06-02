@@ -632,7 +632,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             if (skipReason != null && skipReason.isBlank() == false) {
                 SILENCED_COUNTS_BY_REASON.computeIfAbsent(skipReason, k -> new AtomicInteger()).incrementAndGet();
                 logger.info("keyword→flattened: skipping; silenced [{}]: {}", testId, skipReason);
-                throw new AssumptionViolatedException(
+                throw new StacklessAssumptionViolatedException(
                     String.format(Locale.ROOT, "silenced known field_extract() limitation [%s]: %s", testId, skipReason)
                 );
             }
@@ -655,10 +655,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 // Logged at INFO so the launched/skipped split is visible in the test JVM stdout, alongside the
                 // assumption-violation message that surfaces in the JUnit XML <skipped> element.
                 logger.info("keyword→flattened: skipping; no keyword field references in query");
-                throw new AssumptionViolatedException(
-                    "skipping: query references no keyword field that this variant rewrites to flattened, "
-                        + "so re-running the spec would only re-test the unmodified behavior"
-                );
+                throw new StacklessAssumptionViolatedException("skipping: no keyword fields");
             }
             // Even when the query was modified (typically by tail-end EVAL/KEEP recovery
             // alone), if the only sites the rewriter actually visited were LOOKUP JOIN ... ON
@@ -673,7 +670,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 ONLY_LOOKUP_JOIN_ON_COUNT.incrementAndGet();
                 logger.info("keyword→flattened: skipping; only field references in query are inside LOOKUP JOIN ... ON ...");
                 logRewriterSkipEvents(result.skipEvents());
-                throw new AssumptionViolatedException(
+                throw new StacklessAssumptionViolatedException(
                     "skipping: query's only keyword field references appear inside LOOKUP JOIN ... ON ..., "
                         + "where ES|QL accepts only a bare attribute and field_extract cannot be substituted; "
                         + "the unmodified spec already covers this behavior"
@@ -992,6 +989,35 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     kwContributors,
                     nonKwContributors
                 );
+            }
+        }
+
+        /**
+         * An {@link AssumptionViolatedException} that does not carry a stack trace.
+         * <p>
+         * This variant skips the large majority of the CSV corpus &mdash; thousands of tests &mdash; and JUnit serialises
+         * the full stack trace of each thrown exception into the {@code <skipped>} element of the results XML. Those traces
+         * are identical from one skip to the next and add nothing beyond the human-readable message, yet at corpus scale
+         * they inflate the XML to tens of megabytes. The two overrides below reproduce the effect of constructing a
+         * {@link Throwable} with {@code writableStackTrace=false} &mdash; the constructor parameter that
+         * {@link AssumptionViolatedException} does not expose: {@link #fillInStackTrace()} never records a trace, and
+         * {@link #setStackTrace} ignores the synthetic seed frame the randomized runner would otherwise splice in. Each
+         * skip therefore keeps its reason while dropping the redundant trace entirely.
+         */
+        private static final class StacklessAssumptionViolatedException extends AssumptionViolatedException {
+            StacklessAssumptionViolatedException(String message) {
+                super(message);
+            }
+
+            @Override
+            public synchronized Throwable fillInStackTrace() {
+                return this;
+            }
+
+            @Override
+            public void setStackTrace(StackTraceElement[] stackTrace) {
+                // Intentionally a no-op: mirrors writableStackTrace=false so the randomized runner cannot re-attach a
+                // (single, identical) seed frame to the otherwise empty trace.
             }
         }
     }

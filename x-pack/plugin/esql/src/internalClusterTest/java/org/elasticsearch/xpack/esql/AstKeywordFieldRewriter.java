@@ -74,23 +74,23 @@ import java.util.TreeSet;
  *       {@code STATS} clears the scope; {@code INLINE STATS} preserves it minus rebound names.</li>
  *   <li>{@code DISSECT}/{@code GROK} wrap the input expression and drop the pattern-bound names
  *       from scope.</li>
-     *   <li>{@code MV_EXPAND <field>} accepts only a bare attribute and would see a flattened field
-     *       as a single wrapper object (nothing to expand), so an in-scope target is hoisted into an
-     *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it
-     *       to the multi-value {@code keyword} that {@code MV_EXPAND} can split into rows &mdash; and
-     *       then leaves scope.</li>
-     *   <li>{@code ENRICH} and {@code LOOKUP JOIN ... ON ...} accept only bare attributes in their
-     *       bodies; in-scope references there are recorded as {@link SkipEvent}s instead of being
-     *       wrapped.</li>
+ *   <li>{@code MV_EXPAND <field>} accepts only a bare attribute and would see a flattened field
+ *       as a single wrapper object (nothing to expand), so an in-scope target is hoisted into an
+ *       {@code EVAL <field> = field_extract(<field>, "v")} before the command &mdash; rebinding it
+ *       to the multi-value {@code keyword} that {@code MV_EXPAND} can split into rows &mdash; and
+ *       then leaves scope.</li>
+ *   <li>{@code ENRICH} and {@code LOOKUP JOIN ... ON ...} accept only bare attributes in their
+ *       bodies; in-scope references there are recorded as {@link SkipEvent}s instead of being
+ *       wrapped.</li>
  *   <li>The left-hand side of the match operator {@code :} ({@link MatchOperator}) accepts only a
  *       bare attribute; in-scope references there are recorded as
  *       {@link SkipSite#MATCH_OPERATOR_LHS} skip events.</li>
-     *   <li>{@code field IN (subquery)} hoists a bare in-scope left-hand side into an
-     *       {@code EVAL field = field_extract(field, "v")} inserted before the {@code WHERE} (the
-     *       IN-subquery resolver accepts only a bare attribute or constant on that side, rejecting a
-     *       {@code field_extract(...)} call as a "Complicated IN subquery"), and recursively rewrites
-     *       the subquery with a scope resolved from the subquery's own {@code FROM}, appending a
-     *       tail-end {@code EVAL} so its projected column arrives as {@code keyword} too.</li>
+ *   <li>{@code field IN (subquery)} hoists a bare in-scope left-hand side into an
+ *       {@code EVAL field = field_extract(field, "v")} inserted before the {@code WHERE} (the
+ *       IN-subquery resolver accepts only a bare attribute or constant on that side, rejecting a
+ *       {@code field_extract(...)} call as a "Complicated IN subquery"), and recursively rewrites
+ *       the subquery with a scope resolved from the subquery's own {@code FROM}, appending a
+ *       tail-end {@code EVAL} so its projected column arrives as {@code keyword} too.</li>
  *   <li>{@code FORK} rewrites each branch as its own pipeline sharing the pre-fork scope; the
  *       shared input pipeline is rewritten once thanks to span de-duplication.</li>
  *   <li>{@code FROM a, (subquery), ...} (a subquery in the {@code FROM} command, parsed as a

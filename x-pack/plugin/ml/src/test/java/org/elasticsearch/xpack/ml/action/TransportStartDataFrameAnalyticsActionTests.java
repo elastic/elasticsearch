@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -139,7 +140,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             .build();
         TaskExecutor executor = createTaskExecutor(settings, memoryTracker);
         TaskParams params = new TaskParams(JOB_ID, MlConfigVersion.CURRENT, true);
-        long trialNodeMemoryBytes = 4L * 1024 * 1024 * 1024;
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().build()))
             .nodes(DiscoveryNodes.builder().add(createNode(0, true, Version.CURRENT, MlConfigVersion.CURRENT, trialNodeMemoryBytes)))

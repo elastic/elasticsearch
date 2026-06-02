@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -1299,8 +1300,17 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertNull(result.getExecutorNode());
     }
 
+    public void testEffectiveMaxLazyNodesGivenNoCapAndLazyAssignmentShouldBeUnbounded() {
+        assertEquals(Integer.MAX_VALUE, JobNodeSelector.effectiveMaxLazyNodes(0, true));
+    }
+
+    public void testEffectiveMaxLazyNodesGivenPositiveCapShouldHonourCap() {
+        assertEquals(1, JobNodeSelector.effectiveMaxLazyNodes(1, true));
+        assertEquals(1, JobNodeSelector.effectiveMaxLazyNodes(1, false));
+    }
+
     public void testConsiderLazyAssignmentGivenNodeCapShouldFail() {
-        long trialNodeMemoryBytes = 4L * 1024 * 1024 * 1024;
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(
                 DiscoveryNodeUtils.create(

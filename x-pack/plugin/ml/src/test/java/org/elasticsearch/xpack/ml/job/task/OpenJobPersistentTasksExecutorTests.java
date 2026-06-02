@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -230,7 +231,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
             .put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1)
             .put(MachineLearning.MAX_ML_NODE_SIZE.getKey(), "4gb")
             .build();
-        long trialNodeMemoryBytes = 4L * 1024 * 1024 * 1024;
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
         Map<String, String> nodeAttributes = Map.of(
             MachineLearning.MACHINE_MEMORY_NODE_ATTR,
             Long.toString(trialNodeMemoryBytes),

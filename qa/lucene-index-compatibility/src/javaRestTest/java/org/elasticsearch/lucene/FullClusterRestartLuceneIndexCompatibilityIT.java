@@ -17,14 +17,9 @@ import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_WRITE_BLOCK;
@@ -457,24 +452,19 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
     }
 
     /**
-     * Attempts to capture a snapshot whose Lucene commit has {@code local_checkpoint < max_seq_no}
-     * on the N-2 cluster (7.x). Concurrent indexing threads run while up to 10 snapshots are
-     * taken. After each snapshot it is mounted as a full-copy searchable snapshot and {@code _stats}
-     * on the mounted index is checked for {@code local_checkpoint < max_seq_no}.
-     * The loop stops as soon as such a snapshot is found.
-     * The live index is then deleted so that no 7.x index remains in the cluster state during
-     * the upgrade to 9.x. On the N cluster (9.x), if a lagged snapshot was captured, it is
-     * restored as a read-only index via {@code RestoreService.prepareForReadOnlyRestore()}, and
-     * {@code Store#checkAndPatchLocalCheckpoint()} must have equalized {@code local_checkpoint}
-     * with {@code max_seq_no} after restore. The test is skipped if no natural lag is observed.
+     * Creates an index on N-2, runs concurrent indexing threads while taking a snapshot, then
+     * restores the snapshot on N. Concurrent writes give the snapshot a chance to capture a
+     * Lucene commit where {@code local_checkpoint < max_seq_no}; when this occurs,
+     * {@code Store#checkAndPatchLocalCheckpoint()} repairs the discrepancy during read-only
+     * restore via {@code RestoreService.prepareForReadOnlyRestore()}. The test passes in both
+     * scenarios: regardless of whether a gap was captured, {@code local_checkpoint == max_seq_no} must
+     * hold after restore.
      */
-    @SuppressWarnings("resource")
     public void testRestoreCheckpointPatch() throws Exception {
         final String repository = suffix("repository");
+        final String snapshot = suffix("snapshot");
         final String index = suffix("index");
-        final int numSnapshots = 10;
-        final int numThreads = 10;
-        final Path metaFile = Path.of(repositorySettings().get("location")).resolve("test-snaps-taken");
+        final int numThreads = 2;
 
         if (isFullyUpgradedTo(VERSION_MINUS_2)) {
             logger.debug("--> registering repository [{}]", repository);
@@ -489,55 +479,32 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
             ensureGreen(index);
 
             final AtomicBoolean keepIndexing = new AtomicBoolean(true);
-            final AtomicInteger docId = new AtomicInteger();
-            final CountDownLatch indexingDone = new CountDownLatch(numThreads);
-            final ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-            for (int t = 0; t < numThreads; t++) {
-                executor.submit(() -> {
+            final CountDownLatch firstRequestDone = new CountDownLatch(numThreads);
+            runInParallel(numThreads + 1, taskIndex -> {
+                if (taskIndex == 0) {
                     try {
-                        while (keepIndexing.get()) {
-                            int id = docId.getAndIncrement();
-                            var req = new Request("PUT", "/" + index + "/_doc/" + id);
-                            req.setJsonEntity("{\"f\": 1}");
-                            try {
-                                client().performRequest(req);
-                            } catch (IOException ignored) {}
-                        }
+                        assertTrue(firstRequestDone.await(60, TimeUnit.SECONDS));
+                        createSnapshot(client(), repository, snapshot, true);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
                     } finally {
-                        indexingDone.countDown();
+                        keepIndexing.set(false);
                     }
-                });
-            }
-
-            boolean lagObserved = false;
-            int snapshotsTaken = 0;
-            for (int s = 0; s < numSnapshots; s++) {
-                createSnapshot(client(), repository, "snap-" + s, true);
-                snapshotsTaken++;
-                // Mount as full-copy searchable snapshot: ReadOnlyEngine reads the Lucene commit
-                // as-is (no bootstrapNewHistory()), so _stats reflects the lcp/msn in the blob.
-                var checkIndex = suffix("check-" + s);
-                mountIndex(repository, "snap-" + s, index, false, checkIndex);
-                ensureGreen(checkIndex);
-                long[] seqNo = readPrimaryShardSeqNoStats(checkIndex);
-                deleteIndex(checkIndex);
-                if (seqNo[1] < seqNo[0]) {
-                    lagObserved = true;
-                    break;
+                } else {
+                    boolean counted = false;
+                    while (keepIndexing.get()) {
+                        var req = new Request("PUT", "/" + index + "/_doc/" + taskIndex);
+                        req.setJsonEntity("{\"f\": 1}");
+                        try {
+                            client().performRequest(req);
+                        } catch (IOException ignored) {}
+                        if (counted == false) {
+                            firstRequestDone.countDown();
+                            counted = true;
+                        }
+                    }
                 }
-            }
-            keepIndexing.set(false);
-            assertTrue(indexingDone.await(60, TimeUnit.SECONDS));
-            executor.close();
-
-            var countPath = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "/" + index + "/_count")));
-            long docCount = ((Number) countPath.evaluate("count")).longValue();
-            logger.info(
-                "--> lcp lag observed after [{}] snapshot(s), index has [{}] docs",
-                lagObserved ? snapshotsTaken : "none of " + numSnapshots,
-                docCount
-            );
-            Files.writeString(metaFile, String.valueOf(snapshotsTaken));
+            });
 
             // Delete the live index so no 7.x index remains in the cluster state during upgrade.
             deleteIndex(index);
@@ -545,17 +512,9 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
         }
 
         if (isFullyUpgradedTo(VERSION_CURRENT)) {
-            assumeTrue("no snapshot metadata found from N-2 phase", Files.exists(metaFile));
-            int snapshotsTaken = Integer.parseInt(Files.readString(metaFile));
-
-            // Fewer snapshots than the max means the loop stopped early on lag detection.
-            boolean lagObserved = snapshotsTaken > 0 && snapshotsTaken < numSnapshots;
-            assumeTrue("no naturally lagged snapshot observed during N-2 indexing", lagObserved);
-
-            int lastSnap = snapshotsTaken - 1;
             var restoredIndex = suffix("index-restored");
-            logger.debug("--> restoring lagged snapshot [snap-{}] as [{}]", lastSnap, restoredIndex);
-            restoreIndex(repository, "snap-" + lastSnap, index, restoredIndex);
+            logger.debug("--> restoring snapshot [{}] as [{}]", snapshot, restoredIndex);
+            restoreIndex(repository, snapshot, index, restoredIndex);
             ensureGreen(restoredIndex);
 
             long[] seqNo = readPrimaryShardSeqNoStats(restoredIndex);

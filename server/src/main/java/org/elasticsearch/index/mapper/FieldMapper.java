@@ -509,7 +509,7 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Returns synthetic field loader for the mapper.
      * If mapper does not support synthetic source, it is handled using generic implementation
-     * in {@link DocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader(SourceFilter)}.
+     * in {@link DefaultDocumentParser#parseObjectOrField} and {@link ObjectMapper#syntheticFieldLoader(SourceFilter)}.
      * <br>
      *
      * This method is final in order to support common use cases like fallback synthetic source.

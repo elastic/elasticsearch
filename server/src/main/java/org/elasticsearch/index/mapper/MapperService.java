@@ -297,7 +297,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier
         );
-        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.documentParser = indexMode != null && indexMode.isStrictColumnar()
+            ? new FlatDocumentParser(parserConfiguration, this.mappingParserContextSupplier.get())
+            : new DefaultDocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -333,7 +335,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Exposes a {@link DocumentParser}
+     * Exposes the {@link DocumentParser} for this index.
      * @return a document parser to be used to parse incoming documents
      */
     public DocumentParser documentParser() {

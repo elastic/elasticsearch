@@ -145,9 +145,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
 
         assertThat(
             service.computeShardHeapUsage(metrics),
-            equalTo(
-                service.estimateShardMemoryUsageInBytes(metrics) + metrics.getPostingsInMemoryBytes() + metrics.getPointsInMemoryBytes()
-            )
+            equalTo(service.estimateShardMemoryUsageInBytes(metrics) + metrics.getPostingsInMemoryBytes())
         );
     }
 
@@ -368,7 +366,7 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
-    public void testPerNodeMemoryMetricsDoesNotIncludePointsMemory() {
+    public void testPerNodeMemoryMetricsIncludesPointsMemory() {
         ClusterState clusterState = randomInitialTwoNodeClusterState(1);
         final DiscoveryNode node0 = clusterState.getNodes().get("node_0");
         service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
@@ -385,7 +383,9 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         final var metricsWithPoints = withPointsInMemoryBytes(metricsWithoutPoints, pointsInMemoryBytes);
         service.updateShardsMappingSize(new HeapMemoryUsage(2, metricsWithPoints));
 
-        assertThat(service.getPerNodeMemoryMetrics(clusterState), equalTo(perNodeWithoutPoints));
+        final Map<String, Long> perNodeWithPoints = new HashMap<>(perNodeWithoutPoints);
+        perNodeWithPoints.merge(node0.getId(), pointsInMemoryBytes * metricsWithPoints.size(), Long::sum);
+        assertThat(service.getPerNodeMemoryMetrics(clusterState), equalTo(perNodeWithPoints));
         metricsWithPoints.keySet().forEach(shardId -> {
             assertThat(
                 service.getShardHeapUsages().get(shardId).shardHeapUsageBytes(),

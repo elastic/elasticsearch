@@ -329,22 +329,24 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, long heapBytes) {}
 
     /**
-     * Estimates the heap usage for a single shard, based on: segment, number of fields, and live doc byte counts.
+     * Estimates the heap usage for a single shard, based on segment, field, live-doc, and points-memory metrics.
+     * Postings memory is tracked separately and is not included here.
      */
     public long estimateShardMemoryUsageInBytes(ShardMemoryMetrics metrics) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
+        final long pointsInMemoryBytes = metrics.getPointsInMemoryBytes();
         if (fixedShardOverhead.getBytes() > 0) {
-            return fixedShardOverhead.getBytes();
+            return fixedShardOverhead.getBytes() + pointsInMemoryBytes;
         }
         long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
             + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
 
         if (this.adaptiveShardMemoryEstimationMinThresholdEnabled) {
-            return Math.max(getAdaptiveShardMemoryEstimationMinThreshold(), estimateBytes + extraBytes);
+            return Math.max(getAdaptiveShardMemoryEstimationMinThreshold(), estimateBytes + extraBytes) + pointsInMemoryBytes;
         }
 
-        return estimateBytes + extraBytes;
+        return estimateBytes + extraBytes + pointsInMemoryBytes;
     }
 
     public long getAdaptiveShardMemoryEstimationMinThreshold() {
@@ -899,8 +901,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         if (isSelfReportedShardMemoryOverheadAvailable(shardMemoryMetrics)) {
             return shardMemoryMetrics.getShardMemoryOverheadBytes();
         }
-        return estimateShardMemoryUsageInBytes(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes() + shardMemoryMetrics
-            .getPointsInMemoryBytes();
+        return estimateShardMemoryUsageInBytes(shardMemoryMetrics) + shardMemoryMetrics.getPostingsInMemoryBytes();
     }
 
     /**

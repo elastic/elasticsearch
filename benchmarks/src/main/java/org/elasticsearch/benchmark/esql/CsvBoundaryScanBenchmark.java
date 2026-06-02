@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -34,6 +35,7 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -94,24 +96,24 @@ public class CsvBoundaryScanBenchmark {
     /** Original CSV reader before either fix. */
     @Benchmark
     public int originalBefore() throws IOException {
-        return originalReaderBefore.findLastRecordBoundary(buf, length);
+        return originalReaderBefore.recordSplitter().findLastRecordBoundary(buf, length);
     }
 
     /** Original CSV reader after Layer 2 was applied, before Layer 1. */
     @Benchmark
     public int originalAfter() throws IOException {
-        return originalReaderAfter.findLastRecordBoundary(buf, length);
+        return originalReaderAfter.recordSplitter().findLastRecordBoundary(buf, length);
     }
 
     /** Current TSV reader — both fixes applied. */
     @Benchmark
     public int tsvAfter() throws IOException {
-        return tsvReader.findLastRecordBoundary(buf, length);
+        return tsvReader.recordSplitter().findLastRecordBoundary(buf, length);
     }
 
     /**
-     * Implements SegmentableFormatReader directly so it inherits the SPI default
-     * findLastRecordBoundary. Delegates the rest of the contract to a wrapped CsvFormatReader.
+     * Implements the former SegmentableFormatReader default findLastRecordBoundary by driving the
+     * per-record scanner forward through the buffer.
      */
     private static final class CsvReaderInheritingDefault implements SegmentableFormatReader {
         private final CsvFormatReader wrapped;
@@ -121,8 +123,9 @@ public class CsvBoundaryScanBenchmark {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            return wrapped.findNextRecordBoundary(stream);
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            RecordSplitter wrappedSplitter = wrapped.recordSplitter(maxRecordBytes);
+            return defaultFindLastSplitter(wrappedSplitter);
         }
 
         @Override
@@ -169,54 +172,111 @@ public class CsvBoundaryScanBenchmark {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            boolean inQuotes = false;
-            byte quoteAsByte = (byte) opts.quoteChar();
-            byte[] scratch = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = stream.read(scratch, 0, scratch.length)) > 0) {
-                for (int i = 0; i < bytesRead; i++) {
-                    consumed++;
-                    byte b = scratch[i];
-                    if (b == quoteAsByte) {
-                        if (inQuotes) {
-                            if (i + 1 < bytesRead) {
-                                if (scratch[i + 1] == quoteAsByte) {
-                                    i++;
-                                    consumed++;
-                                    continue;
-                                }
-                                inQuotes = false;
-                                if (scratch[i + 1] == '\n') {
-                                    consumed++;
-                                    return consumed;
-                                }
-                                continue;
-                            }
-                            int next = stream.read();
-                            if (next == -1) {
-                                return -1;
-                            }
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return defaultFindLastSplitter(new RecordSplitter() {
+                @Override
+                public long findNextRecordBoundary(InputStream stream) throws IOException {
+                    long consumed = 0;
+                    boolean inQuotes = false;
+                    byte quoteAsByte = (byte) opts.quoteChar();
+                    byte[] scratch = new byte[8192];
+                    int bytesRead;
+                    while ((bytesRead = stream.read(scratch, 0, scratch.length)) > 0) {
+                        for (int i = 0; i < bytesRead; i++) {
                             consumed++;
-                            if (next == quoteAsByte) {
-                                continue;
+                            if (consumed > maxRecordBytes) {
+                                return RECORD_TOO_LARGE;
                             }
-                            inQuotes = false;
-                            if (next == '\n') {
+                            byte b = scratch[i];
+                            if (b == quoteAsByte) {
+                                if (inQuotes) {
+                                    if (i + 1 < bytesRead) {
+                                        if (scratch[i + 1] == quoteAsByte) {
+                                            i++;
+                                            consumed++;
+                                            continue;
+                                        }
+                                        inQuotes = false;
+                                        if (scratch[i + 1] == '\n') {
+                                            consumed++;
+                                            return consumed > maxRecordBytes ? RECORD_TOO_LARGE : consumed;
+                                        }
+                                        continue;
+                                    }
+                                    int next = stream.read();
+                                    if (next == -1) {
+                                        return -1;
+                                    }
+                                    consumed++;
+                                    if (consumed > maxRecordBytes) {
+                                        return RECORD_TOO_LARGE;
+                                    }
+                                    if (next == quoteAsByte) {
+                                        continue;
+                                    }
+                                    inQuotes = false;
+                                    if (next == '\n') {
+                                        return consumed;
+                                    }
+                                    continue;
+                                } else {
+                                    inQuotes = true;
+                                }
+                            } else if (b == '\n' && inQuotes == false) {
                                 return consumed;
                             }
-                            continue;
-                        } else {
-                            inQuotes = true;
                         }
-                    } else if (b == '\n' && inQuotes == false) {
-                        return consumed;
                     }
+                    return -1;
                 }
-            }
-            return -1;
+
+                @Override
+                public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
+                    return driveForwardToLastBoundary(this, buf, offset, length);
+                }
+
+                @Override
+                public int maxRecordBytes() {
+                    return maxRecordBytes;
+                }
+            });
         }
+    }
+
+    private static RecordSplitter defaultFindLastSplitter(RecordSplitter splitter) {
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) throws IOException {
+                return splitter.findNextRecordBoundary(stream);
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
+                return driveForwardToLastBoundary(splitter, buf, offset, length);
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return splitter.maxRecordBytes();
+            }
+        };
+    }
+
+    private static int driveForwardToLastBoundary(RecordSplitter splitter, byte[] buf, int offset, int length) throws IOException {
+        int lastBoundary = -1;
+        int cumulative = 0;
+        while (cumulative < length) {
+            long consumed = splitter.findNextRecordBoundary(new ByteArrayInputStream(buf, offset + cumulative, length - cumulative));
+            if (consumed == RecordSplitter.RECORD_TOO_LARGE) {
+                return lastBoundary >= 0 ? lastBoundary : (int) RecordSplitter.RECORD_TOO_LARGE;
+            }
+            if (consumed < 0) {
+                return lastBoundary;
+            }
+            cumulative += Math.toIntExact(consumed);
+            lastBoundary = offset + cumulative - 1;
+        }
+        return lastBoundary;
     }
 
     private static byte[] generateTsv(int bufferBytes, int approxRowBytes) {

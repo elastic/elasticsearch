@@ -158,6 +158,7 @@ public class Querier {
             options = IndicesOptions.builder(options).crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true)).build();
         }
         final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(options)
+            .allowPartialSearchResults(cfg.allowPartialSearchResults())
             .keepAlive(cfg.pageTimeout());
         if (cfg.crossProject() && cfg.projectRouting() != null) {
             openPitRequest.projectRouting(cfg.projectRouting());
@@ -210,6 +211,35 @@ public class Querier {
         } else {
             listener.onResponse(true);
         }
+    }
+
+    /**
+     * Closes the point-in-time associated with the search response, then notifies the given listener
+     * with the last page. Retains a reference to the response so it stays alive until the close
+     * callback runs (the transport releases its ref when the search listener returns, but we consume
+     * the response in the close callback).
+     */
+    public static void closePointInTimeWithLastPage(Client client, SearchResponse response, Page lastPage, ActionListener<Page> listener) {
+        response.incRef();
+        closePointInTime(client, response.pointInTimeId(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean r) {
+                try {
+                    listener.onResponse(lastPage);
+                } finally {
+                    response.decRef();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    listener.onFailure(e);
+                } finally {
+                    response.decRef();
+                }
+            }
+        });
     }
 
     /**
@@ -370,23 +400,29 @@ public class Querier {
             sendResponse();
         }
 
-        private boolean consumeRowSet(RowSet rowSet) {
+        boolean consumeRowSet(RowSet rowSet) {
             ResultRowSet<?> rrs = (ResultRowSet<?>) rowSet;
-            for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
-                List<Object> row = new ArrayList<>(rrs.columnCount());
-                rrs.forEachResultColumn(row::add);
-                // if the queue overflows and no limit was specified, throw an error
-                if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
-                    onFailure(
-                        new SqlIllegalArgumentException(
-                            "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT",
-                            MAXIMUM_SIZE
-                        )
-                    );
-                    return false;
+            try {
+                for (boolean hasRows = rrs.hasCurrentRow(); hasRows; hasRows = rrs.advanceRow()) {
+                    List<Object> row = new ArrayList<>(rrs.columnCount());
+                    rrs.forEachResultColumn(row::add);
+                    // if the queue overflows and no limit was specified, throw an error
+                    if (data.insertWithOverflow(new Tuple<>(row, counter.getAndIncrement())) != null && noLimit) {
+                        onFailure(
+                            new SqlIllegalArgumentException(
+                                "The default limit [{}] for aggregate sorting has been reached; please specify a LIMIT",
+                                MAXIMUM_SIZE
+                            )
+                        );
+                        return false;
+                    }
+                }
+                return true;
+            } finally {
+                if (rrs instanceof SearchHitRowSet shr) {
+                    shr.releaseSearchHits();
                 }
             }
-            return true;
         }
 
         private void sendResponse() {

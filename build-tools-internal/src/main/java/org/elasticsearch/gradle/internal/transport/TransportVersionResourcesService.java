@@ -165,12 +165,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             StandardCharsets.UTF_8
         );
         gitCommand("add", path.toString());
+        changedResources.set(null);
     }
 
     void deleteReferableDefinition(String name) throws IOException {
         Path path = transportResourcesDir.resolve(getDefinitionRelativePath(name, true));
         if (Files.deleteIfExists(path)) {
             gitCommand("rm", "--ignore-unmatch", path.toString());
+            changedResources.set(null);
         }
     }
 
@@ -250,6 +252,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         Files.writeString(path, upperBound.definitionName() + "," + upperBound.definitionId().complete() + "\n", StandardCharsets.UTF_8);
 
         gitCommand("add", path.toString());
+        changedResources.set(null);
     }
 
     /** Return the path within the repository of the given latest */
@@ -271,6 +274,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     void checkoutOriginalChange() {
         gitCommand("checkout", "--theirs", transportResourcesDir.toString());
         gitCommand("add", transportResourcesDir.toString());
+        changedResources.set(null);
     }
 
     boolean checkIfDefinitelyOnReleaseBranch(Collection<TransportVersionUpperBound> upperBounds, String currentUpperBoundName) {
@@ -293,6 +297,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 String refName;
                 if (refExists("MERGE_HEAD")) {
                     refName = gitCommand("rev-parse", "--verify", "MERGE_HEAD").strip();
+                } else if (refExists("CHERRY_PICK_HEAD")) {
+                    refName = gitCommand("rev-parse", "--verify", "CHERRY_PICK_HEAD").strip();
                 } else {
                     String upstreamRef = findUpstreamRef();
                     refName = gitCommand("merge-base", upstreamRef, "HEAD").strip();

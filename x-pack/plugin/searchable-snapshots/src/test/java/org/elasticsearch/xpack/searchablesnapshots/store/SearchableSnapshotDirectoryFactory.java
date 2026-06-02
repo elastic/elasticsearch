@@ -85,11 +85,13 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -117,6 +119,196 @@ public class SearchableSnapshotDirectoryFactory {
      */
     public static Directory newDirectory(Path path) {
         return new WriteOnceSnapshotDirectory(path);
+    }
+
+    /**
+     * Returns a read-only {@link Directory} backed by searchable snapshot infrastructure,
+     * wrapping an existing Lucene index on disk. The original index files are read directly
+     * via {@link FsBlobContainer} (zero-copy, no heap buffering).
+     *
+     * @param indexPath path to the existing Lucene index directory
+     * @param workPath  scratch directory for cache and node environment files
+     */
+    public static Directory newDirectoryFromIndex(Path indexPath, Path workPath) throws IOException {
+        return new DiskBackedSnapshotDirectory(indexPath, workPath);
+    }
+
+    // -- DiskBackedSnapshotDirectory --
+
+    static class DiskBackedSnapshotDirectory extends Directory {
+        private final SearchableSnapshotDirectory delegate;
+
+        // infrastructure
+        private final ThreadPool threadPool;
+        private final CacheService cacheService;
+        private final ClusterService clusterService;
+        private final SharedBlobCacheService<CacheKey> sharedBlobCacheService;
+        private final NodeEnvironment nodeEnvironment;
+
+        DiskBackedSnapshotDirectory(Path indexPath, Path workPath) throws IOException {
+            boolean success = false;
+            ThreadPool tp = null;
+            NodeEnvironment ne = null;
+            ClusterService cs = null;
+            CacheService cas = null;
+            SharedBlobCacheService<CacheKey> sbcs = null;
+            try {
+                // Enumerate index files, build snapshot metadata
+                List<BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new ArrayList<>();
+                long totalSize = 0;
+                try (FSDirectory fsDir = FSDirectory.open(indexPath)) {
+                    for (String file : fsDir.listAll()) {
+                        if (file.equals("write.lock")) continue;
+                        long fileLength = fsDir.fileLength(file);
+                        totalSize += fileLength;
+                        StoreFileMetadata metadata = new StoreFileMetadata(
+                            file,
+                            fileLength,
+                            "0",
+                            IndexVersion.current().luceneVersion().toString()
+                        );
+                        fileInfos.add(new BlobStoreIndexShardSnapshot.FileInfo(file, metadata, ByteSizeValue.ofBytes(fileLength + 1)));
+                    }
+                }
+
+                // FsBlobContainer reads directly from the index directory (blob name = file name)
+                FsBlobStore blobStore = new FsBlobStore(8192, indexPath, true);
+                BlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, indexPath);
+
+                BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("snapshotId", fileInfos, 0L, 0L, 0, 0L);
+
+                long cacheSize = totalSize;
+
+                SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
+                IndexId indexId = new IndexId("_name", "_uuid");
+                ShardId shardId = new ShardId("_name", "_uuid", 0);
+                Path topDir = workPath.resolve(shardId.getIndex().getUUID());
+                Path shardDir = topDir.resolve(Integer.toString(shardId.getId()));
+                ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
+                Path cacheDir = Files.createDirectories(CacheService.resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
+
+                tp = new SimpleThreadPool("tp", SearchableSnapshots.executorBuilders(Settings.EMPTY));
+                ne = newNodeEnvironment(Settings.EMPTY, workPath, cacheSize);
+                cs = createClusterService(tp, clusterSettings());
+
+                cas = new CacheService(Settings.EMPTY, cs, tp, new PersistentCache(ne));
+                cas.start();
+                sbcs = defaultFrozenCacheService(tp, ne, workPath, cacheSize);
+
+                SearchableSnapshotDirectory dir = new SearchableSnapshotDirectory(
+                    () -> blobContainer,
+                    () -> snapshot,
+                    new NoopBlobStoreCacheService(tp),
+                    "_repo",
+                    snapshotId,
+                    indexId,
+                    shardId,
+                    buildIndexSettings(),
+                    () -> 0L,
+                    cas,
+                    cacheDir,
+                    shardPath,
+                    tp,
+                    sbcs
+                );
+
+                // loadSnapshot asserts ThreadPool.assertCurrentThreadPool(GENERIC)
+                SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
+                PlainActionFuture<Void> f = new PlainActionFuture<>();
+                CountDownLatch latch = new CountDownLatch(1);
+                tp.generic().execute(() -> {
+                    try {
+                        dir.loadSnapshot(recoveryState, () -> false, f);
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+                latch.await();
+                f.get();
+
+                this.delegate = dir;
+                this.threadPool = tp;
+                this.nodeEnvironment = ne;
+                this.clusterService = cs;
+                this.cacheService = cas;
+                this.sharedBlobCacheService = sbcs;
+                success = true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while loading snapshot", e);
+            } catch (Exception e) {
+                throw new IOException("Failed to create searchable snapshot directory", e);
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(sbcs, cs, cas, ne);
+                    if (tp != null) {
+                        ThreadPool.terminate(tp, 10, TimeUnit.SECONDS);
+                    }
+                }
+            }
+        }
+
+        @Override
+        public String[] listAll() throws IOException {
+            return delegate.listAll();
+        }
+
+        @Override
+        public void deleteFile(String name) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public long fileLength(String name) throws IOException {
+            return delegate.fileLength(name);
+        }
+
+        @Override
+        public IndexOutput createOutput(String name, IOContext context) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public void sync(Collection<String> names) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public void syncMetaData() {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public void rename(String source, String dest) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            return delegate.openInput(name, context);
+        }
+
+        @Override
+        public Lock obtainLock(String name) {
+            throw new UnsupportedOperationException("read-only directory");
+        }
+
+        @Override
+        public Set<String> getPendingDeletions() {
+            return Set.of();
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.closeWhileHandlingException(sharedBlobCacheService, clusterService, cacheService, nodeEnvironment);
+            delegate.close();
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        }
     }
 
     // -- WriteOnceSnapshotDirectory --
@@ -286,7 +478,7 @@ public class SearchableSnapshotDirectoryFactory {
             );
 
             // load the snapshot so it's ready for reads
-            SearchableSnapshotRecoveryState recoveryState = createRecoveryState(false);
+            SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
             final PlainActionFuture<Void> f = new PlainActionFuture<>();
             delegate.loadSnapshot(recoveryState, () -> false, f);
             try {

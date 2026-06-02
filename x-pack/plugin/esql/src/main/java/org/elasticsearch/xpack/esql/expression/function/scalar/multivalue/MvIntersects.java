@@ -18,8 +18,8 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -66,6 +67,10 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
         "MvIntersects",
         MvIntersects::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvIntersects.class)
+        .binary(MvIntersects::new)
+        .capabilities("flattened")
+        .name("mv_intersects");
 
     @FunctionInfo(
         returnType = "boolean",
@@ -88,6 +93,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -100,7 +106,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression superset,
         @Param(
             name = "field2",
@@ -111,6 +117,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -123,7 +130,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression subset
     ) {
         super(source, superset, subset);
@@ -185,7 +192,7 @@ public class MvIntersects extends BinaryScalarFunction implements EvaluatorMappe
         var rightType = PlannerUtils.toElementType(right().dataType());
 
         if (lefType == ElementType.NULL || rightType == ElementType.NULL) {
-            return EvalOperator.CONSTANT_FALSE_FACTORY;
+            return ConstantEvaluators.CONSTANT_FALSE_FACTORY;
         }
 
         if (lefType != rightType) {

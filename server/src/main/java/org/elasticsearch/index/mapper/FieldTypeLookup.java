@@ -52,7 +52,7 @@ final class FieldTypeLookup {
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers,
+        Collection<PassThroughFieldSource> passThroughSources,
         Collection<RuntimeField> runtimeFields
     ) {
 
@@ -101,39 +101,17 @@ final class FieldTypeLookup {
             }
         }
 
-        // Pass-though subfields can be referenced without the prefix corresponding to the
-        // PassThroughObjectMapper name. This is achieved by adding a second reference to their
-        // MappedFieldType using the remaining suffix.
-        Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
-        for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
-            for (Mapper subfield : passThroughMapper.mappers.values()) {
-                if (subfield instanceof FieldMapper fieldMapper) {
-                    String name = fieldMapper.leafName();
-                    // Check for conflict between PassThroughObjectMapper subfields.
-                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
-                    if (conflict != null) {
-                        if (conflict.priority() > passThroughMapper.priority()) {
-                            // Keep the conflicting field if it has higher priority.
-                            passThroughFieldAliases.put(name, conflict);
-                        }
-                    }
-                }
-            }
-        }
-
-        for (Map.Entry<String, PassThroughObjectMapper> entry : passThroughFieldAliases.entrySet()) {
+        Map<String, FieldMapper> passThroughAliases = PassThroughFieldSource.resolveConflictingPriorities(passThroughSources);
+        for (Map.Entry<String, FieldMapper> entry : passThroughAliases.entrySet()) {
             String name = entry.getKey();
             if (fullNameToFieldType.containsKey(name)) {
-                // There's an existing field or alias for the same field.
+                // Root-level concrete field wins over passthrough alias.
                 continue;
             }
-            Mapper mapper = entry.getValue().getMapper(name);
-            if (mapper instanceof FieldMapper fieldMapper) {
-                MappedFieldType fieldType = fieldMapper.fieldType();
-                fullNameToFieldType.put(name, fieldType);
-                if (fieldType instanceof DynamicFieldType) {
-                    dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
-                }
+            MappedFieldType fieldType = entry.getValue().fieldType();
+            fullNameToFieldType.put(name, fieldType);
+            if (fieldType instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
             }
         }
 

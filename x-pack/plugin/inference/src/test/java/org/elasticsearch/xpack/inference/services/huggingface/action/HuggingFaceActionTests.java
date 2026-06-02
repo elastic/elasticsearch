@@ -14,7 +14,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -62,11 +61,7 @@ public class HuggingFaceActionTests extends ESTestCase {
         var action = createAction(URL, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -86,11 +81,7 @@ public class HuggingFaceActionTests extends ESTestCase {
         var action = createAction(URL, sender, "inferenceEntityId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -107,11 +98,7 @@ public class HuggingFaceActionTests extends ESTestCase {
         var action = createAction(URL, sender, "inferenceEntityId");
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

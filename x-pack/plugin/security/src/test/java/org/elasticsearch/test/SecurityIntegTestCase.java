@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -36,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -54,6 +56,8 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
@@ -404,11 +408,15 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             assertBusy(() -> {
                 ClusterState clusterState = client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 assertFalse(clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-                Index securityIndex = resolveSecurityIndex(clusterState.metadata());
-                assertNotNull(securityIndex);
-                IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(securityIndex);
-                assertNotNull(indexRoutingTable);
-                assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                final Metadata metadata = clusterState.metadata();
+                assertThat(metadata.projects(), aMapWithSize(greaterThanOrEqualTo(1)));
+                for (ProjectMetadata projectMetadata : metadata.projects().values()) {
+                    Index securityIndex = resolveSecurityIndex(projectMetadata);
+                    assertNotNull(securityIndex);
+                    IndexRoutingTable indexRoutingTable = clusterState.routingTable(projectMetadata.id()).index(securityIndex);
+                    assertNotNull(indexRoutingTable);
+                    assertTrue(indexRoutingTable.allPrimaryShardsActive());
+                }
             }, 30L, TimeUnit.SECONDS);
         }
     }
@@ -426,11 +434,32 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
-        if (getIndexResponse.getIndices().length > 0) {
-            // this is a hack to clean up the .security index since only a superuser can delete it
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
-            client.admin().indices().delete(deleteIndexRequest).actionGet();
+        // QueryableBuiltInRolesSynchronizer dispatches asynchronously putRoles task which can auto-create
+        // .security after a delete. We must wait for any in-flight sync to drain before verifying the
+        // index is gone; otherwise a pending executor task can recreate it after our check.
+        try {
+            assertBusy(() -> {
+                GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
+                if (getIndexResponse.getIndices().length > 0) {
+                    // this is a hack to clean up the .security index since only a superuser can delete it
+                    DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
+                    client.admin().indices().delete(deleteIndexRequest).actionGet();
+                }
+                if (QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED) {
+                    for (QueryableBuiltInRolesSynchronizer synchronizer : internalCluster().getInstances(
+                        QueryableBuiltInRolesSynchronizer.class
+                    )) {
+                        assertFalse(
+                            "built-in roles synchronizer still running during test cleanup",
+                            synchronizer.isSynchronizationInProgress()
+                        );
+                    }
+                }
+                GetIndexResponse postDelete = client.admin().indices().getIndex(getIndexRequest).actionGet();
+                assertThat("security index re-created after delete", postDelete.getIndices().length, is(0));
+            }, 30L, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            throw new AssertionError("failed to delete security index during test cleanup", e);
         }
     }
 
@@ -458,8 +487,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    protected static Index resolveSecurityIndex(Metadata metadata) {
-        final IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(SECURITY_MAIN_ALIAS);
+    protected static Index resolveSecurityIndex(ProjectMetadata project) {
+        final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             return indexAbstraction.getIndices().get(0);
         }

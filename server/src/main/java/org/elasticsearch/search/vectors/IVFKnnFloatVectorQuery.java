@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
@@ -29,16 +28,19 @@ import java.util.Arrays;
 public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
 
     private boolean isQueryPreconditioned = false;
+    private final int originalK;
     private float[] query;
 
     /**
      * Creates a new {@link IVFKnnFloatVectorQuery} with the given parameters.
      * @param field the field to search
      * @param query the query vector
-     * @param k the number of nearest neighbors to return
+     * @param k the number of nearest neighbors to return (possibly oversampled)
      * @param numCands the number of nearest neighbors to gather per shard
      * @param filter the filter to apply to the results
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
+     * @param overSampleFactor the oversample multiplier applied to the original k; must be {@code >= 1.0f}.
+     *                         When {@code 1.0f}, no oversampling is applied and originalK equals k.
      */
     public IVFKnnFloatVectorQuery(
         String field,
@@ -47,9 +49,12 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition
+        boolean doPrecondition,
+        float overSampleFactor
     ) {
         super(field, visitRatio, k, numCands, filter, doPrecondition);
+        assert overSampleFactor >= 1.0f : "overSampleFactor [" + overSampleFactor + "] must be >= 1.0";
+        this.originalK = overSampleFactor > 1.0f ? Math.max(1, Math.round(k / overSampleFactor)) : k;
         this.query = query;
     }
 
@@ -129,22 +134,16 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         float visitRatio
     ) throws IOException {
         LeafReader reader = context.reader();
-        FloatVectorValues floatVectorValues = reader.getFloatVectorValues(field);
-        if (floatVectorValues == null) {
-            FloatVectorValues.checkField(reader, field);
-            return NO_RESULTS;
-        }
-        if (floatVectorValues.size() == 0) {
-            return NO_RESULTS;
-        }
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, knnCollectorManager.longAccumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(visitRatio, numCands, originalK, knnCollectorManager.longAccumulator);
         AbstractMaxScoreKnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, strategy, context);
         if (knnCollector == null) {
             return NO_RESULTS;
         }
         strategy.setCollector(knnCollector);
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
-        TopDocs results = knnCollector.topDocs();
+        TopDocs results = knnCollector instanceof BulkKnnCollector bulkKnnCollector
+            ? bulkKnnCollector.unsortedTopK()
+            : knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
     }
 }

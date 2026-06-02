@@ -64,6 +64,10 @@ public class ComputeListenerTests extends ESTestCase {
         return new DriverCompletionInfo(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomList(
                 0,
                 2,
@@ -88,6 +92,7 @@ public class ComputeListenerTests extends ESTestCase {
                     randomIdentifier(),
                     randomIdentifier(),
                     randomAlphaOfLengthBetween(1, 1024),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1024),
                     randomPlanTimeProfile()
                 )
             )

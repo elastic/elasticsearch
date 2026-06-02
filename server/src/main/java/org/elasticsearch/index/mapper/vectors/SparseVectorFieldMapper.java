@@ -149,6 +149,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     builderIndexOptions
                 ),
                 builderParams(this, context),
+                isExcludeSourceVectors,
                 isExcludeSourceVectorsFinal
             );
         }
@@ -320,17 +321,20 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private final boolean isExcludeSourceVectors;
+    private final boolean excludeSourceVectorsSetting;
+    private final boolean excludeSourceVectors;
 
     private SparseVectorFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        boolean isExcludeSourceVectors
+        boolean excludeSourceVectorsSetting,
+        boolean excludeSourceVectors
     ) {
         super(simpleName, mappedFieldType, builderParams);
-        assert isExcludeSourceVectors == false || fieldType().isStored();
-        this.isExcludeSourceVectors = isExcludeSourceVectors;
+        assert excludeSourceVectors == false || fieldType().isStored();
+        this.excludeSourceVectorsSetting = excludeSourceVectorsSetting;
+        this.excludeSourceVectors = excludeSourceVectors;
     }
 
     @Override
@@ -343,7 +347,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
+        if (excludeSourceVectors) {
             return new SyntheticVectorsPatchFieldLoader<>(
                 // Recreate the object for each leaf so that different segments can be searched concurrently.
                 () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
@@ -360,7 +364,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isExcludeSourceVectors).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.excludeSourceVectorsSetting).init(this);
     }
 
     @Override
@@ -551,7 +555,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static class SparseVectorIndexOptions implements IndexOptions {
+    public static class SparseVectorIndexOptions extends IndexOptions {
         public static final ParseField PRUNE_FIELD_NAME = new ParseField("prune");
         public static final ParseField PRUNING_CONFIG_FIELD_NAME = new ParseField("pruning_config");
         public static final SparseVectorIndexOptions DEFAULT_PRUNING_INDEX_OPTIONS = new SparseVectorIndexOptions(
@@ -619,18 +623,13 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
+        public void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
             if (prune != null) {
                 builder.field(PRUNE_FIELD_NAME.getPreferredName(), prune);
             }
             if (pruningConfig != null) {
                 builder.field(PRUNING_CONFIG_FIELD_NAME.getPreferredName(), pruningConfig);
             }
-
-            builder.endObject();
-            return builder;
         }
 
         @Override

@@ -118,6 +118,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
     private volatile boolean closed = false;
+    private final boolean tenaciousRetriesEnabled;
 
     GoogleCloudStorageBlobStore(
         ProjectId projectId,
@@ -139,6 +140,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
+        this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
     }
 
     /**
@@ -155,6 +157,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         return storageService.clientSettings(projectId, clientName).getMaxRetries();
     }
 
+    long getMegabytesCopiedPerChunk() {
+        return storageService.clientSettings(projectId, clientName).getMegabytesCopiedPerChunk();
+    }
+
     RepositoriesMetrics getRepositoriesMetrics() {
         return statsCollector.getRepositoriesMetrics();
     }
@@ -165,6 +171,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
+        if (tenaciousRetriesEnabled && storageService.isServerless()) {
+            return new GcsTenaciousRetryBlobContainer(new GoogleCloudStorageBlobContainer(path, this), getRepositoriesMetrics());
+        }
+
         return new GoogleCloudStorageBlobContainer(path, this);
     }
 
@@ -222,7 +232,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     // Strip path prefix and trailing slash
                     final String suffixName = blob.getName().substring(pathStr.length(), blob.getName().length() - 1);
                     if (suffixName.isEmpty() == false) {
-                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                        mapBuilder.put(suffixName, blobContainer(path.add(suffixName)));
                     }
                 }
             });

@@ -207,7 +207,8 @@ final class DynamicFieldsBuilder {
         CheckedSupplier<Boolean, IOException> dynamicFieldStrategy
     ) throws IOException {
         if (applyMatchingTemplate(context, name, matchType, dateFormatter)) {
-            context.markFieldAsAppliedFromTemplate(name);
+            String fullFieldName = context.path().pathAsText(name);
+            context.markFieldAsAppliedFromTemplate(fullFieldName);
             return true;
         } else {
             return dynamicFieldStrategy.get();
@@ -308,9 +309,8 @@ final class DynamicFieldsBuilder {
 
         boolean createDynamicField(Mapper.Builder builder, DocumentParserContext context, MapperBuilderContext mapperBuilderContext)
             throws IOException {
-            String fullPath = mapperBuilderContext.buildFullName(builder.leafName());
-            if (context.addDynamicMapper(builder, fullPath)) {
-                Mapper mapper = builder.build(mapperBuilderContext);
+            Mapper mapper = context.getDynamicMapper(builder, mapperBuilderContext);
+            if (mapper != null) {
                 parseField.accept(context, mapper);
                 return true;
             } else {
@@ -329,12 +329,21 @@ final class DynamicFieldsBuilder {
                 return createDynamicField(new KeywordFieldMapper.Builder(name, context.indexSettings()), context, mapperBuilderContext);
             } else {
                 var indexSettings = context.indexSettings();
-                return createDynamicField(
-                    new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).addMultiField(
-                        new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)
-                    ),
-                    context
-                );
+                if (indexSettings.getDynamicStringsAutoText()) {
+                    return createDynamicField(
+                        new TextFieldMapper.Builder(name, indexSettings, context.indexAnalyzers(), false).addMultiField(
+                            new KeywordFieldMapper.Builder("keyword", context.indexSettings(), true).ignoreAbove(256)
+                        ),
+                        context
+                    );
+                } else {
+                    return createDynamicField(
+                        new KeywordFieldMapper.Builder(name, indexSettings, false).docValues(
+                            FieldMapper.DocValuesParameter.Values.Cardinality.HIGH
+                        ),
+                        context
+                    );
+                }
             }
         }
 

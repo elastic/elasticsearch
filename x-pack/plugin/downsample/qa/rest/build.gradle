@@ -38,6 +38,14 @@ if (buildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
+if (buildParams.snapshotBuild == false) {
+  tasks.named("yamlRestTest").configure {
+    filter {
+      excludeTestsMatching "*110_downsample_temporality*"
+    }
+  }
+}
+
 configurations {
   basicRestSpecs {
     attributes {
@@ -56,6 +64,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("downsample/10_basic/Downsample a downsampled index", "Default metric has been removed")
   task.skipTest("downsample/10_basic/Downsample histogram as label", "Default metric has been removed")
   task.skipTest("downsample/10_basic/Downsample index", "Default metric has been removed")
+  task.skipTest("downsample/10_basic/Downsample index with multi-value dimensions", "Counter downsampling has changed")
   task.skipTest("downsample-with-security/10_basic/Downsample index", "Default metric has been removed")
   task.skipTest("downsample/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")
   task.skipTest("downsample-with-security/40_runtime_fields/Runtime fields accessing metric fields in downsample target index", "Using average as the value of an aggregate metric double")

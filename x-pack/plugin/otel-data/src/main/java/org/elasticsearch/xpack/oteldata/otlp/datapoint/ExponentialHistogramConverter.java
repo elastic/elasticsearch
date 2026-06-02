@@ -167,17 +167,27 @@ public class ExponentialHistogramConverter {
                 }
             }
             bucketsScratch.writeBuckets(builder);
-            if (dataPoint.hasSum()) {
-                builder.field(SUM_FIELD, dataPoint.getSum());
-            }
-            if (dataPoint.hasMin()) {
-                builder.field(MIN_FIELD, dataPoint.getMin());
-            }
-            if (dataPoint.hasMax()) {
-                builder.field(MAX_FIELD, dataPoint.getMax());
-            }
+            writeSummaryStatistics(dataPoint, builder);
+        } else if (dataPoint.getCount() > 0) {
+            bucketsScratch.clear();
+            double value = dataPoint.hasSum() ? dataPoint.getSum() / dataPoint.getCount() : 0.0;
+            bucketsScratch.append(value, dataPoint.getCount());
+            bucketsScratch.writeBuckets(builder);
+            writeSummaryStatistics(dataPoint, builder);
         }
         builder.endObject();
+    }
+
+    private static void writeSummaryStatistics(HistogramDataPoint dataPoint, XContentBuilder builder) throws IOException {
+        if (dataPoint.hasSum()) {
+            builder.field(SUM_FIELD, dataPoint.getSum());
+        }
+        if (dataPoint.hasMin()) {
+            builder.field(MIN_FIELD, dataPoint.getMin());
+        }
+        if (dataPoint.hasMax()) {
+            builder.field(MAX_FIELD, dataPoint.getMax());
+        }
     }
 
     private static class IndexWithCountList {

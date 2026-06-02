@@ -9,11 +9,14 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedSetDocValues;
 
 import java.io.IOException;
@@ -21,22 +24,30 @@ import java.io.IOException;
 /**
  * Loads the MIN {@code keyword} in each doc.
  */
-public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
+public class MvMinBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
+    private final ByteSizeValue size;
 
     public MvMinBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue byteSize) {
-        super(fieldName, byteSize);
         this.fieldName = fieldName;
+        this.size = byteSize;
     }
 
     @Override
-    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
-        return new Singleton(docValues);
+    public BytesRefBuilder builder(BlockFactory factory, int expectedCount) {
+        return factory.bytesRefs(expectedCount);
     }
 
     @Override
-    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
-        return new MvMinSortedSet(docValues);
+    public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.COLUMN_READER;
+        }
+        if (dv.singleton() != null) {
+            return new BytesRefsFromOrdsBlockLoader.Singleton(dv.singleton());
+        }
+        return new MvMinSortedSet(dv.set());
     }
 
     @Override
@@ -44,7 +55,7 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         return "MvMinBytesRefsFromOrds[" + fieldName + "]";
     }
 
-    private class MvMinSortedSet extends BlockDocValuesReader {
+    private static class MvMinSortedSet extends BlockDocValuesReader {
         private final TrackingSortedSetDocValues ordinals;
 
         MvMinSortedSet(TrackingSortedSetDocValues ordinals) {
@@ -73,25 +84,12 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
             }
         }
 
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
-        }
-
         private Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
             if (ordinals.docValues().advanceExact(docId) == false) {
                 return factory.constantNulls(1);
             }
             BytesRef v = ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd());
             return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
-        }
-
-        private void read(int docId, BytesRefBuilder builder) throws IOException {
-            if (false == ordinals.docValues().advanceExact(docId)) {
-                builder.appendNull();
-                return;
-            }
-            builder.appendBytesRef(ordinals.docValues().lookupOrd(ordinals.docValues().nextOrd()));
         }
 
         @Override

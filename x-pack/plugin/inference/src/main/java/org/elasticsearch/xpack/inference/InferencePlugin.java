@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,11 +18,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
@@ -33,6 +32,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.NodeTelemetryAttributes;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -48,7 +48,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.internal.InternalSearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
@@ -75,6 +74,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -93,11 +93,14 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportRerankAction;
 import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.oauth2.ClearOAuth2TokenCacheAction;
+import org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -108,6 +111,7 @@ import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mapper.OffsetSourceFieldMapper;
+import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
@@ -174,7 +178,6 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
@@ -184,10 +187,12 @@ import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfi
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
+import org.elasticsearch.xpack.inference.vectors.EmbeddingQueryVectorBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -197,6 +202,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 
 public class InferencePlugin extends Plugin
@@ -245,7 +251,6 @@ public class InferencePlugin extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
-    public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
     public static final String X_ELASTIC_ES_VERSION = "X-elastic-es-version";
 
     public static final String NAME = "inference";
@@ -253,6 +258,13 @@ public class InferencePlugin extends Plugin
     public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
     private static final String INFERENCE_INDEX_DESCRIPTION = "Contains inference service and model configuration";
+
+    /**
+     * TransportVersion indicating when Mixedbread features were added. The Mixedbread integration has been removed, but this transport
+     * version definition cannot be deleted
+     */
+    @SuppressWarnings("unused")
+    public static final TransportVersion INFERENCE_MIXEDBREAD_ADDED = TransportVersion.fromName("inference_mixedbread_added");
 
     private final Settings settings;
     private final SetOnce<HttpRequestSender.Factory> httpFactory = new SetOnce<>();
@@ -293,21 +305,17 @@ public class InferencePlugin extends Plugin
             new ActionHandler(PutCCMConfigurationAction.INSTANCE, TransportPutCCMConfigurationAction.class),
             new ActionHandler(DeleteCCMConfigurationAction.INSTANCE, TransportDeleteCCMConfigurationAction.class),
             new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
+            new ActionHandler(ClearOAuth2TokenCacheAction.INSTANCE, ClearOAuth2TokenCacheAction.class),
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
-            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class)
+            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
+            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -400,7 +408,8 @@ public class InferencePlugin extends Plugin
         ));
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = InferenceStats.create(meterRegistry);
+        var nodeAttributes = NodeTelemetryAttributes.from(Build.current(), settings);
+        var inferenceStats = InferenceStats.create(meterRegistry, nodeAttributes);
         var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
@@ -446,6 +455,16 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
+        var oAuth2TokenCache = new OAuth2TokenCache(
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
+        );
+        oAuth2TokenCache.init();
+        components.add(oAuth2TokenCache);
+
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
         return components;
@@ -569,7 +588,6 @@ public class InferencePlugin extends Plugin
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
             context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new MixedbreadService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
@@ -744,10 +762,12 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.copyOf(getInferenceSettings());
+        List<Setting<?>> settings = new ArrayList<>(getClusterSettings());
+        settings.add(SemanticTextFieldMapper.INDEX_SEMANTIC_TEXT_DEFAULT_INFERENCE_ID);
+        return Collections.unmodifiableList(settings);
     }
 
-    public static Set<Setting<?>> getInferenceSettings() {
+    public static Set<Setting<?>> getClusterSettings() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());
@@ -762,6 +782,7 @@ public class InferencePlugin extends Plugin
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         settings.addAll(CCMSettings.getSettingsDefinitions());
         settings.addAll(CCMCache.getSettingsDefinitions());
+        settings.addAll(OAuth2TokenCache.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }
 
@@ -795,12 +816,13 @@ public class InferencePlugin extends Plugin
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(
-            SemanticTextFieldMapper.CONTENT_TYPE,
-            SemanticTextFieldMapper.parser(getModelRegistry()),
-            OffsetSourceFieldMapper.CONTENT_TYPE,
-            OffsetSourceFieldMapper.PARSER
-        );
+        Map<String, Mapper.TypeParser> mappers = new HashMap<>();
+        mappers.put(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.parser(getModelRegistry()));
+        mappers.put(OffsetSourceFieldMapper.CONTENT_TYPE, OffsetSourceFieldMapper.PARSER);
+        if (SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled()) {
+            mappers.put(SemanticFieldMapper.CONTENT_TYPE, SemanticFieldMapper.parser(getModelRegistry()));
+        }
+        return Collections.unmodifiableMap(mappers);
     }
 
     @Override
@@ -808,8 +830,20 @@ public class InferencePlugin extends Plugin
         return singletonList(shardBulkInferenceActionFilter.get());
     }
 
+    @Override
     public List<QuerySpec<?>> getQueries() {
         return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
+        return List.of(
+            new QueryVectorBuilderSpec<>(
+                EmbeddingQueryVectorBuilder.NAME,
+                EmbeddingQueryVectorBuilder::new,
+                EmbeddingQueryVectorBuilder.PARSER
+            )
+        );
     }
 
     @Override

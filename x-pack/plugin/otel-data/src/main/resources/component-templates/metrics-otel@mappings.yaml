@@ -22,6 +22,15 @@ template:
         type: keyword
         time_series_dimension: true
         ignore_above: 1024
+      attributes:
+        type: passthrough
+        dynamic: true
+        priority: 20
+        time_series_dimension: true
+        properties:
+          # Explicitly map http.response.status_code to work around mapping conflict caused by non-semconv-compliant clients
+          http.response.status_code:
+            type: long
     dynamic_templates:
       - histogram:
           mapping:

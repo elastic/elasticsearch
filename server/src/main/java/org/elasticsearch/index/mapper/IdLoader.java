@@ -20,14 +20,20 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingHashBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.SortedDvSingletonOrSet;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -89,12 +95,12 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
 
     Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
-    BlockLoader blockLoader(long ordinalsByteSize);
+    BlockLoader blockLoader(ByteSizeValue ordinalsByteSize);
 
     /**
      * Returns a leaf instance for a leaf reader that returns the _id for segment level doc ids.
      */
-    sealed interface Leaf permits StoredLeaf, TsIdLeaf {
+    sealed interface Leaf permits StoredLeaf, TsIdLeaf, LazyTsIdLeaf, LazyLegacyTsIdLeaf {
 
         /**
          * @param subDocId The segment level doc id for which the return the _id
@@ -117,6 +123,19 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            if (docIdsInLeaf == null) {
+                SortedDocValues tsIdDocValues = DocValues.getSorted(reader, TimeSeriesIdFieldMapper.NAME);
+                SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
+                if (indexRouting != null) {
+                    SortedSetDocValues[] routingFieldDvs = new SortedSetDocValues[routingPaths.size()];
+                    for (int i = 0; i < routingPaths.size(); i++) {
+                        routingFieldDvs[i] = DocValues.getSortedSet(reader, routingPaths.get(i));
+                    }
+                    return new LazyLegacyTsIdLeaf(tsIdDocValues, timestampDocValues, indexRouting.builder(), routingPaths, routingFieldDvs);
+                }
+                SortedDocValues routingHashDocValues = DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME);
+                return new LazyTsIdLeaf(tsIdDocValues, timestampDocValues, routingHashDocValues, useSyntheticId);
+            }
             RoutingHashBuilder[] builders = null;
             if (indexRouting != null) {
                 // this branch is for legacy indices before IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID
@@ -179,14 +198,14 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         @Override
-        public BlockLoader blockLoader(long ordinalsByteSize) {
+        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
             return new BlockDocValuesReader.DocValuesBlockLoader() {
                 @Override
-                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
                     if (indexRouting != null) {
-                        return new LegacyTsIdFieldReader(breaker, ordinalsByteSize, context.reader(), indexRouting, routingPaths);
+                        return new LegacyTsIdFieldReader(breaker, ordinalsByteSize, context, indexRouting, routingPaths);
                     } else {
-                        return new TsIdFieldReader(breaker, ordinalsByteSize, context.reader(), useSyntheticId);
+                        return new TsIdFieldReader(breaker, ordinalsByteSize, context, useSyntheticId);
                     }
                 }
 
@@ -198,26 +217,38 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         private static class TsIdFieldReader extends BlockDocValuesReader {
-            final long ordinalsByteSize;
-            final SortedDocValues tsidDVs;
-            final SortedNumericDocValues timestampDVs;
-            final SortedDocValues routingHashDVs;
+            final TrackingSortedDocValues tsidDVs;
+            final TrackingSortedNumericDocValues timestampDVs;
+            final TrackingSortedDocValues routingHashDVs;
             final boolean useSyntheticId;
 
-            TsIdFieldReader(CircuitBreaker breaker, long ordinalsByteSize, LeafReader leafReader, boolean useSyntheticId)
+            TsIdFieldReader(CircuitBreaker breaker, ByteSizeValue ordinalsByteSize, LeafReaderContext ctx, boolean useSyntheticId)
                 throws IOException {
-                super(breaker);
-                this.ordinalsByteSize = ordinalsByteSize;
-                breaker.addWithoutBreaking(estimatedSize(ordinalsByteSize));
-                this.tsidDVs = DocValues.getSorted(leafReader, TimeSeriesIdFieldMapper.NAME);
-                this.timestampDVs = DocValues.getSortedNumeric(leafReader, DataStream.TIMESTAMP_FIELD_NAME);
-                this.routingHashDVs = DocValues.getSorted(leafReader, TimeSeriesRoutingHashFieldMapper.NAME);
+                super(null);
+                boolean success = false;
+                TrackingSortedDocValues tsidDVs = null;
+                TrackingSortedNumericDocValues timestampDVs = null;
+                TrackingSortedDocValues routingHashDVs = null;
+                try {
+                    tsidDVs = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, TimeSeriesIdFieldMapper.NAME).forceSingle();
+                    timestampDVs = NumericDvSingletonOrSorted.get(breaker, ctx, DataStream.TIMESTAMP_FIELD_NAME).forceSorted();
+                    routingHashDVs = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, TimeSeriesRoutingHashFieldMapper.NAME)
+                        .forceSingle();
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        Releasables.close(tsidDVs, timestampDVs, routingHashDVs);
+                    }
+                }
+                this.tsidDVs = tsidDVs;
+                this.timestampDVs = timestampDVs;
+                this.routingHashDVs = routingHashDVs;
                 this.useSyntheticId = useSyntheticId;
             }
 
             @Override
             protected int docId() {
-                return tsidDVs.docID();
+                return tsidDVs.docValues().docID();
             }
 
             @Override
@@ -230,23 +261,22 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        read(docs.get(i), null, builder);
+                        read(docs.get(i), builder);
                     }
                     return builder.build();
                 }
             }
 
-            @Override
-            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-                if (tsidDVs.advanceExact(docId) == false
-                    || timestampDVs.advanceExact(docId) == false
-                    || routingHashDVs.advanceExact(docId) == false) {
+            private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
+                if (tsidDVs.docValues().advanceExact(docId) == false
+                    || timestampDVs.docValues().advanceExact(docId) == false
+                    || routingHashDVs.docValues().advanceExact(docId) == false) {
                     assert false : "_tsid or @timestamp or _ts_routing_hash missing for docId " + docId;
                     throw new IllegalStateException("_tsid or @timestamp or _ts_routing_hash missing for docId " + docId);
                 }
-                BytesRef tsid = tsidDVs.lookupOrd(tsidDVs.ordValue());
-                long timestamp = timestampDVs.nextValue();
-                BytesRef routingHashBytes = routingHashDVs.lookupOrd(routingHashDVs.ordValue());
+                BytesRef tsid = tsidDVs.docValues().lookupOrd(tsidDVs.docValues().ordValue());
+                long timestamp = timestampDVs.docValues().nextValue();
+                BytesRef routingHashBytes = routingHashDVs.docValues().lookupOrd(routingHashDVs.docValues().ordValue());
                 int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
                     Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
                 );
@@ -256,52 +286,56 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 } else {
                     id = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
                 }
-                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
+                builder.appendBytesRef(new BytesRef(id));
             }
 
             @Override
             public void close() {
-                breaker.addWithoutBreaking(-estimatedSize(ordinalsByteSize));
+                Releasables.close(tsidDVs, timestampDVs, routingHashDVs);
             }
-
-            private static long estimatedSize(long ordinalsByteSize) {
-                return TrackingNumericDocValues.ESTIMATED_SIZE + ordinalsByteSize + TrackingNumericDocValues.ESTIMATED_SIZE;
-            }
-
         }
 
         private static class LegacyTsIdFieldReader extends BlockDocValuesReader {
-            final long ordinalsByteSize;
             final RoutingHashBuilder routingBuilder;
-            final SortedDocValues tsidDVs;
-            final SortedNumericDocValues timestampDVs;
-            final SortedDocValues[] routingHashDVs;
+            final TrackingSortedDocValues tsidDVs;
+            final TrackingSortedNumericDocValues timestampDVs;
+            final TrackingSortedDocValues[] routingHashDVs;
             final List<String> routingPaths;
             final byte[] scratch = new byte[16];
 
             LegacyTsIdFieldReader(
                 CircuitBreaker breaker,
-                long ordinalsByteSize,
-                LeafReader leafReader,
+                ByteSizeValue ordinalsByteSize,
+                LeafReaderContext ctx,
                 IndexRouting.ExtractFromSource.ForRoutingPath indexRouting,
                 List<String> routingPaths
             ) throws IOException {
-                super(breaker);
-                this.ordinalsByteSize = ordinalsByteSize;
-                breaker.addEstimateBytesAndMaybeBreak(estimatedSize(ordinalsByteSize, routingPaths.size()), "load blocks");
+                super(null);
+                boolean success = false;
+                TrackingSortedDocValues tsidDVs = null;
+                TrackingSortedNumericDocValues timestampDVs = null;
+                TrackingSortedDocValues[] routingHashDVs = new TrackingSortedDocValues[routingPaths.size()];
+                try {
+                    tsidDVs = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, TimeSeriesIdFieldMapper.NAME).forceSingle();
+                    timestampDVs = NumericDvSingletonOrSorted.get(breaker, ctx, DataStream.TIMESTAMP_FIELD_NAME).forceSorted();
+                    for (int i = 0; i < routingPaths.size(); i++) {
+                        routingHashDVs[i] = SortedDvSingletonOrSet.get(breaker, ordinalsByteSize, ctx, routingPaths.get(i)).forceSingle();
+                    }
+                } finally {
+                    if (success == false) {
+                        Releasables.close(tsidDVs, timestampDVs, Releasables.wrap(routingHashDVs));
+                    }
+                }
                 this.routingBuilder = indexRouting.builder();
                 this.routingPaths = routingPaths;
-                this.routingHashDVs = new SortedDocValues[routingPaths.size()];
-                for (int i = 0; i < routingPaths.size(); i++) {
-                    this.routingHashDVs[i] = DocValues.getSorted(leafReader, routingPaths.get(i));
-                }
-                this.tsidDVs = DocValues.getSorted(leafReader, TimeSeriesIdFieldMapper.NAME);
-                this.timestampDVs = DocValues.getSortedNumeric(leafReader, DataStream.TIMESTAMP_FIELD_NAME);
+                this.tsidDVs = tsidDVs;
+                this.timestampDVs = timestampDVs;
+                this.routingHashDVs = routingHashDVs;
             }
 
             @Override
             protected int docId() {
-                return tsidDVs.docID();
+                return tsidDVs.docValues().docID();
             }
 
             @Override
@@ -314,39 +348,34 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        read(docs.get(i), null, builder);
+                        read(docs.get(i), builder);
                     }
                     return builder.build();
                 }
             }
 
-            @Override
-            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-                if (tsidDVs.advanceExact(docId) == false || timestampDVs.advanceExact(docId) == false) {
+            private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
+                if (tsidDVs.docValues().advanceExact(docId) == false || timestampDVs.docValues().advanceExact(docId) == false) {
                     assert false : "_tsid or @timestamp missing for docId " + docId;
                     throw new IllegalStateException("_tsid or @timestamp missing for docId " + docId);
                 }
                 routingBuilder.clear();
-                BytesRef tsid = tsidDVs.lookupOrd(tsidDVs.ordValue());
-                long timestamp = timestampDVs.nextValue();
+                BytesRef tsid = tsidDVs.docValues().lookupOrd(tsidDVs.docValues().ordValue());
+                long timestamp = timestampDVs.docValues().nextValue();
                 for (int i = 0; i < routingHashDVs.length; i++) {
-                    SortedDocValues dv = routingHashDVs[i];
+                    SortedDocValues dv = routingHashDVs[i].docValues();
                     if (dv.advanceExact(docId)) {
                         BytesRef v = dv.lookupOrd(dv.ordValue());
                         routingBuilder.addMatching(routingPaths.get(i), v);
                     }
                 }
                 var id = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, scratch);
-                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
+                builder.appendBytesRef(new BytesRef(id));
             }
 
             @Override
             public void close() {
-                breaker.addWithoutBreaking(-estimatedSize(ordinalsByteSize, routingPaths.size()));
-            }
-
-            private static long estimatedSize(long ordinalsByteSize, int routingPathCount) {
-                return routingPathCount * ordinalsByteSize + ordinalsByteSize + TrackingNumericDocValues.ESTIMATED_SIZE;
+                Releasables.close(tsidDVs, timestampDVs, Releasables.wrap(routingHashDVs));
             }
         }
     }
@@ -362,7 +391,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         @Override
-        public BlockLoader blockLoader(long ordinalsByteSize) {
+        public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
             return new BlockStoredFieldsReader.IdBlockLoader();
         }
     }
@@ -387,6 +416,113 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 );
             }
             return ids[idx];
+        }
+    }
+
+    /**
+     * Lazy variant of {@link TsIdLeaf} that computes the _id for a doc id on demand instead of pre-computing
+     * the ids for a known set of doc ids. Used when the set of doc ids in the leaf is not known up front.
+     * Callers must invoke {@link #getId(int)} with non-decreasing doc ids since the underlying doc values
+     * iterators only support forward iteration.
+     */
+    final class LazyTsIdLeaf implements Leaf {
+
+        private final SortedDocValues tsIdDocValues;
+        private final SortedNumericDocValues timestampDocValues;
+        private final SortedDocValues routingHashDocValues;
+        private final boolean useSyntheticId;
+
+        LazyTsIdLeaf(
+            SortedDocValues tsIdDocValues,
+            SortedNumericDocValues timestampDocValues,
+            SortedDocValues routingHashDocValues,
+            boolean useSyntheticId
+        ) {
+            this.tsIdDocValues = tsIdDocValues;
+            this.timestampDocValues = timestampDocValues;
+            this.routingHashDocValues = routingHashDocValues;
+            this.useSyntheticId = useSyntheticId;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                boolean found = tsIdDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
+                found = timestampDocValues.advanceExact(subDocId);
+                assert found;
+                assert timestampDocValues.docValueCount() == 1;
+                long timestamp = timestampDocValues.nextValue();
+                found = routingHashDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
+                int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
+                    Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
+                );
+                if (useSyntheticId) {
+                    return TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash);
+                } else {
+                    return TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    /**
+     * Legacy counterpart of {@link LazyTsIdLeaf} for indices created before
+     * {@link IndexVersions#TIME_SERIES_ROUTING_HASH_IN_ID}, where the routing hash is recomputed from the
+     * routing path fields rather than read from {@link TimeSeriesRoutingHashFieldMapper}.
+     */
+    final class LazyLegacyTsIdLeaf implements Leaf {
+
+        private final SortedDocValues tsIdDocValues;
+        private final SortedNumericDocValues timestampDocValues;
+        private final RoutingHashBuilder routingBuilder;
+        private final List<String> routingPaths;
+        private final SortedSetDocValues[] routingFieldDvs;
+        private final byte[] scratch = new byte[16];
+
+        LazyLegacyTsIdLeaf(
+            SortedDocValues tsIdDocValues,
+            SortedNumericDocValues timestampDocValues,
+            RoutingHashBuilder routingBuilder,
+            List<String> routingPaths,
+            SortedSetDocValues[] routingFieldDvs
+        ) {
+            this.tsIdDocValues = tsIdDocValues;
+            this.timestampDocValues = timestampDocValues;
+            this.routingBuilder = routingBuilder;
+            this.routingPaths = routingPaths;
+            this.routingFieldDvs = routingFieldDvs;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                boolean found = tsIdDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
+                found = timestampDocValues.advanceExact(subDocId);
+                assert found;
+                assert timestampDocValues.docValueCount() == 1;
+                long timestamp = timestampDocValues.nextValue();
+                routingBuilder.clear();
+                for (int i = 0; i < routingFieldDvs.length; i++) {
+                    SortedSetDocValues dv = routingFieldDvs[i];
+                    if (dv.advanceExact(subDocId)) {
+                        for (int j = 0; j < dv.docValueCount(); j++) {
+                            BytesRef routingValue = dv.lookupOrd(dv.nextOrd());
+                            routingBuilder.addMatching(routingPaths.get(i), routingValue);
+                        }
+                    }
+                }
+                return TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, scratch);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 

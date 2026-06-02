@@ -10,7 +10,7 @@ navigation_title: API conventions
 
 # Elasticsearch API conventions [api-conventions]
 
-The {{es}} REST APIs are exposed over HTTP. Except where noted, the following conventions apply across all APIs.
+The {{es}} REST APIs are exposed over HTTP. This page covers conventions that apply across all APIs, and provides recommendations for configuring HTTP clients to interact with {{es}}.
 
 
 ## Content-type requirements [_content_type_requirements]
@@ -29,9 +29,10 @@ You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in {{
 * Response of any request that includes the header
 * [Task management API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks) response
 * [Slow logs](/reference/elasticsearch/index-settings/slow-log.md)
-* [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#deprecation-logging)
+* [Deprecation logs](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md)
+* {applies_to}`stack: preview 9.4` {applies_to}`serverless: unavailable` [Query logs](docs-content://deploy-manage/monitor/logging-configuration/query-logs.md)
 
-For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/update-elasticsearch-logging-levels.md#_deprecation_logs_throttling).
+For the deprecation logs, {{es}} also uses the `X-Opaque-Id` value to throttle and deduplicate deprecation warnings. See [Deprecation logs throttling](docs-content://deploy-manage/monitor/logging-configuration/elasticsearch-deprecation-logs.md).
 
 The `X-Opaque-Id` header accepts any arbitrary value. However, we recommend you limit these values to a finite set, such as an ID per client. Don’t generate a unique `X-Opaque-Id` header for every request. Too many unique `X-Opaque-Id` values can prevent {{es}} from deduplicating warnings in the deprecation logs.
 
@@ -308,10 +309,10 @@ You can also exclude clusters from a list of clusters to search using the `-` ch
 Multi-target APIs that can target indices support the following query string parameters:
 
 `ignore_unavailable`
-:   (Optional, Boolean) If `false`, the request returns an error if it targets a missing or closed index. Defaults to `false`.
+:   (Optional, Boolean) If `false`, the request returns an error if it targets a concrete (non-wildcarded) index, alias, or data stream that is missing, closed, or otherwise unavailable. If `true`, unavailable concrete targets are silently ignored. Defaults to `false`.
 
 `allow_no_indices`
-:   (Optional, Boolean) If `false`, the request returns an error if any wildcard expression, [index alias](docs-content://manage-data/data-store/aliases.md), or `_all` value targets only missing or closed indices. This behavior applies even if the request targets other open indices. For example, a request targeting `foo*,bar*` returns an error if an index starts with `foo` but no index starts with `bar`.
+:   (Optional, Boolean) If `false`, the request returns an error (1) if any wildcard expression (including `_all` and `*`) resolves to zero matching indices or (2) if the complete set of resolved indices, [aliases](docs-content://manage-data/data-store/aliases.md) or data streams is empty after all expressions are evaluated. If `true`, index expressions that resolve to no indices are allowed and the request returns an empty result.
 
 `expand_wildcards`
 :   (Optional, string) Type of index that wildcard patterns can match. If the request can target data streams, this argument determines whether wildcard expressions match hidden data streams. Supports comma-separated values, such as `open,hidden`. Valid values are:
@@ -500,7 +501,13 @@ Accept: application/vnd.elasticsearch+json; compatible-with=7
 
 ## HTTP `429 Too Many Requests` status code push back [api-push-back]
 
-{{es}} APIs may respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy to handle the request. When this happens, consider retrying after a short delay. If the retry also receives a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
+{{es}} APIs might respond with the HTTP `429 Too Many Requests` status code, indicating that the cluster is too busy to handle the request. When this happens, consider retrying after a short delay. If the retry also receives a `429 Too Many Requests` response, extend the delay by backing off exponentially before each subsequent retry.
+
+
+## HTTP client configuration
+
+::::{include} ../configuration-reference/_snippets/http-client-configuration.md
+::::
 
 
 ## URL-based access control [api-url-access-control]
@@ -512,14 +519,14 @@ To prevent the user from overriding the data stream or index specified in the UR
 This causes  {{es}} to reject requests that explicitly specify a data stream or index in the request body.
 
 
-## Boolean Values [_boolean_values]
+## Boolean values [_boolean_values]
 
 All REST API parameters (both request parameters and JSON body) support providing boolean "false" as the value `false` and boolean "true" as the value `true`. All other values will raise an error.
 
 
-## Number Values [api-conventions-number-values]
+## Number values [api-conventions-number-values]
 
-When passing a numeric parameter in a request body, you may use a `string` containing the number instead of the native numeric type. For example:
+When passing a numeric parameter in a request body, you can use a `string` containing the number instead of the native numeric type. For example:
 
 ```console
 POST /_search
@@ -554,7 +561,7 @@ Whenever the byte size of data needs to be specified, e.g. when setting a buffer
 :   Petabytes
 
 
-## Distance Units [distance-units]
+## Distance units [distance-units]
 
 Wherever distances need to be specified, such as the `distance` parameter in the [Geo-distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md)), the default unit is meters if none is specified. Distances can be specified in other units, such as `"1km"` or `"2mi"` (2 miles).
 

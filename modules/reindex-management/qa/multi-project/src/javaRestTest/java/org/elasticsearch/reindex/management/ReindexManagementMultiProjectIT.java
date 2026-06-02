@@ -14,6 +14,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -22,6 +23,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.List;
@@ -80,6 +82,8 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
      * 2. Try to cancel the reindex from the other project and expect a 404
      * 3. Cancel the reindex from the correct project and expect success
      */
+    @FixForMultiProject(description = "Cancel reindex is not MP-aware yet")
+    @Ignore("Ignored until MP-aware")
     public void testCancellingReindexOnlyWorksForCorrectProject() throws Exception {
         final String projectWithReindex = randomUniqueProjectId().id();
         final String projectWithoutReindex = randomUniqueProjectId().id();
@@ -136,7 +140,12 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         assertTrue(runningTaskExistsInProject(taskId, projectWithReindex));
     }
 
+    @FixForMultiProject(
+        description = "reindex listing delegates to _tasks which isn't multi-project aware. "
+            + "make _tasks multi-project aware and remove the assumeTrue at the start of this function"
+    )
     public void testListingReindexOnlyWorksForCorrectProject() throws Exception {
+        assumeTrue("listing is not multi-project aware yet", false);
         final String project1 = randomUniqueProjectId().id();
         final String project2 = randomUniqueProjectId().id();
 

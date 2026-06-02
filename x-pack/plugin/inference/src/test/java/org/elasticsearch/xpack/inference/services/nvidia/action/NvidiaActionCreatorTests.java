@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -22,7 +23,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.common.model.Truncation;
@@ -190,8 +190,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -208,7 +206,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -221,8 +219,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -239,7 +235,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -252,8 +248,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -273,7 +267,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -286,8 +280,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -304,11 +296,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -321,8 +309,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -339,11 +325,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -356,8 +338,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             var model = NvidiaEmbeddingsModelTests.createEmbeddingsModel(
@@ -377,11 +357,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(
-                new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
+            action.execute(new EmbeddingsInput(INPUT_VALUE, INPUT_TYPE_OVERRIDDEN_ELASTIC_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -413,8 +389,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "object": "list",
@@ -456,7 +430,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -468,7 +442,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 thrownException.getMessage(),
                 is(
                     Strings.format(
-                        "Failed to send Nvidia text_embedding request from inference entity id [inferenceEntityId]. Cause: %s",
+                        "Failed to send NVIDIA text_embedding request from inference entity id [inferenceEntityId]. Cause: %s",
                         failureCauseMessage
                     )
                 )
@@ -481,8 +455,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = Strings.format(CHAT_COMPLETION_RESPONSE_JSON, MODEL_VALUE, COMPLETION_RESULT_VALUE);
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -491,7 +463,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -516,15 +488,13 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(INPUT_IS_TOO_LONG_ERROR_MESSAGE));
 
             var model = NvidiaChatCompletionModelTests.createCompletionModel(getUrl(webServer), API_KEY_VALUE, MODEL_VALUE);
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
@@ -539,8 +509,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJsonContentTooLarge = """
                     {
                         "error": "Please reduce your prompt; or completion length."
@@ -553,7 +521,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT)
@@ -568,8 +536,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = Strings.format("""
                 {
                     "id": "cmpl-ef780b96e82d46ceb1e45ee4188913bc",
@@ -601,7 +567,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(INPUT_VALUE), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(INPUT_VALUE), null, listener);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
@@ -612,7 +578,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
                 thrownException.getMessage(),
                 is(
                     Strings.format(
-                        "Failed to send Nvidia completion request from inference entity id [inferenceEntityId]. Cause: %s",
+                        "Failed to send NVIDIA completion request from inference entity id [inferenceEntityId]. Cause: %s",
                         failureCauseMessage
                     )
                 )
@@ -625,8 +591,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(INPUT_IS_TOO_LONG_ERROR_MESSAGE));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
@@ -644,7 +608,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -677,8 +641,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJsonContentTooLarge = """
                     {
                         "error": "Input length 18432 exceeds maximum allowed token size 8192"
@@ -701,7 +663,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new EmbeddingsInput(INPUT_VALUE, null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(INPUT_VALUE, null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -733,8 +695,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(EMBEDDING_RESPONSE_JSON));
 
             // truncated to 1 token = 3 characters
@@ -751,7 +711,7 @@ public class NvidiaActionCreatorTests extends ESTestCase {
             var action = new NvidiaActionCreator(sender, createWithEmptySettings(threadPool)).create(model, null);
 
             var listener = new PlainActionFuture<InferenceServiceResults>();
-            action.execute(new EmbeddingsInput(List.of(INPUT_TO_TRUNCATE), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(INPUT_TO_TRUNCATE), null), null, listener);
 
             var result = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
 
@@ -774,8 +734,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "rankings": [
@@ -801,8 +759,8 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(QUERY_VALUE, PASSAGES_VALUE, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
+                null,
                 listener
             );
 
@@ -824,8 +782,6 @@ public class NvidiaActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, NO_RETRY_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "not_rankings": [
@@ -851,15 +807,15 @@ public class NvidiaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new QueryAndDocsInputs(QUERY_VALUE, PASSAGES_VALUE, null, null, false),
-                InferenceAction.Request.DEFAULT_TIMEOUT,
+                new QueryAndDocsInputs(InferenceString.ofText(QUERY_VALUE), InferenceString.fromStringList(PASSAGES_VALUE)),
+                null,
                 listener
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to send Nvidia rerank request from inference entity id [inferenceEntityId]. Cause: Required [rankings]")
+                is("Failed to send NVIDIA rerank request from inference entity id [inferenceEntityId]. Cause: Required [rankings]")
             );
         }
     }

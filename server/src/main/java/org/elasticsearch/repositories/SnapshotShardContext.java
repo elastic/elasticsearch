@@ -97,8 +97,6 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
 
     public abstract ShardId shardId();
 
-    public abstract Releasable withCommitRef();
-
     public abstract boolean isSearchableSnapshot();
 
     public abstract Store.MetadataSnapshot metadataSnapshot();
@@ -114,6 +112,13 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
     public interface FileReader extends Closeable {
 
         InputStream openInput(long limit) throws IOException;
+
+        /**
+         * Maybe release the reference acquired for the index commit. We may want to release the reference
+         * if the shard relocates and the commit is now retaiend by a different node so that snapshot running
+         * on the old node no longer needs to maintain it.
+         */
+        default void maybeReleaseCommitRef() {}
 
         void verify() throws IOException;
     }

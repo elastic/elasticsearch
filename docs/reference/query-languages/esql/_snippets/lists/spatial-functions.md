@@ -8,7 +8,12 @@
   * [`ST_X`](../../functions-operators/spatial-functions/st_x.md)
   * [`ST_Y`](../../functions-operators/spatial-functions/st_y.md)
   * [`ST_NPOINTS`](../../functions-operators/spatial-functions/st_npoints.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+  * [`ST_BUFFER`](../../functions-operators/spatial-functions/st_buffer.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
   * [`ST_SIMPLIFY`](../../functions-operators/spatial-functions/st_simplify.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+  * [`ST_SIMPLIFYPRESERVETOPOLOGY`](../../functions-operators/spatial-functions/st_simplifypreservetopology.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+  * [`ST_GEOMETRYTYPE`](../../functions-operators/spatial-functions/st_geometrytype.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+  * [`ST_DIMENSION`](../../functions-operators/spatial-functions/st_dimension.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+  * [`ST_ISEMPTY`](../../functions-operators/spatial-functions/st_isempty.md) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
 * [`ST_ENVELOPE`](../../functions-operators/spatial-functions/st_envelope.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
   * [`ST_XMAX`](../../functions-operators/spatial-functions/st_xmax.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
   * [`ST_XMIN`](../../functions-operators/spatial-functions/st_xmin.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`

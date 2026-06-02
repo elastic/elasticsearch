@@ -15,12 +15,10 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.awscore.retry.AwsRetryStrategy;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
-import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.SdkHttpClient;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
@@ -37,6 +35,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -94,13 +93,6 @@ class S3Service extends AbstractLifecycleComponent {
     );
 
     private final S3DefaultRegionHolder defaultRegionHolder;
-
-    /**
-     * Use a signer that does not require to pre-read (and checksum) the body of PutObject and UploadPart requests since we can rely on
-     * TLS for equivalent protection.
-     */
-    @SuppressWarnings("deprecation")
-    private static final Signer signer = AwsS3V4Signer.create();
 
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
@@ -331,7 +323,9 @@ class S3Service extends AbstractLifecycleComponent {
 
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
-        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, signer);
+        final var build = Build.current();
+        final var version = "default".equals(build.flavor()) ? build.version() : build.flavor(); // "serverless" in serverless
+        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX, "elasticsearch/" + version);
         var retryStrategyBuilder = AwsRetryStrategy.standardRetryStrategy()
             .toBuilder()
             .maxAttempts(clientSettings.maxRetries + 1 /* first attempt is not a retry */);

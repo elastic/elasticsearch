@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -40,6 +41,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Values.class)
+        .unary(Values::new)
+        .capabilities("flattened")
+        .name("values");
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
@@ -56,6 +61,7 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.FLATTENED, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
@@ -70,6 +76,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -81,10 +88,11 @@ public class Values extends AggregateFunction implements ToAggregator {
             "long",
             "unsigned_long",
             "version" },
-        preview = true,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "8.14.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0"), },
         description = """
-            Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
+            Returns unique (deduplicated) values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use
             [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions/mv_sort.md).""",
         appendix = """
@@ -113,6 +121,7 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

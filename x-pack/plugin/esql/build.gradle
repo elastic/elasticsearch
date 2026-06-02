@@ -5,26 +5,30 @@
  * 2.0.
  */
 
+import static org.elasticsearch.gradle.util.PlatformUtils.normalize
+
 plugins {
   id 'idea'
 }
 
-
-import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider
-
-import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-function'
+apply plugin: 'elasticsearch.esql-release'
+
+versions << [
+  'hadoop': '3.4.3',
+]
 
 esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption']
 }
 
 base {
@@ -32,32 +36,26 @@ base {
 }
 
 dependencies {
-  compileOnly project(path: xpackModule('core'))
   compileOnly project(':modules:lang-painless:spi')
-  compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
   implementation project(xpackModule('kql'))
-  implementation project('compute')
-  implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
   implementation project(':libs:web-utils')
+  implementation project(':libs:user-agent-api')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
-  // Also contains a dummy processor to allow compilation with unused annotations.
-  annotationProcessor project('compute:gen')
 
   testImplementation(project('qa:testFixtures')) {
     exclude(group: "org.elasticsearch.plugin", module: "esql")
   }
-  testImplementation project(':test:framework')
-  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('inference'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
@@ -65,7 +63,19 @@ dependencies {
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
+  testImplementation project(path: xpackModule('esql-datasource-csv'))
+  testImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  testImplementation project(path: xpackModule('esql-datasource-http'))
+  testImplementation project(path: xpackModule('esql-datasource-compression-libs'))
   testImplementation project(path: xpackModule('esql-datasource-gzip'))
+  testImplementation project(path: xpackModule('esql-datasource-zstd'))
+  testImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  testImplementation project(path: xpackModule('esql-datasource-lz4'))
+  testImplementation project(path: xpackModule('esql-datasource-snappy'))
+  testImplementation project(path: xpackModule('esql-datasource-brotli'))
+  testImplementation "com.github.luben:zstd-jni:${versions.zstdJni}"
+  testImplementation "org.xerial.snappy:snappy-java:${versions.snappyJava}"
+  testImplementation "org.apache.commons:commons-compress:${versions.esql_commons_compress}"
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
@@ -73,11 +83,11 @@ dependencies {
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:data-streams')
   testImplementation project(path: ':modules:mapper-extras')
+  testImplementation project(path: ':modules:user-agent')
   testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('ch.obermuhlner:big-math:2.3.2')
-  testImplementation('net.nextencia:rrdiagram:0.9.4')
-  testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
+  internalClusterTestImplementation project(":modules:user-agent")
   internalClusterTestImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":plugins:mapper-size")
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
@@ -89,6 +99,16 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('wildcard'))
   internalClusterTestImplementation project(xpackModule('mapper-version'))
   internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-csv'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-ndjson'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-compression-libs'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-bzip2'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-gzip'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-http'))
+  internalClusterTestImplementation project(path: xpackModule('esql-datasource-parquet'))
+  internalClusterTestImplementation "org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}"
+  internalClusterTestImplementation("org.apache.hadoop:hadoop-common:${versions.hadoop}") { transitive = false }
+  internalClusterTestImplementation("org.apache.hadoop:hadoop-mapreduce-client-core:${versions.hadoop}") { transitive = false }
 }
 
 tasks.named('splitPackagesAudit').configure {
@@ -110,206 +130,52 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/.*.crc'
 }
 
-
-def generatedPath = "src/main/generated"
-def projectDirectory = project.layout.projectDirectory
-def generatedSourceDir = projectDirectory.dir(generatedPath)
-tasks.named("compileJava").configure {
-  options.compilerArgumentProviders.add(new SourceDirectoryCommandLineArgumentProvider(generatedSourceDir))
-  // IntelliJ sticks generated files here and we can't stop it....
-  exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
+tasks.named("test").configure {
+  // Arrow debug allocator: catches use-after-free, double-free, and unreleased ArrowBufs
+  // with deterministic stack traces. Kept local rather than in ElasticsearchBaseTestPlugin
+  // so that future JMH / perf-smoke benchmarks in esql-datasource-* modules are not
+  // inadvertently affected — the per-buffer ledger overhead invalidates timing measurements
+  // (OptimizedReaderPerformanceTests is already excluded from the test task for this reason).
+  systemProperty 'arrow.memory.debug.allocator', 'true'
 }
 
-idea.module {
-  sourceDirs += file(generatedPath)
-}
+
 
 interface Injected {
   @Inject
   FileSystemOperations getFs()
 }
 
-tasks.named("test").configure {
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named("internalClusterTest").configure {
   // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
   // https://bugs.openjdk.org/browse/JDK-8367990
   // https://github.com/elastic/elasticsearch/issues/135009
   jvmArgs '-XX:-OmitStackTraceInFastThrow'
 
-  ['esql', 'promql'].forEach {folder ->
-    def injected = project.objects.newInstance(Injected)
-    // Define the folder to delete and recreate
-    def tempDir = file("build/testrun/test/temp/${folder}")
-    def commandsExamplesFile = new File(tempDir, "commands.examples")
-    // Find all matching .md files for commands examples
-    def mdFiles = fileTree("${rootDir}/docs/reference/query-languages/${folder}/_snippets/commands/examples/") {
-      include("**/*.csv-spec/*.md")
-    }
-    def docFolder = file("${rootDir}/docs/reference/query-languages/${folder}").toPath()
-    def imagesDocFolder = file("${docFolder}/images")
-    def snippetsDocFolder = file("${docFolder}/_snippets")
-    def kibanaDocFolder = file("${docFolder}/kibana")
-    File imagesFolder = file("build/testrun/test/temp/${folder}/images")
-    File snippetsFolder = file("build/testrun/test/temp/${folder}/_snippets")
-    File kibanaFolder = file("build/testrun/test/temp/${folder}/kibana")
+  /*
+   * This is similar to the test task configured by the esql-function plugin,
+   * but needed for the LookupJoinTypesIT which runs in the internalClusterTest
+   * task and generates a types table for the LOOKUP JOIN command. It is possible
+   * in future we might have move tests that do this.
+   */
+  systemProperty 'es.esql_external_datasources_feature_flag_enabled', 'true'
+  // Data sources require the project encryption key feature (EsqlPlugin fails fast otherwise); pair the flags.
+  systemProperty 'es.project_encryption_key_feature_flag_enabled', 'true'
 
-    // BuildParams isn't available inside doFirst with --configuration-cache
-    def buildParams = buildParams
-    doFirst {
-      injected.fs.delete {
-        it.delete(tempDir)
-      }
-      // Re-create this folder so we can save a table of generated examples to extract from csv-spec tests
-      tempDir.mkdirs() // Recreate the folder
-
-      // Write directory name and filename of each .md file to the output file
-      commandsExamplesFile.withWriter { writer ->
-        mdFiles.each { file ->
-          writer.writeLine("${file.parentFile.name}/${file.name}")
-        }
-      }
-      println "File 'commands.examples' created with ${mdFiles.size()} example specifications from csv-spec files."
-      if (buildParams.ci) {
-        injected.fs.sync {
-          from snippetsDocFolder
-          into snippetsFolder
-        }
-        injected.fs.sync {
-          from imagesDocFolder
-          into imagesFolder
-        }
-        injected.fs.sync {
-          from kibanaDocFolder
-          into kibanaFolder
-        }
-      }
-    }
-    if (buildParams.ci) {
-      systemProperty 'generateDocs', 'assert'
-    } else {
-      systemProperty 'generateDocs', 'write'
-      def snippetsTree = fileTree(snippetsFolder).matching {
-        include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
-      }
-      def settingsTree = fileTree(snippetsFolder).matching {
-        include "**/settings/*.md"  // Recursively include all settings/*.md files
-      }
-      def commandsExamplesTree = fileTree(snippetsFolder).matching {
-        include "**/*.csv-spec/*.md"  // Recursively include all generated *.csv-spec/*.md files (created by CommandDocsTests)
-      }
-      def imagesTree = fileTree(imagesFolder).matching {
-        include "**/*.svg"  // Recursively include all SVG files
-      }
-      def kibanaTree = fileTree(kibanaFolder).matching {
-        include "**/*.json"  // Recursively include all JSON files
-      }
-
-      doLast {
-        def snippets = snippetsTree.files.collect { it.name }
-        int countSnippets = snippets.size()
-        def querySettings = settingsTree.files.collect { it.name }
-        int countQuerySettings = querySettings.size()
-        def commandsExamples = commandsExamplesTree.files.collect { it.name }
-        int countCommandsExamples = commandsExamples.size()
-        if (countSnippets == 0 && countCommandsExamples == 0 && countQuerySettings == 0) {
-          logger.quiet("${folder.toUpperCase()} Docs: No function/operator snippets created. Skipping sync.")
-        } else {
-          logger.quiet("${folder.toUpperCase()} Docs: Found $countSnippets generated function/operator snippets and $countCommandsExamples command examples to patch into docs")
-          injected.fs.sync {
-            from snippetsFolder
-            into snippetsDocFolder
-            include '**/*.md'
-            if (countSnippets <= 100) {
-              // If we do not run the full test of tests, do not attempt to remove potentially unused files
-              preserve {
-                // The snippets directory contains generated and static content, so we must preserve all MD files.
-                include '**/*.md'
-              }
-            } else {
-              // If we do run the full test of tests, be careful about what we need to preserve
-              preserve {
-                // The lists and commands are static, and the operators are a mix of generated and static content
-                include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md', '**/commands/**/*.md', '**/common/**/*.md'
-              }
-            }
-          }
-        }
-
-        List images = imagesTree.files.collect { it.name }
-        int countImages = images.size()
-        Closure replaceFont = line -> {
-          // The es-docs team has a recommended set of fonts for use with code, and they size similarly to the previous Roboto Mono, which is no longer available in the docs webpage
-          // We do not change the original SVG generator to use these because it requires the fonts to exist in the JVM running the code
-          line.replaceAll(
-            /font-family:\s*Roboto Mono[^;]*;/,
-            'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'
-          )
-        }
-        if (countImages == 0) {
-          logger.quiet("${folder.toUpperCase()} Docs: No function signatures created. Skipping sync.")
-        } else {
-          logger.quiet("${folder.toUpperCase()} Docs: Found $countImages generated SVG files to patch into docs")
-          injected.fs.sync {
-            from imagesFolder
-            into imagesDocFolder
-            include '**/*.svg'
-            if (countImages <= 100) {
-              // If we do not run the full test of tests, do not attempt to remove potentially unused files
-              preserve {
-                // Some operator files are currently static, so we must preserve them all
-                include '**/*.svg'
-              }
-            }
-            filter replaceFont
-          }
-        }
-
-        List kibana = kibanaTree.files.collect { it.name }
-        int countKibana = kibana.size()
-        Closure replaceLinks = line -> {
-          // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
-          line.replaceAll(
-            /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
-            '](https://www.elastic.co/docs/reference/$1$2)'
-          )
-        }
-        if (countKibana == 0) {
-          logger.quiet("${folder.toUpperCase()} Docs: No function/operator kibana docs created. Skipping sync.")
-        } else {
-          logger.quiet("${folder.toUpperCase()} Docs: Found $countKibana generated kibana markdown files to patch into docs")
-          injected.fs.sync {
-            from kibanaFolder
-            into kibanaDocFolder
-            include '**/*.md', '**/*.json'
-            if (countKibana <= 100) {
-              // If we do not run the full test of tests, do not attempt to remove potentially unused files
-              preserve {
-                include '**/*.md', '**/*.json'
-              }
-            }
-            filter replaceLinks
-          }
-        }
-      }
-    }
-  }
-}
-
-tasks.named('internalClusterTestTestingConventions').configure {
-  baseClass 'org.elasticsearch.test.ESTestCase'
-}
-
-// This is similar to the test task above, but needed for the LookupJoinTypesIT which runs in the internalClusterTest task
-// and generates a types table for the LOOKUP JOIN command. It is possible in future we might have move tests that do this.
-tasks.named("internalClusterTest").configure {
   def injected = project.objects.newInstance(Injected)
   File snippetsFolder = file("build/testrun/internalClusterTest/temp/esql/_snippets")
-  def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
+  def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets/generated/x-pack-esql")
   if (buildParams.ci) {
     systemProperty 'generateDocs', 'assert'
     doFirst {
       injected.fs.sync {
         from snippetsDocFolder
         into snippetsFolder
+        includeEmptyDirs = false
       }
     }
   } else {
@@ -338,6 +204,7 @@ tasks.named("internalClusterTest").configure {
           from snippetsFolder
           into snippetsDocFolder
           include '**/*.md'
+          includeEmptyDirs = false
           preserve {
             include '**/*.md'
           }
@@ -425,7 +292,6 @@ tasks.register("regenParser", JavaExec) {
     '-package', 'org.elasticsearch.xpack.esql.parser',
     '-listener',
     '-visitor',
-    '-lib', outputPath,
     '-lib', "${file(grammarPath)}/parser",
     '-o', outputPath,
     "${file(grammarPath)}/EsqlBaseParser.g4"
@@ -541,6 +407,7 @@ def prop(Name, Type, type, TYPE, BYTES, Array) {
     "int"        : type == "int" ? "true" : "",
     "long"       : type == "long" ? "true" : "",
     "double"     : type == "double" ? "true" : "",
+    "float"      : type == "float" ? "true" : "",
     "BytesRef"   : type == "BytesRef" ? "true" : "",
     "boolean"    : type == "boolean" ? "true" : "",
     "nanosMillis": Name == "NanosMillis" ? "true" : "",
@@ -554,10 +421,12 @@ tasks.named('stringTemplates').configure {
   var nanosMillisProperties = prop("NanosMillis", "Long", "long", "LONG", "Long.BYTES", "LongArray")
   var millisNanosProperties = prop("MillisNanos", "Long", "long", "LONG", "Long.BYTES", "LongArray")
   var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var floatProperties = prop("Float", "Float", "float", "FLOAT", "Float.BYTES", "FloatArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
   var tdigestProperties = prop("TDigest", "TDigest", "tdigest", "TDIGEST", "", "")
+  var longRangeProperties = prop("LongRange", "LongRange", "LongRange", "LONG_RANGE", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -618,6 +487,11 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleEvaluator.java"
   }
   template {
+    it.properties = floatProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceFloatEvaluator.java"
+  }
+  template {
     it.properties = bytesRefProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
@@ -632,6 +506,12 @@ tasks.named('stringTemplates').configure {
     it.properties = tdigestProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceTDigestEvaluator.java"
+  }
+
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongRangeEvaluator.java"
   }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
@@ -663,13 +543,294 @@ tasks.named("test").configure {
     systemProperty "golden.overwrite", "true"
   }
 
-  systemProperty "policy.directory", file("${projectDir}").absolutePath
-  systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
+}
+
+/**
+ * Discovers all non-abstract subclasses of {@code GoldenTestCase} reachable from the test
+ * source set's compiled output. Uses reflection over an isolated {@link URLClassLoader}; classes
+ * are loaded with {@code initialize=false} so static initializers do not run.
+ */
+def findGoldenTestClasses = { FileCollection runtimeClasspath, FileCollection classesDirs ->
+  def names = []
+  classesDirs.each { File dir ->
+    if (dir.exists() == false) {
+      return
+    }
+    dir.eachFileRecurse(groovy.io.FileType.FILES) { File f ->
+      if (f.name.endsWith('.class') == false) {
+        return
+      }
+      def rel = dir.toPath().relativize(f.toPath()).toString()
+      def name = rel.replace(File.separatorChar, '.' as char).replaceAll(/\.class$/, '')
+      if (name.endsWith('package-info') || name.endsWith('module-info') || name.contains('$')) {
+        return
+      }
+      names << name
+    }
+  }
+
+  def urls = runtimeClasspath.files.collect { it.toURI().toURL() } as URL[]
+  def cl = new URLClassLoader(urls, ClassLoader.systemClassLoader)
+  try {
+    def base = cl.loadClass("org.elasticsearch.xpack.esql.optimizer.GoldenTestCase")
+    return names.findAll { String n ->
+      try {
+        def c = Class.forName(n, false, cl)
+        return base.isAssignableFrom(c) && java.lang.reflect.Modifier.isAbstract(c.modifiers) == false
+      } catch (Throwable ignored) {
+        return false
+      }
+    }.sort()
+  } finally {
+    cl.close()
+  }
+}
+
+tasks.register("goldenTestingConventions") {
+  description = "Verifies all GoldenTestCase subclasses are suffixed with 'GoldenTests'."
+  group = "verification"
+  dependsOn tasks.named("compileTestJava")
+  def runtimeClasspath = sourceSets.test.runtimeClasspath
+  def classesDirs = sourceSets.test.output.classesDirs
+  doLast {
+    def violators = findGoldenTestClasses(runtimeClasspath, classesDirs).findAll {
+      it.endsWith("GoldenTests") == false
+    }
+    if (violators.isEmpty() == false) {
+      throw new GradleException(
+        "Subclasses of GoldenTestCase must be suffixed with 'GoldenTests':\n\t"
+          + violators.join("\n\t")
+      )
+    }
+  }
+}
+
+tasks.named("precommit").configure {
+  dependsOn tasks.named("goldenTestingConventions")
 }
 
 tasks.register("analyzePromqlQueries", JavaExec) {
   mainClass = 'org.elasticsearch.xpack.esql.optimizer.promql.PromqlCoverageAnalyzer'
   classpath = sourceSets.test.runtimeClasspath
-  args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
+  def arguments = [
+    "--input", project.findProperty("queriesFile") ?: "",
+    "--output", project.findProperty("outputFile") ?: ""
+  ]
+  if (project.hasProperty("outputFormat")) {
+    arguments += ["--format", project.findProperty("outputFormat")]
+  }
+  if (project.hasProperty("verbose")) {
+    arguments += ["--verbose", project.findProperty("verbose")]
+  }
+  args arguments as List<String>
 }
 
+tasks.withType(Javadoc).configureEach {
+  // Enable syntax highlighting for snippets, include ESQL
+  def opts = (StandardJavadocDocletOptions) options
+  opts.addBooleanOption('-allow-script-in-comments', true)
+  // The inline style below is borrowed from Elastic's doc's primary stylesheet
+  // the rest is standard activation for highlight.js
+  // Newlines are stripped from the header to avoid Windows javadoc argument
+  // parsing issues: the options file is parsed line-by-line, so CSS custom
+  // properties like --color-blue-elastic are misread as javadoc flags.
+  opts.header(('''\
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/styles/default.min.css">
+<style>
+  .snippet-container {
+    --color-blue-elastic:#0b64dd;
+    --color-blue-elastic-30:#b8d4ff;
+    --color-blue-elastic-70:#3788ff;
+    --color-green-50:#59cfaa;
+    --color-grey-10:#f6f9fc;
+    --color-grey-20:#e5e9f0;
+    --color-grey-30:#d0d4da;
+    --color-grey-50:#aab0ba;
+    --color-grey-70:#868e9a;
+    --color-grey-100:#555c67;
+    --color-pink-50:#f58eb7;
+    --color-purple-50:#c5a5fa;
+    --color-purple-60:#b386f9;
+    --color-red-50:#fc9188;
+    --color-teal-50:#51d6d2;
+    --color-white:#fff;
+    --color-yellow-50:#f5bc00;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+    --radius-sm:.25rem;
+    --radius-xs:.125rem;
+    --spacing:4px;
+    --text-sm:1rem;
+    --text-sm--line-height:calc(1.25/.875);
+    --text-xs:.857rem;
+    --text-xs--line-height:calc(1/.75);
+    --tw-border-style:solid;
+  }
+  .snippet-container pre code {
+    border-style:var(--tw-border-style);
+    font-size:var(--text-sm);
+    line-height:var(--text-sm--line-height);
+    color:var(--color-grey-30);
+    mix-blend-mode:unset;
+    word-break:normal;
+    background-color:#22272e;
+    border-width:0;
+    border-radius:0;
+    line-height:1.5em;
+    overflow-x:auto;
+    padding:calc(var(--spacing)*6)!important
+  }
+  .snippet-container button.copy {
+    color:var(--color-grey-30);
+    top: calc(var(--spacing)*5);
+    right: calc(var(--spacing)*4);
+  }
+  .snippet-container pre {
+    background-color:var(--body-background-color)
+  }
+  .snippet-container pre code:first-child {
+    border-top-left-radius:var(--radius-sm);
+    border-top-right-radius:var(--radius-sm)
+  }
+  .snippet-container pre code:last-child {
+    border-bottom-right-radius:var(--radius-sm);
+    border-bottom-left-radius:var(--radius-sm)
+  }
+  .snippet-container pre code.language-apiheader+code.language-json {
+    margin-top:calc(var(--spacing)*-6);
+    padding-top:calc(var(--spacing)*0)!important
+  }
+  .snippet-container pre code.language-json+code.language-apiheader,
+  .snippet-container pre code.language-apiheader+code.language-apiheader {
+    border-top-style:var(--tw-border-style);
+    --tw-border-style:dotted;
+    border-style:dotted;
+    border-top-width:1px;
+    border-top-color:var(--color-grey-100)
+  }
+  .snippet-container pre code .code-callout {
+    margin-left:calc(var(--spacing)*1);
+    user-select:none
+  }
+  .snippet-container pre code .code-callout:after {
+    content:attr(data-index)
+  }
+  .snippet-container ol.code-callouts li {
+    padding-left:calc(var(--spacing)*1);
+    counter-increment:code-callout-counter;
+    list-style-type:none;
+    position:relative
+  }
+  .snippet-container ol.code-callouts li:before {
+    content:counter(code-callout-counter);
+    top:1px;
+    left:calc(-1*var(--spacing)*6);
+    position:absolute
+  }
+  .snippet-container pre code .code-callout .hljs-number {
+    color:var(--color-white)!important
+  }
+  .snippet-container pre code .code-callout,
+  .snippet-container ol.code-callouts li:before {
+    width:calc(var(--spacing)*4.5);
+    height:calc(var(--spacing)*4.5);
+    background-color:var(--color-blue-elastic);
+    font-family:var(--font-mono);
+    border-radius:3.40282e38px;
+    justify-content:center;
+    align-items:center;
+    display:inline-flex;
+    font-size:var(--text-xs)!important;
+    line-height:var(--text-xs--line-height)!important;
+    color:var(--color-white)!important
+  }
+  .snippet-container code {
+    border-radius:var(--radius-xs);
+    border-style:var(--tw-border-style);
+    border-width:1px;
+    border-color:var(--color-grey-20);
+    background-color:var(--color-grey-10);
+    font-family:var(--font-mono);
+    -webkit-text-decoration:inherit;
+    -webkit-text-decoration:inherit;
+    text-decoration:inherit;
+    font-size:.875em;
+    line-height:1.4em;
+    font-weight:inherit;
+    mix-blend-mode:multiply;
+    word-break:break-word;
+    padding-left:.2em;
+    padding-right:.2em
+  }
+  .snippet-container .hljs-built_in,
+  .snippet-container .hljs-selector-tag,
+  .snippet-container .hljs-section,
+  .snippet-container .hljs-link,
+  .snippet-container .hljs-keyword {
+    color:var(--color-blue-elastic-70)
+  }
+  .snippet-container .hljs {
+    color:var(--color-blue-elastic-30)!important
+  }
+  .snippet-container .hljs-subst,
+  .snippet-container .hljs-function {
+    color:var(--color-purple-60)
+  }
+  .snippet-container .hljs-title,
+  .snippet-container .hljs-title.function,
+  .snippet-container .hljs-attr,
+  .snippet-container .hljs-meta-keyword {
+    color:var(--color-yellow-50)
+  }
+  .snippet-container .hljs-string {
+    color:var(--color-green-50)
+  }
+  .snippet-container .hljs-operator,
+  .snippet-container .hljs-meta,
+  .snippet-container .hljs-name,
+  .snippet-container .hljs-bullet,
+  .snippet-container .hljs-addition,
+  .snippet-container .hljs-template-tag,
+  .snippet-container .hljs-template-variable {
+    color:var(--color-yellow-50)
+  }
+  .snippet-container .hljs-type,
+  .snippet-container .hljs-symbol {
+    color:var(--color-teal-50)
+  }
+  .snippet-container .hljs-variable {
+    color:var(--color-purple-50)
+  }
+  .snippet-container .hljs-comment,
+  .snippet-container .hljs-quote,
+  .snippet-container .hljs-deletion {
+    color:var(--color-grey-70)
+  }
+  .snippet-container .hljs-punctuation {
+    color:var(--color-grey-50);
+    font-weight:700
+  }
+  .snippet-container .hljs-keyword,
+  .snippet-container .hljs-selector-tag,
+  .snippet-container .hljs-literal,
+  .snippet-container .hljs-title,
+  .snippet-container .hljs-section,
+  .snippet-container .hljs-doctag,
+  .snippet-container .hljs-type,
+  .snippet-container .hljs-name,
+  .snippet-container .hljs-strong {
+    font-weight:700
+  }
+  .snippet-container .hljs-literal {
+    color:var(--color-pink-50)
+  }
+  .snippet-container .hljs-number {
+    color:var(--color-red-50)
+  }
+  .snippet-container .hljs-emphasis {
+    font-style:italic
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.11.1/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/elastic/highlightjs-esql@1.2.2/dist/esql.min.js"></script>
+<script>hljs.highlightAll();</script>''').replaceAll(/[\r\n]+/, ''))
+}

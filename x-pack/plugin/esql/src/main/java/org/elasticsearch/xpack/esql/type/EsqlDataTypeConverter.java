@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateRan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToExponentialHistogram;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeohash;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToIpLeadingZerosRejected;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTDigest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToTimeDuration;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
@@ -105,6 +107,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
@@ -115,6 +118,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -151,10 +155,10 @@ public class EsqlDataTypeConverter {
         Map.entry(BOOLEAN, ToBoolean::new),
         Map.entry(CARTESIAN_POINT, ToCartesianPoint::new),
         Map.entry(CARTESIAN_SHAPE, ToCartesianShape::new),
-        Map.entry(DATE_RANGE, ToDateRange::new),
         // ToDegrees, typeless
         Map.entry(DENSE_VECTOR, ToDenseVector::new),
         Map.entry(DOUBLE, ToDouble::new),
+        Map.entry(EXPONENTIAL_HISTOGRAM, ToExponentialHistogram::new),
         Map.entry(GEO_POINT, ToGeoPoint::new),
         Map.entry(GEO_SHAPE, ToGeoShape::new),
         Map.entry(GEOHASH, ToGeohash::new),
@@ -164,6 +168,7 @@ public class EsqlDataTypeConverter {
         Map.entry(IP, ToIpLeadingZerosRejected::new),
         Map.entry(LONG, ToLong::new),
         // ToRadians, typeless
+        Map.entry(TDIGEST, ToTDigest::new),
         Map.entry(UNSIGNED_LONG, ToUnsignedLong::new),
         Map.entry(VERSION, ToVersion::new),
         Map.entry(DATE_PERIOD, ToDatePeriod::new),
@@ -182,6 +187,7 @@ public class EsqlDataTypeConverter {
         TriFunction<Source, Expression, Configuration, AbstractConvertFunction>> TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION = Map.ofEntries(
             Map.entry(DATETIME, ToDatetime::new),
             Map.entry(DATE_NANOS, ToDateNanos::new),
+            Map.entry(DATE_RANGE, ToDateRange::new),
             Map.entry(KEYWORD, ToString::new)
         );
 
@@ -695,10 +701,21 @@ public class EsqlDataTypeConverter {
     }
 
     public static LongRangeBlockBuilder.LongRange parseDateRange(String s, ZoneId zoneId) {
-        var ss = s.split("\\.\\.");
-        assert ss.length == 2 : "can't parse range: " + s;
-        var formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId);
-        return new LongRangeBlockBuilder.LongRange(dateTimeToLong(ss[0], formatter), dateTimeToLong(ss[1], formatter) - 1);
+        return parseDateRange(s, DEFAULT_DATE_TIME_FORMATTER.withZone(zoneId));
+    }
+
+    public static LongRangeBlockBuilder.LongRange parseDateRange(String s, DateFormatter formatter) {
+        // limit -1 so trailing empty strings are preserved, otherwise "..2024-01-01" splits to length 1.
+        var ss = s.split("\\.\\.", -1);
+        if (ss.length != 2) {
+            throw new IllegalArgumentException("expected date range in the form 'from..to', got [" + s + "]");
+        }
+        long from = dateTimeToLong(ss[0], formatter);
+        long to = dateTimeToLong(ss[1], formatter);
+        if (from >= to) {
+            throw new IllegalArgumentException("date range 'from' [" + ss[0] + "] must be less than 'to' [" + ss[1] + "]");
+        }
+        return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
     public static String dateRangeToString(LongRangeBlockBuilder.LongRange range) {
@@ -706,7 +723,12 @@ public class EsqlDataTypeConverter {
     }
 
     public static String dateRangeToString(long from, long to) {
-        return dateTimeToString(from) + ".." + dateTimeToString(to);
+        return dateRangeToString(from, to, DEFAULT_DATE_TIME_FORMATTER);
+    }
+
+    /** Formats a half-open [from, to) range using the block's stored millis for both bounds. */
+    public static String dateRangeToString(long from, long to, DateFormatter formatter) {
+        return dateTimeToString(from, formatter) + ".." + dateTimeToString(to, formatter);
     }
 
     public static BytesRef numericBooleanToString(Object field) {
@@ -859,7 +881,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String tDigestBlockToString(TDigestBlock tDigestBlock, int index) {
-        TDigestHolder digest = tDigestBlock.getTDigestHolder(index);
+        TDigestHolder digest = tDigestBlock.getTDigestHolder(index, new TDigestHolder());
         return tDigestToString(digest);
     }
 

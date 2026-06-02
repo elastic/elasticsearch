@@ -12,10 +12,13 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe buffer for async external source data.
@@ -23,16 +26,22 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * This buffer provides:
  * - Thread-safe page queue for cross-thread communication
- * - Backpressure control via max buffer size
+ * - Byte-based backpressure control proportional to actual memory usage
  * - Notification via {@link SubscribableListener} when data becomes available
  * - Lifecycle management (finished state tracking)
  */
 public final class AsyncExternalSourceBuffer {
 
+    /**
+     * Default byte limit for the buffer, preserving the original "10 normal-sized pages" intent.
+     */
+    public static final long DEFAULT_MAX_BUFFER_BYTES = 10L * Operator.TARGET_PAGE_SIZE;
+
     private final Queue<Page> queue = new ConcurrentLinkedQueue<>();
     // uses a separate counter for size for CAS; and ConcurrentLinkedQueue#size is not a constant time operation.
     private final AtomicInteger queueSize = new AtomicInteger();
-    private final int maxSize;
+    private final AtomicLong bytesInBuffer = new AtomicLong();
+    private final long maxBufferBytes;
 
     private final Object notEmptyLock = new Object();
     private SubscribableListener<Void> notEmptyFuture = null;
@@ -45,11 +54,21 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean noMoreInputs = false;
     private volatile Throwable failure = null;
 
-    public AsyncExternalSourceBuffer(int maxSize) {
-        if (maxSize < 1) {
-            throw new IllegalArgumentException("max_buffer_size must be at least one; got=" + maxSize);
+    private volatile FormatReaderStatus formatReaderStatus = null;
+    // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
+    // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
+    // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
+    // single consumer counter and stays AtomicLong.
+    private final LongAdder bytesRead = new LongAdder();
+    private volatile int splitsTotal = 0;
+    private final AtomicInteger splitsProcessed = new AtomicInteger();
+    private volatile int currentSplit = 0;
+
+    public AsyncExternalSourceBuffer(long maxBufferBytes) {
+        if (maxBufferBytes < 1) {
+            throw new IllegalArgumentException("max_buffer_bytes must be at least one; got=" + maxBufferBytes);
         }
-        this.maxSize = maxSize;
+        this.maxBufferBytes = maxBufferBytes;
     }
 
     /**
@@ -57,45 +76,73 @@ public final class AsyncExternalSourceBuffer {
      */
     public void addPage(Page page) {
         if (failure != null) {
+            // Reject the page without touching buffer state, so the trailing invariantsHold()
+            // call is intentionally bypassed: nothing was mutated for it to check.
             page.releaseBlocks();
             return;
         }
+        long pageBytes = page.ramBytesUsedByBlocks();
+        bytesInBuffer.addAndGet(pageBytes);
         queue.add(page);
-        if (queueSize.incrementAndGet() == 1) {
-            notifyNotEmpty();
-        }
+        queueSize.incrementAndGet();
+        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+        notifyNotEmpty();
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
             if (queue.removeIf(p -> p == page)) {
                 page.releaseBlocks();
-                final int size = queueSize.decrementAndGet();
-                if (size == maxSize - 1) {
+                queueSize.decrementAndGet();
+                long afterRemove = bytesInBuffer.addAndGet(-pageBytes);
+                if (afterRemove < maxBufferBytes) {
                     notifyNotFull();
                 }
-                if (size == 0) {
+                if (queueSize.get() == 0) {
                     completionFuture.onResponse(null);
                 }
             }
         }
+        assert invariantsHold() : "buffer invariants violated after addPage";
     }
 
     /**
      * Poll a page from the buffer. Called by the operator (driver thread).
-     * @return the next page, or null if no pages available
+     *
+     * @return the next page, or {@code null} if no pages available
      */
     public Page pollPage() {
-        final var page = queue.poll();
-        if (page != null && queueSize.decrementAndGet() == maxSize - 1) {
-            notifyNotFull();
+        Page page = queue.poll();
+        if (page == null) {
+            signalCompletionIfDrained();
+            assert invariantsHold() : "buffer invariants violated after pollPage (empty)";
+            return null;
         }
-        if (page == null && noMoreInputs && queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        queueSize.decrementAndGet();
+        long pageBytes = page.ramBytesUsedByBlocks();
+        bytesInBuffer.addAndGet(-pageBytes);
+        // Always notify: the previous threshold-crossing guard could miss a crossing because the
+        // producer's waitForSpace snapshot of bytesInBuffer can race with concurrent addPage calls,
+        // orphaning notFullFuture. notifyNotFull() is a no-op when no listener is registered.
+        notifyNotFull();
+        signalCompletionIfDrained();
+        assert invariantsHold() : "buffer invariants violated after pollPage";
         return page;
+    }
+
+    /**
+     * Completes {@link #completionFuture} once the queue is drained and no more input is expected.
+     * Safe to call repeatedly; no-ops if completion was already signaled.
+     */
+    private void signalCompletionIfDrained() {
+        if (noMoreInputs == false || queueSize.get() != 0 || completionFuture.isDone()) {
+            return;
+        }
+        if (failure != null) {
+            completionFuture.onFailure(new Exception(failure));
+        } else {
+            completionFuture.onResponse(null);
+        }
     }
 
     private void notifyNotEmpty() {
@@ -121,40 +168,18 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
-     * Returns an {@link IsBlockedResult} that completes when the buffer has space for writing.
-     * Used by background reader for backpressure.
-     */
-    public IsBlockedResult waitForWriting() {
-        // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
-        if (queueSize.get() < maxSize || noMoreInputs) {
-            return Operator.NOT_BLOCKED;
-        }
-        synchronized (notFullLock) {
-            if (queueSize.get() < maxSize || noMoreInputs) {
-                return Operator.NOT_BLOCKED;
-            }
-            if (notFullFuture == null) {
-                notFullFuture = new SubscribableListener<>();
-            }
-            return new IsBlockedResult(notFullFuture, "async external source buffer full");
-        }
-    }
-
-    /**
      * Returns a {@link SubscribableListener} that completes when the buffer has space for writing.
-     * This is the preferred method for producers to use for backpressure coordination.
-     * <p>
-     * Unlike {@link #waitForWriting()} which returns an {@link IsBlockedResult}, this method
-     * returns a {@link SubscribableListener} that can be used directly with ES async patterns.
+     * This is the method producers use for backpressure coordination: it integrates directly with
+     * ES async patterns and the producer drain loops.
      *
      * @return a listener that completes when space is available, or an already-completed listener if space exists
      */
     public SubscribableListener<Void> waitForSpace() {
-        if (queueSize.get() < maxSize || noMoreInputs) {
+        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
             return SubscribableListener.newSucceeded(null);
         }
         synchronized (notFullLock) {
-            if (queueSize.get() < maxSize || noMoreInputs) {
+            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
                 return SubscribableListener.newSucceeded(null);
             }
             if (notFullFuture == null) {
@@ -183,11 +208,17 @@ public final class AsyncExternalSourceBuffer {
         }
     }
 
+    // Drains and releases every queued page on teardown. Only call from finish/onFailure;
+    // bytesInBuffer is reset wholesale, which is only safe when no further pollPage() is expected
+    // to subtract from it.
     private void discardPages() {
         Page p;
-        while ((p = pollPage()) != null) {
+        while ((p = queue.poll()) != null) {
+            queueSize.decrementAndGet();
             p.releaseBlocks();
         }
+        bytesInBuffer.set(0);
+        assert invariantsHold() : "buffer invariants violated after discardPages";
     }
 
     /**
@@ -200,21 +231,23 @@ public final class AsyncExternalSourceBuffer {
         }
         notifyNotEmpty();
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
-        if (drainingPages || queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        signalCompletionIfDrained();
+        assert invariantsHold() : "buffer invariants violated after finish";
     }
 
     /**
      * Mark the buffer as failed. Called when the background reader encounters an error.
+     * <p>
+     * Queued pages are retained so the driver can drain them before {@link AsyncExternalSourceOperator}
+     * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
         this.failure = t;
-        finish(true);
+        noMoreInputs = true;
+        notifyNotEmpty();
+        notifyNotFull();
+        signalCompletionIfDrained();
+        assert invariantsHold() : "buffer invariants violated after onFailure";
     }
 
     public boolean isFinished() {
@@ -238,5 +271,106 @@ public final class AsyncExternalSourceBuffer {
 
     public Throwable failure() {
         return failure;
+    }
+
+    /**
+     * Returns the current number of bytes buffered, as measured by {@link Page#ramBytesUsedByBlocks()}.
+     */
+    public long bytesInBuffer() {
+        return bytesInBuffer.get();
+    }
+
+    /** Records the latest format-reader counter snapshot for the operator's status view. */
+    public void recordFormatReaderStatus(FormatReaderStatus snapshot) {
+        this.formatReaderStatus = snapshot;
+    }
+
+    /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */
+    public void addBytesRead(long delta) {
+        if (delta > 0) {
+            bytesRead.add(delta);
+        }
+    }
+
+    /** Sets the total number of splits the producer expects to process; callable once when known. */
+    public void setSplitsTotal(int total) {
+        this.splitsTotal = total;
+    }
+
+    /** Increments the count of splits the producer has finished processing. */
+    public void incSplitsProcessed() {
+        splitsProcessed.incrementAndGet();
+    }
+
+    /** Records the 1-based index of the split currently being processed by the producer. */
+    public void setCurrentSplit(int idx) {
+        this.currentSplit = idx;
+    }
+
+    /** Returns the latest format-reader counter snapshot, or {@code null} if none recorded yet. */
+    public FormatReaderStatus formatReaderStatus() {
+        return formatReaderStatus;
+    }
+
+    /** Returns cumulative pre-decompression bytes read from the storage layer. */
+    public long bytesRead() {
+        return bytesRead.sum();
+    }
+
+    /** Returns the total number of splits the producer expects to process. */
+    public int splitsTotal() {
+        return splitsTotal;
+    }
+
+    /** Returns the number of splits the producer has finished processing. */
+    public int splitsProcessed() {
+        return splitsProcessed.get();
+    }
+
+    /**
+     * Returns the 1-based index of the split currently being processed by the producer.
+     * <p>
+     * Semantics differ slightly between producer paths and the value should not be compared
+     * across them: the slice-queue path counts top-level splits pulled from the queue (a
+     * coalesced split with N leaves still increments the index by 1, not N), while the
+     * file-list / multi-file path uses the absolute file index. Use this for "where am I in
+     * the work" UX in a single-query profile, not for cross-query comparison or rate math.
+     */
+    public int currentSplit() {
+        return currentSplit;
+    }
+
+    /**
+     * Verifies internal invariants under {@code -ea}. Called from each buffer mutator so that
+     * every existing test exercises the checks automatically without dedicated assertions.
+     * <p>
+     * Scope is intentionally narrow. The buffer is lock-free and counter updates are not atomic
+     * across fields, so several legitimate transient states cannot be asserted on without
+     * introducing flakiness:
+     * <ul>
+     * <li>{@link #addPage} updates {@code bytesInBuffer} before {@code queueSize}, so a
+     *     concurrent reader may briefly observe {@code bytes > 0 && size == 0}.</li>
+     * <li>{@link #pollPage} updates {@code queueSize} before {@code bytesInBuffer}, so a
+     *     concurrent reader may briefly observe {@code size < N && bytes} still reflecting
+     *     {@code N}.</li>
+     * <li>A race between {@link #discardPages()} (which sets {@code bytesInBuffer} to {@code 0}
+     *     wholesale) and the {@code noMoreInputs} cleanup branch of {@link #addPage} (which
+     *     subtracts its own page bytes) can transiently push counters below zero by an
+     *     unpredictable amount.</li>
+     * </ul>
+     * Hence the only invariant asserted here is the forward direction of completion
+     * consistency: if {@code completionFuture} has signalled success, then the buffer must
+     * already have observed {@code noMoreInputs}. This catches premature completion (signalling
+     * done before {@code finish} / {@code onFailure} was called). Lost-wakeup regressions — the
+     * bug class fixed in the unconditional {@code notifyNotEmpty}/{@code notifyNotFull} changes
+     * — leave counters and the completion future internally consistent and are not detected
+     * here; see {@code AsyncExternalSourceBufferTests#testNoLostWakeupUnderConcurrentAddAndPoll}
+     * for that coverage.
+     */
+    private boolean invariantsHold() {
+        if (completionFuture.isDone() && failure == null) {
+            assert noMoreInputs : "completionFuture done with no failure but noMoreInputs is false";
+        }
+        return true;
     }
 }

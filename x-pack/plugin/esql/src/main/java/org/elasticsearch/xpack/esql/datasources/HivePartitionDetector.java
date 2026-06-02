@@ -27,9 +27,17 @@ import java.util.Set;
  * Parses key=value segments, validates consistency across all files, and infers types
  * using Spark-style rules: try Integer, Long, Double, Boolean, fallback to keyword.
  */
-final class HivePartitionDetector implements PartitionDetector {
+public final class HivePartitionDetector implements PartitionDetector {
 
-    static final HivePartitionDetector INSTANCE = new HivePartitionDetector();
+    public static final HivePartitionDetector INSTANCE = new HivePartitionDetector();
+
+    /**
+     * Sentinel directory name written by Hive for rows whose partition column is
+     * NULL. When this token appears as a Hive-style key=value segment value, it must be surfaced as SQL
+     * NULL rather than the literal string, otherwise {@code WHERE col IS NULL} silently misses rows and
+     * {@code STATS BY col} buckets them under a phantom string key.
+     */
+    public static final String HIVE_DEFAULT_PARTITION = "__HIVE_DEFAULT_PARTITION__";
 
     HivePartitionDetector() {}
 
@@ -128,7 +136,7 @@ final class HivePartitionDetector implements PartitionDetector {
             if (partitions.containsKey(key)) {
                 continue;
             }
-            partitions.put(key, value);
+            partitions.put(key, HIVE_DEFAULT_PARTITION.equals(value) ? null : value);
         }
 
         return partitions;
@@ -159,6 +167,9 @@ final class HivePartitionDetector implements PartitionDetector {
     private static DataType tryAllIntegral(List<String> values) {
         boolean needsLong = false;
         for (String v : values) {
+            if (v == null) {
+                continue;
+            }
             try {
                 Number n = StringUtils.parseIntegral(v);
                 if (n instanceof Long) {
@@ -173,6 +184,9 @@ final class HivePartitionDetector implements PartitionDetector {
 
     private static boolean tryAllDouble(List<String> values) {
         for (String v : values) {
+            if (v == null) {
+                continue;
+            }
             try {
                 StringUtils.parseDouble(v);
             } catch (Exception e) {
@@ -184,6 +198,9 @@ final class HivePartitionDetector implements PartitionDetector {
 
     private static boolean tryAllBoolean(List<String> values) {
         for (String v : values) {
+            if (v == null) {
+                continue;
+            }
             if ("true".equalsIgnoreCase(v) == false && "false".equalsIgnoreCase(v) == false) {
                 return false;
             }
@@ -192,6 +209,9 @@ final class HivePartitionDetector implements PartitionDetector {
     }
 
     static Object castValue(String value, DataType type) {
+        if (value == null) {
+            return null;
+        }
         if (type == DataType.INTEGER) {
             return Integer.parseInt(value);
         }

@@ -40,8 +40,7 @@ public class ParsedDocument {
 
     private final long normalizedSize;
 
-    private BytesReference source;
-    private XContentType xContentType;
+    private final SourceToParse.Source source;
     private CompressedXContent dynamicMappingsUpdate;
 
     /**
@@ -111,10 +110,10 @@ public class ParsedDocument {
 
             if (useDocValuesSkipper) {
                 document.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
-                document.add(SortedNumericDocValuesField.indexedField("@timestamp", timestamp));
+                document.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
             } else {
                 document.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId));
-                document.add(new LongField("@timestamp", timestamp, Field.Store.NO));
+                document.add(new LongField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp, Field.Store.NO));
             }
             var field = new SortedDocValuesField(
                 TimeSeriesRoutingHashFieldMapper.NAME,
@@ -145,8 +144,7 @@ public class ParsedDocument {
         String id,
         String routing,
         List<LuceneDocument> documents,
-        BytesReference source,
-        XContentType xContentType,
+        SourceToParse.Source source,
         CompressedXContent dynamicMappingsUpdate,
         long normalizedSize
     ) {
@@ -157,8 +155,30 @@ public class ParsedDocument {
         this.documents = documents;
         this.source = source;
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
-        this.xContentType = xContentType;
         this.normalizedSize = normalizedSize;
+    }
+
+    public ParsedDocument(
+        Field version,
+        SeqNoFieldMapper.SequenceIDFields seqID,
+        String id,
+        String routing,
+        List<LuceneDocument> documents,
+        BytesReference source,
+        XContentType xContentType,
+        CompressedXContent dynamicMappingsUpdate,
+        long normalizedSize
+    ) {
+        this(
+            version,
+            seqID,
+            id,
+            routing,
+            documents,
+            SourceToParse.Source.fromBytes(source, xContentType),
+            dynamicMappingsUpdate,
+            normalizedSize
+        );
     }
 
     public String id() {
@@ -189,17 +209,12 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public BytesReference source() {
+    public SourceToParse.Source source() {
         return this.source;
     }
 
     public XContentType getXContentType() {
-        return this.xContentType;
-    }
-
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+        return this.source.xContentType();
     }
 
     /**

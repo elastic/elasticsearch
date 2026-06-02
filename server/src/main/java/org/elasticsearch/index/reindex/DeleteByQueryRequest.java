@@ -40,7 +40,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *     <li>it's results won't be visible until the index is refreshed.</li>
  * </ul>
  */
-public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
+public class DeleteByQueryRequest extends AbstractBulkByPaginatedSearchRequest<DeleteByQueryRequest>
     implements
         IndicesRequest.Replaceable,
         ToXContentObject {
@@ -144,8 +144,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
-    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
-        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices);
+    public DeleteByQueryRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices, int activeSlices) {
+        return doForSlice(new DeleteByQueryRequest(slice, false), slicingTask, totalSlices, activeSlices);
     }
 
     @Override

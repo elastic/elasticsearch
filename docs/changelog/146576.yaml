@@ -1,0 +1,5 @@
+area: Mapping
+issues: []
+pr: 146576
+summary: Add `doc_values` mapping attribute to `RoutingFieldMapper`
+type: enhancement

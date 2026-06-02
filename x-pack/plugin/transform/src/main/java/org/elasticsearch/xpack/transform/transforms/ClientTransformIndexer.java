@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -41,7 +42,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentParsingException;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -79,6 +80,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -91,6 +93,8 @@ class ClientTransformIndexer extends TransformIndexer {
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings destIndexSettings;
+    private final boolean crossProjectEnabled;
+    private final Function<ProjectId, Boolean> hasLinkedProjects;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -140,6 +144,9 @@ class ClientTransformIndexer extends TransformIndexer {
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
         disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
+        crossProjectEnabled = transformServices.crossProjectModeDecider().crossProjectEnabled()
+            && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled();
+        this.hasLinkedProjects = transformServices.hasLinkedProjects();
     }
 
     @Override
@@ -256,7 +263,10 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+    protected void doDeleteByQuery(
+        DeleteByQueryRequest deleteByQueryRequest,
+        ActionListener<BulkByPaginatedSearchResponse> responseListener
+    ) {
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
@@ -447,7 +457,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Override
     public boolean maybeTriggerAsyncJob(long now) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
+        if (TransformMetadata.isUpgradeMode(clusterService.state())) {
             logger.debug("[{}] schedule was triggered but the Transform is upgrading. Ignoring trigger.", getJobId());
             return false;
         }
@@ -484,6 +494,11 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     protected void onStop() {
         closePointInTime(super::onStop);
+    }
+
+    @Override
+    protected void onAbort() {
+        closePointInTime(super::onAbort);
     }
 
     // visible for testing
@@ -536,7 +551,10 @@ class ClientTransformIndexer extends TransformIndexer {
         SearchRequest searchRequest = namedSearchRequest.v2();
         // We explicitly disable PIT in the presence of remote clusters in the source due to huge PIT handles causing performance problems.
         // We should not re-enable until this is resolved: https://github.com/elastic/elasticsearch/issues/80187
-        if (disablePit || searchRequest.indices().length == 0 || transformConfig.getSource().requiresRemoteCluster()) {
+        if (disablePit
+            || searchRequest.indices().length == 0
+            || transformConfig.getSource().requiresRemoteCluster()
+            || (crossProjectEnabled && hasLinkedProjects.apply(context.projectId()))) {
             listener.onResponse(namedSearchRequest);
             return;
         }

@@ -72,7 +72,7 @@ import static java.util.Collections.unmodifiableList;
  * by subclassing this class then add an entry to {@link TestSuiteApiCheck} mapping the API
  * name(s) to the new class.
  */
-@TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 25 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(CcsCommonYamlTestSuiteIT.class);
@@ -102,7 +102,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SYNTHETIC_VECTORS)
-        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS);
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.INDEX_DISABLED_BY_DEFAULT);
 
     private static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name(REMOTE_CLUSTER_NAME)

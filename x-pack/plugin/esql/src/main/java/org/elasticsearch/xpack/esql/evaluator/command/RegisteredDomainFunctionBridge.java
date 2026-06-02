@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.elasticsearch.web.RegisteredDomain;
 
-import java.util.LinkedHashMap;
 import java.util.SequencedCollection;
+import java.util.SequencedMap;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.web.RegisteredDomain.DOMAIN;
@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvalu
  */
 public final class RegisteredDomainFunctionBridge {
 
-    public static LinkedHashMap<String, Class<?>> getAllOutputFields() {
+    public static SequencedMap<String, Class<?>> getAllOutputFields() {
         return RegisteredDomain.getRegisteredDomainInfoFields();
     }
 

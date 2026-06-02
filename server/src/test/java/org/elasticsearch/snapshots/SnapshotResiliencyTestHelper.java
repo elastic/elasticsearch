@@ -80,6 +80,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
@@ -94,6 +95,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -123,11 +125,12 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.SamplingService;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.StatusInfo;
@@ -147,7 +150,11 @@ import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.chunk.ActiveFetchPhaseTasks;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseCoordinationAction;
+import org.elasticsearch.search.fetch.chunk.TransportFetchPhaseResponseChunkAction;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.client.NoOpClient;
@@ -157,6 +164,7 @@ import org.elasticsearch.transport.DisruptableMockTransport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.useragent.api.UserAgentParserRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Assert;
 
@@ -559,9 +567,9 @@ public class SnapshotResiliencyTestHelper {
                     }
 
                     @Override
-                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
+                    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
                         // skip leak checks in these tests since they do indeed leak
-                        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+                        return new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE, circuitBreaker);
                         // TODO fix these leaks and implement leak checking
                     }
                 };
@@ -691,6 +699,8 @@ public class SnapshotResiliencyTestHelper {
                 );
 
                 final ActionFilters actionFilters = new ActionFilters(emptySet());
+                final ActiveFetchPhaseTasks activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
+                new TransportFetchPhaseResponseChunkAction(transportService, activeFetchPhaseTasks, namedWriteableRegistry);
                 Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
 
                 // Inject initialization from subclass which may be needed by initializations after this point.
@@ -748,7 +758,8 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     clusterService,
                     recoverySettings,
-                    PeerOnlyRecoveryPlannerService.INSTANCE
+                    PeerOnlyRecoveryPlannerService.INSTANCE,
+                    RecoveryMetricsCollector.NOOP
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -757,6 +768,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
+                searchTransportService.setSearchService(searchService);
 
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
@@ -785,7 +797,8 @@ public class SnapshotResiliencyTestHelper {
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    client
+                    client,
+                    RecoveryMetricsCollector.NOOP
                 );
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
@@ -832,6 +845,8 @@ public class SnapshotResiliencyTestHelper {
                             Collections.emptyList(),
                             client,
                             null,
+                            UserAgentParserRegistry.NOOP,
+                            IpLocationService.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {
@@ -839,8 +854,7 @@ public class SnapshotResiliencyTestHelper {
                                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                                 }
-                            },
-                            mock(SamplingService.class)
+                            }
                         ),
                         client,
                         actionFilters,
@@ -855,8 +869,7 @@ public class SnapshotResiliencyTestHelper {
                             public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                 return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                             }
-                        },
-                        mock(SamplingService.class)
+                        }
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -945,7 +958,18 @@ public class SnapshotResiliencyTestHelper {
                         client,
                         usageService,
                         new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
-                        ActivityLogWriterProvider.NOOP
+                        ActivityLogWriterProvider.NOOP,
+                        CrossProjectModeDecider.NOOP
+                    )
+                );
+                actions.put(
+                    TransportFetchPhaseCoordinationAction.TYPE,
+                    new TransportFetchPhaseCoordinationAction(
+                        transportService,
+                        actionFilters,
+                        activeFetchPhaseTasks,
+                        new NoneCircuitBreakerService(),
+                        namedWriteableRegistry
                     )
                 );
                 actions.put(

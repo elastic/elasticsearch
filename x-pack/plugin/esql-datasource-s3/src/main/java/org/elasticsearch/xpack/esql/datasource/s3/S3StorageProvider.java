@@ -7,20 +7,27 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import io.netty.channel.ChannelOption;
+import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3BaseClientBuilder;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -37,19 +44,64 @@ import java.util.NoSuchElementException;
 
 /**
  * StorageProvider implementation for S3 using AWS SDK v2.
+ * <p>
+ * Maintains both a sync {@link S3Client} (Apache HTTP) and an async {@link S3AsyncClient}
+ * (Netty NIO, via {@code netty-nio-client} at {@code ${versions.awsv2sdk}}). The two clients
+ * serve different purposes:
+ * <ul>
+ *   <li><b>Sync client</b> — used for streaming reads ({@code newStream} returns a live
+ *       {@code ResponseInputStream} that reads on demand), metadata ({@code headObject}),
+ *       existence checks, and object listing. These operations are inherently blocking or
+ *       return streaming results that cannot be efficiently expressed as futures.</li>
+ *   <li><b>Async client</b> — used exclusively for {@code readBytesAsync} range reads in
+ *       {@link S3StorageObject}. When {@code ConcurrencyLimitedStorageObject} dispatches
+ *       multiple concurrent range reads, the Netty event loop handles them without blocking
+ *       a thread per request, reducing thread-pool pressure under load.</li>
+ * </ul>
+ * <p>
+ * Both clients share the same credentials, region, and endpoint configuration. The Netty
+ * jars are bundled with this plugin (classloader-isolated from the server and other plugins)
+ * at {@code ${versions.netty}}, matching the pattern used by the inference plugin.
  */
 public final class S3StorageProvider implements StorageProvider {
     private final S3Client s3Client;
+    private final S3AsyncClient s3AsyncClient;
     private final S3Configuration config;
 
     public S3StorageProvider(S3Configuration config) {
         this.config = config;
         this.s3Client = buildS3Client(config);
+        this.s3AsyncClient = buildS3AsyncClient(config);
+    }
+
+    /** Test-only constructor that accepts pre-built clients. */
+    S3StorageProvider(S3Client s3Client, S3AsyncClient s3AsyncClient) {
+        this.config = null;
+        this.s3Client = s3Client;
+        this.s3AsyncClient = s3AsyncClient;
     }
 
     private static S3Client buildS3Client(S3Configuration config) {
-        S3ClientBuilder builder = S3Client.builder();
+        return configureCommon(S3Client.builder(), config).build();
+    }
 
+    private static S3AsyncClient buildS3AsyncClient(S3Configuration config) {
+        // Install a pooled receive-buffer allocator so that socket reads on Netty channels reuse
+        // pooled memory instead of allocating a fresh zero-filled byte[] per read. The AWS SDK's
+        // Netty client unconditionally overrides ChannelOption.ALLOCATOR to UnpooledByteBufAllocator
+        // for HTTPS channels using the JDK SSL provider, so configuring ALLOCATOR directly has no
+        // effect; RCVBUF_ALLOCATOR is the closest knob the SDK leaves untouched as of
+        // netty-nio-client 2.31.x. Re-verify this assumption when bumping the AWS SDK version. See
+        // PooledRecvByteBufAllocator for the full rationale.
+        NettyNioAsyncHttpClient.Builder httpClient = NettyNioAsyncHttpClient.builder()
+            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT);
+        return configureCommon(S3AsyncClient.builder(), config).httpClient(httpClient.build()).build();
+    }
+
+    /**
+     * Applies credentials, region, endpoint, and profile settings common to both the sync and async S3 clients.
+     */
+    private static <B extends S3BaseClientBuilder<B, ?>> B configureCommon(B builder, S3Configuration config) {
         // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
         // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
         ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
@@ -58,11 +110,22 @@ public final class S3StorageProvider implements StorageProvider {
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
         });
 
+        // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
+        // every GetObject response in a checksum-validating stream, adding ~6-7% CPU overhead.
+        // TLS already provides in-transit integrity; this matches what other engines do.
+        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
+
         AwsCredentialsProvider credentialsProvider;
-        if (config != null && config.hasCredentials()) {
+        if (config != null && config.isAnonymous()) {
+            credentialsProvider = AnonymousCredentialsProvider.create();
+        } else if (config != null && config.hasCredentials()) {
             credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
         } else {
-            credentialsProvider = DefaultCredentialsProvider.create();
+            // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+            throw new IllegalArgumentException(
+                "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
+                    + "or WITH (auth = 'none') for public buckets"
+            );
         }
         builder.credentialsProvider(credentialsProvider);
 
@@ -77,7 +140,7 @@ public final class S3StorageProvider implements StorageProvider {
             builder.forcePathStyle(true);
         }
 
-        return builder.build();
+        return builder;
     }
 
     @Override
@@ -85,7 +148,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, bucket, key, path);
+        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path);
     }
 
     @Override
@@ -93,7 +156,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, bucket, key, path, length);
+        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path, length);
     }
 
     @Override
@@ -101,7 +164,7 @@ public final class S3StorageProvider implements StorageProvider {
         validateS3Scheme(path);
         String bucket = path.host();
         String key = extractKey(path);
-        return new S3StorageObject(s3Client, bucket, key, path, length, lastModified);
+        return new S3StorageObject(s3Client, s3AsyncClient, bucket, key, path, length, lastModified);
     }
 
     @Override
@@ -132,7 +195,23 @@ public final class S3StorageProvider implements StorageProvider {
         } catch (NoSuchKeyException e) {
             return false;
         } catch (Exception e) {
-            throw new IOException("Failed to check existence of " + path, e);
+            if (e instanceof S3Exception s3e && s3e.statusCode() == 403) {
+                return existsViaRangeGet(bucket, key, path);
+            }
+            throw new IOException("Failed to check existence of " + path + credentialHint(), e);
+        }
+    }
+
+    private boolean existsViaRangeGet(String bucket, String key, StoragePath path) throws IOException {
+        try {
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=0-0").build();
+            try (var response = s3Client.getObject(request)) {
+                return true;
+            }
+        } catch (NoSuchKeyException e) {
+            return false;
+        } catch (Exception e) {
+            throw new IOException("Failed to check existence of " + path + " (HEAD denied, range GET also failed)" + credentialHint(), e);
         }
     }
 
@@ -143,7 +222,19 @@ public final class S3StorageProvider implements StorageProvider {
 
     @Override
     public void close() throws IOException {
-        s3Client.close();
+        try {
+            s3Client.close();
+        } finally {
+            s3AsyncClient.close();
+        }
+    }
+
+    private String credentialHint() {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+            return ". If accessing a public bucket, use WITH (auth = 'none'). "
+                + "Otherwise, provide credentials via WITH (access_key = '...', secret_key = '...')";
+        }
+        return "";
     }
 
     private void validateS3Scheme(StoragePath path) {
@@ -226,7 +317,11 @@ public final class S3StorageProvider implements StorageProvider {
             String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + s3Object.key();
             StoragePath objectPath = StoragePath.of(fullPath);
 
-            return new StorageEntry(objectPath, s3Object.size(), s3Object.lastModified());
+            Instant lastModified = s3Object.lastModified();
+            if (lastModified == null) {
+                lastModified = Instant.EPOCH;
+            }
+            return new StorageEntry(objectPath, s3Object.size(), lastModified);
         }
 
         @Override
@@ -248,7 +343,16 @@ public final class S3StorageProvider implements StorageProvider {
                 continuationToken = response.nextContinuationToken();
                 hasMorePages = response.isTruncated();
             } catch (Exception e) {
-                throw new RuntimeException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e);
+                String msg = (e instanceof S3Exception s3e && s3e.statusCode() == 403)
+                    ? "Access denied listing objects in bucket ["
+                        + bucket
+                        + "] with prefix ["
+                        + prefix
+                        + "]. "
+                        + "Verify that the configured credentials have s3:ListBucket permission on this bucket, "
+                        + "or use exact file paths instead of glob patterns."
+                    : "Failed to list objects in bucket [" + bucket + "] with prefix [" + prefix + "]";
+                throw new RuntimeException(msg, e);
             }
         }
     }

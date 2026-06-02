@@ -8,10 +8,15 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.TypeConflictedField;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -32,19 +37,51 @@ public final class Expressions {
     }
 
     /**
-     * @return a list of {@link ReferenceAttribute}s corresponding to the given named expressions.
+     * Converts named expressions to {@link ReferenceAttribute}s, preserving {@link NameId}s for attributes whose name
+     * matches one in {@code existingOutput}. Genuinely new attributes get fresh NameIds.
      * <p>
-     * The returned ReferenceAttributes will have new {@link NameId}s, also in the case the input contains ReferenceAttributes.
+     * Exceptions to the {@link ReferenceAttribute} conversion:
+     * <ul>
+     *   <li>A {@link FieldAttribute} backed by a {@link TypeConflictedField} (ambiguous type across indices) is converted
+     *   to an {@link UnsupportedAttribute} via {@link FieldAttribute#flagTypeConflicts()}, so the analyzer can surface a
+     *   clear user-facing error.</li>
+     *   <li>An {@link ExternalMetadataAttribute} is rebuilt as the same subtype with the preserved id. The
+     *   "virtual column" identity must survive operators that re-class their output (e.g. {@code Fork.refreshedOutput})
+     *   because downstream rules such as {@code Analyzer.planWithoutSyntheticAttributes} (which strips
+     *   {@code _file.*} from the default top-level projection) and the predicate-pushdown helpers
+     *   ({@code PushdownPredicates#isVirtualColumn}) test this subtype to decide whether an attribute is
+     *   a virtual column or a real data column. Erasing the type would silently leak {@code _file.*}
+     *   into default output and would also re-enable predicate pushdown on virtual columns past a Fork.</li>
+     * </ul>
      */
-    public static List<Attribute> toReferenceAttributes(List<? extends NamedExpression> named) {
+    public static List<Attribute> toReferenceAttributesPreservingIds(
+        List<? extends NamedExpression> named,
+        List<Attribute> existingOutput
+    ) {
         if (named.isEmpty()) {
             return emptyList();
         }
+        Map<String, Attribute> existingByName = HashMap.newHashMap(existingOutput.size());
+        for (Attribute attr : existingOutput) {
+            existingByName.put(attr.name(), attr);
+        }
         List<Attribute> list = new ArrayList<>(named.size());
         for (NamedExpression exp : named) {
-            ReferenceAttribute refAttr = exp instanceof ReferenceAttribute ra
-                ? (ReferenceAttribute) ra.withId(new NameId())
-                : new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), null, exp.synthetic());
+            Attribute existing = existingByName.get(exp.name());
+            NameId id = existing != null ? existing.id() : new NameId();
+            Attribute refAttr = switch (exp) {
+                case FieldAttribute fa when fa.field() instanceof TypeConflictedField -> fa.flagTypeConflicts();
+                case ReferenceAttribute ra -> ra.withId(id);
+                case ExternalMetadataAttribute xa -> new ExternalMetadataAttribute(
+                    xa.source(),
+                    xa.name(),
+                    xa.dataType(),
+                    xa.nullable(),
+                    id,
+                    xa.synthetic()
+                );
+                default -> new ReferenceAttribute(exp.source(), null, exp.name(), exp.dataType(), exp.nullable(), id, exp.synthetic());
+            };
             list.add(refAttr);
         }
         return list;
@@ -176,6 +213,39 @@ public final class Expressions {
             return (l != null && l.semanticEquals(attribute(right)));
         }
         return true;
+    }
+
+    public static boolean listSemanticEqualsIgnoreOrder(List<Expression> left, List<Expression> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+
+        Set<SemanticExpression> rightLookup = new HashSet<>(right.size());
+        for (Expression e : right) {
+            rightLookup.add(new SemanticExpression(e));
+        }
+        for (Expression l : left) {
+            if (rightLookup.contains(new SemanticExpression(l)) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Wrapper that delegates {@code hashCode} and {@code equals} to
+     * {@link Expression#semanticHash()} and {@link Expression#semanticEquals(Expression)}.
+     */
+    private record SemanticExpression(Expression expression) {
+        @Override
+        public int hashCode() {
+            return expression.semanticHash();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof SemanticExpression other && expression.semanticEquals(other.expression);
+        }
     }
 
     public static List<Tuple<Attribute, Expression>> aliases(List<? extends NamedExpression> named) {

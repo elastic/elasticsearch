@@ -14,14 +14,17 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
 
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Factory for Arrow Flight connectors.
@@ -37,6 +40,14 @@ class FlightConnectorFactory implements ConnectorFactory {
     @Override
     public boolean canHandle(String location) {
         return location.startsWith("flight://") || location.startsWith("grpc://");
+    }
+
+    @Override
+    public void validateConfig(String location, Map<String, Object> config) {
+        // Flight claims no per-query configuration keys today. Delegate to the generic validator
+        // with an empty claimed-set so any non-empty config map is rejected with "unknown option"
+        // — preserving the strict-validation contract until per-query options are wired in.
+        ConfigKeyValidator.check(config, List.of());
     }
 
     static final int DEFAULT_FLIGHT_PORT = 47470;
@@ -67,11 +78,17 @@ class FlightConnectorFactory implements ConnectorFactory {
 
     @Override
     public Connector open(Map<String, Object> config) {
-        String endpoint = (String) config.get("endpoint");
+        // Use Objects.toString — direct (String) cast would CCE on SecureString / non-String values.
+        String endpoint = Objects.toString(config.get("endpoint"), null);
         if (endpoint == null) {
             throw new IllegalArgumentException("Flight connector requires 'endpoint' in config");
         }
         return new FlightConnector(endpoint);
+    }
+
+    @Override
+    public SplitProvider splitProvider() {
+        return new FlightSplitProvider();
     }
 
     private static String extractTarget(URI uri) {

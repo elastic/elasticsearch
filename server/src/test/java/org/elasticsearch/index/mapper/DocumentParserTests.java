@@ -3244,6 +3244,390 @@ public class DocumentParserTests extends MapperServiceTestCase {
         }
     }
 
+    public void testArrayObjectsLimitAtExactLimit() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitExceeded() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitWithMixedMappedAndDynamicFields() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {
+                b.startObject("array").startObject("properties");
+                b.startObject("value").field("type", "integer").endObject();
+                b.endObject().endObject();
+            })
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitNestedArraysCountCumulatively() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("outer");
+            b.startArray("a");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("v", i).endObject();
+            }
+            b.endArray();
+            b.startArray("b");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("v", i).endObject();
+            }
+            b.endArray();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitSiblingArraysCountCumulatively() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("arrayA");
+            for (int i = 0; i < limit; i++) {
+                b.startObject().field("v", i).endObject();
+            }
+            b.endArray();
+            b.startArray("arrayB");
+            b.startObject().field("v", 0).endObject();
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitDeeplyNestedArraysCountCumulatively() throws Exception {
+        int limit = 3;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("outer");
+            for (int i = 0; i < 2; i++) {
+                b.startArray();
+                for (int j = 0; j < limit; j++) {
+                    b.startObject().field("v", j).endObject();
+                }
+                b.endArray();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitEmptyArrayAccepted() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), 1).build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("array");
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitRejectsNonPositiveValues() {
+
+        for (long invalid : new long[] { 0L, -1L, Long.MIN_VALUE }) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.get(
+                    Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), invalid).build()
+                )
+            );
+            assertThat(e.getMessage(), containsString(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey()));
+        }
+    }
+
+    public void testArrayObjectsLimitAcceptsUnboundedSentinel() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+                .build(),
+            mapping(b -> {})
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("array");
+            for (int i = 0; i < 1000; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitAppliesToNestedObjectArrays() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {
+                b.startObject("children");
+                b.field("type", "nested");
+                b.endObject();
+            })
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("children");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    public void testArrayObjectsLimitIsIndependentOfNestedDocsLimit() throws Exception {
+        int arrayLimit = 5;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder()
+                .put(getIndexSettings())
+                .put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit)
+                .put(MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.getKey(), 1000L)
+                .build(),
+            mapping(b -> {
+                b.startObject("children");
+                b.field("type", "nested");
+                b.endObject();
+            })
+        ).documentMapper();
+
+        mapper.parse(source(b -> {
+            b.startArray("children");
+            for (int i = 0; i < arrayLimit; i++) {
+                b.startObject().field("value", i).endObject();
+            }
+            b.endArray();
+        }));
+    }
+
+    public void testArrayObjectsLimitCountsCopyToDestinations() throws Exception {
+        int limit = 2;
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            mapping(b -> {
+                b.startObject("source");
+                b.field("type", "object");
+                b.startObject("properties");
+                b.startObject("value").field("type", "keyword").field("copy_to", "destination").endObject();
+                b.endObject();
+                b.endObject();
+                b.startObject("destination").field("type", "keyword").endObject();
+            })
+        ).documentMapper();
+
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {
+            b.startArray("source");
+            for (int i = 0; i < limit + 1; i++) {
+                b.startObject().field("value", "v" + i).endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "The total number of objects across all arrays in the document has exceeded the allowed limit of [" + limit + "]"
+            )
+        );
+    }
+
+    /**
+     * Verifies that keyword array order inside a logsdb object array is preserved. In logsdb,
+     * source_keep defaults to ARRAYS for object mappers, causing addIgnoredFieldFromContext at the
+     * object array level. The keyword's offset recording must still work correctly within this context.
+     */
+    public void testSyntheticSourceKeywordArrayInsideLogsdbObjectArray() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("obj")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            {
+                b.startObject();
+                b.array("kw", "b", "a");
+                b.endObject();
+            }
+            b.endArray();
+            b.field("@timestamp", "2024-01-01T00:00:00Z");
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
+    }
+
+    /**
+     * Verifies that keyword array order is preserved inside a logsdb-like object array
+     * when the keyword array contains a trailing nested empty array. The trailing empty
+     * array causes maybeRecordEmptyArray to create offset metadata. With addIgnoredFieldFromContext
+     * storing per-value data for fields with native offset support (our fix), the _ignored_source
+     * at the object level faithfully preserves both the keyword values and the empty sub-array.
+     */
+    public void testSyntheticSourceKeywordArrayWithTrailingEmptyArrayInObjectArray() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("obj")
+                    .field("type", "object")
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            {
+                b.startObject();
+                b.startArray("kw");
+                b.value("b");
+                b.value("a");
+                b.startArray().endArray();
+                b.endArray();
+                b.endObject();
+            }
+            b.endArray();
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\",[]]"));
+    }
+
+    /**
+     * Verifies that parseObject restores immediateXContentParent after parsing a flattened object
+     * element in a keyword array. With subobjects=false, objects in a keyword array are flattened
+     * rather than rejected. Without restoring the parent, subsequent value elements in the same
+     * array see START_OBJECT instead of START_ARRAY, preventing offset recording.
+     */
+    public void testSyntheticSourceKeywordArrayWithFlattenedObjectRestoresParent() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.mapping.source.mode", "synthetic")
+            .put("index.mapping.synthetic_source_keep", "arrays")
+            .build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(
+                b -> b.startObject("parent")
+                    .field("type", "object")
+                    .field("subobjects", false)
+                    .startObject("properties")
+                    .startObject("kw")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("kw.sub")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        ).documentMapper();
+
+        String result = syntheticSource(mapper, b -> {
+            b.startObject("parent");
+            b.startArray("kw");
+            b.startObject().field("sub", "x").endObject();
+            b.value("b");
+            b.value("a");
+            b.endArray();
+            b.endObject();
+        });
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      */

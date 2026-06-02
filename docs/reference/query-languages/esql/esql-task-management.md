@@ -56,3 +56,7 @@ POST _tasks/2j8UKw1bRO283PMwDugNNg:5326/_cancel
 
 It may take a few seconds for the query to be stopped.
 
+::::{tip}
+If you prefer a visual interface, you can use the [Query activity](docs-content://deploy-manage/monitor/query-activity.md) page in {{kib}} to view and manage all running queries — including ES|QL — directly from the UI.
+::::
+

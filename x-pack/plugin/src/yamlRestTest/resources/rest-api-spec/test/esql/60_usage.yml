@@ -61,13 +61,16 @@ setup:
             - promql_command_v0
             - uri_parts_command
             - registered_domain_command
+            - user_agent_command
             - fn_json_extract
+            - esql_limit_by
+            - dedup_command
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 35 }
+  - set: { esql.features.explain: explain_counter }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -77,6 +80,7 @@ setup:
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.limit_by: limit_by_counter }
   - set: { esql.features.mv_expand: mv_expand_counter }
   - set: { esql.features.rename: rename_counter }
   - set: { esql.features.row: row_counter }
@@ -97,9 +101,12 @@ setup:
   - set: { esql.features.completion: completion_counter }
   - set: { esql.features.sample: sample_counter }
   - set: { esql.features.subquery: subquery_counter }
+  - set: { esql.features.view: view_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
+  - set: { esql.features.user_agent: user_agent_counter }
   - set: { esql.features.mmr: mmr_counter }
+  - set: { esql.features.dedup: dedup_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -127,12 +134,15 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
+  - match: { esql.features.explain: $explain_counter }
   - match: { esql.features.dissect: $dissect_counter }
   - match: { esql.features.eval: $eval_counter }
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.user_agent: $user_agent_counter }
   - gt: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - gt: { esql.features.where: $where_counter }
@@ -148,6 +158,8 @@ setup:
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
   - match: { esql.features.ts: $ts_counter }
+  - match: { esql.features.mmr: $mmr_counter }
+  - match: { esql.features.dedup: $dedup_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -186,7 +198,9 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.user_agent: $user_agent_counter }
   - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.where: $where_counter }
@@ -201,6 +215,8 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
+  - match: { esql.features.mmr: $mmr_counter }
+  - match: { esql.features.dedup: $dedup_counter }
   - gt: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -217,6 +233,32 @@ setup:
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
 
+  - set: { esql.features.limit_by: limit_by_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | sort count desc
+            | limit 3 by message
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.limit_by: $limit_by_counter }
+
+  - set: { esql.features.dedup: dedup_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | keep message
+            | dedup
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.dedup: $dedup_counter }
+
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
   - requires:
@@ -225,13 +267,12 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0 ]
+          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains, promql_command_v0, esql_limit_by ]
       reason: "Test that should only be executed on release versions"
 
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - length: { esql.features: 35 }
   - set: { esql.features.dissect: dissect_counter }
   - set: { esql.features.drop: drop_counter }
   - set: { esql.features.eval: eval_counter }
@@ -241,6 +282,7 @@ setup:
   - set: { esql.features.grok: grok_counter }
   - set: { esql.features.keep: keep_counter }
   - set: { esql.features.limit: limit_counter }
+  - set: { esql.features.limit_by: limit_by_counter }
   - set: { esql.features.mv_expand: mv_expand_counter }
   - set: { esql.features.rename: rename_counter }
   - set: { esql.features.row: row_counter }
@@ -263,6 +305,9 @@ setup:
   - set: { esql.features.subquery: subquery_counter }
   - set: { esql.features.uri_parts: uri_parts_counter }
   - set: { esql.features.registered_domain: registered_domain_counter }
+  - set: { esql.features.user_agent: user_agent_counter }
+  - set: { esql.features.mmr: mmr_counter }
+  - set: { esql.features.dedup: dedup_counter }
   - length: { esql.queries: 3 }
   - set: { esql.queries.rest.total: rest_total_counter }
   - set: { esql.queries.rest.failed: rest_failed_counter }
@@ -276,7 +321,7 @@ setup:
   - set: { esql.functions.to_long: functions_to_long }
   - set: { esql.functions.coalesce: functions_coalesce }
   - set: { esql.functions.categorize: functions_categorize }
-  - set: {esql.functions.text_embedding: functions_text_embedding}
+  - set: { esql.functions.text_embedding: functions_text_embedding }
 
   - do:
       esql.query:
@@ -295,7 +340,9 @@ setup:
   - match: { esql.features.grok: $grok_counter }
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
+  - match: { esql.features.user_agent: $user_agent_counter }
   - gt: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.promql: $promql_counter }
@@ -311,6 +358,8 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.ts: $ts_counter }
+  - match: { esql.features.mmr: $mmr_counter }
+  - match: { esql.features.dedup: $dedup_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
   - match: { esql.queries.kibana.total: $kibana_total_counter }
@@ -350,6 +399,7 @@ setup:
   - match: { esql.features.uri_parts: $uri_parts_counter }
   - match: { esql.features.registered_domain: $registered_domain_counter }
   - match: { esql.features.limit: $limit_counter }
+  - match: { esql.features.limit_by: $limit_by_counter }
   - match: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - match: { esql.features.where: $where_counter }
@@ -364,6 +414,8 @@ setup:
   - match: { esql.features.fuse: $fuse_counter }
   - match: { esql.features.completion: $completion_counter }
   - match: { esql.features.sample: $sample_counter }
+  - match: { esql.features.mmr: $mmr_counter }
+  - match: { esql.features.dedup: $dedup_counter }
   - gt: { esql.features.ts: $ts_counter }
   - gt: { esql.queries.rest.total: $rest_total_counter }
   - match: { esql.queries.rest.failed: $rest_failed_counter }
@@ -376,10 +428,23 @@ setup:
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay
-  - not_exists: esql.functions.json_extract
+  - exists: esql.functions.json_extract
   - exists: esql.functions.idelta
   - exists: esql.functions.mv_sum
   - exists: esql.functions.to_dateperiod
+
+  - set: { esql.features.limit_by: limit_by_counter }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test
+            | sort count desc
+            | limit 3 by message
+            | limit 100'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.limit_by: $limit_by_counter }
 
 ---
 took:
@@ -402,3 +467,40 @@ took:
   - exists: esql.took.lt_10h
   - exists: esql.took.lt_1d
   - exists: esql.took.gt_1d
+
+---
+"Views telemetry":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ views_telemetry ]
+        - method: GET
+          path: /_query/view
+          capabilities: [ view_index_abstraction ]
+      reason: "Views telemetry test requires views enabled"
+
+  - do: { xpack.usage: { } }
+  - set: { esql.features.view: view_counter }
+  - set: { esql.features.subquery: subquery_counter }
+
+  - do:
+      esql.put_view:
+        name: test_view_for_telemetry
+        body:
+          query: 'FROM test | WHERE data > 0'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_view_for_telemetry | LIMIT 10'
+
+  - do: { xpack.usage: { } }
+  - gt: { esql.features.view: $view_counter }
+  - match: { esql.features.subquery: $subquery_counter }
+
+  - do:
+      esql.delete_view:
+        name: test_view_for_telemetry

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.StreamReadConstraints;
 import com.fasterxml.jackson.dataformat.csv.CsvMapper;
 import com.fasterxml.jackson.dataformat.csv.CsvParser;
@@ -572,12 +573,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // primary failure rather than replacing it.
         try (Closeable abortOnExit = () -> object.abortStream(stream)) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+            CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                reader,
+                options.quoteChar(),
+                options.delimiter(),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                options.encoding()
+            );
             if (options.headerRow() == false) {
-                return inferSchemaWithSyntheticNames(reader);
+                return inferSchemaWithSyntheticNames(recordReader);
             }
             String headerLine = null;
             String record;
-            while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+            while ((record = recordReader.readRecord(false)) != null) {
                 String trimmed = record.trim();
                 if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                     continue;
@@ -593,15 +601,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 checkUniqueAttributeNames(typedSchema);
                 return typedSchema;
             }
-            List<Attribute> inferred = inferSchemaFromSample(headerLine, reader);
+            List<Attribute> inferred = inferSchemaFromSample(headerLine, recordReader);
             checkUniqueAttributeNames(inferred);
             return inferred;
         }
     }
 
-    private List<Attribute> inferSchemaFromSample(String headerLine, BufferedReader reader) throws IOException {
+    private List<Attribute> inferSchemaFromSample(String headerLine, CsvLogicalRecordReader recordReader) throws IOException {
         String[] columnNames = splitFieldsForOptions(headerLine, options);
-        Iterator<List<?>> csvIterator = newCsvIterator(reader);
+        Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
@@ -611,8 +619,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
     }
 
-    private List<Attribute> inferSchemaWithSyntheticNames(BufferedReader reader) throws IOException {
-        Iterator<List<?>> csvIterator = newCsvIterator(reader);
+    private List<Attribute> inferSchemaWithSyntheticNames(CsvLogicalRecordReader recordReader) throws IOException {
+        Iterator<List<?>> csvIterator = newCsvIterator(recordReader);
         CircuitBreaker breaker = blockFactory.breaker();
         SchemaSample sample = collectSampleRows(csvIterator, options.commentPrefix(), schemaSampleSize, breaker, effectivePolicy);
         try {
@@ -684,12 +692,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private Iterator<List<?>> newCsvIterator(Reader reader) throws IOException {
+        return newCsvIterator(
+            new CsvLogicalRecordReader(
+                reader,
+                options.quoteChar(),
+                options.delimiter(),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                options.encoding()
+            )
+        );
+    }
+
+    private Iterator<List<?>> newCsvIterator(CsvLogicalRecordReader recordReader) throws IOException {
         CsvSchema csvSchema = CsvSchema.emptySchema()
             .withColumnSeparator(options.delimiter())
             .withQuoteChar(options.quoteChar())
             .withEscapeChar(options.escapeChar())
             .withNullValue(options.nullValue());
-        return sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+        return new CsvRecordIterator(recordReader, csvSchema);
     }
 
     /**
@@ -882,6 +902,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
         InputStream stream = object.newStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
+        CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+            reader,
+            options.quoteChar(),
+            options.delimiter(),
+            context.maxRecordBytes(),
+            options.encoding()
+        );
+        // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
+        // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
+        // upstream caller has built a FormatReadContext with an explicit policy. The planner
+        // path always sets context.errorPolicy() explicitly.
+        ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
         if (logger.isDebugEnabled()) {
@@ -896,7 +928,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         if (readSchema != null) {
             if (context.firstSplit() && options.headerRow()) {
-                skipHeaderLine(reader);
+                skipHeaderLine(recordReader);
             }
             effectiveSchema = readSchema;
         } else if (context.firstSplit()) {
@@ -905,7 +937,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // recordAligned=true (streaming-parallel pre-bound the FULL file schema from chunk 0).
             if (context.recordAligned() && resolvedSchema != null) {
                 if (options.headerRow()) {
-                    skipHeaderLine(reader);
+                    skipHeaderLine(recordReader);
                 }
                 effectiveSchema = resolvedSchema;
             } else {
@@ -917,21 +949,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } else {
             // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
             // the prior split.
-            readCsvRecord(
-                reader,
-                options.quoteChar(),
-                options.delimiter(),
-                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
-            );
+            try {
+                recordReader.readRecord(
+                    options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
+                );
+            } catch (CsvLogicalRecordReader.CsvRecordTooLargeException e) {
+                if (effective.isStrict()) {
+                    throw e;
+                }
+            }
             effectiveSchema = resolvedSchema;
         }
-        // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
-        // request like WITH {"error_mode": "skip_row"} also applies to the data path when no
-        // upstream caller has built a FormatReadContext with an explicit policy. The planner
-        // path always sets context.errorPolicy() explicitly.
-        ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         return new CsvBatchIterator(
             reader,
+            recordReader,
             stream,
             context.projectedColumns(),
             context.batchSize(),
@@ -949,16 +980,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public CsvReaderStatus statusSnapshot() {
         return counters.snapshot();
-    }
-
-    @Override
-    public long findNextRecordBoundary(InputStream stream) throws IOException {
-        return recordSplitter().findNextRecordBoundary(stream);
-    }
-
-    @Override
-    public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        return recordSplitter().findLastRecordBoundary(buf, length);
     }
 
     @Override
@@ -993,9 +1014,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * comment lines. Used by {@link #read} when a schema is already bound but the input split
      * still starts with the file header.
      */
-    private void skipHeaderLine(BufferedReader reader) throws IOException {
+    private void skipHeaderLine(CsvLogicalRecordReader recordReader) throws IOException {
         String record;
-        while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+        while ((record = recordReader.readRecord(false)) != null) {
             String trimmed = record.trim();
             if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                 continue;
@@ -1113,98 +1134,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
      *
      * <p>Mirrors the quoting contract of {@link CsvRecordSplitter}.
      *
-     * <p><b>Divergence from chunk-layer boundary scanners:</b>
-     * {@link CsvRecordSplitter} treats lone {@code \r} outside quotes as data (only {@code \n} terminates).
-     * This method treats unquoted lone {@code \r} as a record terminator (Mac-classic line endings). The divergence is
-     * acceptable because macro-split boundaries are always re-aligned at the row layer, and Mac-classic files are
-     * vanishingly rare in modern data pipelines. A future byte row-reader will reconcile both layers.
-     *
      * <p>Uses the same ASCII-only whitespace predicate ({@code ' '}, {@code '\t'}, {@code '\f'}) as
      * the boundary scanners for field-start detection, via {@link #isAsciiCsvFieldLeadingWhitespace}.
      *
      * @return the logical record (without trailing line terminator), or {@code null} at EOF
      */
     static String readCsvRecord(Reader reader, char quoteChar, char delimiter, boolean bracketAware) throws IOException {
-        if (reader.markSupported() == false) {
-            throw new IllegalArgumentException("Reader must support mark/reset");
-        }
-        StringBuilder sb = new StringBuilder(256);
-        boolean inQuotes = false;
-        int bracketDepth = 0;
-        boolean fieldHasNonWhitespace = false;
+        return readCsvRecord(reader, quoteChar, delimiter, bracketAware, CsvFormatOptions.DEFAULT.encoding());
+    }
 
-        while (true) {
-            int ch = reader.read();
-            if (ch == -1) {
-                return sb.length() == 0 ? null : sb.toString();
-            }
-
-            if (inQuotes) {
-                if (ch == quoteChar) {
-                    reader.mark(1);
-                    int next = reader.read();
-                    if (next == quoteChar) {
-                        sb.append((char) ch);
-                        sb.append((char) next);
-                        continue;
-                    }
-                    if (next != -1) {
-                        reader.reset();
-                    }
-                    inQuotes = false;
-                    sb.append((char) ch);
-                    continue;
-                }
-                sb.append((char) ch);
-                continue;
-            }
-
-            if (bracketDepth > 0) {
-                if (ch == '[') {
-                    bracketDepth++;
-                } else if (ch == ']') {
-                    bracketDepth--;
-                    if (bracketDepth == 0) {
-                        sb.append((char) ch);
-                        fieldHasNonWhitespace = true;
-                        continue;
-                    }
-                }
-                sb.append((char) ch);
-                continue;
-            }
-
-            if (ch == '\n') {
-                return sb.toString();
-            }
-            if (ch == '\r') {
-                reader.mark(1);
-                int next = reader.read();
-                if (next != '\n' && next != -1) {
-                    reader.reset();
-                }
-                return sb.toString();
-            }
-            if (ch == delimiter) {
-                sb.append((char) ch);
-                fieldHasNonWhitespace = false;
-                continue;
-            }
-            if (ch == quoteChar && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-                sb.append((char) ch);
-                continue;
-            }
-            if (bracketAware && ch == '[' && fieldHasNonWhitespace == false) {
-                bracketDepth = 1;
-                sb.append((char) ch);
-                continue;
-            }
-            if (isAsciiCsvFieldLeadingWhitespace(ch) == false) {
-                fieldHasNonWhitespace = true;
-            }
-            sb.append((char) ch);
-        }
+    static String readCsvRecord(Reader reader, char quoteChar, char delimiter, boolean bracketAware, Charset encoding) throws IOException {
+        return new CsvLogicalRecordReader(reader, quoteChar, delimiter, SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES, encoding)
+            .readRecord(bracketAware);
     }
 
     /**
@@ -1399,8 +1340,77 @@ public class CsvFormatReader implements SegmentableFormatReader {
         return entries.toArray(String[]::new);
     }
 
+    private class CsvRecordIterator implements Iterator<List<?>> {
+        private final CsvLogicalRecordReader recordReader;
+        private final CsvSchema csvSchema;
+        private List<?> next;
+        private boolean eof;
+
+        CsvRecordIterator(CsvLogicalRecordReader recordReader, CsvSchema csvSchema) {
+            this.recordReader = recordReader;
+            this.csvSchema = csvSchema;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (next != null) {
+                return true;
+            }
+            if (eof) {
+                return false;
+            }
+            try {
+                next = readNextParsedRecord();
+                eof = next == null;
+                return eof == false;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public List<?> next() {
+            if (hasNext() == false) {
+                throw new NoSuchElementException();
+            }
+            List<?> result = next;
+            next = null;
+            return result;
+        }
+
+        private List<?> readNextParsedRecord() throws IOException {
+            String record;
+            while ((record = recordReader.readRecord(false)) != null) {
+                List<?> row = parseRecord(record);
+                if (row != null) {
+                    return row;
+                }
+            }
+            return null;
+        }
+
+        private List<String> parseRecord(String record) throws IOException {
+            try (CsvParser parser = sharedCsvMapper.getFactory().createParser(record)) {
+                parser.setSchema(csvSchema);
+                List<String> row = new ArrayList<>();
+                JsonToken token;
+                while ((token = parser.nextToken()) != null) {
+                    if (token == JsonToken.VALUE_NULL) {
+                        row.add(null);
+                    } else if (token.isScalarValue()) {
+                        row.add(parser.getValueAsString());
+                    } else if (token != JsonToken.START_ARRAY && token != JsonToken.END_ARRAY) {
+                        throw new IOException("Unexpected CSV token [" + token + "] while parsing record");
+                    }
+                }
+                return row.isEmpty() ? null : row;
+            }
+        }
+    }
+
     private class CsvBatchIterator implements CloseableIterator<Page> {
         private final BufferedReader reader;
+        private final CsvLogicalRecordReader recordReader;
         private final InputStream stream;
         private final List<String> projectedColumns;
         private final int batchSize;
@@ -1441,6 +1451,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         CsvBatchIterator(
             BufferedReader reader,
+            CsvLogicalRecordReader recordReader,
             InputStream stream,
             List<String> projectedColumns,
             int batchSize,
@@ -1450,6 +1461,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             CsvReaderCounters counters
         ) {
             this.reader = reader;
+            this.recordReader = recordReader;
             this.stream = stream;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
@@ -1543,7 +1555,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else {
                     String headerLine = null;
                     String record;
-                    while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+                    while ((record = recordReader.readRecord(false)) != null) {
                         String trimmed = record.trim();
                         if (trimmed.isEmpty() || (hasCommentFilter && trimmed.startsWith(options.commentPrefix()))) {
                             continue;
@@ -1567,12 +1579,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
                 boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
                 if (useBracketAwareParsing == false && csvIterator == null) {
-                    CsvSchema csvSchema = CsvSchema.emptySchema()
-                        .withColumnSeparator(options.delimiter())
-                        .withQuoteChar(options.quoteChar())
-                        .withEscapeChar(options.escapeChar())
-                        .withNullValue(options.nullValue());
-                    csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
+                    csvIterator = newCsvIterator(recordReader);
                 }
             }
             boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
@@ -1645,9 +1652,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * single malformed line does not abort the batch. {@link IOException}s from the underlying
          * reader are propagated since they signal an unrecoverable I/O fault.
          */
+        private String readBracketAwareRecord() throws IOException {
+            try {
+                return recordReader.readRecord(true);
+            } catch (CsvLogicalRecordReader.CsvRecordTooLargeException e) {
+                totalRowCount++;
+                onRowError(e.getMessage(), e, EMPTY_ROW, true);
+                return "";
+            }
+        }
+
         private void readRowsBracketAware(List<String[]> rows, int batchSize) throws IOException {
             String record;
-            while (rows.size() < batchSize && (record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), true)) != null) {
+            while (rows.size() < batchSize && (record = readBracketAwareRecord()) != null) {
                 if (isBlankOrComment(record, options.commentPrefix())) {
                     continue;
                 }
@@ -1672,7 +1689,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
             String[] columnNames = splitFieldsForOptions(headerLine, options);
-            csvIterator = newCsvIterator(reader);
+            csvIterator = newCsvIterator(recordReader);
             SchemaSample sample = collectSampleRows(
                 csvIterator,
                 options.commentPrefix(),
@@ -1690,7 +1707,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
 
         private List<Attribute> inferSchemaHeaderlessFromBatchReader() throws IOException {
-            csvIterator = newCsvIterator(reader);
+            csvIterator = newCsvIterator(recordReader);
             SchemaSample sample = collectSampleRows(
                 csvIterator,
                 options.commentPrefix(),
@@ -1849,7 +1866,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          */
         private void readLogicalLinesBracketAware(List<String> lines, int batchSize) throws IOException {
             String record;
-            while (lines.size() < batchSize && (record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), true)) != null) {
+            while (lines.size() < batchSize && (record = readBracketAwareRecord()) != null) {
                 if (isBlankOrComment(record, options.commentPrefix())) {
                     continue;
                 }

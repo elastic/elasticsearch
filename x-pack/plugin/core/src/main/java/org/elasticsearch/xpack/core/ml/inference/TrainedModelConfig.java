@@ -67,13 +67,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final int MAX_PREFIX_STRING_LENGTH = 1_000;
     public static final int MAX_INPUT_FIELD_NAMES = 100;
     public static final int MAX_DEFAULT_FIELD_MAP_ENTRIES = 100;
-    public static final Set<String> VALID_PLATFORM_ARCHITECTURES = Set.of(
-        "linux-x86_64",
-        "linux-aarch64",
-        "darwin-x86_64",
-        "darwin-aarch64",
-        "windows-x86_64"
-    );
 
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
@@ -975,19 +968,6 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
                 // packaged model validation
                 validationException = checkIllegalSetting(modelPackageConfig, MODEL_PACKAGE.getPreferredName(), validationException);
-            }
-
-            if (platformArchitecture != null && VALID_PLATFORM_ARCHITECTURES.contains(platformArchitecture) == false) {
-                validationException = addValidationError(
-                    "["
-                        + PLATFORM_ARCHITECTURE.getPreferredName()
-                        + "] must be one of "
-                        + VALID_PLATFORM_ARCHITECTURES
-                        + " but got ["
-                        + platformArchitecture
-                        + "].",
-                    validationException
-                );
             }
 
             if (prefixStrings != null) {

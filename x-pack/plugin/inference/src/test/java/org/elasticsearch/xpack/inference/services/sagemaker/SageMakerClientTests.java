@@ -16,10 +16,13 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWithResponseStreamResponseHandler;
 import software.amazon.awssdk.services.sagemakerruntime.model.ResponseStream;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
@@ -49,6 +52,9 @@ import static org.mockito.Mockito.when;
 public class SageMakerClientTests extends ESTestCase {
     private static final InvokeEndpointRequest REQUEST = InvokeEndpointRequest.builder().build();
     private static final InvokeEndpointWithResponseStreamRequest STREAM_REQUEST = InvokeEndpointWithResponseStreamRequest.builder().build();
+    private static final String INFERENCE_ID = "test-inference-id";
+    private static final TimeValue INVOKE_TIMEOUT = TimeValue.timeValueMillis(10);
+
     private SageMakerRuntimeAsyncClient awsClient;
     private CacheLoader<SageMakerClient.RegionAndSecrets, SageMakerRuntimeAsyncClient> clientFactory;
     private SageMakerClient client;
@@ -92,7 +98,7 @@ public class SageMakerClientTests extends ESTestCase {
     private ActionListener<InvokeEndpointResponse> invoke(TimeValue timeout) throws InterruptedException {
         var latch = new CountDownLatch(1);
         ActionListener<InvokeEndpointResponse> listener = spy(ActionListener.noop());
-        client.invoke(regionAndSecrets(), REQUEST, timeout, ActionListener.runAfter(listener, latch::countDown));
+        client.invoke(regionAndSecrets(), REQUEST, timeout, INFERENCE_ID, ActionListener.runAfter(listener, latch::countDown));
         assertTrue("Timed out waiting for invoke call", latch.await(5, TimeUnit.SECONDS));
         return listener;
     }
@@ -110,14 +116,20 @@ public class SageMakerClientTests extends ESTestCase {
     public void testInvokeTimeout() throws Exception {
         when(awsClient.invokeEndpoint(any(InvokeEndpointRequest.class))).thenReturn(new CompletableFuture<>());
 
-        var listener = invoke(TimeValue.timeValueMillis(10));
+        var listener = invoke(INVOKE_TIMEOUT);
 
         verify(clientFactory, times(1)).load(any());
-        verifyTimeout(listener);
+        verifyTimeout(INVOKE_TIMEOUT, listener);
     }
 
-    private static void verifyTimeout(ActionListener<?> listener) {
-        verify(listener, times(1)).onFailure(assertArg(e -> assertThat(e.getMessage(), equalTo("Request timed out after [10ms]"))));
+    private static void verifyTimeout(TimeValue timeout, ActionListener<?> listener) {
+        verify(listener, times(1)).onFailure(assertArg(e -> {
+            assertThat(
+                e.getMessage(),
+                equalTo(Strings.format("Request timed out after [%s] for inference id [%s]", timeout, INFERENCE_ID))
+            );
+            assertThat(((ElasticsearchTimeoutException) e).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        }));
     }
 
     public void testInvokeStream() throws Exception {
@@ -144,7 +156,7 @@ public class SageMakerClientTests extends ESTestCase {
     private ActionListener<SageMakerClient.SageMakerStream> invokeStream(TimeValue timeout) throws Exception {
         var latch = new CountDownLatch(1);
         ActionListener<SageMakerClient.SageMakerStream> listener = spy(ActionListener.noop());
-        client.invokeStream(regionAndSecrets(), STREAM_REQUEST, timeout, ActionListener.runAfter(listener, latch::countDown));
+        client.invokeStream(regionAndSecrets(), STREAM_REQUEST, timeout, INFERENCE_ID, ActionListener.runAfter(listener, latch::countDown));
         assertTrue("Timed out waiting for invoke call", latch.await(5, TimeUnit.SECONDS));
         return listener;
     }
@@ -163,10 +175,10 @@ public class SageMakerClientTests extends ESTestCase {
             new CompletableFuture<>()
         );
 
-        var listener = invokeStream(TimeValue.timeValueMillis(10));
+        var listener = invokeStream(INVOKE_TIMEOUT);
 
         verify(clientFactory, times(1)).load(any());
-        verifyTimeout(listener);
+        verifyTimeout(INVOKE_TIMEOUT, listener);
     }
 
     public void testClose() throws Exception {

@@ -49,7 +49,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int numResponse = randomIntBetween(0, 10);
         for (int i = 0; i < numResponse; i++) {
             Map<String, IndexFieldCapabilities> fieldCaps = FieldCapabilitiesIndexResponseTests.randomFieldCaps();
-            var indexMode = randomFrom(IndexMode.values());
+            var indexMode = randomFrom(IndexMode.availableModes());
             responses.add(new FieldCapabilitiesIndexResponse("index_" + i, null, fieldCaps, randomBoolean(), indexMode));
         }
         randomResponse = FieldCapabilitiesResponse.builder().withIndexResponses(responses).build();
@@ -165,6 +165,17 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         Randomness.shuffle(indexResponses);
         FieldCapabilitiesResponse inResponse = randomCCSResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean hasColumnarMode = indexResponses.stream()
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
+        assumeTrue(
+            "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
+            hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)
+        );
+        final boolean hasVectordbDocumentMode = indexResponses.stream().anyMatch(r -> r.getIndexMode() == IndexMode.VECTORDB_DOCUMENT);
+        assumeTrue(
+            "vectordb_document index mode requires transport version " + IndexMode.VECTORDB_DOCUMENT_INDEX_MODE,
+            hasVectordbDocumentMode == false || version.supports(IndexMode.VECTORDB_DOCUMENT_INDEX_MODE)
+        );
         final FieldCapabilitiesResponse outResponse = copyInstance(inResponse, version);
         assertThat(
             outResponse.getFailures().stream().flatMap(f -> Arrays.stream(f.getIndices())).toList(),

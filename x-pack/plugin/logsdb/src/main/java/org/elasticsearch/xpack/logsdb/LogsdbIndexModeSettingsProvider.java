@@ -120,7 +120,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         IndexVersion indexVersion,
         final Settings.Builder additionalSettings
     ) {
-        boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
+        boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB || templateIndexMode == IndexMode.LOGSDB_COLUMNAR;
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName);
@@ -252,6 +252,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             boolean hasSyntheticSourceUsage = false;
             if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
                 || indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.LOGSDB_COLUMNAR
                 || indexMode == IndexMode.TIME_SERIES) {
                 // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
                 // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,

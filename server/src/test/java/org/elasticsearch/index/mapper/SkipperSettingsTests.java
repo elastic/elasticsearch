@@ -63,15 +63,52 @@ public class SkipperSettingsTests extends ESTestCase {
     public void testLogsDBSkipperSettingDefaults() {
         {
             IndexSettings indexSettings = settings(
-                IndexVersion.current(),
-                b -> { b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()); }
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
             );
             assertFalse(indexSettings.useDocValuesSkipper());
         }
+    }
+
+    public void testColumnarSkipperSettingDefaults() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         {
-            IndexSettings indexSettings = settings(IndexVersions.SKIPPER_DEFAULTS_ONLY_ON_TSDB, b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName());
-            });
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            );
+            assertFalse(indexSettings.useDocValuesSkipper());
+        }
+    }
+
+    public void testColumnarLogsdbSkipperSettingDefaults() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+            );
+            assertTrue(indexSettings.useDocValuesSkipper());
+        }
+        {
+            IndexSettings indexSettings = settings(
+                IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
+            );
             assertFalse(indexSettings.useDocValuesSkipper());
         }
     }

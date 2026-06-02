@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
@@ -41,7 +40,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -64,7 +63,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
     }
 
@@ -96,8 +95,4 @@ public class CohereEmbeddingsModel extends CohereModel {
         return visitor.create(this, taskSettings);
     }
 
-    @Override
-    public URI baseUri() {
-        return getServiceSettings().getCommonSettings().uri();
-    }
 }

@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,9 +33,9 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @FunctionInfo(operator = "/", returnType = { "double", "integer", "long", "unsigned_long", "dense_vector" }, description = """
         Divide one value by another. For numeric operands, if either field is <<esql-multivalued-fields,multivalued>>
-        then the result is `null`.
-        note = "Division of two integer types will yield an integer result, rounding towards 0. "
-        + "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
+        then the result is `null`.""", note = """
+        Division of two integer types will yield an integer result, rounding towards 0. "
+        If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.
         For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
         """)
     public Div(
@@ -55,7 +56,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DIV_DENSE_VECTOR_EVALUATOR
+            DIV_DENSE_VECTOR_EVALUATOR,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
         this.type = type;
     }
@@ -68,7 +73,11 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
             DivLongsEvaluator.Factory::new,
             DivUnsignedLongsEvaluator.Factory::new,
             DivDoublesEvaluator.Factory::new,
-            DIV_DENSE_VECTOR_EVALUATOR
+            DIV_DENSE_VECTOR_EVALUATOR,
+            DivIntsByConstantEvaluator.Factory::new,
+            DivLongsByConstantEvaluator.Factory::new,
+            DivDoublesByConstantEvaluator.Factory::new,
+            /* excludeZeroRhs */ true
         );
     }
 
@@ -125,11 +134,26 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
-        double value = lhs / rhs;
-        if (Double.isNaN(value) || Double.isInfinite(value)) {
+        if (rhs == 0.0) {
             throw new ArithmeticException("/ by zero");
         }
-        return value;
+
+        return NumericUtils.asFiniteNumber(lhs / rhs);
+    }
+
+    @Evaluator(extraName = "IntsByConstant")
+    static int processIntsByConstant(int lhs, @Fixed(jitConstant = true) int rhs) {
+        return lhs / rhs;
+    }
+
+    @Evaluator(extraName = "LongsByConstant")
+    static long processLongsByConstant(long lhs, @Fixed(jitConstant = true) long rhs) {
+        return lhs / rhs;
+    }
+
+    @Evaluator(extraName = "DoublesByConstant", warnExceptions = { ArithmeticException.class })
+    static double processDoublesByConstant(double lhs, @Fixed(jitConstant = true) double rhs) {
+        return NumericUtils.asFiniteNumber(lhs / rhs);
     }
 
     private static float divDenseVectorElements(float lhs, float rhs) {
@@ -142,29 +166,21 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
 
     private static final DenseVectorBinaryEvaluator DIV_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory vectorsOperation(
+        public ExpressionEvaluator.Factory vectorsOperation(
             Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
+            ExpressionEvaluator.Factory lhs,
+            ExpressionEvaluator.Factory rhs
         ) {
             return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory scalarVectorOperation(
-            Source source,
-            float lhs,
-            EvalOperator.ExpressionEvaluator.Factory rhs
-        ) {
+        public ExpressionEvaluator.Factory scalarVectorOperation(Source source, float lhs, ExpressionEvaluator.Factory rhs) {
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory vectorScalarOperation(
-            Source source,
-            EvalOperator.ExpressionEvaluator.Factory lhs,
-            float rhs
-        ) {
+        public ExpressionEvaluator.Factory vectorScalarOperation(Source source, ExpressionEvaluator.Factory lhs, float rhs) {
             return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Div::divDenseVectorElements, OP_NAME);
         }
     };

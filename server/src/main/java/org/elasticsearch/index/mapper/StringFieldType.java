@@ -11,7 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -20,14 +20,20 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.CaseInsensitivePrefixQuery;
 import org.elasticsearch.common.lucene.search.CaseInsensitiveWildcardQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
+import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -35,10 +41,26 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-/** Base class for {@link MappedFieldType} implementations that use the same
+/**
+ * Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
  * that partial matching queries such as prefix, wildcard and fuzzy queries
- * can be implemented. */
+ * can be implemented.
+ *
+ * <p>Circuit breaker accounting for automaton-based queries happens in two phases:
+ * <ul>
+ *   <li><b>Pre-flight reservation:</b> wildcard and regexp queries reserve an estimate of
+ *   the {@code CompiledAutomaton} construction peak on the breaker before calling the
+ *   {@link AutomatonQuery} constructor, and refund it once construction returns. This guards the
+ *   construction window itself, which is invisible to any post-hoc walk of the assembled tree.
+ *   A reservation left behind by a failed construction is refunded at request end.</li>
+ *   <li><b>Retained-size charge (once per phase):</b>
+ *   {@link org.elasticsearch.index.query.AbstractQueryBuilder#toQuery(SearchExecutionContext)}
+ *   walks the produced tree with {@code MaxClauseCountQueryVisitor} and charges the sum of
+ *   {@code ramBytesUsed()} for every {@code Accountable} leaf in a single breaker call, peeking
+ *   mid-walk so pathological fan-outs trip before the full tree is materialised.</li>
+ * </ul>
+ */
 public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
@@ -63,22 +85,16 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return rewriteMethod == null
-            ? new FuzzyQuery(
-                new Term(name(), indexedValueForSearch(value)),
-                fuzziness.asDistance(BytesRefs.toString(value)),
-                prefixLength,
-                maxExpansions,
-                transpositions
-            )
-            : new FuzzyQuery(
-                new Term(name(), indexedValueForSearch(value)),
-                fuzziness.asDistance(BytesRefs.toString(value)),
-                prefixLength,
-                maxExpansions,
-                transpositions,
-                rewriteMethod
-            );
+        return FuzzyQueries.create(
+            new Term(name(), indexedValueForSearch(value)),
+            fuzziness.asDistance(BytesRefs.toString(value)),
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            rewriteMethod,
+            context,
+            name()
+        );
     }
 
     @Override
@@ -93,10 +109,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         Term prefix = new Term(name(), indexedValueForSearch(value));
+        AutomatonQuery query;
         if (caseInsensitive) {
-            return method == null ? new CaseInsensitivePrefixQuery(prefix, false) : new CaseInsensitivePrefixQuery(prefix, false, method);
+            query = method == null ? new CaseInsensitivePrefixQuery(prefix, false) : new CaseInsensitivePrefixQuery(prefix, false, method);
+        } else {
+            query = method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
         }
-        return method == null ? new PrefixQuery(prefix) : new PrefixQuery(prefix, method);
+        return query;
     }
 
     public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer) {
@@ -160,10 +179,36 @@ public abstract class StringFieldType extends TermBasedFieldType {
         } else {
             term = new Term(name(), indexedValueForSearch(value));
         }
-        if (caseInsensitive) {
-            return method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
+
+        CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+        AutomatonQuery query;
+        long reservation = 0;
+        if (circuitBreaker != null) {
+            Automaton dfa = caseInsensitive
+                ? AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term, circuitBreaker)
+                : AutomatonQueries.toWildcardAutomaton(term, circuitBreaker);
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+            context.addCircuitBreakerMemory(reservation, "wildcard-compiled:" + name());
+            if (caseInsensitive) {
+                query = method == null
+                    ? new CaseInsensitiveWildcardQuery(term, dfa)
+                    : new CaseInsensitiveWildcardQuery(term, dfa, false, method);
+            } else {
+                query = method == null
+                    ? new AutomatonQueryWithDescription(term, dfa, term.text())
+                    : new AutomatonQuery(term, dfa, false, method);
+            }
+            context.addCircuitBreakerMemory(0L, reservation, "wildcard-compiled:" + name());
+        } else {
+            if (caseInsensitive) {
+                query = method == null ? new CaseInsensitiveWildcardQuery(term) : new CaseInsensitiveWildcardQuery(term, false, method);
+            } else {
+                query = method == null
+                    ? new WildcardQuery(term)
+                    : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+            }
         }
-        return method == null ? new WildcardQuery(term) : new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
+        return query;
     }
 
     @Override
@@ -181,16 +226,29 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return method == null
-            ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
-            : new RegexpQuery(
-                new Term(name(), indexedValueForSearch(value)),
-                syntaxFlags,
-                matchFlags,
-                RegexpQuery.DEFAULT_PROVIDER,
-                maxDeterminizedStates,
-                method
-            );
+
+        value = AutomatonQueries.collapseConsecutiveQuantifiers(value);
+        AutomatonQuery query;
+        Term term = new Term(name(), indexedValueForSearch(value));
+        CircuitBreaker circuitBreaker = context.getCircuitBreaker();
+        long reservation = 0;
+        if (circuitBreaker != null) {
+            Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
+            reservation = new AutomatonQueryCostEstimator(dfa.ramBytesUsed()).estimate();
+            context.addCircuitBreakerMemory(reservation, "regexp-compiled:" + name());
+            query = method == null
+                ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")
+                : new AutomatonQuery(term, dfa, false, method);
+            // Construction succeeded; refund the pre-flight reservation. The retained
+            // ramBytesUsed() of the produced query is charged once per phase by the
+            // visitor walk in AbstractQueryBuilder#toQuery.
+            context.addCircuitBreakerMemory(0L, reservation, "regexp-compiled:" + name());
+        } else {
+            query = method == null
+                ? new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates)
+                : new RegexpQuery(term, syntaxFlags, matchFlags, RegexpQuery.DEFAULT_PROVIDER, maxDeterminizedStates, method);
+        }
+        return query;
     }
 
     @Override
@@ -209,12 +267,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return new TermRangeQuery(
+        AutomatonQuery query = new TermRangeQuery(
             name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
             includeLower,
             includeUpper
         );
+        return query;
     }
 }

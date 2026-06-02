@@ -7,28 +7,17 @@
 
 package org.elasticsearch.xpack.esql.datasource.grpc;
 
-import org.apache.arrow.vector.BigIntVector;
-import org.apache.arrow.vector.BitVector;
 import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.Float8Vector;
-import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.TimeStampMilliVector;
-import org.apache.arrow.vector.VarCharVector;
-import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.arrow.ArrowToEsql;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,103 +31,47 @@ final class FlightTypeMapping {
 
     private FlightTypeMapping() {}
 
+    /**
+     * Convert an Arrow schema into ES|QL attributes, honoring Arrow's field-level nullability flag. Defaulting to
+     * non-nullable (as the 3-arg {@link ReferenceAttribute} constructor does) would mislead planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) into dropping legitimate
+     * null rows for nullable Arrow fields.
+     */
     static List<Attribute> toAttributes(Schema schema) {
         List<Attribute> attributes = new ArrayList<>(schema.getFields().size());
         for (Field field : schema.getFields()) {
-            DataType dataType = toDataType(field.getType());
-            attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), dataType));
+            var mapping = ArrowToEsql.forField(field);
+            if (mapping == null) {
+                throw new IllegalArgumentException("Unsupported Arrow vector type: " + field.getType());
+            }
+            Nullability nullability = field.isNullable() ? Nullability.TRUE : Nullability.FALSE;
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, field.getName(), mapping.dataType(), nullability, null, false));
         }
         return attributes;
     }
 
-    static Block toBlock(FieldVector vector, int rowCount, BlockFactory blockFactory) {
-        if (vector instanceof IntVector intVec) {
-            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (intVec.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendInt(intVec.get(i));
-                    }
-                }
-                return builder.build();
-            }
-        } else if (vector instanceof BigIntVector bigIntVec) {
-            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (bigIntVec.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendLong(bigIntVec.get(i));
-                    }
-                }
-                return builder.build();
-            }
-        } else if (vector instanceof Float8Vector float8Vec) {
-            try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (float8Vec.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendDouble(float8Vec.get(i));
-                    }
-                }
-                return builder.build();
-            }
-        } else if (vector instanceof VarCharVector varCharVec) {
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (varCharVec.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        byte[] bytes = varCharVec.get(i);
-                        builder.appendBytesRef(new BytesRef(bytes));
-                    }
-                }
-                return builder.build();
-            }
-        } else if (vector instanceof BitVector bitVec) {
-            try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (bitVec.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendBoolean(bitVec.get(i) != 0);
-                    }
-                }
-                return builder.build();
-            }
-        } else if (vector instanceof TimeStampMilliVector tsVec) {
-            try (LongBlock.Builder builder = blockFactory.newLongBlockBuilder(rowCount)) {
-                for (int i = 0; i < rowCount; i++) {
-                    if (tsVec.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendLong(tsVec.get(i));
-                    }
-                }
-                return builder.build();
-            }
-        }
-        throw new IllegalArgumentException("Unsupported Arrow vector type: " + vector.getClass().getSimpleName());
+    static <V extends ValueVector> V transfer(V vector, BlockFactory blockFactory) {
+        var tp = vector.getTransferPair(blockFactory.arrowAllocator());
+        tp.transfer();
+        @SuppressWarnings("unchecked")
+        var result = (V) tp.getTo();
+        return result;
     }
 
-    private static DataType toDataType(ArrowType arrowType) {
-        if (arrowType instanceof ArrowType.Int intType) {
-            return intType.getBitWidth() <= 32 ? DataType.INTEGER : DataType.LONG;
-        } else if (arrowType instanceof ArrowType.FloatingPoint fpType) {
-            return switch (fpType.getPrecision()) {
-                case DOUBLE -> DataType.DOUBLE;
-                case SINGLE -> DataType.DOUBLE;
-                default -> DataType.DOUBLE;
-            };
-        } else if (arrowType instanceof ArrowType.Utf8) {
-            return DataType.KEYWORD;
-        } else if (arrowType instanceof ArrowType.Bool) {
-            return DataType.BOOLEAN;
-        } else if (arrowType instanceof ArrowType.Timestamp) {
-            return DataType.DATETIME;
+    static Block toBlock(FieldVector flightVector, int rowCount, BlockFactory blockFactory) {
+        // Trim the vector to the expected size (doesn't shrink buffers)
+        if (flightVector.getValueCount() > rowCount) {
+            flightVector.setValueCount(rowCount);
         }
-        throw new IllegalArgumentException("Unsupported Arrow type: " + arrowType);
+
+        // FlightClient creates a child allocator. We need to transfer vectors to the block factory's allocator
+        // since blocks live longer than the FlightClient and its allocator.
+        try (var vector = transfer(flightVector, blockFactory)) {
+            var mapping = ArrowToEsql.forField(flightVector.getField());
+            if (mapping == null) {
+                throw new IllegalArgumentException("Unsupported Arrow vector type: " + vector.getField().getType());
+            }
+            return mapping.convert(vector, blockFactory);
+        }
     }
 }

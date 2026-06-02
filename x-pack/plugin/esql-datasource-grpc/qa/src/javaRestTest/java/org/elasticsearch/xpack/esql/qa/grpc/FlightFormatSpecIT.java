@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.qa.grpc;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -62,22 +61,9 @@ public class FlightFormatSpecIT extends EsqlSpecTestCase {
         }
     }
 
-    @SuppressForbidden(reason = "need reflective access to skip standard data loading for external source tests")
-    @BeforeClass
-    public static void skipStandardDataLoading() {
-        try {
-            java.lang.reflect.Field ingestField = EsqlSpecTestCase.class.getDeclaredField("INGEST");
-            ingestField.setAccessible(true);
-            Object ingest = ingestField.get(null);
-
-            java.lang.reflect.Field completedField = ingest.getClass().getDeclaredField("completed");
-            completedField.setAccessible(true);
-            completedField.setBoolean(ingest, true);
-
-            logger.info("Skipped standard test data loading for Flight tests");
-        } catch (Exception e) {
-            logger.warn("Failed to skip standard data loading, tests may be slower", e);
-        }
+    @Override
+    protected List<String> indicesToLoad() {
+        return List.of();
     }
 
     public FlightFormatSpecIT(

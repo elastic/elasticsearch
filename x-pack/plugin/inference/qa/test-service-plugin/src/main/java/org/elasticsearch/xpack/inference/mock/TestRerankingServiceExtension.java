@@ -14,7 +14,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -22,10 +21,12 @@ import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -45,6 +46,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
@@ -113,9 +115,6 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         @Override
         public void infer(
             Model model,
-            @Nullable String query,
-            @Nullable Boolean returnDocuments,
-            @Nullable Integer topN,
             List<String> input,
             boolean stream,
             Map<String, Object> taskSettingsMap,
@@ -123,21 +122,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
-            if (((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation()) {
-                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
-                return;
-            }
-            TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
-
-            switch (model.getConfigurations().getTaskType()) {
-                case ANY, RERANK -> listener.onResponse(makeResults(input, (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
-                default -> listener.onFailure(
-                    new ElasticsearchStatusException(
-                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-            }
+            listener.onFailure(new UnsupportedOperationException("Rerank via infer() is not supported, use rerankInfer() instead"));
         }
 
         @Override
@@ -166,9 +151,28 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            if (((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation()) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
+            TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(request.taskSettings());
+
+            if (model.getConfigurations().getTaskType() == TaskType.RERANK) {
+                listener.onResponse(makeResults(request.inputs(), (TestRerankingServiceExtension.TestTaskSettings) taskSettings));
+            } else {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                        RestStatus.BAD_REQUEST
+                    )
+                );
+            }
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
-            @Nullable String query,
             List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
             InputType inputType,
@@ -183,7 +187,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             );
         }
 
-        private RankedDocsResults makeResults(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
+        private RankedDocsResults makeResults(List<InferenceString> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
             if (taskSettings.useTextLength) {
                 return makeResultFromTextInput(input, taskSettings);
             }
@@ -192,7 +196,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 int totalResults = input.size();
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
                 for (int i = 0; i < totalResults; i++) {
-                    results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
+                    results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i).value()), input.get(i).value()));
                 }
 
                 // RankedDoc's compareTo implementation already sorts by score descending, so we don't need to reverse the sort order
@@ -207,7 +211,10 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             }
         }
 
-        private RankedDocsResults makeResultFromTextInput(List<String> input, TestRerankingServiceExtension.TestTaskSettings taskSettings) {
+        private RankedDocsResults makeResultFromTextInput(
+            List<InferenceString> input,
+            TestRerankingServiceExtension.TestTaskSettings taskSettings
+        ) {
             int totalResults = input.size();
 
             List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
@@ -215,7 +222,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             float resultDiff = taskSettings.resultDiff();
             for (int i = 0; i < input.size(); i++) {
                 float relevanceScore = minScore + resultDiff * (totalResults - i);
-                String inputText = input.get(totalResults - 1 - i);
+                var inputText = input.get(totalResults - 1 - i).value();
                 if (taskSettings.useTextLength()) {
                     relevanceScore = 1f / inputText.length();
                 }
@@ -279,13 +286,41 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         static final String NAME = "test_reranking_task_settings";
 
+        private record OptionalTaskSettings(
+            Boolean shouldFailValidation,
+            Boolean useTextLength,
+            Float minScore,
+            Float resultDiff,
+            Integer topN,
+            Boolean hideTopN
+        ) {}
+
         public static TestTaskSettings fromMap(Map<String, Object> map) {
             boolean shouldFailValidation = false;
             boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
-            Integer topN = null;
             boolean hideTopN = false;
+
+            var optionalSettings = parseAsOptional(map);
+
+            return new TestTaskSettings(
+                Objects.requireNonNullElse(optionalSettings.shouldFailValidation, shouldFailValidation),
+                Objects.requireNonNullElse(optionalSettings.useTextLength, useTextLength),
+                Objects.requireNonNullElse(optionalSettings.minScore, minScore),
+                Objects.requireNonNullElse(optionalSettings.resultDiff, resultDiff),
+                optionalSettings.topN,
+                Objects.requireNonNullElse(optionalSettings.hideTopN, hideTopN)
+            );
+        }
+
+        private static OptionalTaskSettings parseAsOptional(Map<String, Object> map) {
+            Boolean shouldFailValidation = null;
+            Boolean useTextLength = null;
+            Float minScore = null;
+            Float resultDiff = null;
+            Integer topN = null;
+            Boolean hideTopN = null;
 
             if (map.containsKey("should_fail_validation")) {
                 shouldFailValidation = Boolean.parseBoolean(map.remove("should_fail_validation").toString());
@@ -311,7 +346,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 hideTopN = Boolean.parseBoolean(map.remove("hide_top_n").toString());
             }
 
-            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN, hideTopN);
+            return new OptionalTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff, topN, hideTopN);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
@@ -365,14 +400,14 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
-            TestTaskSettings newSettingsObject = fromMap(new HashMap<>(newSettingsMap));
+            var optionalTaskSettings = parseAsOptional(newSettingsMap);
             return new TestTaskSettings(
-                newSettingsMap.containsKey("should_fail_validation") ? newSettingsObject.shouldFailValidation() : shouldFailValidation,
-                newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
-                newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
-                newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff,
-                newSettingsMap.containsKey("top_n") ? newSettingsObject.topN() : topN,
-                newSettingsMap.containsKey("hide_top_n") ? newSettingsObject.hideTopN() : hideTopN
+                Objects.requireNonNullElse(optionalTaskSettings.shouldFailValidation(), shouldFailValidation),
+                Objects.requireNonNullElse(optionalTaskSettings.useTextLength(), useTextLength),
+                Objects.requireNonNullElse(optionalTaskSettings.minScore(), minScore),
+                Objects.requireNonNullElse(optionalTaskSettings.resultDiff(), resultDiff),
+                optionalTaskSettings.topN() != null ? optionalTaskSettings.topN() : topN,
+                Objects.requireNonNullElse(optionalTaskSettings.hideTopN(), hideTopN)
             );
         }
     }
@@ -393,9 +428,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 }
             }
 
-            if (validationException.validationErrors().isEmpty() == false) {
-                throw validationException;
-            }
+            validationException.throwIfValidationErrorsExist();
 
             return new TestServiceSettings(model);
         }

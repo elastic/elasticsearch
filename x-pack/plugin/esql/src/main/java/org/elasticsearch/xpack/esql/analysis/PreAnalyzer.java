@@ -12,15 +12,21 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This class is part of the planner.  Acts somewhat like a linker, to find the indices and enrich policies referenced by the query.
@@ -31,11 +37,13 @@ public class PreAnalyzer {
         Map<IndexPattern, IndexMode> indexes,
         List<Enrich> enriches,
         List<IndexPattern> lookupIndices,
+        Set<LinkedIndexPattern> linkedIndices,  // CPS only, patterns from local view names that could match remote indices
         boolean useAggregateMetricDoubleWhenNotSupported,
         boolean useDenseVectorWhenNotSupported,
+        boolean hasTimeSeriesAggregation,
         List<String> icebergPaths
     ) {
-        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), false, false, List.of());
+        public static final PreAnalysis EMPTY = new PreAnalysis(Map.of(), List.of(), List.of(), Set.of(), false, false, false, List.of());
     }
 
     public PreAnalysis preAnalyze(LogicalPlan plan) {
@@ -63,18 +71,29 @@ public class PreAnalyzer {
             }
         });
 
+        // CPS: collect ViewShadowRelation patterns. Shadows live as siblings of the
+        // strict UnresolvedRelation inside per-resolution-level ViewUnionAlls (see ViewResolver).
+        // A LinkedHashSet preserves the order shadows were emitted in for deterministic test output;
+        // it also deduplicates so two shadows with the same indexPattern only produce one lenient call.
+        Set<LinkedIndexPattern> linkedIndexPatterns = new LinkedHashSet<>();
+        plan.forEachUp(ViewShadowRelation.class, p -> linkedIndexPatterns.add(p.linkedIndexPattern()));
+
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
-        // Collect external source paths from UnresolvedExternalRelation nodes
+        // External source paths. Every tablePath is a non-null Literal post-parsing; non-Literal here
+        // is a precondition violation and throws.
         List<String> icebergPaths = new ArrayList<>();
         plan.forEachUp(UnresolvedExternalRelation.class, p -> {
-            // Extract string path from the tablePath expression
-            // For now, we only support literal string paths (parameters will be resolved later)
             if (p.tablePath() instanceof Literal literal && literal.value() != null) {
-                // Use BytesRefs.toString() which handles both BytesRef and String
                 String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
                 icebergPaths.add(path);
+            } else {
+                throw new IllegalStateException(
+                    "UnresolvedExternalRelation tablePath is not a non-null Literal: ["
+                        + (p.tablePath() == null ? "null" : p.tablePath().sourceText())
+                        + "]"
+                );
             }
         });
 
@@ -113,6 +132,10 @@ public class PreAnalyzer {
             }
         }));
 
+        Holder<Boolean> hasTimeSeriesAggregation = new Holder<>(false);
+        plan.forEachUp(TimeSeriesAggregate.class, p -> hasTimeSeriesAggregation.set(true));
+        plan.forEachUp(PromqlCommand.class, p -> hasTimeSeriesAggregation.set(true));
+
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
@@ -120,8 +143,10 @@ public class PreAnalyzer {
             indexes,
             unresolvedEnriches,
             lookupIndices,
+            linkedIndexPatterns,
             useAggregateMetricDoubleWhenNotSupported.get(),
             useDenseVectorWhenNotSupported.get(),
+            hasTimeSeriesAggregation.get(),
             icebergPaths
         );
     }

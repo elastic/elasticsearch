@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -42,6 +43,25 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
         builder.endPositionEntry();
     }
 
+    /**
+     * Deep-copies every value out of the doc-value blob so callers can index into the result by ord without invalidating slices on
+     * subsequent reads. Used by ordered (offsets-aware) readers, which need random access into the per-doc value list.
+     */
+    public BytesRef[] materialize(BytesRef bytes, long count) throws IOException {
+        BytesRef[] out = new BytesRef[Math.toIntExact(count)];
+        if (count == 1) {
+            out[0] = BytesRef.deepCopyOf(bytes);
+            return out;
+        }
+        scratch.bytes = bytes.bytes;
+        in.reset(bytes.bytes, bytes.offset, bytes.length);
+        for (int v = 0; v < count; v++) {
+            initializeScratch();
+            out[v] = BytesRef.deepCopyOf(scratch);
+        }
+        return out;
+    }
+
     public boolean match(BytesRef bytes, long count, Predicate<BytesRef> predicate) throws IOException {
         if (count == 1) {
             return predicate.test(bytes);
@@ -59,21 +79,30 @@ public final class MultiValueSeparateCountBinaryDocValuesReader {
     }
 
     public void readMin(BytesRef bytes, int count, BlockLoader.BytesRefBuilder builder) throws IOException {
+        readExtreme(bytes, count, builder, (a, b) -> a.compareTo(b) < 0);
+    }
+
+    public void readMax(BytesRef bytes, long count, BlockLoader.BytesRefBuilder builder) throws IOException {
+        readExtreme(bytes, count, builder, (a, b) -> a.compareTo(b) > 0);
+    }
+
+    private void readExtreme(BytesRef bytes, long count, BlockLoader.BytesRefBuilder builder, BiPredicate<BytesRef, BytesRef> predicate)
+        throws IOException {
         if (count == 1) {
             builder.appendBytesRef(bytes);
             return;
         }
 
-        BytesRef min = null;
+        BytesRef extreme = null;
         scratch.bytes = bytes.bytes;
         in.reset(bytes.bytes, bytes.offset, bytes.length);
         for (int v = 0; v < count; v++) {
             initializeScratch();
-            if (min == null || scratch.compareTo(min) < 0) {
-                min = new BytesRef(scratch.bytes, scratch.offset, scratch.length);
+            if (extreme == null || predicate.test(scratch, extreme)) {
+                extreme = new BytesRef(scratch.bytes, scratch.offset, scratch.length);
             }
         }
-        builder.appendBytesRef(min);
+        builder.appendBytesRef(extreme);
     }
 
     private void initializeScratch() throws IOException {

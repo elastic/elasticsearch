@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
@@ -66,6 +67,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
+    private final BooleanSupplier hasLinkedProjects;
     private final ProjectResolver projectResolver;
 
     @Inject
@@ -99,6 +101,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             : null;
         this.auditor = transformServices.auditor();
         this.transformConfigAutoMigration = transformConfigAutoMigration;
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
         this.projectResolver = projectResolver;
     }
 
@@ -106,7 +109,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(projectResolver.getProjectMetadata(clusterState))) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot create new Transform while the Transform feature is upgrading.",
@@ -134,13 +137,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <2> Validate source and destination indices
-
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
             (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
+                true,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
                 l
             )
@@ -157,6 +160,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
                 client,
                 config,
                 true,
+                hasLinkedProjects.getAsBoolean(),
                 ActionListener.wrap(
                     aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
                         settings,

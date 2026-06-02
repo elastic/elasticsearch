@@ -80,13 +80,10 @@ public class InteractiveFixtureManual extends ESRestTestCase {
     /** Fixed port for Elasticsearch */
     private static final int ES_PORT = 9200;
 
-    /** Fixed port for S3/HTTP fixture */
-    private static final int S3_FIXTURE_PORT = 9345;
-
     private static final PrintStream out = stderr();
 
     /** S3 HTTP fixture serving test data on fixed port */
-    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture(S3_FIXTURE_PORT);
+    public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
     /** Elasticsearch cluster with S3 fixture for interactive testing on fixed port */
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -217,13 +214,13 @@ public class InteractiveFixtureManual extends ESRestTestCase {
         if (SHOW_BLOBS) {
             messages.print("fixtures_show_all");
             blobs.keySet().stream().sorted().forEach(key -> {
-                long size = blobs.get(key).length();
+                long size = blobs.get(key).contents().length();
                 out.printf(Locale.ROOT, "  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
             });
         } else {
             messages.print("fixtures_show_key");
             blobs.keySet().stream().filter(key -> key.contains("employees") || key.contains("standalone")).sorted().forEach(key -> {
-                long size = blobs.get(key).length();
+                long size = blobs.get(key).contents().length();
                 out.printf(Locale.ROOT, "  %-80s %10s%n", key, MessageTemplates.formatBytes(size));
             });
             messages.print("fixtures_footer");

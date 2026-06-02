@@ -41,6 +41,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 
 /**
@@ -114,12 +115,27 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexCommit commit) {
                 return null;
             }
 
             @Override
+            protected DirectoryReader doOpenIfChanged(IndexCommit commit, ExecutorService executorService) {
+                return null;
+            }
+
+            @Override
             protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) {
+                return null;
+            }
+
+            @Override
+            protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes, ExecutorService executorService) {
                 return null;
             }
 

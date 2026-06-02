@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -157,13 +158,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 return state;
             });
 
-            if (clusterService.getClusterSettings().isDynamicSetting(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING.getKey())) {
-                // setting only registered in some tests today
-                clusterService.getClusterSettings()
-                    .initializeAndWatch(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
-            } else {
-                maxMasterNodeTimeout = AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
-            }
+            // setting only registered in some tests today
+            clusterService.getClusterSettings()
+                .initializeAndWatchIfRegistered(AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING, v -> maxMasterNodeTimeout = v);
         }
 
         @Override
@@ -289,14 +286,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.index(),
                         dataStreamDescriptor,
                         request.masterNodeTimeout(),
-                        request.ackTimeout(),
-                        false
+                        request.ackTimeout()
                     );
-                    assert createRequest.performReroute() == false
-                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
+                        RerouteBehavior.SKIP_REROUTE,
                         rerouteCompletionIsNotRequired(),
                         request.isInitializeFailureStore()
                     );
@@ -372,12 +367,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildUpdateRequest(projectId, indexName);
                     }
 
-                    assert updateRequest.performReroute() == false
-                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     final var clusterState = createIndexService.applyCreateIndexRequest(
                         currentState,
                         updateRequest,
                         false,
+                        RerouteBehavior.SKIP_REROUTE,
                         rerouteCompletionIsNotRequired()
                     );
                     taskContext.success(getAckListener(indexName, allocationActionMultiListener));
@@ -392,7 +386,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     projectId,
                     indexName,
                     request.index()
-                ).performReroute(false);
+                );
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -414,7 +408,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     projectId,
                     concreteIndexName,
                     request.index()
-                ).performReroute(false);
+                );
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

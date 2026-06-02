@@ -20,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -71,8 +72,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -148,39 +147,34 @@ public class RefreshListenersTests extends ESTestCase {
             primaryTerm
         );
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = new EngineConfig(
-            shardId,
-            threadPool,
-            threadPoolMergeExecutorService,
-            indexSettings,
-            null,
-            store,
-            newMergePolicy(),
-            iwc.getAnalyzer(),
-            iwc.getSimilarity(),
-            new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
-            eventListener,
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            Collections.singletonList(listeners),
-            Collections.emptyList(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> SequenceNumbers.NO_OPS_PERFORMED,
-            () -> RetentionLeases.EMPTY,
-            () -> primaryTerm,
-            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-            null,
-            System::nanoTime,
-            null,
-            true,
-            EngineTestCase.createMapperService(),
-            new EngineResetLock(),
-            MergeMetrics.NOOP,
-            Function.identity()
-        );
+        EngineConfig config = EngineConfig.builder()
+            .shardId(shardId)
+            .threadPool(threadPool)
+            .threadPoolMergeExecutorService(threadPoolMergeExecutorService)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(newMergePolicy())
+            .analyzer(iwc.getAnalyzer())
+            .similarity(iwc.getSimilarity())
+            .codecProvider(new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null))
+            .eventListener(eventListener)
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of(listeners))
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(() -> primaryTerm)
+            .snapshotCommitSupplier(IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER)
+            .relativeTimeInNanosSupplier(System::nanoTime)
+            .promotableToPrimary(true)
+            .mapperService(EngineTestCase.createMapperService())
+            .engineResetLock(new EngineResetLock())
+            .mergeMetrics(MergeMetrics.NOOP)
+            .indexDeletionPolicyWrapper(Function.identity())
+            .build();
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
@@ -456,6 +450,7 @@ public class RefreshListenersTests extends ESTestCase {
                                 get,
                                 mapperService.mappingLookup(),
                                 mapperService.documentParser(),
+                                SplitShardCountSummary.IRRELEVANT,
                                 EngineTestCase.randomSearcherWrapper()
                             )
                         ) {
@@ -587,7 +582,7 @@ public class RefreshListenersTests extends ESTestCase {
             seqID,
             id,
             null,
-            Arrays.asList(document),
+            List.of(document),
             source,
             XContentType.JSON,
             null,

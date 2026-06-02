@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
@@ -160,6 +161,13 @@ public class PrivilegeTests extends ESTestCase {
             ClusterPermission.builder()
         ).build();
         assertTrue(allClusterPermission.implies(crossClusterReplicationClusterPermission));
+
+        ClusterPrivilege cloneApiKeyClusterPrivilege = ClusterPrivilegeResolver.resolve("clone_api_key");
+        assertThat(cloneApiKeyClusterPrivilege, is(ClusterPrivilegeResolver.CLONE_API_KEY));
+        verifyClusterActionAllowed(cloneApiKeyClusterPrivilege, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_SECURITY, CloneApiKeyAction.NAME);
+        verifyClusterActionAllowed(allClusterPrivilege, CloneApiKeyAction.NAME);
+
     }
 
     public void testClusterTemplateActions() throws Exception {
@@ -562,5 +570,23 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME);
         verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME + "[n]");
         verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASK, "cluster:admin/whatever");
+    }
+
+    public void testMonitorReindexPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/reindex/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/reindex/list");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/reindex/cancel");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/reindex/rethrottle");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:monitor/something/else");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MONITOR_REINDEX, "cluster:admin/something/else");
+    }
+
+    public void testManageReindexPrivilege() {
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/reindex/get");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/reindex/list");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/cancel");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/reindex/rethrottle");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:monitor/something/else");
+        verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_REINDEX, "cluster:admin/something/else");
     }
 }

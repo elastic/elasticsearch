@@ -40,6 +40,10 @@ gradlePlugin {
       id = 'elasticsearch.build-complete'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
     }
+    taskStatusTracker {
+      id = 'elasticsearch.task-status-tracker'
+      implementationClass = 'org.elasticsearch.gradle.internal.ci.TaskStatusTrackerPlugin'
+    }
     componentMetadataRules {
       id = 'elasticsearch.component-metadata-rules'
       implementationClass = 'org.elasticsearch.gradle.internal.dependencies.rules.ComponentMetadataRulesPlugin'
@@ -155,6 +159,10 @@ gradlePlugin {
     embeddedProvider {
       id = 'elasticsearch.embedded-providers'
       implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
+    }
+    esqlFunction {
+      id = 'elasticsearch.esql-function'
+      implementationClass = 'org.elasticsearch.gradle.internal.esql.EsqlFunctionPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'

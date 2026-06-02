@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_MAX` function [esql-mv_max]
 
-:::{include} ../../_snippets/functions/layout/mv_max.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_max.md
 :::

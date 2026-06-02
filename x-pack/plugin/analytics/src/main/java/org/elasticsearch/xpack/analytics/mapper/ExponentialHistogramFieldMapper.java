@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
@@ -381,13 +382,13 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-                    AllReader bytesReader = null;
-                    AllReader minimaReader = null;
-                    AllReader maximaReader = null;
-                    AllReader sumsReader = null;
-                    AllReader valueCountsReader = null;
-                    AllReader zeroThresholdsReader = null;
+                public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                    ColumnAtATimeReader bytesReader = null;
+                    ColumnAtATimeReader minimaReader = null;
+                    ColumnAtATimeReader maximaReader = null;
+                    ColumnAtATimeReader sumsReader = null;
+                    ColumnAtATimeReader valueCountsReader = null;
+                    ColumnAtATimeReader zeroThresholdsReader = null;
 
                     try {
                         bytesReader = bytesLoader.reader(breaker, context);
@@ -415,21 +416,21 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
     }
 
-    static class Reader implements BlockLoader.AllReader {
-        private final BlockLoader.AllReader bytesReader;
-        private final BlockLoader.AllReader minimaReader;
-        private final BlockLoader.AllReader maximaReader;
-        private final BlockLoader.AllReader sumsReader;
-        private final BlockLoader.AllReader valueCountsReader;
-        private final BlockLoader.AllReader zeroThresholdsReader;
+    static class Reader implements BlockLoader.ColumnAtATimeReader {
+        private final BlockLoader.ColumnAtATimeReader bytesReader;
+        private final BlockLoader.ColumnAtATimeReader minimaReader;
+        private final BlockLoader.ColumnAtATimeReader maximaReader;
+        private final BlockLoader.ColumnAtATimeReader sumsReader;
+        private final BlockLoader.ColumnAtATimeReader valueCountsReader;
+        private final BlockLoader.ColumnAtATimeReader zeroThresholdsReader;
 
         Reader(
-            BlockLoader.AllReader bytesReader,
-            BlockLoader.AllReader minimaReader,
-            BlockLoader.AllReader maximaReader,
-            BlockLoader.AllReader sumsReader,
-            BlockLoader.AllReader valueCountsReader,
-            BlockLoader.AllReader zeroThresholdsReader
+            BlockLoader.ColumnAtATimeReader bytesReader,
+            BlockLoader.ColumnAtATimeReader minimaReader,
+            BlockLoader.ColumnAtATimeReader maximaReader,
+            BlockLoader.ColumnAtATimeReader sumsReader,
+            BlockLoader.ColumnAtATimeReader valueCountsReader,
+            BlockLoader.ColumnAtATimeReader zeroThresholdsReader
         ) {
             this.bytesReader = bytesReader;
             this.minimaReader = minimaReader;
@@ -466,9 +467,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             BlockLoader.Block result;
             boolean success = false;
             try {
-                minima = minimaReader.read(factory, docs, offset, nullsFiltered);
-                maxima = maximaReader.read(factory, docs, offset, nullsFiltered);
-                sums = sumsReader.read(factory, docs, offset, nullsFiltered);
+                // min, max and sum may be absent for empty histograms even if the field itself is present
+                minima = minimaReader.read(factory, docs, offset, false);
+                maxima = maximaReader.read(factory, docs, offset, false);
+                sums = sumsReader.read(factory, docs, offset, false);
                 valueCounts = valueCountsReader.read(factory, docs, offset, nullsFiltered);
                 zeroThresholds = zeroThresholdsReader.read(factory, docs, offset, nullsFiltered);
                 encodedBytes = bytesReader.read(factory, docs, offset, nullsFiltered);
@@ -483,20 +485,14 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-            BlockLoader.ExponentialHistogramBuilder histogramBuilder = (BlockLoader.ExponentialHistogramBuilder) builder;
-            minimaReader.read(docId, storedFields, histogramBuilder.minima());
-            maximaReader.read(docId, storedFields, histogramBuilder.maxima());
-            sumsReader.read(docId, storedFields, histogramBuilder.sums());
-            valueCountsReader.read(docId, storedFields, histogramBuilder.valueCounts());
-            zeroThresholdsReader.read(docId, storedFields, histogramBuilder.zeroThresholds());
-            bytesReader.read(docId, storedFields, histogramBuilder.encodedHistograms());
-        }
-
-        @Override
         public void close() {
             Releasables.close(minimaReader, maximaReader, sumsReader, valueCountsReader, zeroThresholdsReader, bytesReader);
         }
+    }
+
+    // Visible for testing
+    static ExponentialHistogramValuesReader createDocValuesReader(LeafReader reader, String fieldName) throws IOException {
+        return new DocValuesReader(reader, fieldName);
     }
 
     // Visible for testing
@@ -824,6 +820,7 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
 
         private int currentDocId = -1;
         private final CompressedExponentialHistogram tempHistogram = new CompressedExponentialHistogram();
+        private final DocIdSetIterator docIdSetIterator;
 
         DocValuesReader(LeafReader leafReader, String fullPath) throws IOException {
             histoDocValues = leafReader.getBinaryDocValues(fullPath);
@@ -832,6 +829,34 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             valueSums = leafReader.getNumericDocValues(valuesSumSubFieldName(fullPath));
             valueMinima = leafReader.getNumericDocValues(valuesMinSubFieldName(fullPath));
             valueMaxima = leafReader.getNumericDocValues(valuesMaxSubFieldName(fullPath));
+            docIdSetIterator = new DocIdSetIterator() {
+
+                @Override
+                public int docID() {
+                    return currentDocId;
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    if (valueCounts != null) {
+                        currentDocId = valueCounts.nextDoc();
+                    }
+                    return currentDocId;
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    if (valueCounts != null) {
+                        currentDocId = valueCounts.advance(target);
+                    }
+                    return currentDocId;
+                }
+
+                @Override
+                public long cost() {
+                    return valueCounts != null ? valueCounts.cost() : 0;
+                }
+            };
         }
 
         boolean hasAnyValues() {
@@ -920,6 +945,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return Double.NEGATIVE_INFINITY;
             }
             return NumericUtils.sortableLongToDouble(valueMaxima.longValue());
+        }
+
+        @Override
+        public DocIdSetIterator docIdIterator() {
+            return docIdSetIterator;
         }
     }
 

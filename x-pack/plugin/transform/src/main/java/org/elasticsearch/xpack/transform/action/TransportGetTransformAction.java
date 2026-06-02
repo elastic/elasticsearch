@@ -14,6 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Strings;
@@ -40,7 +41,9 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
@@ -64,6 +67,8 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     private final ClusterService clusterService;
     private final Client client;
+    private final TransformParsingContext transformParsingContext;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetTransformAction(
@@ -71,18 +76,24 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        TransformServices transformServices,
+        ProjectResolver projectResolver
     ) {
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
         this.client = client;
+        this.transformParsingContext = new TransformParsingContext(
+            transformServices.crossProjectModeDecider().crossProjectEnabled() && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled()
+        );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(clusterState);
+        TransformNodes.warnIfNoTransformNodes(projectResolver.getProjectMetadata(clusterState), clusterState.getNodes());
 
         RemainingTime remainingTime = RemainingTime.from(Instant::now, request.timeout());
 
@@ -90,7 +101,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
             if (request.checkForDanglingTasks()) {
                 getAllTransformIds(request, r, remainingTime, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
-                    var errors = TransformTask.findTransformTasks(request.getId(), clusterState)
+                    var errors = TransformTask.findTransformTasks(request.getId(), projectResolver.getProjectMetadata(clusterState))
                         .stream()
                         .map(PersistentTasksCustomMetadata.PersistentTask::getId)
                         .filter(not(transformConfigIds::contains))
@@ -126,7 +137,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected TransformConfig parse(XContentParser parser) {
-        return TransformConfig.fromXContent(parser, null, true);
+        return TransformConfig.fromXContent(parser, null, true, transformParsingContext);
     }
 
     @Override

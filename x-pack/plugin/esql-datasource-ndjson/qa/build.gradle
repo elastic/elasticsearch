@@ -33,21 +33,80 @@ dependencies {
   clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
+  clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   // The datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-gzip'))
+  clusterPlugins project(xpackModule('esql-datasource-zstd'))
+  clusterPlugins project(xpackModule('esql-datasource-bzip2'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
   // GCS datasource plugin for gs:// storage backend
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  // Azure Blob datasource plugin for wasbs:///wasb:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-azure'))
 }
 
-// The test fixtures are included directly in this module's javaRestTest/resources directory
+// Standalone NDJSON under iceberg-fixtures/standalone/ is generated from esql:qa:testFixtures CSV basenames.
+def testFixturesProject = project(xpackModule('esql:qa:testFixtures'))
+def testFixturesDataDir = testFixturesProject.file('src/main/resources/data')
+def serverProject = project(xpackModule('esql:qa:server'))
+def ndjsonFixtureOutputRoot = file("${buildDir}/ndjson-iceberg-fixtures")
+def standaloneNdjsonFromCsv = ['employees', 'web_logs', 'books', 'employees_no_mv']
+
+def generateStandaloneNdjsonTasks = []
+standaloneNdjsonFromCsv.each { baseName ->
+  def taskName = "generateStandaloneNdjson_${baseName}"
+  def csvInput = new File(testFixturesDataDir, "${baseName}.csv")
+  def ndjsonOut = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/standalone/${baseName}.ndjson")
+  tasks.register(taskName, JavaExec) {
+    dependsOn serverProject.tasks.named('compileNdjsonFixtureGeneratorJava')
+    dependsOn testFixturesProject.tasks.named('processResources')
+    classpath = serverProject.configurations.ndjsonFixtureGenerator + serverProject.sourceSets.ndjsonFixtureGenerator.output
+    mainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
+    args = [csvInput.path, ndjsonOut.path]
+    inputs.file(csvInput)
+    outputs.file(ndjsonOut)
+    systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
+  }
+  generateStandaloneNdjsonTasks.add(tasks.named(taskName))
+}
+
+// Multifile-split fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.ndjson.
+// Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
+// NdJsonFormatSpecIT's readScriptSpec is broadened to include them.
+def multifileSplitDir = file("${ndjsonFixtureOutputRoot}/iceberg-fixtures/multifile_split")
+def multifileSplitCsv = new File(testFixturesDataDir, "employees.csv")
+tasks.register('generateMultifileSplitNdjson_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileNdjsonFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.ndjsonFixtureGenerator + serverProject.sourceSets.ndjsonFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.NdJsonFixtureGenerator'
+  args = [multifileSplitCsv.path, multifileSplitDir.path, '3']
+  inputs.file(multifileSplitCsv)
+  outputs.dir(multifileSplitDir)
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
+}
+generateStandaloneNdjsonTasks.add(tasks.named('generateMultifileSplitNdjson_employees'))
+
+tasks.register('generateStandaloneNdjsonFixtures') {
+  dependsOn generateStandaloneNdjsonTasks
+}
+
+sourceSets.javaRestTest.resources.srcDir ndjsonFixtureOutputRoot
+
+tasks.named('processJavaRestTestResources').configure {
+  dependsOn 'generateStandaloneNdjsonFixtures'
+}
 
 tasks.named('javaRestTest') {
+  dependsOn 'generateStandaloneNdjsonFixtures'
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
+  enabled = buildParams.snapshotBuild
 
   // Increase timeouts for S3 operations which may take longer than standard queries
   systemProperty 'tests.rest.client_timeout', '60'

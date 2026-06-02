@@ -22,13 +22,16 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -36,6 +39,8 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.Transport;
@@ -50,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -70,6 +76,18 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ActionListener<SearchResponse> listener,
         final boolean controlled,
         final AtomicLong expected
+    ) {
+        return createAction(request, results, listener, controlled, expected, null, null);
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createAction(
+        SearchRequest request,
+        ArraySearchPhaseResults<SearchPhaseResult> results,
+        ActionListener<SearchResponse> listener,
+        final boolean controlled,
+        final AtomicLong expected,
+        Runnable onExecutePhase,
+        Runnable onGroupFailure
     ) {
         final Runnable runnable;
         final TransportSearchAction.SearchTimeProvider timeProvider;
@@ -104,6 +122,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             Collections.singletonList(
                 new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null, SplitShardCountSummary.UNSET)
             ),
+            Collections.emptyMap(),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
@@ -124,7 +143,14 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 final SearchShardIterator shardIt,
                 final Transport.Connection shard,
                 final SearchActionListener<SearchPhaseResult> listener
-            ) {}
+            ) {
+                if (onExecutePhase != null) onExecutePhase.run();
+            }
+
+            @Override
+            protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+                if (onGroupFailure != null) onGroupFailure.run();
+            }
 
             @Override
             long buildTookInMillis() {
@@ -258,6 +284,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             public SearchShardTarget getSearchShardTarget() {
                 return new SearchShardTarget(null, null, null);
             }
+
+            @Override
+            public void writeTo(StreamOutput out) {
+
+            }
         });
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
@@ -312,11 +343,20 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
-                results.add(
-                    new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
-                        new SearchShardTarget(searchContextIdForNode.getNode(), shardId, searchContextIdForNode.getClusterAlias())
-                    )
+                SearchPhaseResult result;
+                SearchShardTarget shardTarget = new SearchShardTarget(
+                    searchContextIdForNode.getNode(),
+                    shardId,
+                    searchContextIdForNode.getClusterAlias()
                 );
+                if (frequently()) {
+                    result = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(shardTarget);
+                } else {
+                    result = QuerySearchResult.nullInstance();
+                    result.setShardIndex(shardId.id());
+                    result.setSearchShardTarget(shardTarget);
+                }
+                results.add(result);
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
                 pointInTimeBuilder,
@@ -335,15 +375,23 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             // case 2, some results are from different nodes but have same context Ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
             Set<ShardId> shardsWithSwappedNodes = new HashSet<>();
+            // pick at least one shard that must swap, so the re-encoded id is guaranteed to differ from the original
+            ShardId mustSwap = randomFrom(originalShardIdMap.keySet());
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
                 // only swap node for ids there have a non-null node id, i.e. those that didn't fail when opening a PIT
-                if (randomBoolean() && searchContextIdForNode.getNode() != null) {
+                if ((shardId.equals(mustSwap) || randomBoolean()) && searchContextIdForNode.getNode() != null) {
                     // swap to a different node
-                    PhaseResult otherNode = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(
-                        new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias())
-                    );
-                    results.add(otherNode);
+                    SearchPhaseResult result;
+                    SearchShardTarget otherNode = new SearchShardTarget("otherNode", shardId, searchContextIdForNode.getClusterAlias());
+                    if (frequently()) {
+                        result = new PhaseResult(searchContextIdForNode.getSearchContextId()).withShardTarget(otherNode);
+                    } else {
+                        result = QuerySearchResult.nullInstance();
+                        result.setShardIndex(shardId.id());
+                        result.setSearchShardTarget(otherNode);
+                    }
+                    results.add(result);
                     shardsWithSwappedNodes.add(shardId);
                 } else {
                     results.add(
@@ -409,8 +457,117 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         }
     }
 
-    private ShardSearchContextId randomSearchShardId() {
-        return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+    public void testNonRetriableExceptionSkipsReplicaRetry() {
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            shardId,
+            List.of("node1", "node2"),
+            null,
+            null,
+            null,
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget primaryTarget = shardIt.nextOrNull();
+
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+
+            action.onShardFailure(0, primaryTarget, shardIt, new QueryShardException(shardId.getIndex(), "unsupported query", null));
+        }
+
+        assertEquals("non-retriable error should not trigger a retry", 0, retryCount.get());
+        assertTrue("onShardGroupFailure must fire when copies remain but exception is non-retriable", groupFailureFired.get());
+    }
+
+    public void testSearchTimeoutExceptionSkipsReplicaRetry() {
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            shardId,
+            List.of("node1", "node2"),
+            null,
+            null,
+            null,
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget primaryTarget = shardIt.nextOrNull();
+
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(false),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+
+            action.onShardFailure(0, primaryTarget, shardIt, new SearchTimeoutException(primaryTarget, "Time exceeded"));
+        }
+
+        assertEquals("SearchTimeoutException must not trigger a replica retry even when a copy is available", 0, retryCount.get());
+        assertTrue("onShardGroupFailure must fire so the timeout is surfaced to the caller", groupFailureFired.get());
+    }
+
+    public void testRetriableExceptionTriesNextCopy() {
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        SearchShardIterator shardIt = new SearchShardIterator(
+            null,
+            shardId,
+            List.of("node1", "node2"),
+            null,
+            null,
+            null,
+            false,
+            false,
+            SplitShardCountSummary.UNSET
+        );
+        SearchShardTarget primaryTarget = shardIt.nextOrNull();
+
+        AtomicInteger retryCount = new AtomicInteger();
+        AtomicBoolean groupFailureFired = new AtomicBoolean();
+        try (ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(1)) {
+            AbstractSearchAsyncAction<SearchPhaseResult> action = createRetryTrackingAction(
+                new SearchRequest().allowPartialSearchResults(true),
+                phaseResults,
+                retryCount,
+                groupFailureFired
+            );
+
+            action.onShardFailure(0, primaryTarget, shardIt, new ShardNotFoundException(shardId));
+        }
+
+        assertEquals("retriable error with copies remaining should retry once", 1, retryCount.get());
+        assertFalse("onShardGroupFailure must not fire when retrying", groupFailureFired.get());
+    }
+
+    private AbstractSearchAsyncAction<SearchPhaseResult> createRetryTrackingAction(
+        SearchRequest request,
+        ArraySearchPhaseResults<SearchPhaseResult> results,
+        AtomicInteger retryCount,
+        AtomicBoolean groupFailureFired
+    ) {
+        return createAction(
+            request,
+            results,
+            ActionListener.noop(),
+            true,
+            new AtomicLong(),
+            retryCount::incrementAndGet,
+            () -> groupFailureFired.set(true)
+        );
     }
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(
@@ -445,6 +602,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             PhaseResult phaseResult = new PhaseResult(contextId);
             phaseResult.setSearchShardTarget(shardTarget);
             return phaseResult;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {
+
         }
     }
 }

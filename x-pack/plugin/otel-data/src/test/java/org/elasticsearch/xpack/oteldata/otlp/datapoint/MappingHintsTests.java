@@ -55,6 +55,12 @@ public class MappingHintsTests extends ESTestCase {
         assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
         assertFalse(hints.docCount());
 
+        // Test with just histogram:raw hint
+        KeyValue histogramRawHint = createMappingHint("histogram:raw");
+        hints = defaultHints.withConfigFromAttributes(List.of(histogramRawHint));
+        assertEquals(HistogramMapping.HISTOGRAM_RAW, hints.histogramMapping());
+        assertFalse(hints.docCount());
+
         // Test with just _doc_count hint
         KeyValue docCountHint = createMappingHint("_doc_count");
         hints = defaultHints.withConfigFromAttributes(List.of(docCountHint));
@@ -69,6 +75,15 @@ public class MappingHintsTests extends ESTestCase {
         MappingHints hints = defaultHints.withConfigFromAttributes(List.of(bothHints));
         assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
         assertTrue(hints.docCount());
+
+        // aggregate_metric_double takes precedence over histogram:raw regardless of order.
+        hints = defaultHints.withConfigFromAttributes(List.of(createMappingHint("histogram:raw", "aggregate_metric_double")));
+        assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
+        assertFalse(hints.docCount());
+
+        hints = defaultHints.withConfigFromAttributes(List.of(createMappingHint("aggregate_metric_double", "histogram:raw")));
+        assertEquals(HistogramMapping.AGGREGATE_METRIC_DOUBLE, hints.histogramMapping());
+        assertFalse(hints.docCount());
     }
 
     public void testInvalidHints() {

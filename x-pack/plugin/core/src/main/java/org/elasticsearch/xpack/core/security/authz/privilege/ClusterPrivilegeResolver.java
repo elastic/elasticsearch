@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
@@ -94,6 +95,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
+    private static final Set<String> CLONE_API_KEY_PATTERN = Set.of(CloneApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of(
         "cluster:monitor/*",
         GetIndexTemplatesAction.NAME,
@@ -108,6 +110,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Set.of("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
+    private static final Set<String> MONITOR_REINDEX_PATTERN = Set.of("cluster:monitor/reindex/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
     private static final Set<String> MONITOR_ESQL_PATTERN = Set.of("cluster:monitor/xpack/esql/*");
@@ -145,6 +148,7 @@ public class ClusterPrivilegeResolver {
         "cluster:admin/transform/*"
     );
     private static final Set<String> MANAGE_WATCHER_PATTERN = Set.of("cluster:admin/xpack/watcher/*", "cluster:monitor/xpack/watcher/*");
+    private static final Set<String> MANAGE_REINDEX_PATTERN = Set.of("cluster:admin/reindex/*", "cluster:monitor/reindex/*");
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Set.of("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Set.of(
         "indices:admin/template/*",
@@ -258,6 +262,7 @@ public class ClusterPrivilegeResolver {
         MONITOR_TRANSFORM_PATTERN
     );
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_REINDEX = new ActionClusterPrivilege("monitor_reindex", MONITOR_REINDEX_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ROLLUP = new ActionClusterPrivilege("monitor_rollup", MONITOR_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ENRICH = new ActionClusterPrivilege("monitor_enrich", MONITOR_ENRICH_PATTERN);
     public static final NamedClusterPrivilege MONITOR_ESQL = new ActionClusterPrivilege("monitor_esql", MONITOR_ESQL_PATTERN);
@@ -272,6 +277,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_TRANSFORM = new ActionClusterPrivilege("manage_transform", MANAGE_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TOKEN = new ActionClusterPrivilege("manage_token", MANAGE_TOKEN_PATTERN);
     public static final NamedClusterPrivilege MANAGE_WATCHER = new ActionClusterPrivilege("manage_watcher", MANAGE_WATCHER_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_REINDEX = new ActionClusterPrivilege("manage_reindex", MANAGE_REINDEX_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ROLLUP = new ActionClusterPrivilege("manage_rollup", MANAGE_ROLLUP_PATTERN);
     public static final NamedClusterPrivilege MANAGE_IDX_TEMPLATES = new ActionClusterPrivilege(
         "manage_index_templates",
@@ -326,6 +332,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_USER_PROFILE_PATTERN
     );
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege CLONE_API_KEY = new ActionClusterPrivilege("clone_api_key", CLONE_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege(
         "manage_pipeline",
         Set.of("cluster:admin" + "/ingest/pipeline/*")
@@ -449,6 +456,7 @@ public class ClusterPrivilegeResolver {
             MONITOR_TRANSFORM_DEPRECATED,
             MONITOR_TRANSFORM,
             MONITOR_WATCHER,
+            MONITOR_REINDEX,
             MONITOR_ROLLUP,
             MONITOR_ENRICH,
             MONITOR_ESQL,
@@ -461,6 +469,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_TRANSFORM,
             MANAGE_TOKEN,
             MANAGE_WATCHER,
+            MANAGE_REINDEX,
             MANAGE_IDX_TEMPLATES,
             MANAGE_INGEST_PIPELINES,
             READ_PIPELINE,
@@ -472,6 +481,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_OIDC,
             MANAGE_API_KEY,
             GRANT_API_KEY,
+            CLONE_API_KEY,
             MANAGE_SERVICE_ACCOUNT,
             MANAGE_USER_PROFILE,
             MANAGE_PIPELINE,

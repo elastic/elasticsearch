@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
@@ -19,10 +21,13 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
@@ -33,14 +38,16 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoaderLayer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
@@ -223,6 +230,31 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query wildcardQuery(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
+            // Lucene wildcard semantics support both * and ?; Regex.simpleMatch (used by matches()) only handles *.
+            // See gh-141785. constant_keyword has no Lucene index (IndexType.NONE), so we compile the pattern
+            // to an automaton and run it in-memory against the single constant value, mirroring the
+            // ConstantFieldType#automatonQuery pattern. AutomatonQueries.toWildcardAutomaton tracks
+            // determinization heap with the SearchExecutionContext circuit breaker when one is available.
+            if (value == null) {
+                return Queries.NO_DOCS_INSTANCE;
+            }
+            String matchTarget = caseInsensitive ? value.toLowerCase(Locale.ROOT) : value;
+            String matchPattern = caseInsensitive ? pattern.toLowerCase(Locale.ROOT) : pattern;
+            Term term = new Term(name(), matchPattern);
+            CircuitBreaker circuitBreaker = (context instanceof SearchExecutionContext sec) ? sec.getCircuitBreaker() : null;
+            Automaton automaton;
+            try {
+                automaton = circuitBreaker != null
+                    ? AutomatonQueries.toWildcardAutomaton(term, circuitBreaker)
+                    : WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            } catch (TooComplexToDeterminizeException e) {
+                throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+            }
+            return new CharacterRunAutomaton(automaton).run(matchTarget) ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
+        }
+
+        @Override
         public String getConstantFieldValue(SearchExecutionContext context) {
             return value;
         }
@@ -331,6 +363,16 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public boolean supportsBatchIndexing() {
+        // Constant keyword can be driven through parseCreateField by the bulk batch path only
+        // once the value is pinned. While the value is unset, parseCreateField triggers a
+        // dynamic mapping update, which the v1 batch path does not support. copy_to and
+        // multi-fields pull in behavior that the v1 batch path does not support either; scripts
+        // are not configurable on this mapper.
+        return fieldType().value() != null && copyTo().copyToFields().isEmpty() && multiFields().iterator().hasNext() == false;
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         final String value = parser.textOrNull();
@@ -341,9 +383,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             Builder builder = new Builder(leafName()).setValue(value);
-            boolean dynamicMapperAdded = context.addDynamicMapper(builder, fullPath());
+            Mapper result = context.getDynamicMapper(builder);
             // the mapper is already part of the mapping, we're just updating it with the new value
-            assert dynamicMapperAdded;
+            assert result != null;
         } else if (Objects.equals(fieldType().value, value) == false) {
             throw new IllegalArgumentException(
                 "[constant_keyword] field ["
@@ -376,11 +418,12 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        return new SyntheticSourceSupport.Native(() -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
-            @Override
-            protected void writeValue(XContentBuilder b, long ignored) throws IOException {
-                b.value(const_value);
-            }
-        });
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new SortedNumericDocValuesSyntheticFieldLoaderLayer(fullPath(), (b, ignored) -> b.value(const_value))
+            )
+        );
     }
 }

@@ -122,7 +122,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     public void testNonResizeRouting() {
         ClusterState clusterState = createInitialClusterState(true);
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         ShardRouting shardRouting = TestShardRouting.newShardRouting("non-resize", 0, null, true, ShardRoutingState.UNASSIGNED);
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
         assertEquals(
@@ -156,7 +156,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Index idx = clusterState.metadata().getProject(projectId).index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, 0), null, true, ShardRoutingState.UNASSIGNED).withRecoverySource(
             RecoverySource.LocalShardsRecoverySource.INSTANCE
         ).build();
@@ -191,7 +191,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Index idx = clusterState.metadata().getProject(projectId).index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().getProject(projectId).index("source"), 4).id();
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
@@ -247,7 +247,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         final Index idx = clusterState.metadata().getProject(projectId).index(targetIndexName).getIndex();
 
         final var resizeAllocationDecider = new ResizeAllocationDecider();
-        final var routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        final var routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         final int shardId = randomIntBetween(0, 3);
         final var shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
@@ -281,7 +281,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         Index idx = clusterState.metadata().getProject(projectId).index("target").getIndex();
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
+        RoutingAllocation routingAllocation = TestRoutingAllocationFactory.forClusterState(clusterState).build();
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetadata.selectSplitShard(shardId, clusterState.metadata().getProject(projectId).index("source"), 4).id();
         ShardRouting shardRouting = shardRoutingBuilder(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED)
@@ -378,7 +378,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
             .build();
 
         var decider = new ResizeAllocationDecider();
-        var allocation = new RoutingAllocation(new AllocationDeciders(List.of(decider)), clusterState, null, null, 0);
+        var allocation = TestRoutingAllocationFactory.forClusterState(clusterState).allocationDeciders(decider).build();
 
         var localRecoveryShard = ShardRouting.newUnassigned(
             new ShardId(target.getIndex(), 0),

@@ -19,17 +19,20 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
-import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.reindex.ClientScrollablePaginatedHitSource;
+import org.elasticsearch.reindex.ScrollablePaginatedHitSource;
+import org.elasticsearch.reindex.SearchContextKeepaliveDeadline;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -45,12 +48,19 @@ import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PA
  * initial search. It is no longer recommended for deep pagination due to resource costs and limits on open scrolls.
  * <p>
  * This implementation is a scrollable source of hits from a <i>remote</i> {@linkplain Client} instance. For local
- * clients, please use {@link org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource}
+ * clients, please use {@link ClientScrollablePaginatedHitSource}
  */
-public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
+public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSource {
     private final RestClient client;
     private final RemoteInfo remote;
     private final SearchRequest searchRequest;
+    private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    private final CircuitBreaker circuitBreaker;
+    private final long memoryAccountingThresholdBytes;
+    /**
+     * Keep-alive duration for the scroll HTTP request currently in flight, set before each execute and cleared after success.
+     */
+    private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
     Version remoteVersion;
 
     public RemoteScrollablePaginatedHitSource(
@@ -62,39 +72,38 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
         Consumer<Exception> fail,
         RestClient client,
         RemoteInfo remoteInfo,
-        SearchRequest searchRequest
-    ) {
-        this(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, client, remoteInfo, searchRequest, null);
-    }
-
-    public RemoteScrollablePaginatedHitSource(
-        Logger logger,
-        BackoffPolicy backoffPolicy,
-        ThreadPool threadPool,
-        Runnable countSearchRetry,
-        Consumer<AsyncResponse> onResponse,
-        Consumer<Exception> fail,
-        RestClient client,
-        RemoteInfo remoteInfo,
         SearchRequest searchRequest,
-        @Nullable Version initialRemoteVersion
+        @Nullable Version initialRemoteVersion,
+        SearchContextKeepaliveDeadline keepaliveDeadline,
+        CircuitBreaker circuitBreaker,
+        long memoryAccountingThresholdBytes
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
         this.searchRequest = searchRequest;
         this.client = client;
         this.remoteVersion = initialRemoteVersion;
+        this.keepaliveDeadline = keepaliveDeadline;
+        this.circuitBreaker = circuitBreaker;
+        this.memoryAccountingThresholdBytes = memoryAccountingThresholdBytes;
     }
 
     @Override
-    protected void doStart(RejectAwareActionListener<Response> searchListener) {
+    protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
+        logger.debug("executing initial remote scroll search");
+        TimeValue scrollKeepAlive = searchRequest.scroll();
+        if (scrollKeepAlive != null) {
+            currentKeepAlive.set(scrollKeepAlive);
+        }
         if (remoteVersion != null) {
             execute(
                 RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
                 RESPONSE_PARSER,
                 RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                 threadPool,
-                client
+                client,
+                circuitBreaker,
+                memoryAccountingThresholdBytes
             );
         } else {
             lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
@@ -104,19 +113,19 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
                     RESPONSE_PARSER,
                     RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
                     threadPool,
-                    client
+                    client,
+                    circuitBreaker,
+                    memoryAccountingThresholdBytes
                 );
-            }), threadPool, client);
+            }), threadPool, client, circuitBreaker, memoryAccountingThresholdBytes);
         }
     }
 
     @Override
-    public void restoreState(WorkerResumeInfo resumeInfo) {
-        assert resumeInfo instanceof ScrollWorkerResumeInfo;
-        var scrollResumeInfo = (ScrollWorkerResumeInfo) resumeInfo;
-        remoteVersion = scrollResumeInfo.remoteVersion();
+    protected void restoreScrollState(ScrollWorkerResumeInfo resumeInfo) {
+        remoteVersion = resumeInfo.remoteVersion();
         assert remoteVersion != null : "remote cluster version must be set to resume remote reindex";
-        setScroll(scrollResumeInfo.scrollId());
+        setScrollId(resumeInfo.scrollId());
     }
 
     public Optional<Version> remoteVersion() {
@@ -127,20 +136,51 @@ public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
     void onStartResponse(RejectAwareActionListener<Response> searchListener, Response response) {
         if (Strings.hasLength(response.getScrollId()) && response.getHits().isEmpty()) {
             logger.debug("First response looks like a scan response. Jumping right to the second. scroll=[{}]", response.getScrollId());
-            doStartNextScroll(response.getScrollId(), timeValueMillis(0), searchListener);
+            recordSuccessfulExtensionFromFlight();
+            setScrollId(response.getScrollId());
+            doNextScrollSearch(response.getScrollId(), timeValueMillis(0), searchListener);
         } else {
+            recordSuccessfulExtensionFromFlight();
             searchListener.onResponse(response);
         }
     }
 
     @Override
-    protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
+    protected void doNextScrollSearch(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         TimeValue keepAlive = timeValueNanos(searchRequest.scroll().nanos() + extraKeepAlive.nanos());
-        execute(RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion), RESPONSE_PARSER, searchListener, threadPool, client);
+        currentKeepAlive.set(keepAlive);
+        execute(
+            RemoteRequestBuilders.scroll(scrollId, keepAlive, remoteVersion),
+            RESPONSE_PARSER,
+            wrapScrollSearchListener(searchListener),
+            threadPool,
+            client,
+            circuitBreaker,
+            memoryAccountingThresholdBytes
+        );
+    }
+
+    private RejectAwareActionListener<Response> wrapScrollSearchListener(RejectAwareActionListener<Response> searchListener) {
+        return RejectAwareActionListener.withResponseHandler(searchListener, r -> {
+            recordSuccessfulExtensionFromFlight();
+            searchListener.onResponse(r);
+        });
+    }
+
+    private void recordSuccessfulExtensionFromFlight() {
+        TimeValue keepAlive = currentKeepAlive.getAndSet(null);
+        if (keepAlive != null) {
+            keepaliveDeadline.recordSuccessfulExtension(keepAlive);
+        }
     }
 
     @Override
-    protected void clearScroll(String scrollId, Runnable onCompletion) {
+    protected void releaseSearchContext(Runnable onCompletion) {
+        String scrollId = getScrollId();
+        if (Strings.hasLength(scrollId) == false) {
+            onCompletion.run();
+            return;
+        }
         client.performRequestAsync(RemoteRequestBuilders.clearScroll(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {

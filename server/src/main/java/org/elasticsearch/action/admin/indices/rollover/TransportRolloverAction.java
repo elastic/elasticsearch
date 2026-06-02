@@ -22,6 +22,7 @@ import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingType;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -160,7 +161,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .matchClosed(request.indicesOptions().expandWildcardsClosed())
                 .build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            IndicesOptions.CrossProjectModeOptions.DEFAULT
+            IndicesOptions.CrossProjectModeOptions.DEFAULT,
+            IndicesOptions.IndexAbstractionOptions.DEFAULT
         );
         ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(request.getRolloverTarget(), request.indicesOptions());
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
@@ -257,7 +259,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
             IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
             IndicesOptions.GatekeeperOptions.DEFAULT,
-            IndicesOptions.CrossProjectModeOptions.DEFAULT
+            IndicesOptions.CrossProjectModeOptions.DEFAULT,
+            IndicesOptions.IndexAbstractionOptions.DEFAULT
         );
         // Make sure to recombine any selectors on the stats request
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(resolvedRolloverTarget.combined())
@@ -618,14 +621,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverTaskContext.success(() -> {
                     // Now assuming we have a new state and the name of the rolled over index, we need to wait for the configured number of
                     // active shards, as well as return the names of the indices that were rolled/created
+                    final var activeShardCount = rolloverRequest.getCreateIndexRequest().waitForActiveShards();
                     ActiveShardsObserver.waitForActiveShards(
                         clusterService,
                         project.id(),
                         new String[] { rolloverIndexName },
-                        rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                        activeShardCount,
                         waitForActiveShardsTimeout,
-                        allocationActionMultiListener.delay(rolloverTask.listener())
-                            .map(
+                        (activeShardCount == ActiveShardCount.NONE // do not wait for reroute in the NONE case
+                            ? rolloverTask.listener()
+                            : allocationActionMultiListener.delay(rolloverTask.listener())).map(
                                 isShardsAcknowledged -> new RolloverResponse(
                                     // Note that we use the actual rollover result for these, because even though we're single threaded,
                                     // it's possible for the rollover names generated before the actual rollover to be different due to
@@ -636,7 +641,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                     false,
                                     true,
                                     true,
-                                    isShardsAcknowledged,
+                                    activeShardCount != ActiveShardCount.NONE && isShardsAcknowledged,
                                     false
                                 )
                             )

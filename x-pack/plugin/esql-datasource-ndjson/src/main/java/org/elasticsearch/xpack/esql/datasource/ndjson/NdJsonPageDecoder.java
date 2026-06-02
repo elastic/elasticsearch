@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.exc.InputCoercionException;
+import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -24,25 +29,61 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Instant;
+import java.nio.CharBuffer;
+import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Parses NDJSON into {@link Page}s for a single input stream.
+ * <p>
+ * <strong>Not thread-safe:</strong> each instance is intended for use by a single consumer (one
+ * {@link NdJsonPageIterator}); do not call {@link #decodePage()} concurrently from multiple threads.
+ */
 public class NdJsonPageDecoder implements Closeable {
 
-    private static final Logger LOGGER = LogManager.getLogger(NdJsonPageDecoder.class);
+    private static final Logger logger = LogManager.getLogger(NdJsonPageDecoder.class);
 
     private InputStream input;
+    /**
+     * Non-null when the decoder is reading from a fully buffered byte array (no {@link InputStream}
+     * indirection); in that case {@link #input} is {@code null} and recovery uses the byte-array
+     * fast path. Streaming-parallel parsing uses this path because every chunk is already a
+     * bounded {@code byte[]} region — going straight to Jackson's {@code createParser(byte[])}
+     * skips the per-call dispatch through {@link InputStream#read} and lets Jackson 2.16+ pick
+     * its small-input fast paths.
+     */
+    private final byte[] sourceBytes;
+    /** Factory used to create (and recreate after recovery) the underlying {@link JsonParser}. */
+    private final JsonFactory jsonFactory;
+    /**
+     * Exclusive end of the readable region in {@link #sourceBytes}. The decoder may read bytes in
+     * the half-open range {@code [parserSliceStart, sourceEnd)}; everything outside it must not
+     * be touched (e.g. when the byte array is a large pooled buffer and only a prefix is data).
+     */
+    private final int sourceEnd;
+    /**
+     * Absolute offset (within {@link #sourceBytes}) where {@link #parser}'s input slice starts;
+     * tracked because {@code JsonParser.getCurrentLocation().getByteOffset()} is relative to the
+     * slice the parser was created over, not to the underlying byte array. Updated each time
+     * {@link #recoverFromParseException} restarts the parser at a later offset.
+     */
+    private int parserSliceStart;
     private final BlockDecoder decoder;
     private final int batchSize;
     private final BlockFactory blockFactory;
@@ -52,113 +93,488 @@ public class NdJsonPageDecoder implements Closeable {
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
     private final BitSet blockTracker;
+    private final ErrorPolicy errorPolicy;
+    private final SkipWarnings skipWarnings;
+    private final NdJsonReaderCounters counters;
+    private long totalRowCount;
+    private long errorCount;
+
+    /**
+     * Lazily allocated for {@link #decodePageLenient} only; reused across rows within this decoder
+     * (avoids per-row {@code new Block.Builder[n]}).
+     */
+    @Nullable
+    private Block.Builder[] lenientScratchBuilders;
+
+    /**
+     * Reused buffer for {@link #appendDecodedScratchRow}; paired with {@link #lenientScratchBuilders}.
+     */
+    @Nullable
+    private Block[] lenientScratchRowBlocks;
+
+    /**
+     * Reused for every keyword field; see {@link #toScratchBytesRef(String)}.
+     */
+    private final BytesRef keywordScratch = new BytesRef(BytesRef.EMPTY_BYTES);
 
     NdJsonPageDecoder(
         InputStream input,
         List<Attribute> attributes,
         List<String> projectedColumns,
         int batchSize,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters
     ) throws IOException {
-        this.input = input;
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            NdJsonUtils.JSON_FACTORY
+        );
+    }
 
-        var projectedAttributes = attributes;
-        if (projectedColumns.isEmpty() == false) {
-            // Keep projected columns in order, adding NULL for missing columns
-            projectedAttributes = projectedColumns.stream()
-                .map(
-                    col -> attributes.stream()
-                        .filter(a -> a.name().equals(col))
-                        .findFirst()
-                        .orElseGet(() -> NdJsonSchemaInferrer.attribute(col, DataType.NULL, false))
-                )
-                .toList();
+    /**
+     * Buffered-bytes constructor for the streaming-parallel path: {@code data[offset .. offset+length)}
+     * is the entire input. Recovery from {@link JsonParseException} stays inside the byte array
+     * (no buffered-bytes shuttling through {@link NdJsonUtils#moveToNextLine}) by scanning for the
+     * next {@code '\n'} from the parser's current byte offset.
+     */
+    NdJsonPageDecoder(
+        byte[] data,
+        int offset,
+        int length,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters
+    ) throws IOException {
+        this(
+            null,
+            data,
+            offset,
+            length,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            counters,
+            NdJsonUtils.JSON_FACTORY
+        );
+    }
+
+    /**
+     * Test-only: accepts an injected {@link JsonFactory} so tests can wrap the created parser in a
+     * delegate (e.g. to count token-advance calls) without reflection. Uses a fresh counters
+     * instance since these tests don't assert on the counter snapshot.
+     */
+    NdJsonPageDecoder(
+        InputStream input,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        JsonFactory factory
+    ) throws IOException {
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonReaderCounters(),
+            factory
+        );
+    }
+
+    private NdJsonPageDecoder(
+        InputStream input,
+        byte[] sourceBytes,
+        int sourceOffset,
+        int sourceLength,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        NdJsonReaderCounters counters,
+        JsonFactory factory
+    ) throws IOException {
+        this.jsonFactory = factory;
+        this.input = input;
+        this.sourceBytes = sourceBytes;
+        if (sourceBytes != null) {
+            Check.isTrue(sourceOffset >= 0, "sourceOffset must be non-negative, got: {}", sourceOffset);
+            Check.isTrue(sourceLength >= 0, "sourceLength must be non-negative, got: {}", sourceLength);
+            int end = Math.addExact(sourceOffset, sourceLength);
+            Check.isTrue(end <= sourceBytes.length, "byte slice [{}, {}) exceeds buffer length {}", sourceOffset, end, sourceBytes.length);
+            this.sourceEnd = end;
+            this.parserSliceStart = sourceOffset;
+        } else {
+            // The default-zero values are unreachable on the InputStream path: every read of these
+            // fields is gated on {@code sourceBytes != null}. Assign explicitly so the dependency is
+            // self-documenting and a future refactor that lifts the gate fails at the source rather
+            // than reading silently from a zero-initialized field.
+            this.sourceEnd = 0;
+            this.parserSliceStart = 0;
+        }
+        Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
+        this.errorPolicy = errorPolicy;
+        this.counters = counters;
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from ["
+                + sourceLocation
+                + "] encountered parse errors handled per policy (policy: "
+                + errorPolicy.modeName()
+                + "); affected rows are listed below"
+        );
+
+        List<Attribute> fullSchema = attributes;
+        // Three projection cases:
+        // - null : caller has no projection info (e.g. metadata path); materialize every attribute.
+        // - empty : optimizer pruned every column (COUNT(*) and similar); produce row-count-only Pages.
+        // - other : project the listed columns in the requested order, with NULL for missing names.
+        List<Attribute> projectedAttributes;
+        if (projectedColumns == null) {
+            projectedAttributes = attributes;
+        } else if (projectedColumns.isEmpty()) {
+            projectedAttributes = List.of();
+        } else {
+            // Build the lookup map once: O(N) here vs. O(N*M) for a per-projection nested scan,
+            // which matters on wide schemas (the NYC taxis fixture has 100+ columns). putIfAbsent
+            // preserves the first-wins semantics of the prior findFirst() call so a schema with
+            // duplicated names (rare, but legal) keeps the same attribute the optimizer would have
+            // picked. We never iterate the map, so HashMap suffices (no LinkedHashMap overhead).
+            // Capacity 2*N keeps us safely above the 0.75 load factor for at most N entries.
+            Map<String, Attribute> byName = new HashMap<>(attributes.size() * 2);
+            for (Attribute a : attributes) {
+                byName.putIfAbsent(a.name(), a);
+            }
+            var resolved = new ArrayList<Attribute>(projectedColumns.size());
+            for (String col : projectedColumns) {
+                Attribute match = byName.get(col);
+                resolved.add(match != null ? match : NdJsonSchemaInferrer.attribute(col, DataType.NULL, false));
+            }
+            projectedAttributes = resolved;
         }
 
-        this.decoder = prepareSchema(projectedAttributes);
+        this.decoder = prepareSchema(projectedAttributes, fullSchema);
         this.batchSize = batchSize;
         this.blockFactory = blockFactory;
         this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
 
-        this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
+        if (sourceBytes != null) {
+            this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
+        } else {
+            this.parser = factory.createParser(input);
+        }
+    }
+
+    private void recoverFromParseException(JsonParser failedParser) throws IOException {
+        if (sourceBytes != null) {
+            int next = nextLineStartByteAfter(failedParser);
+            failedParser.close();
+            this.parserSliceStart = next;
+            this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
+        } else {
+            this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
+            this.parser = jsonFactory.createParser(this.input);
+        }
+    }
+
+    /**
+     * Returns the absolute byte offset (into {@link #sourceBytes}) of the start of the line
+     * following the failed parser's current position (the byte after the next {@code '\n'} or
+     * {@code '\r'}, or {@link #sourceEnd} on EOF). The new parser created from this offset will
+     * not re-encounter the malformed line. {@code getByteOffset()} is added to
+     * {@link #parserSliceStart} because it is relative to the slice the failed parser was created
+     * over, not to {@link #sourceBytes}. Both LF and CR terminate a line so the byte-array path
+     * handles the same record terminators as {@link NdJsonUtils#moveToNextLine}.
+     */
+    private int nextLineStartByteAfter(JsonParser failedParser) {
+        long sliceOffsetLong = failedParser.getCurrentLocation().getByteOffset();
+        // getByteOffset() returns -1 only for non-byte-backed sources; we always pass byte[].
+        int sliceOffset = sliceOffsetLong < 0 ? (sourceEnd - parserSliceStart) : Math.toIntExact(sliceOffsetLong);
+        int from = Math.min(parserSliceStart + sliceOffset, sourceEnd);
+        for (int i = from; i < sourceEnd; i++) {
+            byte b = sourceBytes[i];
+            if (b == '\n') {
+                return i + 1;
+            }
+            if (b == '\r') {
+                // Consume an immediately-following LF so CRLF advances by two bytes (matches the
+                // streaming-side scanForTerminator semantics).
+                if (i + 1 < sourceEnd && sourceBytes[i + 1] == '\n') {
+                    return i + 2;
+                }
+                return i + 1;
+            }
+        }
+        return sourceEnd;
+    }
+
+    /**
+     * Whole-line JSON failures always drop the line. {@link ErrorPolicy.Mode#NULL_FIELD} is treated
+     * like {@link ErrorPolicy.Mode#SKIP_ROW} here; per-field null-fill would require partial decode support.
+     */
+    private void onNdjsonLineParseError(JsonParseException e, long logicalRowIndex, String phaseLabel) {
+        if (errorPolicy.isStrict()) {
+            throw new EsqlIllegalArgumentException(e, "Malformed NDJSON [{}]: {}", phaseLabel, e.getOriginalMessage());
+        }
+        errorCount++;
+        skipWarnings.add(
+            (e instanceof JsonEOFException ? "Truncated" : "Malformed")
+                + " NDJSON at logical row ["
+                + logicalRowIndex
+                + "] ("
+                + phaseLabel
+                + "): "
+                + e.getOriginalMessage()
+        );
+        if (errorPolicy.isBudgetExceeded(errorCount, totalRowCount)) {
+            // Surface the budget-exceeded condition as a warning so clients see exactly what tripped it.
+            skipWarnings.add(
+                "NDJSON error budget exceeded at row ["
+                    + totalRowCount
+                    + "]: ["
+                    + errorCount
+                    + "] errors, maximum ["
+                    + errorPolicy.maxErrors()
+                    + "] or ratio ["
+                    + errorPolicy.maxErrorRatio()
+                    + "]"
+            );
+            throw new EsqlIllegalArgumentException(
+                "NDJSON error budget exceeded: [{}] errors in [{}] rows, maximum allowed is [{}] errors or [{}] ratio",
+                errorCount,
+                totalRowCount,
+                errorPolicy.maxErrors(),
+                errorPolicy.maxErrorRatio()
+            );
+        }
+        logger.log(
+            errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
+            LoggerMessageFormat.format(
+                "{} NDJSON at logical row [{}] ({}): {}",
+                e instanceof JsonEOFException ? "Truncated" : "Malformed",
+                logicalRowIndex,
+                phaseLabel,
+                e.getOriginalMessage()
+            )
+        );
     }
 
     Page decodePage() throws IOException {
-        var blockBuilders = new Block.Builder[this.projectedAttributes.size()];
+        long startNanos = System.nanoTime();
+        long startTotalRowCount = totalRowCount;
+        long startErrorCount = errorCount;
+        var blockBuilders = new Block.Builder[projectedAttributes.size()];
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
-            this.decoder.setupBuilders(blockBuilders);
-
-            int lineCount = 0;
-            while (lineCount < batchSize) {
-                try {
-                    if (parser.nextToken() == null) {
-                        break; // End of stream
-                    }
-                } catch (JsonParseException e) {
-                    LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
-                    this.input = NdJsonUtils.moveToNextLine(parser, this.input);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
-                    continue;
-                }
-
-                lineCount++;
-                this.blockTracker.clear();
-
-                try {
-                    decoder.decodeObject(parser);
-                } catch (JsonParseException e) {
-                    LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
-                    this.input = NdJsonUtils.moveToNextLine(parser, this.input);
-                    parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
-                }
-
-                // Make sure every block got moved forward
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    if (blockTracker.get(i) == false) {
-                        blockBuilders[i].appendNull();
-                    }
-                }
-            }
-
-            if (lineCount == 0) {
-                // Done
-                return null;
-            }
-
-            var blocks = new Block[this.projectedAttributes.size()];
-            var success = false;
-            try {
-                for (int i = 0; i < blockBuilders.length; i++) {
-                    blocks[i] = blockBuilders[i].build();
-                }
-                success = true;
-            } finally {
-                if (success == false) {
-                    // Some blocks may have been created
-                    Releasables.close(blocks);
-                }
-            }
-            return new Page(blocks);
-
+            decoder.setupBuilders(blockBuilders);
+            return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
         } finally {
             Releasables.close(blockBuilders);
+            long deltaTotal = totalRowCount - startTotalRowCount;
+            long deltaErrors = errorCount - startErrorCount;
+            counters.addRowsEmitted(deltaTotal - deltaErrors);
+            counters.addParseErrors(deltaErrors);
+            counters.addReadNanos(System.nanoTime() - startNanos);
+        }
+    }
+
+    /**
+     * {@link ErrorPolicy.Mode#FAIL_FAST}: abort on the first {@link JsonParseException} on a line
+     * (no recovery, no scratch-row path).
+     */
+    private Page decodePageFailFast(Block.Builder[] blockBuilders) throws IOException {
+        int lineCount = 0;
+        while (lineCount < batchSize) {
+            try {
+                if (parser.nextToken() == null) {
+                    break; // End of stream
+                }
+            } catch (JsonParseException e) {
+                totalRowCount++;
+                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+            }
+
+            totalRowCount++;
+            this.blockTracker.clear();
+
+            try {
+                decoder.decodeObject(parser, false);
+            } catch (JsonParseException e) {
+                onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+            }
+
+            lineCount++;
+            for (int i = 0; i < blockBuilders.length; i++) {
+                if (blockTracker.get(i) == false) {
+                    blockBuilders[i].appendNull();
+                }
+            }
+        }
+        return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    /**
+     * Lenient modes: skip bad lines up to the error budget, using scratch builders so partial rows
+     * are never committed to the page.
+     */
+    private Page decodePageLenient(Block.Builder[] blockBuilders) throws IOException {
+        ensureLenientScratchBuffers();
+        final Block.Builder[] rowScratch = lenientScratchBuilders;
+        if (rowScratch == null) {
+            throw new EsqlIllegalArgumentException("lenient scratch builders missing after ensureLenientScratchBuffers");
+        }
+
+        int lineCount = 0;
+        while (lineCount < batchSize) {
+            try {
+                if (parser.nextToken() == null) {
+                    break; // End of stream
+                }
+            } catch (JsonParseException e) {
+                totalRowCount++;
+                onNdjsonLineParseError(e, totalRowCount, "nextToken");
+                recoverFromParseException(parser);
+                continue;
+            }
+
+            totalRowCount++;
+            this.blockTracker.clear();
+
+            try {
+                decoder.setupBuilders(rowScratch);
+                try {
+                    decoder.decodeObject(parser, false);
+                } catch (JsonParseException e) {
+                    onNdjsonLineParseError(e, totalRowCount, "decodeObject");
+                    recoverFromParseException(parser);
+                    continue;
+                }
+                for (int i = 0; i < rowScratch.length; i++) {
+                    if (blockTracker.get(i) == false) {
+                        rowScratch[i].appendNull();
+                    }
+                }
+                appendDecodedScratchRow(blockBuilders, rowScratch);
+            } finally {
+                Releasables.close(rowScratch);
+            }
+
+            lineCount++;
+        }
+        return buildPageFromBuildersOrNull(blockBuilders, lineCount);
+    }
+
+    private void ensureLenientScratchBuffers() {
+        if (lenientScratchBuilders == null) {
+            lenientScratchBuilders = new Block.Builder[projectedAttributes.size()];
+            lenientScratchRowBlocks = new Block[projectedAttributes.size()];
+        }
+    }
+
+    private Page buildPageFromBuildersOrNull(Block.Builder[] blockBuilders, int lineCount) {
+        if (lineCount == 0) {
+            return null;
+        }
+        // Row-count-only Page (zero-column projection, e.g. COUNT(*)). new Page(Block[]) rejects an
+        // empty block array, so route through the explicit positionCount constructor.
+        if (blockBuilders.length == 0) {
+            return new Page(lineCount);
+        }
+
+        var blocks = new Block[this.projectedAttributes.size()];
+        var success = false;
+        try {
+            for (int i = 0; i < blockBuilders.length; i++) {
+                blocks[i] = blockBuilders[i].build();
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(blocks);
+            }
+        }
+        return new Page(blocks);
+    }
+
+    /**
+     * Copies one fully decoded logical row from per-line scratch builders into the page builders.
+     * Scratch builders are {@link Block.Builder#build() built} and released; callers still close
+     * any non-built scratch builders via {@link Releasables#close}.
+     */
+    private void appendDecodedScratchRow(Block.Builder[] pageBuilders, Block.Builder[] scratchBuilders) {
+        final int columns = scratchBuilders.length;
+        Block[] rowBlocks = lenientScratchRowBlocks;
+        if (rowBlocks == null) {
+            throw new EsqlIllegalArgumentException("lenient scratch row blocks missing after ensureLenientScratchBuffers");
+        }
+        try {
+            for (int i = 0; i < columns; i++) {
+                rowBlocks[i] = scratchBuilders[i].build();
+            }
+            for (int i = 0; i < columns; i++) {
+                pageBuilders[i].copyFrom(rowBlocks[i], 0, 1);
+            }
+        } finally {
+            for (int i = 0; i < columns; i++) {
+                Releasables.close(rowBlocks[i]);
+                rowBlocks[i] = null;
+            }
         }
     }
 
     // Prepare the tree of property decoders and return the root decoder.
-    private BlockDecoder prepareSchema(List<Attribute> attributes) {
+    private BlockDecoder prepareSchema(List<Attribute> projected, List<Attribute> fullSchema) {
         BlockDecoder root = new BlockDecoder();
         int idx = 0;
-        for (var attribute : attributes) {
-            var decoder = root;
-            var path = attribute.name().split("\\.");
-            for (var part : path) {
-                if (decoder.children == null) {
-                    decoder.children = new HashMap<>();
+        for (var attribute : projected) {
+            String name = attribute.name();
+            BlockDecoder decoder;
+            if (hasDottedPrefixConflict(name, fullSchema)) {
+                // CSV-style flat keys such as "languages.long" are single JSON field names; they cannot be reached
+                // via a nested "languages" object when "languages" is also a scalar column.
+                if (root.children == null) {
+                    root.children = new HashMap<>();
                 }
-                decoder = decoder.children.computeIfAbsent(part, k -> new BlockDecoder());
+                decoder = root.children.computeIfAbsent(name, k -> new BlockDecoder());
+            } else {
+                decoder = root;
+                var path = name.split("\\.");
+                for (var part : path) {
+                    if (decoder.children == null) {
+                        decoder.children = new HashMap<>();
+                    }
+                    decoder = decoder.children.computeIfAbsent(part, k -> new BlockDecoder());
+                }
             }
             decoder.setAttribute(attribute, idx);
             idx++;
@@ -166,30 +582,68 @@ public class NdJsonPageDecoder implements Closeable {
         return root;
     }
 
+    /**
+     * Whether {@code name} is a dotted field that shares a prefix with another attribute (e.g. {@code languages}
+     * vs {@code languages.long}). In that case the NDJSON uses a single field name equal to the full attribute name.
+     */
+    private static boolean hasDottedPrefixConflict(String name, List<Attribute> attributes) {
+        for (var other : attributes) {
+            String o = other.name();
+            if (name.equals(o) == false && name.startsWith(o + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Encode {@code value} as UTF-8 into {@link #keywordScratch}, growing the backing array on demand,
+     * and return the scratch view. Callers must pass the returned {@link BytesRef} straight to a sink
+     * that copies the bytes synchronously (e.g. {@link BytesRefBlock.Builder#appendBytesRef}, which
+     * delegates to {@link org.elasticsearch.common.util.BytesRefArray#append(BytesRef)} and copies
+     * before returning); the next call to this method overwrites the scratch.
+     */
+    private BytesRef toScratchBytesRef(CharSequence value) {
+        int maxLen = UnicodeUtil.maxUTF8Length(value.length());
+        if (keywordScratch.bytes.length < maxLen) {
+            keywordScratch.bytes = new byte[maxLen];
+        }
+        keywordScratch.offset = 0;
+        keywordScratch.length = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), keywordScratch.bytes);
+        return keywordScratch;
+    }
+
     @Override
     public void close() throws IOException {
-        IOUtils.close(input);
+        // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
+        // We also close `parser` so its internal buffers (small but real) are released on the byte-array
+        // path, where there is no `input` to close. AUTO_CLOSE_SOURCE is disabled on the shared
+        // JsonFactory, so closing the parser does not double-close the wrapping codec stream.
+        IOUtils.close(parser, input);
         input = null;
+        parser = null;
     }
 
     // ---------------------------------------------------------------------------------------------
     // A tree of decoders. Avoids path reconstruction when traversing nested objects.
     private class BlockDecoder {
         @Nullable
-        Attribute attribute;
-        Block.Builder blockBuilder;
+        DataType dataType;
+        String name;
         int blockIdx;
+        Block.Builder blockBuilder;
         Map<String, BlockDecoder> children;
 
         void setAttribute(Attribute attribute, int blockIdx) {
-            this.attribute = attribute;
+            this.dataType = attribute.dataType();
+            this.name = attribute.name();
             this.blockIdx = blockIdx;
         }
 
         // Builders setup independently as we need to create new ones for each page.
         void setupBuilders(Block.Builder[] blockBuilders) {
-            if (attribute != null) {
-                blockBuilder = switch (attribute.dataType()) {
+            if (dataType != null) {
+                blockBuilder = switch (dataType) {
                     // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
                     case BOOLEAN -> blockFactory.newBooleanBlockBuilder(batchSize);
                     case NULL -> new ConstantNullBlock.Builder(blockFactory);
@@ -198,7 +652,7 @@ public class NdJsonPageDecoder implements Closeable {
                     case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
                     case KEYWORD -> blockFactory.newBytesRefBlockBuilder(batchSize);
                     case DATETIME -> blockFactory.newLongBlockBuilder(batchSize); // milliseconds since epoch
-                    default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
+                    default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
                 };
                 blockBuilders[blockIdx] = blockBuilder;
             }
@@ -210,106 +664,193 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
-        private void decodeObject(JsonParser parser) throws IOException {
-            JsonToken token = parser.currentToken();
-            if (token != JsonToken.START_OBJECT) {
+        private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
+            if (parser.currentToken() != JsonToken.START_OBJECT) {
                 throw new NdJsonParseException(parser, "Expected JSON object");
             }
-            while ((token = parser.nextToken()) != JsonToken.END_OBJECT) {
-                if (token != JsonToken.FIELD_NAME) {
-                    throw new NdJsonParseException(parser, "Expected field name in object");
-                }
-                var childDecoder = this.children == null ? null : this.children.get(parser.currentName());
+            String fieldName;
+            while ((fieldName = parser.nextFieldName()) != null) {
+                var childDecoder = this.children == null ? null : this.children.get(fieldName);
                 parser.nextToken();
                 if (childDecoder == null) {
-                    // Unknown field, skip it
+                    // Unknown/unprojected field: advance to its value then skip (no decode).
+                    // For string values nextFieldName() uses _skipString() internally on the next
+                    // call, so we avoid _finishString2 for non-projected string fields.
                     parser.skipChildren();
                 } else {
-                    childDecoder.decodeValue(parser);
+                    childDecoder.decodeValue(parser, inArray);
                 }
             }
         }
 
-        private void decodeValue(JsonParser parser) throws IOException {
-            JsonToken token = parser.currentToken();
-            blockTracker.set(blockIdx);
-            if (token == JsonToken.START_ARRAY) {
-                this.blockBuilder.beginPositionEntry();
-                while (parser.nextToken() != JsonToken.END_ARRAY) {
-                    decodeValue(parser);
+        /**
+         * @param includeChildren when {@code true}, also begins MV entries on child decoders. Use this only for JSON
+         *        arrays of objects (e.g. {@code [{"a":1},{"a":2}]}) where every child column shares one MV slot per
+         *        element. For arrays of primitives (e.g. {@code salary_change} as doubles while {@code salary_change.int}
+         *        is a separate top-level field), {@code false} so children are not opened for values they will never
+         *        receive from this array.
+         */
+        private void beginPositionEntry(boolean includeChildren) {
+            // We may have DataType.NULL for unknown columns. And NullBlock.Builder throws on beginPositionEntry()
+            if (blockBuilder != null && dataType != DataType.NULL) {
+                blockBuilder.beginPositionEntry();
+            }
+            if (includeChildren && children != null) {
+                for (var child : children.values()) {
+                    child.beginPositionEntry(includeChildren);
                 }
-                this.blockBuilder.endPositionEntry();
+            }
+        }
+
+        private void endPositionEntry(boolean includeChildren) {
+            if (blockBuilder != null && dataType != DataType.NULL) {
+                blockBuilder.endPositionEntry();
+            }
+            if (includeChildren && children != null) {
+                for (var child : children.values()) {
+                    child.endPositionEntry(includeChildren);
+                }
+            }
+        }
+
+        /**
+         * An empty JSON array {@code []} must not run {@link Block.Builder#beginPositionEntry()} with no values:
+         * {@link org.elasticsearch.compute.data.AbstractBlockBuilder#endPositionEntry()} asserts on empty multi-value
+         * slots. Treat {@code []} like a missing field for every leaf column under this decoder subtree.
+         */
+        private void appendNullsForEmptyArray() {
+            if (blockBuilder != null) {
+                if (dataType != DataType.NULL) {
+                    blockTracker.set(blockIdx);
+                    blockBuilder.appendNull();
+                }
+            } else if (children != null) {
+                for (var child : children.values()) {
+                    child.appendNullsForEmptyArray();
+                }
+            }
+        }
+
+        private void decodeValue(JsonParser parser, boolean inArray) throws IOException {
+            JsonToken token = parser.currentToken();
+
+            if (dataType == DataType.NULL) {
+                // Don't do anything. We must do a single appendNull() on null blocks, this will be done
+                // at the end of decodePage() when we check that all blocks have moved forward.
+                parser.skipChildren();
                 return;
             }
 
+            if (token == JsonToken.START_ARRAY) {
+                // Start a multi-value entry on this decoder and all its children (nested arrays are flattened).
+                // Note: the `inArray` flag is needed because blockBuilder.beginPositionEntry() is not idempotent.
+                // Calling it twice implicitly calls endPositionEntry().
+                if (!inArray) {
+                    JsonToken first = parser.nextToken();
+                    if (first == JsonToken.END_ARRAY) {
+                        appendNullsForEmptyArray();
+                        return;
+                    }
+                    boolean includeChildren = first == JsonToken.START_OBJECT;
+                    beginPositionEntry(includeChildren);
+                    decodeValue(parser, true);
+                    while (parser.nextToken() != JsonToken.END_ARRAY) {
+                        decodeValue(parser, true);
+                    }
+                    endPositionEntry(includeChildren);
+                    return;
+                }
+                while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    decodeValue(parser, true);
+                }
+                return;
+            }
+
+            if (token == JsonToken.START_OBJECT) {
+                decodeObject(parser, inArray);
+                return;
+            }
+
+            blockTracker.set(blockIdx);
             if (token == JsonToken.VALUE_NULL) {
-                blockBuilder.appendNull();
+                // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
+                if (inArray == false) {
+                    blockBuilder.appendNull();
+                }
                 return;
             }
 
-            switch (attribute.dataType()) {
+            switch (dataType) {
                 case BOOLEAN -> {
                     if (token == JsonToken.VALUE_TRUE) {
                         ((BooleanBlock.Builder) blockBuilder).appendBoolean(true);
                     } else if (token == JsonToken.VALUE_FALSE) {
                         ((BooleanBlock.Builder) blockBuilder).appendBoolean(false);
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case NULL -> {
                     // NULL handled above
-                    unexpectedValue(parser);
+                    unexpectedValue(blockBuilder, parser, inArray);
                 }
                 case INTEGER -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                        try {
+                            ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                        } catch (InputCoercionException e) {
+                            unexpectedValue(blockBuilder, parser, inArray);
+                        }
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case LONG -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                        try {
+                            ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
+                        } catch (InputCoercionException e) {
+                            unexpectedValue(blockBuilder, parser, inArray);
+                        }
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case DOUBLE -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
-                        ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
+                        try {
+                            ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
+                        } catch (InputCoercionException e) {
+                            unexpectedValue(blockBuilder, parser, inArray);
+                        }
                     } else {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case DATETIME -> {
                     try {
-                        var millis = Instant.parse(parser.getValueAsString()).toEpochMilli();
+                        var millis = NdJsonSchemaInferrer.DATE_FORMATTER.parseMillis(parser.getValueAsString());
                         ((LongBlock.Builder) blockBuilder).appendLong(millis);
                     } catch (Exception e) {
-                        unexpectedValue(parser);
+                        unexpectedValue(blockBuilder, parser, inArray);
                     }
                 }
                 case KEYWORD -> {
-                    // Be lenient, this is a catch-all type
-                    var str = parser.getValueAsString();
-                    if (str != null) {
-                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(str));
-                    } else {
-                        unexpectedValue(parser);
-                    }
+                    var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
                 }
-                default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
+                default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             }
         }
 
-        private void unexpectedValue(JsonParser parser) throws IOException {
-            LOGGER.warn(
-                "Unexpected token type: {} for attribute: {} at {}",
-                parser.currentToken(),
-                attribute.name(),
-                parser.getTokenLocation()
-            );
+        private void unexpectedValue(Block.Builder builder, JsonParser parser, boolean inArray) throws IOException {
+            // Append a null and log the problem
+            if (inArray == false) {
+                // See previous comment about nulls and arrays
+                builder.appendNull();
+            }
+
+            logger.debug("Unexpected token type: {} for attribute: {} at {}", parser.currentToken(), name, parser.getTokenLocation());
             // Ignore any children to keep reading other values
             parser.skipChildren();
         }

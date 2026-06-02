@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
@@ -75,6 +76,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         "Categorize",
         Categorize::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Categorize.class).binary(Categorize::new).name("categorize");
     private static final TransportVersion ESQL_CATEGORIZE_OPTIONS = TransportVersion.fromName("esql_categorize_options");
 
     private static final String ANALYZER = "analyzer";
@@ -102,6 +104,17 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                 file = "docs",
                 tag = "docsCategorize",
                 description = "This example categorizes server logs messages into categories and aggregates their counts. "
+            ),
+            @Example(
+                file = "docs",
+                tag = "docsCategorizeByTime",
+                description = "Group log message categories by time interval by combining "
+                    + "`CATEGORIZE` with `BUCKET` in the same `BY` clause. "
+            ),
+            @Example(
+                file = "docs",
+                tag = "docsCategorizeBySample",
+                description = "Surface one representative raw message per category by combining `CATEGORIZE` with `SAMPLE`. "
             ) },
         type = FunctionType.GROUPING,
         appliesTo = {

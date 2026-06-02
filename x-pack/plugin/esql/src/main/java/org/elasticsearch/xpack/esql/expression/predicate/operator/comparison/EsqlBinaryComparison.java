@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -213,9 +213,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        EvalOperator.ExpressionEvaluator.Factory lhs;
-        EvalOperator.ExpressionEvaluator.Factory rhs;
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        ExpressionEvaluator.Factory lhs;
+        ExpressionEvaluator.Factory rhs;
 
         // Special cases for mixed nanosecond and millisecond comparisions
         if (left().dataType() == DataType.DATE_NANOS && right().dataType() == DataType.DATETIME) {
@@ -324,7 +324,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         return DataType.isNull(leftType)
             || DataType.isNull(rightType)
             || (rightType == UNSIGNED_LONG && leftType == UNSIGNED_LONG)
-            || (leftType.isNumeric() && rightType.isNumeric() && leftType != UNSIGNED_LONG && rightType != UNSIGNED_LONG)
+            || (leftType.isNumericOrAmd() && rightType.isNumericOrAmd() && leftType != UNSIGNED_LONG && rightType != UNSIGNED_LONG)
             || (DataType.isString(leftType) && DataType.isString(rightType))
             || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
             || leftType.equals(rightType);
@@ -363,7 +363,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
             // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
-            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // a "warning" header, as well (see EqualsBytesRefEvaluator, for example, where lhs and rhs are both dealt with equally when
             // it comes to multi-value handling).
             if (lit.value() instanceof Collection<?>) {
                 return Translatable.NO;

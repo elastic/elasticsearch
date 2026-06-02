@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -28,7 +30,7 @@ import java.time.Instant;
  * - Range reads via RandomAccessFile for columnar formats
  * - File metadata (size, last modified)
  */
-public final class LocalStorageObject implements StorageObject {
+public final class LocalStorageObject extends AbstractMeteredStorageObject {
     private final Path filePath;
     private final StoragePath storagePath;
 
@@ -57,15 +59,22 @@ public final class LocalStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        if (Files.exists(filePath) == false) {
-            throw new IOException("File does not exist: " + filePath);
-        }
-
+        checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
-
-        return Files.newInputStream(filePath);
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
+        try {
+            InputStream stream = Files.newInputStream(filePath);
+            if (cachedLength == null) {
+                cachedLength = Files.size(filePath);
+            }
+            bytes = cachedLength;
+            return stream;
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
+        }
     }
 
     @Override
@@ -76,23 +85,49 @@ public final class LocalStorageObject implements StorageObject {
         if (length < 0) {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
-
-        if (Files.exists(filePath) == false) {
-            throw new IOException("File does not exist: " + filePath);
-        }
-
+        checkFileExists();
         if (Files.isRegularFile(filePath) == false) {
             throw new IOException("Path is not a regular file: " + filePath);
         }
+        long startNanos = System.nanoTime();
+        try {
+            return new RangeInputStream(filePath, position, length);
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, length);
+        }
+    }
 
-        // Use RandomAccessFile for efficient range reads
-        return new RangeInputStream(filePath, position, length);
+    /**
+     * Reads directly into the target ByteBuffer using positional {@link FileChannel} I/O
+     * via {@link org.elasticsearch.common.io.Channels#readFromFileChannel}.
+     * Both heap and direct buffers are handled natively by the OS with no intermediate copies.
+     */
+    @Override
+    public int readBytes(long position, ByteBuffer target) throws IOException {
+        if (target.hasRemaining() == false) {
+            return 0;
+        }
+        checkFileExists();
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
+        try (FileChannel ch = FileChannel.open(filePath, StandardOpenOption.READ)) {
+            int startPos = target.position();
+            org.elasticsearch.common.io.Channels.readFromFileChannel(ch, position, target);
+            int bytesRead = target.position() - startPos;
+            bytes = bytesRead;
+            return bytesRead == 0 ? -1 : bytesRead;
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
+        }
     }
 
     @Override
     public long length() throws IOException {
         if (cachedLength == null) {
             fetchMetadata();
+        }
+        if (cachedExists == Boolean.FALSE) {
+            throw new NoSuchFileException(filePath.toString());
         }
         return cachedLength;
     }
@@ -101,6 +136,9 @@ public final class LocalStorageObject implements StorageObject {
     public Instant lastModified() throws IOException {
         if (cachedLastModified == null) {
             fetchMetadata();
+        }
+        if (cachedExists == Boolean.FALSE) {
+            throw new NoSuchFileException(filePath.toString());
         }
         return cachedLastModified;
     }
@@ -118,14 +156,20 @@ public final class LocalStorageObject implements StorageObject {
         return storagePath;
     }
 
+    private void checkFileExists() throws NoSuchFileException {
+        if (Files.exists(filePath) == false) {
+            throw new NoSuchFileException(filePath.toString());
+        }
+    }
+
     private void fetchMetadata() throws IOException {
         if (Files.exists(filePath)) {
-            cachedExists = true;
+            cachedExists = Boolean.TRUE;
             BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
             cachedLength = attrs.size();
             cachedLastModified = attrs.lastModifiedTime().toInstant();
         } else {
-            cachedExists = false;
+            cachedExists = Boolean.FALSE;
             cachedLength = 0L;
             cachedLastModified = null;
         }

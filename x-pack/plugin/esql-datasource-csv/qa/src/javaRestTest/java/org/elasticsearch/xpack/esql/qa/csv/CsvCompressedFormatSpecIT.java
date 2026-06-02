@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.csv;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -19,11 +20,13 @@ import org.junit.ClassRule;
 import java.util.List;
 
 /**
- * Parameterized integration tests for gzip-compressed CSV files (.csv.gz).
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS).
+ * Parameterized integration tests for compressed CSV files (.csv.gz, .csv.zst, .csv.zstd, .csv.bz2, .csv.bz).
+ * Each csv-spec test is run against every configured storage backend and compression format.
  */
-@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+
+    private static final List<String> COMPRESSED_FORMATS = List.of("csv.gz", "csv.zst", "csv.zstd", "csv.bz2", "csv.bz");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
@@ -35,9 +38,10 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
         Integer lineNumber,
         CsvTestCase testCase,
         String instructions,
+        String format,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "csv.gz");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, format);
     }
 
     @Override
@@ -45,8 +49,19 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-basic.csv-spec");
+        // external-basic / external-multifile read the multi-value employees fixture, which does not
+        // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic),
+        // csv-headerless, and csv-multifile (both opt into brackets explicitly where they read bracket
+        // data) to restore the equivalent coverage.
+        return readExternalSpecTestsWithFormats(
+            COMPRESSED_FORMATS,
+            "/csv-basic.csv-spec",
+            "/csv-headerless.csv-spec",
+            "/csv-multifile.csv-spec",
+            "/csv-multifile-resolution.csv-spec",
+            "/csv-multivalue.csv-spec"
+        );
     }
 }

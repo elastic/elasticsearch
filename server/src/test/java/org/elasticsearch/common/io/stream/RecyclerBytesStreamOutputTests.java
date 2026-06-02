@@ -11,6 +11,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Assertions;
@@ -1555,19 +1558,120 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteAllBytesFrom() throws IOException {
-        final var bytes = randomBytesReference(between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        final var bytes = randomTestBytesReference();
         try (var out = new RecyclerBytesStreamOutput(recycler)) {
-            if (randomBoolean()) {
-                out.writeAllBytesFrom(bytes.streamInput());
-            } else {
-                var remaining = bytes;
-                while (remaining.length() > 0) {
-                    var thisSlice = remaining.slice(0, between(1, remaining.length()));
-                    remaining = remaining.slice(thisSlice.length(), remaining.length() - thisSlice.length());
-                    out.writeAllBytesFrom(thisSlice.streamInput());
-                }
-            }
+            writeAllBytesRandomSlices(out, bytes);
             assertThat(out.bytes(), equalBytes(bytes));
         }
+    }
+
+    public void testCircuitBreakerTracking() throws IOException {
+        final var bytes = randomTestBytesReference();
+        final var expectedAllocation = getExpectedAllocation(bytes.length());
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedAllocation + getRandomLeeway()));
+        try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
+            writeAllBytesRandomSlices(out, bytes);
+            assertThat(out.bytes(), equalBytes(bytes));
+            assertThat(circuitBreaker.getUsed(), equalTo(expectedAllocation));
+        }
+
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerMoveToBytesReference() throws IOException {
+        final var bytes = randomTestBytesReference();
+        final var expectedTracked = getExpectedAllocation(bytes.length());
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(expectedTracked + getRandomLeeway()));
+        final ReleasableBytesReference actualBytes;
+        try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
+            writeAllBytesRandomSlices(out, bytes);
+            assertThat(circuitBreaker.getUsed(), equalTo(expectedTracked));
+            actualBytes = out.moveToBytesReference();
+            assertThat(circuitBreaker.getUsed(), equalTo(expectedTracked));
+        }
+
+        assertThat(circuitBreaker.getUsed(), equalTo(expectedTracked));
+        assertThat(actualBytes, equalBytes(bytes));
+        actualBytes.close();
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerTripping() {
+        final var bytes = randomTestBytesReference();
+        final var expectedTracked = getExpectedAllocation(bytes.length());
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(randomLongBetween(0L, expectedTracked - 1L)));
+
+        expectThrows(CircuitBreakingException.class, () -> {
+            try (var out = new RecyclerBytesStreamOutput(recycler, circuitBreaker)) {
+                writeAllBytesRandomSlices(out, bytes);
+            }
+        });
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    public void testCircuitBreakerReleaseOnRecyclerFailure() {
+        final var bytes = randomBytesReference(between(PageCacheRecycler.BYTE_PAGE_SIZE * 3 + 1, PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+        assertEquals(PageCacheRecycler.BYTE_PAGE_SIZE * 4L, getExpectedAllocation(bytes.length()));
+        final var circuitBreaker = new LimitedBreaker("test", ByteSizeValue.ofBytes(PageCacheRecycler.BYTE_PAGE_SIZE * 4));
+
+        final var failingRecycler = new Recycler<BytesRef>() {
+            int pagesLeft = between(0, 3);
+
+            @Override
+            public V<BytesRef> obtain() {
+                if (pagesLeft == 0) {
+                    throw new RuntimeException("simulated recycler failure");
+                }
+                pagesLeft -= 1;
+                return recycler.obtain();
+            }
+
+            @Override
+            public int pageSize() {
+                return recycler.pageSize();
+            }
+        };
+
+        expectThrows(RuntimeException.class, () -> {
+            try (var out = new RecyclerBytesStreamOutput(failingRecycler, circuitBreaker)) {
+                writeAllBytesRandomSlices(out, bytes);
+            }
+        });
+        assertThat(circuitBreaker.getUsed(), equalTo(0L));
+    }
+
+    private static void writeAllBytesRandomSlices(RecyclerBytesStreamOutput out, BytesReference bytes) throws IOException {
+        if (randomBoolean()) {
+            out.writeAllBytesFrom(bytes.streamInput());
+        } else {
+            var remaining = bytes;
+            while (remaining.length() > 0) {
+                var thisSlice = remaining.slice(0, between(1, remaining.length()));
+                remaining = remaining.slice(thisSlice.length(), remaining.length() - thisSlice.length());
+                out.writeAllBytesFrom(thisSlice.streamInput());
+            }
+        }
+    }
+
+    /// @return a random [BytesReference], often with a size close to a multiple of the page size to better exercise corner cases.
+    private static BytesReference randomTestBytesReference() {
+        return randomBytesReference(
+            randomBoolean()
+                ? between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4)
+                : Math.max(0, between(0, 4) * PageCacheRecycler.BYTE_PAGE_SIZE + between(-2, 2))
+        );
+    }
+
+    /// @return the expected allocation size for a [RecyclerBytesStreamOutput] populated using [RecyclerBytesStreamOutput#writeAllBytesFrom]
+    /// with an [java.io.InputStream] of the given length. Always has at least one free byte, even if this means the last page is completely
+    /// empty, because we must allocate the page before performing the final [java.io.InputStream#read] which returns `-1`.
+    private static long getExpectedAllocation(int length) {
+        final var expectedPages = Math.max(1, (length + PageCacheRecycler.BYTE_PAGE_SIZE) / PageCacheRecycler.BYTE_PAGE_SIZE);
+        return expectedPages * PageCacheRecycler.BYTE_PAGE_SIZE;
+    }
+
+    /// @return a random amount of additional leeway in a circuit breaker, often zero.
+    private static int getRandomLeeway() {
+        return randomBoolean() ? 0 : between(1, 100);
     }
 }

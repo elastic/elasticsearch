@@ -130,7 +130,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
         var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
-        if (transformMetadata.upgradeMode()) {
+        if (transformMetadata.isUpgradeMode()) {
             return AWAITING_UPGRADE;
         }
         if (transformMetadata.resetMode()) {
@@ -197,6 +197,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         }
         return unavailableIndices;
+    }
+
+    @Override
+    public boolean automaticReassignmentOnShutdown() {
+        return false;
     }
 
     @Override

@@ -49,6 +49,9 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
+    public static final TransportVersion ESQL_REMOTE_FETCH_RETAINED_CONTEXTS = TransportVersion.fromName(
+        "esql_remote_fetch_retained_contexts"
+    );
     private static final TransportVersion EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST = TransportVersion.fromName(
         "esql_external_splits_in_data_node_request"
     );
@@ -65,35 +68,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
     private final boolean reductionLateMaterialization;
+    private final boolean retainSearchContexts;
     private final List<ExternalSplit> externalSplits;
 
-    DataNodeRequest(
-        String sessionId,
-        Configuration configuration,
-        String clusterAlias,
-        List<Shard> shards,
-        Map<Index, AliasFilter> aliasFilters,
-        PhysicalPlan plan,
-        String[] indices,
-        IndicesOptions indicesOptions,
-        boolean runNodeLevelReduction,
-        boolean reductionLateMaterialization
-    ) {
-        this(
-            sessionId,
-            configuration,
-            clusterAlias,
-            shards,
-            aliasFilters,
-            plan,
-            indices,
-            indicesOptions,
-            runNodeLevelReduction,
-            reductionLateMaterialization,
-            List.of()
-        );
-    }
-
+    /**
+     * Constructor with all parameters including externalSplits.
+     */
     DataNodeRequest(
         String sessionId,
         Configuration configuration,
@@ -105,6 +85,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         IndicesOptions indicesOptions,
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization,
+        boolean retainSearchContexts,
         List<ExternalSplit> externalSplits
     ) {
         this.sessionId = sessionId;
@@ -117,7 +98,40 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.indicesOptions = indicesOptions;
         this.runNodeLevelReduction = runNodeLevelReduction;
         this.reductionLateMaterialization = reductionLateMaterialization;
+        this.retainSearchContexts = retainSearchContexts;
         this.externalSplits = externalSplits != null ? List.copyOf(externalSplits) : List.of();
+    }
+
+    /**
+     * Constructor without externalSplits (defaults to empty list).
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean retainSearchContexts
+    ) {
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            retainSearchContexts,
+            List.of()
+        );
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
@@ -133,7 +147,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         this.sessionId = in.readString();
         this.configuration = new Configuration(
             // TODO make EsqlConfiguration Releasable
-            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+            new BlockStreamInput(
+                in,
+                BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker(CircuitBreaker.REQUEST)).build()
+            )
         );
         this.clusterAlias = in.readString();
         if (in.getTransportVersion().supports(IndexReshardService.RESHARDING_SHARD_SUMMARY_IN_ESQL)) {
@@ -152,6 +169,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.reductionLateMaterialization = false;
         }
+        this.retainSearchContexts = in.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS) && in.readBoolean();
         if (in.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             this.externalSplits = in.readNamedWriteableCollectionAsList(ExternalSplit.class);
         } else {
@@ -177,6 +195,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         out.writeBoolean(runNodeLevelReduction);
         if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
+        }
+        if (out.getTransportVersion().supports(ESQL_REMOTE_FETCH_RETAINED_CONTEXTS)) {
+            out.writeBoolean(retainSearchContexts);
         }
         if (out.getTransportVersion().supports(EXTERNAL_SPLITS_IN_DATA_NODE_REQUEST)) {
             out.writeNamedWriteableCollection(externalSplits);
@@ -261,6 +282,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return reductionLateMaterialization;
     }
 
+    boolean retainSearchContexts() {
+        return retainSearchContexts;
+    }
+
     List<ExternalSplit> externalSplits() {
         return externalSplits;
     }
@@ -270,6 +295,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         String desc = "shards=" + shards + " plan=" + plan;
         if (externalSplits.isEmpty() == false) {
             desc += " externalSplits=" + externalSplits.size();
+        }
+        if (retainSearchContexts) {
+            desc += " retainSearchContexts=true";
         }
         return desc;
     }
@@ -295,6 +323,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && indicesOptions.equals(request.indicesOptions)
             && runNodeLevelReduction == request.runNodeLevelReduction
             && reductionLateMaterialization == request.reductionLateMaterialization
+            && retainSearchContexts == request.retainSearchContexts
             && externalSplits.equals(request.externalSplits);
     }
 
@@ -311,6 +340,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
+            retainSearchContexts,
             externalSplits
         );
     }
@@ -327,11 +357,12 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indicesOptions,
             runNodeLevelReduction,
             reductionLateMaterialization,
+            retainSearchContexts,
             externalSplits
         );
     }
 
-    public record Shard(ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) implements Writeable {
+    public record Shard(ShardId shardId, SplitShardCountSummary splitShardCountSummary) implements Writeable {
         Shard(StreamInput in) throws IOException {
             this(new ShardId(in), new SplitShardCountSummary(in));
         }
@@ -339,7 +370,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
-            reshardSplitShardCountSummary.writeTo(out);
+            splitShardCountSummary.writeTo(out);
         }
     }
 }

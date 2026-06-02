@@ -30,7 +30,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -260,7 +260,13 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, AggregateMetricMapperPlugin.class, EsqlPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
+            AggregateMetricMapperPlugin.class,
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
+            TestEncryptionServicePlugin.class
+        );
     }
 
     record RateRange(Double lower, Double upper) implements Comparable<RateRange> {
@@ -328,6 +334,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     && offset > 0) {
                     // Value at lower boundary is present, check if there's one in the previous window to use.
                     addLastTupleFromLowerWindow(timeseries, allTimeseries.get(offset - 1), secondsInWindow);
+                    // For INCREASE, return 0 if there is a previous bucket because
+                    // the increase was already accounted for in the previous bucket.
+                    // For RATE, we still need to calculate the rate using interpolation from the previous bucket.
+                    if (timeseries.size() == 2 && deltaAgg.equals(DeltaAgg.INCREASE)) {
+                        return new RateRange(0.0, 0.0);
+                    }
                 }
                 if (timeseries.size() < 2) {
                     return null;
@@ -549,9 +561,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, ESTestCase.randomIntBetween(1, 5));
         settingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-07-31T00:00:00Z");
         settingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-07-31T12:00:00Z");
-        if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
-        }
+        settingsBuilder.put(IndexSettings.SYNTHETIC_ID.getKey(), randomBoolean());
         CompressedXContent mappings = mappingString == null ? null : CompressedXContent.fromJSON(mappingString);
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
             RandomizedTimeSeriesIT.DATASTREAM_NAME

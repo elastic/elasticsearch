@@ -29,10 +29,12 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -47,6 +49,7 @@ import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -141,7 +144,7 @@ public class QueryStringQueryParser extends QueryParser {
         super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
-        this.queryBuilder = new MultiMatchQueryParser(context);
+        this.queryBuilder = new MultiMatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
@@ -504,9 +507,16 @@ public class QueryStringQueryParser extends QueryParser {
     @Override
     protected Query newFuzzyQuery(Term term, float minimumSimilarity, int prefixLength) {
         int numEdits = Fuzziness.fromEdits((int) minimumSimilarity).asDistance(term.text());
-        return fuzzyRewriteMethod == null
-            ? new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions)
-            : new FuzzyQuery(term, numEdits, prefixLength, fuzzyMaxExpansions, fuzzyTranspositions, fuzzyRewriteMethod);
+        return FuzzyQueries.create(
+            term,
+            numEdits,
+            prefixLength,
+            fuzzyMaxExpansions,
+            fuzzyTranspositions,
+            fuzzyRewriteMethod,
+            context,
+            term.field()
+        );
     }
 
     @Override
@@ -731,6 +741,7 @@ public class QueryStringQueryParser extends QueryParser {
                     + "] index level setting."
             );
         }
+        termStr = AutomatonQueries.collapseConsecutiveQuantifiers(termStr);
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
             return newUnmappedFieldQuery(termStr);
@@ -784,7 +795,7 @@ public class QueryStringQueryParser extends QueryParser {
         if (q == null) {
             return null;
         }
-        return fixNegativeQueryIfNeeded(q);
+        return fixNegativeQueryIfNeeded(q, QueryVisitor.EMPTY_VISITOR);
     }
 
     private static Query applySlop(Query q, int slop) {

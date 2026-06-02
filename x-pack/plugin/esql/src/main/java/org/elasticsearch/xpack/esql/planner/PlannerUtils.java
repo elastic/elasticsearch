@@ -34,9 +34,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
-import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
+import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
+import org.elasticsearch.xpack.esql.optimizer.ExternalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -58,12 +60,14 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -78,7 +82,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
-import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
@@ -115,13 +118,24 @@ public class PlannerUtils {
     public static Tuple<PhysicalPlan, PhysicalPlan> breakPlanBetweenCoordinatorAndDataNode(PhysicalPlan plan, Configuration config) {
         var dataNodePlan = new Holder<PhysicalPlan>();
 
-        // split the given plan when encountering the exchange
-        PhysicalPlan coordinatorPlan = plan.transformUp(ExchangeExec.class, e -> {
-            // remember the datanode subplan and wire it to a sink
-            var subplan = e.child();
-            dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), subplan));
-
-            return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+        /*
+         * Split the plan at the first ExchangeExec we encounter from the root (pre-order), turning that ExchangeExec into an
+         * ExchangeSourceExec for the coordinator, and returning the corresponding ExchangeSinkExec for the data node plan.
+         *
+         * It is important to NOT transform ExchangeExec nodes below that split point: those are handled by later planning stages
+         * (e.g., node-level reduction on the data node) and are not wired up by this method.
+         */
+        PhysicalPlan coordinatorPlan = plan.transformDownSkipBranch((p, skipBranch) -> {
+            if (p instanceof ExchangeExec e) {
+                if (dataNodePlan.get() != null) {
+                    // Multiple exchange points are not supported by this split helper.
+                    throw new EsqlIllegalArgumentException("expected a single ExchangeExec when splitting coordinator and data node plans");
+                }
+                dataNodePlan.set(new ExchangeSinkExec(e.source(), e.output(), e.inBetweenAggs(), e.child()));
+                skipBranch.set(true);
+                return new ExchangeSourceExec(e.source(), e.output(), e.inBetweenAggs());
+            }
+            return p;
         });
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
@@ -166,6 +180,16 @@ public class PlannerUtils {
                     MetricsInfoExec.Mode.INTERMEDIATE
                 )
             );
+            case TsInfoExec tsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new TsInfoExec(
+                    tsInfoExec.source(),
+                    tsInfoExec.child(),
+                    tsInfoExec.outputAttrs(),
+                    plan.output(),
+                    TsInfoExec.Mode.INTERMEDIATE
+                )
+            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }
@@ -174,21 +198,67 @@ public class PlannerUtils {
         return new ReducedPlan(EstimatesRowSize.estimateRowSize(estimatedRowSize, plan));
     }
 
-    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
-        return plan.anyMatch(e -> {
-            if (e instanceof FragmentExec f) {
-                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
-            }
-            return false;
-        });
-    }
-
     public static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
                 action.accept(r);
             }
         }));
+    }
+
+    /**
+     * Result of local plan optimization containing both physical and logical plans.
+     */
+    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString) {}
+
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        List<SearchExecutionContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlanWithLogical(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            SearchContextStats.from(searchContexts),
+            planTimeProfile
+        );
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        PlanTimeProfile planTimeProfile
+    ) {
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
+        );
+
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile
+    ) {
+        var logicalPlanString = new Holder<String>(null);
+        PhysicalPlan resultPlan = localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile, optimizedFragment -> {
+            logicalPlanString.set(optimizedFragment.toString());
+        });
+        return new LocalPlanResult(resultPlan, logicalPlanString.get());
     }
 
     public static PhysicalPlan localPlan(
@@ -227,15 +297,51 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan,
         SearchStats searchStats,
-        FilterPushdownRegistry filterPushdownRegistry,
+        FormatReaderRegistry formatReaderRegistry,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            searchStats,
+            formatReaderRegistry,
+            List.of(),
+            planTimeProfile
+        );
+    }
+
+    /**
+     * Runs local logical/physical optimization with external splits injected before the physical optimizer.
+     * Splits are attached to any empty {@link ExternalSourceExec} nodes so that rules like
+     * {@code PushAggregatesToExternalSource} can see per-split statistics.
+     */
+    public static PhysicalPlan localPlan(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        FormatReaderRegistry formatReaderRegistry,
+        List<? extends ExternalSplit> externalSplits,
         PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats, filterPushdownRegistry)
+            new LocalPhysicalOptimizerContext(
+                plannerSettings,
+                flags,
+                configuration,
+                foldCtx,
+                searchStats,
+                new ExternalOptimizerContext(formatReaderRegistry)
+            )
         );
 
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile);
     }
 
     public static PhysicalPlan integrateEsFilterIntoFragment(PhysicalPlan plan, @Nullable QueryBuilder esFilter) {
@@ -256,6 +362,37 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, List.of(), planTimeProfile, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, externalSplits, planTimeProfile, null);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
+    ) {
+        return localPlan(plan, logicalOptimizer, physicalOptimizer, List.of(), planTimeProfile, onLogicalPlanOptimized);
+    }
+
+    public static PhysicalPlan localPlan(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        List<? extends ExternalSplit> externalSplits,
+        PlanTimeProfile planTimeProfile,
+        @Nullable Consumer<LogicalPlan> onLogicalPlanOptimized
+    ) {
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -275,6 +412,9 @@ public class PlannerUtils {
             boolean profilingEnabled = planTimeProfile != null;
             long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
             LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            if (onLogicalPlanOptimized != null) {
+                onLogicalPlanOptimized.accept(optimizedFragment);
+            }
             PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
             if (profilingEnabled) {
                 planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
@@ -284,6 +424,15 @@ public class PlannerUtils {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
                     query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
+                );
+            }
+
+            if (externalSplits.isEmpty() == false) {
+                @SuppressWarnings("unchecked")
+                List<ExternalSplit> typedSplits = (List<ExternalSplit>) externalSplits;
+                physicalFragment = physicalFragment.transformUp(
+                    ExternalSourceExec.class,
+                    exec -> exec.splits().isEmpty() ? exec.withSplits(typedSplits) : exec
                 );
             }
 
@@ -398,13 +547,18 @@ public class PlannerUtils {
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
-            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED -> ElementType.BYTES_REF;
+            case KEYWORD, TEXT, IP, SOURCE, VERSION, HISTOGRAM, UNSUPPORTED, FLATTENED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;
             case BOOLEAN -> ElementType.BOOLEAN;
             case DOC_DATA_TYPE -> ElementType.DOC;
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
-            case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
+            case GEO_SHAPE, CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+                case EXTRACT_SPATIAL_BOUNDS -> ElementType.INT;
+                case EXTRACT_SPATIAL_CENTROID, EXTRACT_SPATIAL_BOUNDS_AND_CENTROID -> ElementType.DOUBLE;
+                default -> ElementType.BYTES_REF;
+            };
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case EXPONENTIAL_HISTOGRAM -> ElementType.EXPONENTIAL_HISTOGRAM;
             case TDIGEST -> ElementType.TDIGEST;
@@ -420,10 +574,9 @@ public class PlannerUtils {
      * TODO: Remove this
      */
     @Deprecated(forRemoval = true)
-    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    public static final BlockFactory NON_BREAKING_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
+        .breaker(new NoopCircuitBreaker("none"))
+        .build();
 
     public static boolean usesScoring(QueryPlan<?> plan) {
         return plan.output().stream().anyMatch(attr -> attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE));
@@ -454,4 +607,5 @@ public class PlannerUtils {
             }
         }
     }
+
 }

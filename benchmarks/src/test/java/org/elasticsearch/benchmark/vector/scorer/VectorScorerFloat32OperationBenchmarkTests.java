@@ -11,18 +11,13 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.Constants;
+import org.elasticsearch.nativeaccess.jdk.ScalarOperations;
 import org.elasticsearch.simdvec.VectorSimilarityType;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.AssumptionViolatedException;
-import org.junit.BeforeClass;
-import org.openjdk.jmh.annotations.Param;
-
-import java.util.Arrays;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
-public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
+public class VectorScorerFloat32OperationBenchmarkTests extends BenchmarkTest {
 
     private final VectorSimilarityType function;
     private final double delta;
@@ -34,47 +29,33 @@ public class VectorScorerFloat32OperationBenchmarkTests extends ESTestCase {
         delta = 1e-3 * size;
     }
 
-    @BeforeClass
-    public static void skipWindows() {
-        assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
-    }
-
     public void test() {
-        for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerFloat32OperationBenchmark();
-            bench.function = function;
-            bench.size = size;
-            bench.init();
-            try {
-                float expected = switch (function) {
-                    case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.floatsA, bench.floatsB);
-                    case EUCLIDEAN -> ScalarOperations.squareDistance(bench.floatsA, bench.floatsB);
-                    default -> throw new AssumptionViolatedException("Not tested");
-                };
-                assertEquals(expected, bench.lucene(), delta);
-                assertEquals(expected, bench.luceneWithCopy(), delta);
-                assertEquals(expected, bench.nativeWithNativeSeg(), delta);
-                if (supportsHeapSegments()) {
-                    assertEquals(expected, bench.nativeWithHeapSeg(), delta);
-                }
-            } finally {
-                bench.teardown();
+        var bench = new VectorScorerFloat32OperationBenchmark();
+        bench.function = function;
+        bench.size = size;
+        bench.init();
+        try {
+            float expected = switch (function) {
+                case DOT_PRODUCT -> ScalarOperations.dotProduct(bench.floatsA, bench.floatsB);
+                case EUCLIDEAN -> ScalarOperations.squareDistance(bench.floatsA, bench.floatsB);
+                default -> throw new AssumptionViolatedException("Not tested");
+            };
+            assertEquals(expected, bench.lucene(), delta);
+            assertEquals(expected, bench.luceneWithCopy(), delta);
+            assertEquals(expected, bench.nativeWithNativeSeg(), delta);
+            if (supportsHeapSegments()) {
+                assertEquals(expected, bench.nativeWithHeapSeg(), delta);
             }
+        } finally {
+            bench.teardown();
         }
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parametersFactory() {
-        try {
-            String[] size = VectorScorerFloat32OperationBenchmark.class.getField("size").getAnnotationsByType(Param.class)[0].value();
-            String[] functions = VectorScorerFloat32OperationBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0]
-                .value();
-            return () -> Arrays.stream(size)
-                .map(Integer::parseInt)
-                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
-                .iterator();
-        } catch (NoSuchFieldException e) {
-            throw new AssertionError(e);
-        }
+    public static Iterable<Object[]> parametersFactory() throws NoSuchFieldException {
+        return generateParameters(
+            VectorScorerFloat32OperationBenchmark.class.getField("function"),
+            VectorScorerFloat32OperationBenchmark.class.getField("size")
+        );
     }
 }

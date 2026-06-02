@@ -2,12 +2,15 @@
 * [`TO_BOOLEAN`](../../functions-operators/type-conversion-functions/to_boolean.md)
 * [`TO_CARTESIANPOINT`](../../functions-operators/type-conversion-functions/to_cartesianpoint.md)
 * [`TO_CARTESIANSHAPE`](../../functions-operators/type-conversion-functions/to_cartesianshape.md)
+* [`TO_COUNTER`](../../functions-operators/type-conversion-functions/to_counter.md) {applies_to}`stack: ga 9.5`
 * [`TO_DATEPERIOD`](../../functions-operators/type-conversion-functions/to_dateperiod.md)
 * [`TO_DATETIME`](../../functions-operators/type-conversion-functions/to_datetime.md)
 * [`TO_DATE_NANOS`](../../functions-operators/type-conversion-functions/to_date_nanos.md)
 * [`TO_DEGREES`](../../functions-operators/type-conversion-functions/to_degrees.md)
 * [`TO_DENSE_VECTOR`](../../functions-operators/type-conversion-functions/to_dense_vector.md) {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
 * [`TO_DOUBLE`](../../functions-operators/type-conversion-functions/to_double.md)
+* [`TO_EXPONENTIAL_HISTOGRAM`](../../functions-operators/type-conversion-functions/to_exponential_histogram.md) {applies_to}`stack: ga 9.4`
+* [`TO_GAUGE`](../../functions-operators/type-conversion-functions/to_gauge.md) {applies_to}`stack: ga 9.5`
 * [`TO_GEOHASH`](../../functions-operators/type-conversion-functions/to_geohash.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`TO_GEOHEX`](../../functions-operators/type-conversion-functions/to_geohex.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`TO_GEOPOINT`](../../functions-operators/type-conversion-functions/to_geopoint.md)
@@ -18,7 +21,7 @@
 * [`TO_LONG`](../../functions-operators/type-conversion-functions/to_long.md)
 * [`TO_RADIANS`](../../functions-operators/type-conversion-functions/to_radians.md)
 * [`TO_STRING`](../../functions-operators/type-conversion-functions/to_string.md)
-* [`TO_TDIGEST`](../../functions-operators/type-conversion-functions/to_tdigest.md)
+* [`TO_TDIGEST`](../../functions-operators/type-conversion-functions/to_tdigest.md) {applies_to}`stack: preview 9.3, ga 9.4`
 * [`TO_TIMEDURATION`](../../functions-operators/type-conversion-functions/to_timeduration.md)
 * [`TO_UNSIGNED_LONG`](../../functions-operators/type-conversion-functions/to_unsigned_long.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`TO_VERSION`](../../functions-operators/type-conversion-functions/to_version.md)

@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 150354
+summary: Add missing OTel resource information
+type: enhancement

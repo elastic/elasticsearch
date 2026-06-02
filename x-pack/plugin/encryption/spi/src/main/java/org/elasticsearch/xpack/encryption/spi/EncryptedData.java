@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.encryption.spi;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,8 +26,23 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 /**
  * Holds the result of an encryption operation: the key ID that was used and the encrypted payload.
+ *
+ * <p>Implements {@link GenericNamedWriteable} so the carrier can ride the generic-value serialization
+ * ES|QL plan nodes use ({@code ExternalSourceExec} serializes its config map via
+ * {@code writeGenericValue}). This lets an encrypted data-source secret travel from the coordinator to
+ * data nodes still encrypted, to be decrypted at the point of use rather than serialized in plaintext.
  */
-public final class EncryptedData implements Writeable, ToXContentObject {
+public final class EncryptedData implements GenericNamedWriteable, ToXContentObject {
+
+    public static final String NAME = "encrypted_data";
+
+    private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
+
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        GenericNamedWriteable.class,
+        NAME,
+        EncryptedData::new
+    );
 
     private static final ParseField KEY_ID_FIELD = new ParseField("key_id");
     private static final ParseField DATA_FIELD = new ParseField("data");
@@ -67,6 +84,16 @@ public final class EncryptedData implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(keyId);
         out.writeByteArray(payload);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return DATA_SOURCE_ENCRYPTED_DATA;
     }
 
     @Override

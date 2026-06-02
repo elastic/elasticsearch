@@ -1487,7 +1487,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             "_id",
             indexMode == IndexMode.TIME_SERIES
                 ? matchesList().item("column_at_a_time:TsIdFieldReader")
-                : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
+                : indexMode.isStrictColumnar()
+                    ? matchesList().item("column_at_a_time:IdDocValuesReader")
+                    : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
         )
             .entry("_ignored", matchesList().item("column_at_a_time:constant_nulls"))
             .entry("_index_mode", matchesList().item(startsWith("column_at_a_time:constant")))

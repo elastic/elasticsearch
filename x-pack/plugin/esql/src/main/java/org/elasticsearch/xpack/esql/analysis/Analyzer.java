@@ -2645,41 +2645,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     }
 
                     Set<DataType> supportedTypes = convert.supportedTypes();
-                    if (supportedTypes.contains(fa.dataType()) && canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
+                    if (canConvertOriginalTypes(unionTypeEsField, supportedTypes)) {
                         Expression unmappedExpr = unionTypeEsField.getUnmappedConversionExpression();
-                        EsField rewrapped = unionTypeEsField.rewrapWithCast(convertExpression);
+                        UnionTypeEsField rewrapped = unionTypeEsField.rewrapWithCast(convertExpression);
 
                         if (unmappedExpr instanceof AbstractConvertFunction existingConvert) {
                             Expression keywordField = existingConvert.field();
                             Expression rewrappedUnmapped = convertExpression.replaceChildren(singletonList(keywordField));
-                            if (rewrapped instanceof MultiTypeEsField mtf) {
-                                rewrapped = mtf.withPotentiallyUnmappedExpression(rewrappedUnmapped);
-                            } else if (rewrapped instanceof CompactMultiTypeEsField cmtf) {
-                                rewrapped = new CompactMultiTypeEsField(
-                                    cmtf.getName(),
-                                    cmtf.getDataType(),
-                                    cmtf.isAggregatable(),
-                                    cmtf.getTypeToConversionExpressions(),
-                                    cmtf.getTimeSeriesFieldType(),
-                                    rewrappedUnmapped
-                                );
-                            }
+                            rewrapped = rewrapped.withPotentiallyUnmappedExpression(rewrappedUnmapped);
                         } else if (unmappedExpr != null) {
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
 
                         return createIfDoesNotAlreadyExist(fa, rewrapped, unionFieldAttributes);
-                    } else if (supportedTypes.contains(fa.dataType())
-                        && unionTypeEsField.getUnmappedConversionExpression() != null
-                        && supportedTypes.contains(KEYWORD) == false) {
-                            String msg = String.format(
-                                Locale.ROOT,
-                                "[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]",
-                                fa.name(),
-                                convertExpression.sourceText()
-                            );
-                            return new UnresolvedAttribute(fa.source(), fa.name(), msg);
-                        }
+                    } else if (unionTypeEsField.getUnmappedConversionExpression() != null) {
+                        String msg = supportedTypes.contains(KEYWORD)
+                            ? "One or more mapped types of partially unmapped field [%s] cannot be accepted in [%s]"
+                            : "[%s] is loaded as [KEYWORD] where unmapped, but [%s] does not accept [KEYWORD]";
+
+                        msg = String.format(Locale.ROOT, msg, fa.name(), convertExpression.sourceText());
+
+                        return new UnresolvedAttribute(fa.source(), fa.name(), msg);
+                    }
                 } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
                     return convertExpression.replaceChildren(
                         singletonList(resolveConvertFunction(subConvert, unionFieldAttributes, context))
@@ -2756,10 +2743,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         /**
+         * Check if all the original types in the {@code UnionTypeEsField} are supported by the convert function. If the field is partially
+         * unmapped, we additionally check if the convert function accept KEYWORD.
+         *
          * @param unionTypeEsField
          * @param supportedTypes The types supported by the convert function
-         * @return True if all the original types in the {@code UnionTypeEsField}, in addition to KEYWORD, are supported by the convert
-         * function
+         * @return True if we can convert.
          */
         private static boolean canConvertOriginalTypes(UnionTypeEsField unionTypeEsField, Set<DataType> supportedTypes) {
             if (unionTypeEsField.getUnmappedConversionExpression() != null && supportedTypes.contains(KEYWORD) == false) {

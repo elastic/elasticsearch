@@ -430,8 +430,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
-            System::currentTimeMillis,
-            false
+            System::currentTimeMillis
         );
         var indexInput = new BlobCacheIndexInput("test.cfs", IOContext.DEFAULT, reader, null, 1024, 0);
         var slice = (BlobCacheIndexInput) indexInput.doSlice("_0.doc", 0, 512);
@@ -466,8 +465,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
             mock(CacheBlobReader.class),
             createBlobFileRanges(1L, 0L, 0, 1024),
             BlobCacheMetrics.NOOP,
-            System::currentTimeMillis,
-            false
+            System::currentTimeMillis
         );
 
         ByteBuffer buf = ByteBuffer.allocate(10);

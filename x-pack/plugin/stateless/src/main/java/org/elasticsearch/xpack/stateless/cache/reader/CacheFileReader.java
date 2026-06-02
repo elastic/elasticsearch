@@ -108,7 +108,7 @@ public class CacheFileReader {
             SharedBytes.MADV_NORMAL,
             0,
             0,
-            hasSearchRole
+            false
         );
     }
 
@@ -167,6 +167,7 @@ public class CacheFileReader {
     }
 
     /**
+     * @return a new instance that is a copy of the current instance
      */
     public CacheFileReader copy() {
         return new CacheFileReader(

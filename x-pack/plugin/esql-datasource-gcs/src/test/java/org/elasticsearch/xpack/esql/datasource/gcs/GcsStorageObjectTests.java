@@ -213,16 +213,19 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertFalse("403 must not be transient", e instanceof TransientStorageException);
     }
 
+    // The GCS ReadChannel never lets a StorageException escape the stream: BaseStorageReadChannel.read catches it
+    // and rethrows it wrapped in a plain IOException (its cause). These tests feed that real wrapped shape, not a
+    // raw StorageException, so they actually exercise the path a live read produces.
     public void testMidReadStorageExceptionRetypedAsThrottling() throws IOException {
         InputStream faulting = new InputStream() {
             private int n = 0;
 
             @Override
-            public int read() {
+            public int read() throws IOException {
                 if (n++ < 1) {
                     return 'x';
                 }
-                throw new StorageException(503, "mid-read drop");
+                throw new IOException(new StorageException(503, "mid-read drop"));
             }
         };
         GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
@@ -234,13 +237,27 @@ public class GcsStorageObjectTests extends ESTestCase {
     public void testMidReadNon503StorageExceptionIsTransientNotThrottling() {
         InputStream faulting = new InputStream() {
             @Override
-            public int read() {
-                throw new StorageException(500, "mid-read error");
+            public int read() throws IOException {
+                throw new IOException(new StorageException(500, "mid-read error"));
             }
         };
         GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
         TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
         assertFalse("500 mid-read is transient but not throttling", e.throttling());
+    }
+
+    public void testMidReadPlainTransportIOExceptionIsTransientNotThrottling() {
+        // A transport drop with no StorageException cause (a bare IOException) is still re-typed transient so the
+        // resume engages; it is just not throttling.
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("connection reset");
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
+        assertFalse("a plain transport IOException is transient but not throttling", e.throttling());
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {

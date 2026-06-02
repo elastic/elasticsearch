@@ -316,8 +316,9 @@ class RetryPolicy {
             return true;
         }
         // HTTP-status transients (500 / 503 / 429) reach here only as a typed TransientStorageException raised
-        // by the provider (the layer that has the status code); a bare throwable is treated as a real error.
-        return isThrottlingSingleCause(t);
+        // by the provider (the layer that has the status code), which is already handled above; a bare throwable
+        // (no transient type, no JDK transport type) is treated as a real error.
+        return false;
     }
 
     @FunctionalInterface

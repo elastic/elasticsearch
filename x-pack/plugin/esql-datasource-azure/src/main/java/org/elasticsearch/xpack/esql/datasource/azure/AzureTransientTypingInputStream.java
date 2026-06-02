@@ -18,10 +18,15 @@ import java.io.InputStream;
 
 /**
  * Wraps an Azure blob-read stream so a fault <em>while reading the body</em> surfaces as a typed
- * {@link TransientStorageException} rather than the unchecked {@link BlobStorageException} the Azure client
- * throws — otherwise the mid-read fault escapes the provider-agnostic resume loop's {@code catch (IOException)}
- * and the resume cannot engage. The body is opaque object bytes, so a read fault is a transport fault; a
- * 429/503 surfaced during the read is flagged throttling, matching the open-path classification.
+ * {@link TransientStorageException} the provider-agnostic resume loop can act on.
+ * <p>
+ * The Azure {@code BlobInputStream} does not let a {@link BlobStorageException} escape the stream: its
+ * {@code dispatchRead} catches the {@link BlobStorageException} and rethrows it wrapped in a plain
+ * {@link IOException} (its cause). That wrapped {@code IOException} carries no transient/throttle signal, so the
+ * resume loop's classifier treats it as a hard error and the resume never engages. We catch that
+ * {@code IOException} here and re-type it: the body is opaque object bytes, so a mid-read fault is a transport
+ * fault and is always transient. When the cause is a {@link BlobStorageException} we read its status off it so a
+ * 429/503 is flagged throttling, matching the open-path classification.
  */
 final class AzureTransientTypingInputStream extends FilterInputStream {
 
@@ -36,7 +41,7 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
     public int read() throws IOException {
         try {
             return in.read();
-        } catch (BlobStorageException e) {
+        } catch (IOException e) {
             throw type(e);
         }
     }
@@ -45,13 +50,15 @@ final class AzureTransientTypingInputStream extends FilterInputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         try {
             return in.read(b, off, len);
-        } catch (BlobStorageException e) {
+        } catch (IOException e) {
             throw type(e);
         }
     }
 
-    private TransientStorageException type(BlobStorageException e) {
-        boolean throttling = e.getStatusCode() == 503 || e.getStatusCode() == 429;
+    private TransientStorageException type(IOException e) {
+        // The throttle status lives on the cause (the BlobStorageException the stream wrapped); absent that, a
+        // mid-read transport fault is still transient, just not throttling.
+        boolean throttling = e.getCause() instanceof BlobStorageException bse && (bse.getStatusCode() == 503 || bse.getStatusCode() == 429);
         return new TransientStorageException("transient read failure for " + path, e, throttling);
     }
 }

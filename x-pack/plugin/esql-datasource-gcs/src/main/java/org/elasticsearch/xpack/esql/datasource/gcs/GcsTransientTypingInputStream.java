@@ -18,12 +18,15 @@ import java.io.InputStream;
 
 /**
  * Wraps a GCS object-read stream so a fault <em>while reading the body</em> surfaces as a typed
- * {@link TransientStorageException} rather than the unchecked {@link StorageException} the GCS client throws.
+ * {@link TransientStorageException} the provider-agnostic resume loop can act on.
  * <p>
- * Without this, a mid-read network fault escapes as an unchecked exception that the provider-agnostic resume
- * loop's {@code catch (IOException)} never sees, so the whole-object/range resume cannot engage. Re-typing it
- * here (the body is opaque object bytes, so a read fault is a transport fault) lets the retry layer re-open and
- * resume exactly as it does for S3. A 429/503 surfaced during the read is flagged throttling, matching the
+ * The GCS {@code ReadChannel} does not let a {@link StorageException} escape the stream: its {@code read}
+ * ({@code BaseStorageReadChannel.read}) catches the {@link StorageException} and rethrows it wrapped in a plain
+ * {@link IOException} (its cause). That wrapped {@code IOException} carries no transient/throttle signal, so the
+ * resume loop's classifier treats it as a hard error and the whole-object/range resume never engages. We catch
+ * that {@code IOException} here and re-type it: the body is opaque object bytes, so a mid-read fault is a
+ * transport fault and is always transient (the retry layer re-opens and resumes, exactly as for S3). When the
+ * cause is a {@link StorageException} we read its status off it so a 429/503 is flagged throttling, matching the
  * open-path classification.
  */
 final class GcsTransientTypingInputStream extends FilterInputStream {
@@ -39,7 +42,7 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
     public int read() throws IOException {
         try {
             return in.read();
-        } catch (StorageException e) {
+        } catch (IOException e) {
             throw type(e);
         }
     }
@@ -48,13 +51,15 @@ final class GcsTransientTypingInputStream extends FilterInputStream {
     public int read(byte[] b, int off, int len) throws IOException {
         try {
             return in.read(b, off, len);
-        } catch (StorageException e) {
+        } catch (IOException e) {
             throw type(e);
         }
     }
 
-    private TransientStorageException type(StorageException e) {
-        boolean throttling = e.getCode() == 503 || e.getCode() == 429;
+    private TransientStorageException type(IOException e) {
+        // The throttle status lives on the cause (the StorageException the ReadChannel wrapped); absent that, a
+        // mid-read transport fault is still transient, just not throttling.
+        boolean throttling = e.getCause() instanceof StorageException se && (se.getCode() == 503 || se.getCode() == 429);
         return new TransientStorageException("transient read failure for " + path, e, throttling);
     }
 }

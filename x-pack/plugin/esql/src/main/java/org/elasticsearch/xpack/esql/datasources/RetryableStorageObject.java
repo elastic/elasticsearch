@@ -67,10 +67,11 @@ class RetryableStorageObject implements StorageObject {
         // with no known length (e.g. compressed objects). Wrapped so a transient fault DURING the read re-opens
         // the undelivered tail [delivered, end] as an open-ended (READ_TO_END) range and resumes, byte-exact.
         // This gives single-file text, compressed text and the ORC seed stream the same resume as ranged reads,
-        // for any provider that surfaces a mid-read fault as a (transient-classified) IOException — S3 does so via
-        // its TransientTypingInputStream; an equivalent mid-read typing wrapper for GCS/Azure is a follow-up.
-        // In production the decompressor sits ABOVE this layer, so a resume re-opens the (length-bearing)
-        // compressed bytes.
+        // for any provider that surfaces a mid-read fault as a (transient-classified) IOException. S3, GCS and
+        // Azure all do so via their per-provider mid-read typing wrappers (TransientTypingInputStream /
+        // GcsTransientTypingInputStream / AzureTransientTypingInputStream); HTTP and local already surface plain
+        // IOExceptions the resume loop classifies directly. In production the decompressor sits ABOVE this layer,
+        // so a resume re-opens the (length-bearing) compressed bytes.
         InputStream initial = retryPolicy.execute(delegate::newStream, "newStream", delegate.path(), retryCounters::addRetry);
         return new ResumingInputStream(initial, 0, READ_TO_END);
     }

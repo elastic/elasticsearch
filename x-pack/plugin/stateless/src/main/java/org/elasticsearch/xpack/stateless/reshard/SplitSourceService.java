@@ -403,11 +403,16 @@ public class SplitSourceService {
     private void setupSourceShardStateMachine(IndexShard sourceShard) {
         activeSourceShards.compute(sourceShard, (shard, stateMachine) -> {
             if (stateMachine == null) {
-                // We should handle a race with `cancelSplits` when creating a new state machine.
-                // We use shard state to do that.
-                // If this function runs first and observes CLOSED, `cancelSplits` may have been executed already
-                // so we need to handle that.
-                // If we don't observe CLOSED, we can rely on `cancelSplits` to be executed (either in the future or right after this).
+                /// `stateMachine` is `null` in two cases:
+                /// 1. Source shard is STARTED and hasn't recovered since the beginning of the split.
+                ///    This is the first time a target shard contacts the source shard.
+                /// 2. Source shard did some work previously but now is closed and [#cancelSplits(IndexShard)] removed
+                ///    the entry already.
+                /// We should specifically handle the latter case to not create a state machine for an already closed shard.
+                /// To do that we perform the state check below.
+                /// If this function runs first and observes `CLOSED`, `cancelSplits` may or may not have been called.
+                /// So we are handling the case when it already executed.
+                /// If we don't observe `CLOSED`, we can rely on `cancelSplits` to be executed.
                 if (shard.state() == IndexShardState.CLOSED) {
                     return null;
                 }

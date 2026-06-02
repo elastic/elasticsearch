@@ -1726,47 +1726,47 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         );
     }
 
-    // -- negative: IN subquery in INLINESTATS --
+    // -- negative: IN subquery in INLINE STATS --
 
     /**
-     * Verifies that an IN subquery in INLINESTATS WHERE filter is rejected.
+     * Verifies that an IN subquery in INLINE STATS WHERE filter is rejected.
      */
     public void testRejectsInSubqueryInInlineStatsWhereFilter() {
         errorInSubquery(
             """
                 FROM test
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
+                | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)
                 """,
-            containsString("IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]")
+            containsString("IN subquery is not supported in [INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no)]")
         );
     }
 
     /**
-     * Verifies that a NOT IN subquery in INLINESTATS WHERE filter is rejected.
+     * Verifies that a NOT IN subquery in INLINE STATS WHERE filter is rejected.
      */
     public void testRejectsNotInSubqueryInInlineStatsWhereFilter() {
         errorInSubquery(
             """
                 FROM test
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+                | INLINE STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
                 """,
             containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
+                "IN subquery is not supported in [INLINE STATS cnt = COUNT(*) WHERE emp_no NOT IN (FROM employees | KEEP emp_no)]"
             )
         );
     }
 
     /**
-     * Verifies that IN subquery in INLINESTATS WHERE with BY grouping is rejected.
+     * Verifies that IN subquery in INLINE STATS WHERE with BY grouping is rejected.
      */
     public void testRejectsInSubqueryInInlineStatsWhereFilterWithGrouping() {
         errorInSubquery(
             """
                 FROM test
-                | INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
+                | INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages
                 """,
             containsString(
-                "IN subquery is not supported in [INLINESTATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
+                "IN subquery is not supported in [INLINE STATS cnt = COUNT(*) WHERE emp_no IN (FROM employees | KEEP emp_no) BY languages]"
             )
         );
     }

@@ -8,7 +8,6 @@
 lexer grammar Inline;
 
 INLINE : 'inline' -> pushMode(INLINE_MODE);
-INLINESTATS : 'inlinestats' -> pushMode(EXPRESSION_MODE); // TODO: drop after next minor release
 
 mode INLINE_MODE;
 

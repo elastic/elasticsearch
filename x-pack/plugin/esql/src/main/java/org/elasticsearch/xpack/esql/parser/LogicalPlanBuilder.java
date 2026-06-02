@@ -676,14 +676,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (false == EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             throw new ParsingException(source, "INLINE STATS command currently requires a snapshot build");
         }
-        // TODO: drop after next minor release
-        if (ctx.INLINESTATS() != null) {
-            HeaderWarning.addWarning(
-                "Line {}:{}: INLINESTATS is deprecated, use INLINE STATS instead",
-                source.source().getLineNumber(),
-                source.source().getColumnNumber()
-            );
-        }
         List<Alias> aggFields = visitAggFields(ctx.stats);
         List<NamedExpression> aggregates = new ArrayList<>(aggFields);
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);

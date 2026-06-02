@@ -351,8 +351,6 @@ completionCommand
 
 inlineStatsCommand
     : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
-    // TODO: drop after next minor release
-    | INLINESTATS stats=aggFields (BY grouping=fields)?
     ;
 
 fuseCommand

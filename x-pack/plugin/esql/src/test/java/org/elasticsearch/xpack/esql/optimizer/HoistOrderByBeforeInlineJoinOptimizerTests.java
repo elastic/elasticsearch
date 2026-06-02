@@ -115,7 +115,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
             FROM employees
             | SORT emp_no DESC
             | INLINE STATS avg = AVG(salary) BY emp_no
-            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINESTATS (which masks the issue the test tests)
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINE STATS (which masks the issue the test tests)
             """;
         if (releaseBuildForInlineStats(query)) {
             return;
@@ -178,7 +178,7 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
             | EVAL salaryK = salary / 1000
             | RENAME last_name AS lName
             | INLINE STATS avg = AVG(salary) BY emp_no
-            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINESTATS (which masks the issue the test tests)
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINE STATS (which masks the issue the test tests)
             """;
         if (releaseBuildForInlineStats(query)) {
             return;

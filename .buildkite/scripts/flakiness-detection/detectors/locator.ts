@@ -1,10 +1,13 @@
-import {
+import type {
   ClassifiedTest,
-  SOURCE_SET_PATTERNS,
   TestRef,
+} from "../domain.ts";
+
+import {
+  SOURCE_SET_PATTERNS,
   toFqcn,
   toGradleProject,
-} from "../domain";
+} from "../domain.ts";
 
 const YAML_METHOD_REGEX = /^test \{yaml=.+\}$/;
 

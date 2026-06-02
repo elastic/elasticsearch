@@ -55,6 +55,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.AbstractVectorTestCase {
     private static final float LIMIT_SCALE = 1f / ((1 << 7) - 1);
 
+    // Tolerance for bulk scores produced by the native SIMD path. SIMD bulk corrections
+    // (bbq_apply_corrections_*) use fast RCP (1/x) instructions, which have a higher relative error
+    // (~2^-12) wrt the scalar Lucene reference (which uses exact division).
+    // Matches the cross-scorer tolerance used by ES940OSQVectorsScorerTests.
+    private static final float NATIVE_BULK_DELTA = 1e-2f;
+
     @SuppressForbidden(reason = "require usage of OptimizedScalarQuantizer")
     private static OptimizedScalarQuantizer scalarQuantizer(VectorSimilarityFunction sim) {
         return new OptimizedScalarQuantizer(sim);
@@ -501,7 +507,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                     var testScorer = supplier.scorer();
                     testScorer.setScoringOrdinal(idx0);
                     testScorer.bulkScore(nodes, scores, nodes.length);
-                    assertFloatArrayEquals(expected, scores, BULK_DELTA);
+                    assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
                 }
             }
         }
@@ -545,7 +551,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
                         var testScorer = supplier.scorer();
                         testScorer.setScoringOrdinal(idx0);
                         testScorer.bulkScore(nodes, scores, nodes.length);
-                        assertFloatArrayEquals(expected, scores, DELTA);
+                        assertFloatArrayEquals(expected, scores, NATIVE_BULK_DELTA);
                     }
                 }
             }

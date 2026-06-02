@@ -96,8 +96,7 @@ public class CacheFileReader {
         CacheBlobReader cacheBlobReader,
         BlobFileRanges blobFileRanges,
         BlobCacheMetrics blobCacheMetrics,
-        LongSupplier relativeTimeInMillisSupplier,
-        boolean hasSearchRole
+        LongSupplier relativeTimeInMillisSupplier
     ) {
         this(
             cacheFile,
@@ -168,7 +167,6 @@ public class CacheFileReader {
     }
 
     /**
-     * @return a new instance that is a copy of the current instance, preserving the advice and exclusive range
      */
     public CacheFileReader copy() {
         return new CacheFileReader(
@@ -300,37 +298,33 @@ public class CacheFileReader {
             blobCacheMetrics.recordPrefetch(PrefetchResult.AlreadyCached);
             return true;
         }
-        if (hasSearchRole) {
-            final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
-            // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
-            // however read range must stay within file length
-            final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
-            final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
-            cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
-                channel.prefetch(channelPos, len);
-                return len;
-            },
-                new SequentialRangeMissingHandler(
-                    "lucene-prefetch",
-                    cacheFile.getCacheKey().fileName(),
-                    rangeToWrite,
-                    cacheBlobReader,
-                    () -> writeBuffer.get().clear(),
-                    bytesCopied -> {},
-                    // IndexingShardCacheBlobReader.getRangeInputStream forbids running on SHARD_READ_THREAD_POOL because
-                    // it issues a transport call and completes the listener on a different pool.
-                    cacheBlobReader.executorName(),
-                    StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                ),
-                "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
-                ActionListener.wrap(v -> {
-                    blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
-                }, e -> {
-                    blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
-                    logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
-                })
-            );
-        }
+        final int intLength = clampedLength < Integer.MAX_VALUE ? Math.toIntExact(clampedLength) : Integer.MAX_VALUE;
+        // same ranges cannot be passed to populate, as write range may extend beyond actually file length,
+        // however read range must stay within file length
+        final ByteRange rangeToWrite = cacheBlobReader.getRange(offset, intLength, remainingFileLength);
+        final ByteRange rangeToRead = ByteRange.of(offset, offset + clampedLength);
+        cacheFile.populate(rangeToWrite, rangeToRead, (channel, channelPos, relativePos, len) -> {
+            channel.prefetch(channelPos, len);
+            return len;
+        },
+            new SequentialRangeMissingHandler(
+                "lucene-prefetch",
+                cacheFile.getCacheKey().fileName(),
+                rangeToWrite,
+                cacheBlobReader,
+                () -> writeBuffer.get().clear(),
+                bytesCopied -> {},
+                StatelessPlugin.SHARD_READ_THREAD_POOL,
+                StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+            ),
+            "lucene-prefetch:" + cacheFile.getCacheKey().fileName(),
+            ActionListener.wrap(v -> {
+                blobCacheMetrics.recordPrefetch(PrefetchResult.Fetched);
+            }, e -> {
+                blobCacheMetrics.recordPrefetch(PrefetchResult.Failed);
+                logger.debug(() -> "async prefetch failed for [" + cacheFile.getCacheKey() + "]", e);
+            })
+        );
         return false;
     }
 

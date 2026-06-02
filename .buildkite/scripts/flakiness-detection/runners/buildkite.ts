@@ -2,9 +2,9 @@ import { execSync } from "child_process";
 import { resolve } from "path";
 import { stringify } from "yaml";
 
-import { AgentConfig, RunnableCommand } from "../domain";
+import type { AgentConfig, RunnableCommand } from "../domain.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 interface PipelineStep {
   label: string;
@@ -117,7 +117,12 @@ export function toBuildkitePipeline(
       for (let i = 0; i < batches.length; i++) {
         env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key, cfg.timeoutInMinutes);
       }
-      step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
+      // Both `$$` escapes defer interpolation past Buildkite's pipeline-upload
+      // pass: `$$BUILDKITE_PARALLEL_JOB` because the variable is set per-job at
+      // run time (BK substitutes empty at upload time, breaking the indirect
+      // lookup), and `$${!VARNAME}` because BK can't parse `!` as the start of
+      // a variable identifier.
+      step.command = 'VARNAME="BATCH_COMMAND_$${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
       step.parallelism = batches.length;
       step.env = env;
     }
@@ -129,15 +134,14 @@ export function toBuildkitePipeline(
     steps.push({
       label: "flakiness report",
       key: "flakiness-detection:analyze",
-      // Install bun, download JUnit XML from every preceding batch step,
+      // Download JUnit XML from every preceding batch step,
       // then run the analyzer. The download preserves the upload paths so
       // the analyzer finds files at the same `*/build/test-results/...`
       // locations a local run would see.
       command: wrapNeverFail(
         [
-          "npm install -g bun@1.3.13",
           `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
-          "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
+          "node .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
         ].join("\n"),
         "flakiness-detection:analyze",
         10

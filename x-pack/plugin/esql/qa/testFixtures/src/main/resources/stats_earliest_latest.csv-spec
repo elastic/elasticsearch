@@ -374,3 +374,50 @@ ROW rows = [
 first_gh:geohash | first_gt:geotile | first_ghex:geohex
 u3bu             | 4/8/5            | 841f059ffffffff
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on dense_vector type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+
+FROM colors
+| WHERE id < 5
+| EVAL @timestamp = id
+| STATS first_rgb = EARLIEST(rgb_vector)
+;
+
+first_rgb:dense_vector
+[128.0, 0.0, 0.0]
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on exponential_histogram type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+
+FROM exp_histo_sample
+| WHERE instance == "dummy-empty"
+| STATS first_hist = EARLIEST(responseTime)
+;
+
+first_hist:exponential_histogram
+"{""scale"":0}"
+;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on tdigest type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = EARLIEST(responseTime)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;

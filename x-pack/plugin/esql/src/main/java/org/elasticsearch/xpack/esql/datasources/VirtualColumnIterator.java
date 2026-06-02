@@ -48,10 +48,8 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private final int[] partitionColumnIndices;
     /**
      * Per-file prefix bytes for {@code _id} composition, or {@code null} when {@code _id} is not
-     * projected. When non-null, the iterator composes {@code <prefix><rowPosition>} per row into the
-     * {@code _id} output slot from the reader-emitted {@link ColumnExtractor#ROW_POSITION_COLUMN}
-     * block (every file reader now emits this channel; the optimizer injects it whenever {@code _id}
-     * or {@code _file.record_ref} is requested).
+     * projected. When non-null, composes {@code <prefix><rowPosition>} per row into the {@code _id}
+     * output slot from the reader-emitted {@link ColumnExtractor#ROW_POSITION_COLUMN} block.
      */
     @Nullable
     private final BytesRef idPrefix;

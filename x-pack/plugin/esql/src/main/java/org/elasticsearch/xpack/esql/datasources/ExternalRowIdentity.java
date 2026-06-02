@@ -60,22 +60,13 @@ public final class ExternalRowIdentity {
     }
 
     /**
-     * Compose an {@code _id} block for one page. The output position count matches
-     * {@code rowPositionBlock.getPositionCount()}; null row-positions yield null {@code _id}
-     * values. The block is allocated against {@code factory} so its breaker bytes flow through
-     * the producer-thread accounting path consistent with other constant-block allocations.
-     * <p>
-     * Algorithm:
-     * <ol>
-     *     <li>Walk the row-position block once to compute total byte length and per-row offsets,
-     *         decimal-encoding each masked physical position into a scratch buffer along the way.</li>
-     *     <li>Allocate the backing {@code byte[]} once, then walk again to copy the prefix + the
-     *         scratch decimal bytes for each row into the right slot.</li>
-     * </ol>
-     * Single decimal encoding pass per row, no {@link Long#toString} allocation. Note that the
-     * single producer-side allocation is the row-pos decoding scratch only — the vector builder
-     * copies the per-row bytes once into its own internal buffer on each {@code appendBytesRef},
-     * so the rendered output is not literally backed by the producer's {@code byte[]}.
+     * Compose an {@code _id} block for one page. Output position count matches
+     * {@code rowPositionBlock.getPositionCount()}; null row-positions yield null {@code _id}. The
+     * block allocates against {@code factory} so its breaker bytes follow the producer-thread
+     * accounting path used by other constant-block allocations. Two-pass design: pass 1 walks
+     * the row-position block to decimal-encode each masked physical position into scratch and
+     * sum byte lengths; pass 2 copies the prefix + scratch bytes into the vector builder. No
+     * {@link Long#toString} allocation.
      */
     public static BytesRefBlock composePage(BytesRef prefix, LongBlock rowPositionBlock, BlockFactory factory) {
         int positions = rowPositionBlock.getPositionCount();
@@ -150,9 +141,9 @@ public final class ExternalRowIdentity {
      * Decimal-encode {@code value} into {@code out} right-aligned. {@code out} must have at least
      * {@link #MAX_LONG_DIGITS} bytes. Returns the number of digits written.
      * <p>
-     * Negative inputs are clamped to zero — physical row positions cannot be negative, and rather
-     * than throw on a silently-corrupted encoded value we render {@code 0} so downstream parsing
-     * doesn't observe a stray minus sign.
+     * Non-positive inputs render as {@code 0}: legitimate physical row positions are strictly
+     * positive, so this absorbs corruption (negative values, an unmasked sentinel) into a valid
+     * placeholder instead of emitting a stray minus sign or empty field.
      */
     static int encodeDecimal(long value, byte[] out) {
         if (value <= 0L) {

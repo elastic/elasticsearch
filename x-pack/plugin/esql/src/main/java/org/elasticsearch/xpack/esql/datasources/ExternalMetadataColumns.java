@@ -26,20 +26,14 @@ import java.util.Set;
  * {@link MetadataAttribute#ATTRIBUTES_MAP} so the binding here and in the analyzer
  * always agree (including snapshot-only entries such as {@code _data_tier}).
  * <p>
- * Sibling to {@link FileMetadataColumns}, which covers the {@code _file.*} virtual
- * columns. The two registries are kept separate because they have different lifecycles:
- * the {@code _file.*} names are always materialised by
- * {@link VirtualColumnIterator} (always-enrich), whereas the standard metadata names
- * here are only injected when the user requests them via the {@code METADATA} clause.
+ * Sibling to {@link FileMetadataColumns} ({@code _file.*}), kept separate because the standard
+ * names here are request-driven (via {@code METADATA}) while {@code _file.*} are
+ * always-materialized by {@link VirtualColumnIterator}.
  * <p>
- * Two members of {@link MetadataAttribute#ATTRIBUTES_MAP} are deliberately excluded
- * from {@link #PER_FILE_CONSTANT_NAMES} because they cannot be produced by a per-file constant: {@code _id}
- * requires a per-row {@code <location>:<rowPosition>} composition (see
- * {@code ExternalRowIdentity}) and {@code _source} requires a per-row JSON synthesis
- * from the row's data columns (see {@code SynthesizeExternalSource}). They are still
- * bound to {@link ExternalMetadataColumns} at analysis time via
- * {@link #isStandardMetadataColumn(String)} so the analyzer doesn't reject them; the
- * runtime takes a different code path for each.
+ * {@code _id} and {@code _source} are bound at analysis time but excluded from
+ * {@link #PER_FILE_CONSTANT_NAMES}: they require per-row composition
+ * ({@code ExternalRowIdentity} and {@code SynthesizeExternalSource} respectively) rather than a
+ * per-file constant.
  */
 public final class ExternalMetadataColumns {
 

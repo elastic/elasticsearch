@@ -92,12 +92,12 @@ import static org.elasticsearch.xpack.esql.datasources.ExternalSourceDrainUtils.
  *   <li>Backpressure via buffer - Uses {@link AsyncExternalSourceBuffer} with waitForSpace()</li>
  * </ul>
  * <p>
- * The {@code executor} passed in runs background file reads and async drain continuations: it is
- * typically the {@code generic} pool (via
- * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor}, set in
- * {@code LocalExecutionPlanner}) so producer continuations do not starve {@code esql_worker} drivers that
- * {@link AsyncExternalSourceBuffer#pollPage()}. The drain is fully non-blocking: it runs synchronously
- * while the buffer has space and yields the thread when full, resuming via the executor when space is freed.
+ * The {@code executor} runs background file reads and async drain continuations off the
+ * {@code esql_worker} drivers that {@link AsyncExternalSourceBuffer#pollPage()}. It is sourced from
+ * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext#fileReadExecutor}
+ * (typically the {@code generic} pool), falling back to {@code context.executor()} when unset. The
+ * drain is non-blocking: it runs synchronously while the buffer has space and yields when full,
+ * resuming via the executor when space is freed.
  *
  * @see AsyncExternalSourceBuffer
  * @see AsyncExternalSourceOperator
@@ -307,12 +307,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        // Derive standard ES metadata column names ({@code _index}, {@code _version}, ...) from
-        // the bound attributes and merge them into the effective partition-column set so the
-        // existing VirtualColumnIterator path materialises them. {@code _id} also lands in the
-        // partition-column set so the iterator owns its output slot, but its block is composed
-        // per-row by the iterator's {@code _id} path (not a constant lookup). {@code _source} is
-        // out of scope for this constant-block path — handled by a separate operator wrapper.
+        // Route requested standard metadata names (and _id when requested) through
+        // VirtualColumnIterator's materialization paths by unioning them into the partition-column
+        // set. Per-file constants take the constant-block path; _id takes the iterator's per-row
+        // composition path; _source is handled by a separate operator wrapper.
         Set<String> stdMetaNames = new LinkedHashSet<>();
         boolean idRequested = false;
         boolean sourceRequested = false;

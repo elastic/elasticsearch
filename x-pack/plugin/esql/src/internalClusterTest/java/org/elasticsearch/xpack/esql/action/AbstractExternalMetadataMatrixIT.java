@@ -280,6 +280,39 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         }
     }
 
+    public void testFileMetadataColumnsOnFromDataset() throws Exception {
+        // _file.* virtual columns must surface on FROM <dataset> when requested via METADATA, with
+        // the same shapes as the legacy EXTERNAL command auto-attaches them: per-file constants
+        // populated from the file's StoragePath + stat. _file.record_ref is exercised via _id by
+        // testIdRendersLocationAndRowPosition; this test pins the per-file constants.
+        String query = "FROM employees METADATA _file.path, _file.name, _file.directory, _file.size, _file.modified "
+            + "| SORT emp_no "
+            + "| KEEP emp_no, `_file.path`, `_file.name`, `_file.directory`, `_file.size`, `_file.modified` "
+            + "| LIMIT 10";
+
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, equalTo(List.of("emp_no", "_file.path", "_file.name", "_file.directory", "_file.size", "_file.modified")));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            String firstPath = objToString(rows.get(0).get(1));
+            String firstName = objToString(rows.get(0).get(2));
+            String firstDirectory = objToString(rows.get(0).get(3));
+            for (List<Object> row : rows) {
+                assertThat("_file.path is non-null", row.get(1), notNullValue());
+                assertThat("_file.name is non-null", row.get(2), notNullValue());
+                assertThat("_file.directory is non-null", row.get(3), notNullValue());
+                assertThat("_file.size is positive", ((Number) row.get(4)).longValue(), greaterThan(0L));
+                assertThat("_file.modified is non-null", row.get(5), notNullValue());
+                // All rows come from the same single-file fixture, so every per-file constant matches.
+                assertThat("_file.path is per-file constant", objToString(row.get(1)), equalTo(firstPath));
+                assertThat("_file.name is per-file constant", objToString(row.get(2)), equalTo(firstName));
+                assertThat("_file.directory is per-file constant", objToString(row.get(3)), equalTo(firstDirectory));
+            }
+        }
+    }
+
     public void testStandardMetadataNeverFails() throws Exception {
         // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
         // never an error. _index carries the dataset name; _version the file mtime; the rest have no

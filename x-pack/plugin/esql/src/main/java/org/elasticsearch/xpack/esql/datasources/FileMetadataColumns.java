@@ -32,16 +32,12 @@ public final class FileMetadataColumns {
     public static final String SIZE = "_file.size";
     public static final String MODIFIED = "_file.modified";
     /**
-     * Opaque, stable, per-record reference within the file. Unlike every other {@code _file.*}
-     * column — which is a per-file constant filled from {@link #extractValues} — this one varies
-     * per record and is sourced from the format reader's row-position channel
-     * ({@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN}),
-     * not from the per-file constant map. Its concrete shape is format-defined (file-global row
-     * index for columnar formats, file-global start byte for text) and must be treated as opaque:
-     * the only defined relation is equality (same record ⇒ same value), regardless of how the file
-     * is split or how many workers read it. It is the substrate the {@code _id} metadata column is
-     * composed from ({@code _id = <path>:<record_ref>}); requesting either injects the reader's
-     * row-position channel. Deliberately excluded from {@link #extractValues}.
+     * Opaque, stable, per-record reference. Unlike the other {@code _file.*} columns (per-file
+     * constants via {@link #extractValues}), this one varies per record and is sourced from the
+     * reader's row-position channel
+     * ({@link org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor#ROW_POSITION_COLUMN}).
+     * Shape is format-defined and opaque to consumers — equality is the only defined relation,
+     * independent of split layout. Deliberately excluded from {@link #extractValues}.
      */
     public static final String RECORD_REF = "_file.record_ref";
 

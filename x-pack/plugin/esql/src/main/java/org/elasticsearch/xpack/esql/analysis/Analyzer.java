@@ -612,7 +612,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Attribute> enriched = null;
             for (NamedExpression requested : plan.metadataFields()) {
-                String name = requested.name();
+                // FROM's parser threads non-standard names through UnresolvedMetadataAttributeExpression
+                // (whose name() throws); EXTERNAL's parser threads plain UnresolvedAttribute. Resolve
+                // the textual name from either shape without invoking the throwing accessor.
+                String name = requested instanceof org.elasticsearch.xpack.esql.core.expression.UnresolvedMetadataAttributeExpression unr
+                    ? unr.pattern()
+                    : requested.name();
                 if (existing.contains(name)) {
                     continue;
                 }

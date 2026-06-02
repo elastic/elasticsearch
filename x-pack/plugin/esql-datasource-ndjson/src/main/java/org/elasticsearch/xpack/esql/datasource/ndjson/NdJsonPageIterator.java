@@ -83,13 +83,10 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation, recordSplitter);
         }
         this.rowLimit = rowLimit;
-        // When _rowPosition is projected the byte[] path is preferred: it maintains parserSliceStart
-        // across parse-error recovery so record offsets stay exact, whereas the streaming path resets
-        // the parser's byte baseline on recovery. All split/segment/chunk reads already slurp at
-        // bounded sizes. For a whole-file read of a large unsplit NDJSON file we still honour the
-        // BYTE_ARRAY_FAST_PATH_MAX_SIZE cap to avoid an unbounded allocation: above the cap we fall
-        // back to streaming and accept that parse-error recovery may shift the offset baseline (a
-        // rare lenient-mode event); the alternative would be unbounded memory on multi-GB files.
+        // byte[] path keeps record offsets exact across parse-error recovery (streaming resets the
+        // parser baseline on recovery). Capped at BYTE_ARRAY_FAST_PATH_MAX_SIZE for whole-file
+        // reads of huge unsplit NDJSON; above the cap, fall back to streaming and accept a
+        // possible offset shift on lenient-mode recovery rather than risk unbounded allocation.
         if (canUseByteArrayFastPath(object)) {
             byte[] data;
             try (InputStream toClose = inputStream) {

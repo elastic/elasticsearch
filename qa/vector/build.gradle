@@ -214,7 +214,7 @@ tasks.register("checkVec", JavaExec) {
   def heapSize = System.getProperty("bench.heap", "16g")
   jvmArgs "-Xms${heapSize}", "-Xmx${heapSize}", '-Djava.util.concurrent.ForkJoinPool.common.parallelism=8', '-XX:+UnlockDiagnosticVMOptions', '-XX:+DebugNonSafepoints', '-XX:+HeapDumpOnOutOfMemoryError'
   System.properties.each { k, v ->
-    if (k.startsWith("es.") || k.startsWith("bench.")) {
+    if (k.startsWith("es.") || k.startsWith("bench.") || k == "java.io.tmpdir") {
       systemProperty k, v
     }
   }

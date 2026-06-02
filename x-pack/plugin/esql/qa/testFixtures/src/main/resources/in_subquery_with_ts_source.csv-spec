@@ -461,6 +461,28 @@ cnt:long
 100
 ;
 
+// main query from command, subquery mixed of from/ts/row command
+mainFromInSubqueryWithMixedRowFromTs
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_ts
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+FROM employees
+| EVAL cluster = "qa"
+| WHERE cluster IN (FROM
+                       (ROW cluster = "synthetic"),
+                       (FROM employees | WHERE emp_no == 10001 | EVAL cluster = "from_branch" | KEEP cluster),
+                       (TS k8s | STATS m = max(to_long(network.total_bytes_in)) BY cluster | WHERE m > 10000 | KEEP cluster)
+                   )
+| STATS cnt = COUNT(*)
+;
+
+cnt:long
+100
+;
+
 // main query ts command, subquery ts command
 
 mainTsInSubqueryTs
@@ -1253,6 +1275,375 @@ max_bytes:long | cluster:keyword
 7403           | staging
 ;
 
+// main query ts command, subquery from/row command
+mainTsInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (ROW cluster = "qa")
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10797          | qa
+;
+
+mainTsNotInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster NOT IN (ROW cluster = "qa")
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+7403           | staging
+;
+
+mainTsInSubqueryRowConjunctive
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (ROW cluster = "qa") AND pod == "two"
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+8568           | qa
+;
+
+mainTsInSubqueryRowDisjunctive
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (ROW cluster = "staging") OR cluster == "qa"
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10797          | qa
+7403           | staging
+;
+
+mainTsConstantInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE "qa" IN (ROW cluster = "qa")
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+mainTsConstantNotInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE "qa" NOT IN (ROW cluster = "qa")
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+;
+
+mainTsInSubqueryFrom
+required_capability: where_in_subquery_without_view
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (FROM employees
+                    | WHERE emp_no == 10001
+                    | EVAL cluster = "qa"
+                    | KEEP cluster)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10797          | qa
+;
+
+mainTsNotInSubqueryFrom
+required_capability: where_in_subquery_without_view
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster NOT IN (FROM employees
+                        | WHERE emp_no == 10001
+                        | EVAL cluster = "qa"
+                        | KEEP cluster)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+7403           | staging
+;
+
+mainTsInSubqueryFromConjunctive
+required_capability: where_in_subquery_without_view
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (FROM employees
+                    | WHERE emp_no == 10001
+                    | EVAL cluster = "qa"
+                    | KEEP cluster)
+    AND pod == "two"
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+8568           | qa
+;
+
+mainTsNotInSubqueryFromWithMissingCluster
+required_capability: where_in_subquery_without_view
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster NOT IN (FROM employees
+                        | WHERE emp_no == 10001
+                        | EVAL cluster = "missing_cluster"
+                        | KEEP cluster)
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+7403           | staging
+;
+
+mainTsInSubqueryFromMultipleRows
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (FROM
+                       (ROW cluster = "qa"),
+                       (ROW cluster = "staging")
+                   )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10797          | qa
+7403           | staging
+;
+
+mainTsNotInSubqueryFromMultipleRows
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster NOT IN (FROM
+                            (ROW cluster = "qa"),
+                            (ROW cluster = "prod")
+                       )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+7403           | staging
+;
+
+mainTsInSubqueryFromMultipleFromBranches
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (FROM
+                       (FROM employees | WHERE emp_no == 10001 | EVAL cluster = "qa" | KEEP cluster),
+                       (FROM employees | WHERE emp_no == 10003 | EVAL cluster = "prod" | KEEP cluster)
+                   )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+;
+
+mainTsInSubqueryWithMixedFromAndRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster IN (FROM
+                       (ROW cluster = "qa"),
+                       (FROM employees | WHERE emp_no == 10003 | EVAL cluster = "prod" | KEEP cluster)
+                   )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+10277          | prod
+10797          | qa
+;
+
+mainTsNotInSubqueryWithMixedFromAndRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+
+TS k8s
+| WHERE cluster NOT IN (FROM
+                           (ROW cluster = "qa"),
+                           (FROM employees | WHERE emp_no == 10003 | EVAL cluster = "prod" | KEEP cluster)
+                       )
+| STATS max_bytes = max(to_long(network.total_bytes_in)) BY cluster
+| SORT cluster
+;
+
+max_bytes:long | cluster:keyword
+7403           | staging
+;
+
+mainTsWithRateInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: where_in_subquery_with_ts
+
+TS k8s
+| WHERE cluster IN (ROW cluster = "qa")
+| STATS max_rate = ROUND(max(rate(network.total_bytes_in)), 6) BY cluster
+| SORT cluster
+;
+
+max_rate:double | cluster:keyword
+13.173725       | qa
+;
+
+mainTsWithRateNotInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: where_in_subquery_with_ts
+
+TS k8s
+| WHERE cluster NOT IN (ROW cluster = "qa")
+| STATS max_rate = ROUND(max(rate(network.total_bytes_in)), 6) BY cluster
+| SORT cluster
+;
+
+max_rate:double | cluster:keyword
+8.716707        | prod
+7.377612        | staging
+;
+
+mainTsWithRateInSubqueryFrom
+required_capability: where_in_subquery_without_view
+required_capability: ts_command_v0
+required_capability: rate_with_interpolation_v2
+required_capability: where_in_subquery_with_ts
+
+TS k8s
+| WHERE cluster IN (FROM employees
+                    | WHERE emp_no == 10001
+                    | EVAL cluster = "qa"
+                    | KEEP cluster)
+| STATS max_rate = ROUND(max(rate(network.total_bytes_in)), 6) BY cluster
+| SORT cluster
+;
+
+max_rate:double | cluster:keyword
+13.173725       | qa
+;
+
+mainTsWithMaxOverTimeInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: where_in_subquery_with_ts
+
+TS k8s
+| WHERE cluster IN (ROW cluster = "prod")
+| STATS top = max(max_over_time(network.cost)) BY cluster
+| SORT cluster
+;
+
+top:double | cluster:keyword
+12.375     | prod
+;
+
+mainTsWithWithoutInSubqueryRow
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: where_in_subquery_with_ts
+
+TS k8s
+| WHERE cluster IN (ROW cluster = "qa")
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| SORT total_cost
+;
+
+total_cost:double | _timeseries:keyword
+26.5              | "{""cluster"":""qa""}"
+;
+
+mainTsWithWithoutInSubqueryFrom
+required_capability: where_in_subquery_without_view
+required_capability: ts_command_v0
+required_capability: esql_without_grouping
+required_capability: where_in_subquery_with_ts
+
+TS k8s
+| WHERE cluster IN (FROM employees
+                    | WHERE emp_no == 10001
+                    | EVAL cluster = "qa"
+                    | KEEP cluster)
+| STATS total_cost = sum(network.cost) BY WITHOUT(pod, region)
+| SORT total_cost
+;
+
+total_cost:double | _timeseries:keyword
+26.5              | "{""cluster"":""qa""}"
+;
+
 // main query row command, subquery ts command
 rowMainInSubqueryTs
 required_capability: where_in_subquery_without_view
@@ -1268,26 +1659,4 @@ ROW cluster = "qa"
 
 cluster:keyword
 qa
-;
-
-// main query from command, subquery mixed of from/ts/row command
-mainFromInSubqueryWithMixedRowFromTs
-required_capability: where_in_subquery_without_view
-required_capability: subquery_in_from_command
-required_capability: subquery_with_ts
-required_capability: subquery_with_row
-required_capability: ts_command_v0
-
-FROM employees
-| EVAL cluster = "qa"
-| WHERE cluster IN (FROM
-                       (ROW cluster = "synthetic"),
-                       (FROM employees | WHERE emp_no == 10001 | EVAL cluster = "from_branch" | KEEP cluster),
-                       (TS k8s | STATS m = max(to_long(network.total_bytes_in)) BY cluster | WHERE m > 10000 | KEEP cluster)
-                   )
-| STATS cnt = COUNT(*)
-;
-
-cnt:long
-100
 ;

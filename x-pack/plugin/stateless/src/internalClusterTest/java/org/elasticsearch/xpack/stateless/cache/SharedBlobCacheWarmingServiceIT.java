@@ -1347,13 +1347,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
             long blobLength,
             RangeMissingHandler writer,
             Executor fetchExecutor,
+            long timestampMillis,
             ActionListener<Boolean> listener
         ) {
             if (noFreeRegionForWarming.get()) {
                 // Simulate no free region
                 listener.onResponse(false);
             } else {
-                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, listener);
+                super.maybeFetchRange(cacheKey, region, range, blobLength, writer, fetchExecutor, timestampMillis, listener);
             }
         }
     }

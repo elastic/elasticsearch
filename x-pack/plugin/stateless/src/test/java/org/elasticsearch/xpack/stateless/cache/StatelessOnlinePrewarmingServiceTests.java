@@ -321,6 +321,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                             long blobLength,
                             RangeMissingHandler writer,
                             Executor fetchExecutor,
+                            long timestampMillis,
                             ActionListener<Boolean> listener
                         ) {
                             listener.onFailure(new IllegalStateException("oh no"));

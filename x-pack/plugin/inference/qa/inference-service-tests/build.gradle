@@ -11,12 +11,6 @@ dependencies {
 
   // Access public test classes/utilities from x-pack:inference tests
   javaRestTestImplementation(testArtifact(project(xpackModule('inference'))))
-
-  // TODO: Add mock-oauth2-server for end-to-end OAuth2 testing in a follow-up PR.
-  //       Pulls in many transitive Kotlin/Ktor deps that require verification-metadata.xml updates.
-  //       Once added, write OAuth2TokenFetcherIT and OpenAiOAuth2IT to exercise the full OAuth2 flow
-  //       against a real in-process IdP. See project-plans/2026-05-22-openai-oauth2-pr3-plan.md
-  //       (Tasks 25-27) for the deferred test layout.
 }
 
 tasks.named("javaRestTest").configure {

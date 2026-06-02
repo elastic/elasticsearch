@@ -424,6 +424,21 @@ public class InferencePlugin extends Plugin
             inferenceStats
         );
 
+        // Both oauth2TokenCache and projectResolver must be set before InferenceServiceRegistry is
+        // constructed because the registry eagerly invokes all service factory lambdas (including
+        // the OpenAI one), which calls oauth2TokenCache.get() and projectResolver.get().
+        // If either is null at that point a NullPointerException results.
+        projectResolver.set(services.projectResolver());
+        var oAuth2TokenCache = new OAuth2TokenCache(
+            services.clusterService(),
+            settings,
+            services.featureService(),
+            services.projectResolver(),
+            services.client()
+        );
+        oAuth2TokenCache.init();
+        oauth2TokenCache.set(oAuth2TokenCache);
+
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
         var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
@@ -459,18 +474,8 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
-        projectResolver.set(services.projectResolver());
 
-        var oAuth2TokenCache = new OAuth2TokenCache(
-            services.clusterService(),
-            settings,
-            services.featureService(),
-            services.projectResolver(),
-            services.client()
-        );
-        oAuth2TokenCache.init();
         components.add(oAuth2TokenCache);
-        oauth2TokenCache.set(oAuth2TokenCache);
 
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 

@@ -1,0 +1,148 @@
+// A mapped `ip` sub-field is resolved by ES|QL as a real `ip` column. The
+// `:ip` header type below is the assertion: an untyped flattened key would
+// land as `:keyword`. The IP equality predicate exercises native IP query
+// semantics rather than lexicographic comparison on the underlying string.
+mappedIpSubFieldHasIpType
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| WHERE labels.host.ip == TO_IP("10.0.0.1")
+| KEEP id, labels.host.ip
+| SORT id
+;
+
+id:integer | labels.host.ip:ip
+1          | 10.0.0.1
+5          | 10.0.0.1
+;
+
+// A mapped `long` sub-field is resolved as a real `long` column. The `:long`
+// header type confirms the typed mapping took effect, and grouping by a
+// numeric column (rather than the flattened root) requires the mapping to
+// flow through to the analyzer.
+mappedLongSubFieldHasLongType
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(*) BY labels.status_code
+| SORT labels.status_code
+;
+
+c:long | labels.status_code:long
+2      | 200
+1      | 404
+1      | 500
+1      | 503
+;
+
+// With passthrough enabled, the mapped sub-field is also addressable at the
+// root of the index. `host.ip` (no `labels.` prefix) resolves to the same
+// typed `ip` field as in `mappedIpSubFieldHasIpType`, with identical results.
+passthroughIpAliasAtRoot
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| WHERE host.ip == TO_IP("10.0.0.1")
+| KEEP id, host.ip
+| SORT id
+;
+
+id:integer | host.ip:ip
+1          | 10.0.0.1
+5          | 10.0.0.1
+;
+
+// Passthrough also exposes the numeric sub-field at the root. Grouping by
+// the unprefixed `status_code` returns the same long-typed groups as
+// `mappedLongSubFieldHasLongType`.
+passthroughLongAliasAtRoot
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(*) BY status_code
+| SORT status_code
+;
+
+c:long | status_code:long
+2      | 200
+1      | 404
+1      | 500
+1      | 503
+;
+
+// Regression: keys that are NOT listed in `properties` (here, `env`) stay in
+// the flattened root's keyed representation and remain accessible through the
+// existing `field_extract()` path. This confirms that adding `properties`
+// does not turn the flattened field into an all-or-nothing typed object.
+unmappedKeyStaysInFlattenedRoot
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_typed
+| EVAL env = field_extract(labels, "env")
+| KEEP id, env
+| SORT id
+;
+
+id:integer | env:keyword
+1          | prod
+2          | prod
+3          | staging
+4          | dev
+5          | prod
+;
+
+// Regression: the flattened root itself is still a usable column even when
+// `properties` and `passthrough` are configured. Aggregations that operate on
+// the flattened root (`COUNT`, `IS NOT NULL`, etc.) continue to work and see
+// every document that has the field populated.
+flattenedRootStillCountable
+required_capability: flattened_datatype
+
+FROM flattened_typed
+| STATS c = COUNT(labels)
+;
+
+c:long
+5
+;
+
+// `field_extract` returns null with the mapped subfield
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_typed
+| EVAL extracted = field_extract(labels, "host.ip")
+| KEEP id, labels.host.ip, host.ip, extracted
+| SORT id
+;
+
+id:integer | labels.host.ip:ip | host.ip:ip  | extracted:keyword
+1          | 10.0.0.1          | 10.0.0.1    | null
+2          | 10.0.0.2          | 10.0.0.2    | null
+3          | 10.0.0.3          | 10.0.0.3    | null
+4          | 192.168.0.1       | 192.168.0.1 | null
+5          | 10.0.0.1          | 10.0.0.1    | null
+;
+
+// Side-by-side proof that the null above is specific to mapped sub-fields and
+// not a general `field_extract` failure: in one query, extracting the mapped
+// key `host.ip` yields null while extracting the unmapped key `env` (which
+// stays in the keyed root) yields its value.
+fieldExtractMappedVsUnmappedKey
+required_capability: flattened_datatype
+required_capability: fn_field_extract
+
+FROM flattened_typed
+| EVAL mapped = field_extract(labels, "host.ip"), unmapped = field_extract(labels, "env")
+| KEEP id, mapped, unmapped
+| SORT id
+;
+
+id:integer | mapped:keyword | unmapped:keyword
+1          | null           | prod
+2          | null           | prod
+3          | null           | staging
+4          | null           | dev
+5          | null           | prod
+;

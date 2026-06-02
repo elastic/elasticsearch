@@ -1,0 +1,6 @@
+id:integer, labels:json
+1,          {"host.ip": "10.0.0.1"\,    "status_code": 200\, "env": "prod"}
+2,          {"host.ip": "10.0.0.2"\,    "status_code": 404\, "env": "prod"}
+3,          {"host.ip": "10.0.0.3"\,    "status_code": 500\, "env": "staging"}
+4,          {"host.ip": "192.168.0.1"\, "status_code": 200\, "env": "dev"}
+5,          {"host.ip": "10.0.0.1"\,    "status_code": 503\, "env": "prod"}

@@ -282,8 +282,10 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     /**
      * Marks this sub-search as buffered by a multi-search on the coordinating node. Query-phase aggregation
      * breaker bytes are handed off to the {@link SearchResponse} instead of being released when the search completes.
+     * Internal protocol between {@link TransportMultiSearchAction} and {@code AbstractSearchAsyncAction};
+     * callers outside that pair risk stranding REQUEST breaker bytes.
      */
-    public void setBufferSubSearchResponseForMultiSearch(boolean bufferSubSearchResponseForMultiSearch) {
+    void setBufferSubSearchResponseForMultiSearch(boolean bufferSubSearchResponseForMultiSearch) {
         this.bufferSubSearchResponseForMultiSearch = bufferSubSearchResponseForMultiSearch;
     }
 

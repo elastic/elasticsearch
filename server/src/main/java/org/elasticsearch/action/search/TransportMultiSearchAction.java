@@ -128,6 +128,11 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * frame), suggest and profile nodes carry Java collection overhead, and highlight
      * {@link Text} objects add object shells beyond their string content. Using 2× is a
      * conservative lower bound within the safe over-estimate range for circuit-breaker purposes.
+     * <p>
+     * Residual OOM risk: responses dominated by deep stack traces (many shard failures with
+     * 50+ frame traces) or large profile trees may reach 4–5× wire size on heap. In those cases
+     * this multiplier under-estimates, and the REQUEST breaker may not trip until the parent
+     * real-memory breaker intervenes.
      */
     static final long SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR = 2L;
 
@@ -326,6 +331,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
      * Resets {@code counter} before writing and reads {@link CountingStreamOutput#position()} after.
      * Returns {@code 0} and logs a warning if serialisation raises an unexpected exception;
      * in that case {@code counter} is reset so the next call starts from a clean state.
+     * <p>
+     * Callers must multiply the result by {@link #SERIALISED_BYTES_HEAP_OVERHEAD_FACTOR} to convert
+     * wire bytes to a heap estimate. Returning {@code 0} on failure means the component is uncharged,
+     * so the breaker may under-protect for that specific field when serialisation fails.
      */
     private static long tryCountSerializedBytes(CountingStreamOutput counter, Writeable writeable, String logMessage) {
         try {
@@ -363,6 +372,8 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         Object[] sortVals = hit.getSortValues();
         if (sortVals.length > 0) {
             // SearchSortValues shell (~32 B) + two Object[] headers (16 B each) + ref slots (8 B per entry).
+            // Both the formatted and raw arrays are iterated below; when DocValueFormat.RAW is used the two
+            // arrays hold the same objects, so value bytes are charged twice — a known over-estimate.
             bytes += 64L + (long) sortVals.length * 8;
             for (Object sv : sortVals) {
                 bytes += estimateValueBytes(sv);
@@ -483,14 +494,19 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         // responseCounter. CircuitBreakingException is caught below and returned as a failure item without throwing.
         client.search(request.request, subscribeListener.map(searchResponse -> {
             long queryPhaseAggHandoff = searchResponse.getQueryPhaseAggregationBreakerBytes();
-            // breakerAccounted tracks whether breakerAccounting.add() has been called. Once true,
-            // releaseAll() owns the release of both incremental bytes and the handoff; the outer
-            // catch must not also release the handoff directly (which would double-release it).
-            boolean breakerAccounted = false;
+            long bytes = 0;
+            // bytesReserved: addEstimateBytesAndMaybeBreak succeeded — bytes are on the breaker.
+            // addedToAccounting: breakerAccounting.add() was called — releaseAll() owns the release.
+            // These two flags gate the outer-catch cleanup: if addedToAccounting is true, releaseAll()
+            // covers everything; if false but bytesReserved is true, the outer catch must release bytes
+            // directly (they are on the breaker but not tracked in breakerAccounting).
+            boolean bytesReserved = false;
+            boolean addedToAccounting = false;
             try {
-                long bytes = estimateActualBytes(searchResponse);
+                bytes = estimateActualBytes(searchResponse);
                 try {
                     circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
+                    bytesReserved = true;
                 } catch (CircuitBreakingException e) {
                     if (queryPhaseAggHandoff > 0) {
                         circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
@@ -499,14 +515,19 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                     return new MultiSearchResponse.Item(null, e);
                 }
                 breakerAccounting.add(bytes, queryPhaseAggHandoff);
-                breakerAccounted = true;
+                addedToAccounting = true;
                 searchResponse.mustIncRef();
                 return new MultiSearchResponse.Item(searchResponse, null);
             } catch (Exception unexpected) {
-                if (breakerAccounted == false && queryPhaseAggHandoff > 0) {
-                    // add() was never called; release the handoff directly.
-                    // If breakerAccounted is true, releaseAll() covers both bytes and handoff.
-                    circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
+                if (addedToAccounting) {
+                    // releaseAll() will cover both bytes and handoff via breakerAccounting.
+                } else {
+                    if (bytesReserved) {
+                        circuitBreaker.addWithoutBreaking(-bytes);
+                    }
+                    if (queryPhaseAggHandoff > 0) {
+                        circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
+                    }
                 }
                 throw unexpected;
             }

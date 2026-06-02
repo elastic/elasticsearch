@@ -36,6 +36,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -1342,13 +1344,19 @@ public class TwoPhaseReaderTests extends ESTestCase {
         }
 
         @Override
-        public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        public void readBytesAsync(
+            long position,
+            long length,
+            DirectBufferFactory factory,
+            Executor executor,
+            ActionListener<DirectReadBuffer> listener
+        ) {
             // Run inline like the default sync wrapper but go through our stream-based newStream
             // path so the byte counter reflects the read. We mimic StorageObject's default async
             // implementation: count once, copy once.
             try (InputStream stream = newStream(position, length)) {
                 byte[] bytes = stream.readAllBytes();
-                listener.onResponse(ByteBuffer.wrap(bytes));
+                listener.onResponse(new DirectReadBuffer(ByteBuffer.wrap(bytes), () -> {}));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

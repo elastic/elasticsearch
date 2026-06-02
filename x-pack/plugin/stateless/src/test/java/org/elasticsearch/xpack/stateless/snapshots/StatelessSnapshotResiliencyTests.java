@@ -136,6 +136,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
+import org.elasticsearch.xpack.stateless.recovery.PitRelocationMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
@@ -511,7 +512,8 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         projectResolver,
                         searchService,
                         new PITRelocationService(),
-                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService)
+                        new StatelessComponents(mock(TranslogReplicator.class), testStatelessPlugin.objectStoreService),
+                        new PitRelocationMetrics(MeterRegistry.NOOP)
                     ),
                     TransportShardRefreshAction.TYPE,
                     new TransportShardRefreshAction(

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
@@ -75,7 +74,7 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             merger = null;
         }
 
@@ -90,19 +89,13 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
         }
 
         @Override
-        public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                if (merger == null) {
-                    merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
-                }
-                ExponentialHistogram value = docValues.histogramValue();
-                merger.add(value);
+        public void collectCurrentValues(ExponentialHistogramValuesReader docValues) throws IOException {
+            if (merger == null) {
+                merger = ExponentialHistogramMerger.create(ExponentialHistogramCircuitBreaker.noop());
             }
+            ExponentialHistogram value = docValues.histogramValue();
+            merger.add(value);
+            state = State.IN_PROGRESS;
         }
     }
 
@@ -119,25 +112,14 @@ abstract class ExponentialHistogramFieldDownsampler extends AbstractFieldDownsam
 
         @Override
         public void reset() {
-            isEmpty = true;
+            state = State.EMPTY;
             lastValue = null;
         }
 
         @Override
-        public void collect(ExponentialHistogramValuesReader docValues, IntArrayList docIdBuffer) throws IOException {
-            if (isEmpty() == false) {
-                return;
-            }
-
-            for (int i = 0; i < docIdBuffer.size(); i++) {
-                int docId = docIdBuffer.get(i);
-                if (docValues.advanceExact(docId) == false) {
-                    continue;
-                }
-                isEmpty = false;
-                lastValue = docValues.histogramValue();
-                return;
-            }
+        public void collectCurrentValues(ExponentialHistogramValuesReader docValues) throws IOException {
+            lastValue = docValues.histogramValue();
+            state = State.BUCKET_COMPLETED;
         }
 
         @Override

@@ -998,7 +998,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(expected, response.v1());
     }
 
-    public void testNextPageText() throws IOException {
+    public void testNextPageText() throws Exception {
         executeQueryWithNextPage("text/plain", "     text      |    number     |      sum      \n", "%-15s|%-15d|%-15d\n");
     }
 
@@ -1048,7 +1048,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(expected, response.v1());
     }
 
-    public void testNextPageCSV() throws IOException {
+    public void testNextPageCSV() throws Exception {
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
     }
 
@@ -1102,7 +1102,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertEquals(expected, response.v1());
     }
 
-    public void testNextPageTSV() throws IOException {
+    public void testNextPageTSV() throws Exception {
         executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
     }
 
@@ -1387,7 +1387,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         client().performRequest(request);
     }
 
-    private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {
+    private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws Exception {
         int size = 20;
         String[] docs = new String[size];
         for (int i = 0; i < size; i++) {
@@ -1431,7 +1431,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             }
         }
 
-        assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
+        assertBusy(() -> assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test")));
     }
 
     private void bulkLoadTestData(int count) throws IOException {

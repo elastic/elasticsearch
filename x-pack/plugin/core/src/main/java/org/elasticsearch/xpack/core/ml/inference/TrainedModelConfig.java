@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -67,6 +69,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final int MAX_PREFIX_STRING_LENGTH = 1_000;
     public static final int MAX_INPUT_FIELD_NAMES = 100;
     public static final int MAX_DEFAULT_FIELD_MAP_ENTRIES = 100;
+    public static final int MAX_METADATA_SIZE_BYTES = 64 * 1024;
 
     public static final String NAME = "trained_model_config";
     public static final int CURRENT_DEFINITION_COMPRESSION_VERSION = 1;
@@ -1017,6 +1020,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
                 );
             }
 
+            if (metadata != null && serializationSize(metadata) > MAX_METADATA_SIZE_BYTES) {
+                validationException = addValidationError(
+                    "[" + METADATA.getPreferredName() + "] must be less than " + MAX_METADATA_SIZE_BYTES + " bytes.",
+                    validationException
+                );
+            }
+
             if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
                 validationException = addValidationError(
                     "[" + DESCRIPTION.getPreferredName() + "] must be less than " + MAX_DESCRIPTION_LENGTH + " characters in length.",
@@ -1062,6 +1072,15 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             }
 
             return this;
+        }
+
+        private static int serializationSize(Map<String, Object> map) {
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.value(map);
+                return BytesReference.bytes(builder).length();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Error occurred computing serialization size", e);
+            }
         }
 
         private static ActionRequestValidationException checkIllegalSetting(

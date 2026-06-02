@@ -139,9 +139,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
 
-    // Temporary test-only hook for reproducing the race in https://github.com/elastic/elasticsearch/issues/150213
-    public volatile boolean testIndexDeleted;
-
     private final Settings settings;
 
     record FailedShardCacheEntry(ShardRouting routing, long primaryTerm) {}
@@ -1228,7 +1225,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     ) {
         try (var listeners = new RefCountingListener(shardCloseListener)) {
             AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
-            if (indexService != null && testIndexDeleted == false) {
+            if (indexService != null) {
                 Shard shard = indexService.getShardOrNull(shardRouting.shardId().id());
                 if (shard != null && shard.routingEntry().isSameAllocation(shardRouting)) {
                     indexService.removeShard(shardRouting.shardId().id(), message, shardCloseExecutor, listeners.acquire());
@@ -1248,8 +1245,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 inner
             );
         }
-        // Remove the master race
-        if (sendShardFailure && testIndexDeleted == false) {
+        if (sendShardFailure) {
             sendFailShard(shardRouting, message, failure, state);
         }
     }

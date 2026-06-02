@@ -106,7 +106,6 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -123,7 +122,6 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -143,7 +141,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -186,10 +183,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(), TestAnalysisPlugin.class),
-            MockIndexEventListener.TestPlugin.class
-        );
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestAnalysisPlugin.class);
     }
 
     @Override
@@ -2272,56 +2266,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         proceedRecoveryLatch.countDown();
         assertThat(shardsThatStartedRecovery, hasSize(1));
-    }
-
-    /// Reproduces https://github.com/elastic/elasticsearch/issues/150213
-    public void testRepro150213() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-
-        final String indexName = randomIndexName();
-        assertAcked(indicesAdmin().prepareCreate(indexName).setSettings(indexSettings(1, 0)));
-        for (int i = 0; i < 10; i++) {
-            prepareIndex(indexName).setSource("f", i).get();
-        }
-        flush(indexName);
-
-        final String targetNode = internalCluster().startDataOnlyNode();
-
-        // Simulate concurrent index deletion
-        final var icss = internalCluster().getInstance(IndicesClusterStateService.class, targetNode);
-        icss.testIndexDeleted = true;
-
-        // Inject IOException into cleanFiles()
-        RecoveryTarget.testOnlyInjectCleanFilesException.set(new IOException("injected by test"));
-
-        // Forward CLEAN_FILES to the real handler but capture the recoveryId
-        final var cleanFilesIntercepted = new CountDownLatch(1);
-        final AtomicLong capturedRecoveryId = new AtomicLong(-1);
-        MockTransportService.getInstance(targetNode)
-            .addRequestHandlingBehavior(PeerRecoveryTargetService.Actions.CLEAN_FILES, (handler, request, channel, task) -> {
-                capturedRecoveryId.set(((RecoveryCleanFilesRequest) request).recoveryId());
-                cleanFilesIntercepted.countDown();
-                handler.messageReceived(request, channel, task);
-            });
-
-        try {
-            // Start the recovery.
-            updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
-            safeAwait(cleanFilesIntercepted);
-
-            // The source now sends back a START_RECOVERY failure, which gets passed to RecoveryResponseHandler.handleException
-            // and then RecoveriesCollections.failRecovery which triggers the assertion.
-            final var targetService = internalCluster().getInstance(PeerRecoveryTargetService.class, targetNode);
-            assertBusy(
-                () -> assertNull(
-                    "recovery target should have been removed from the collection by failRecovery",
-                    targetService.onGoingRecoveries.getRecoveryTarget(capturedRecoveryId.get())
-                )
-            );
-        } finally {
-            icss.testIndexDeleted = false;
-        }
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

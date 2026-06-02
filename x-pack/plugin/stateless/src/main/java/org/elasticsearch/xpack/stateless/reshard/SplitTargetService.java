@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
@@ -211,9 +212,8 @@ public class SplitTargetService {
             this.split = split;
             this.shard = shard;
             this.onCompleted = onCompleted;
-            this.metricsRecorder = new MetricsRecorder(reshardMetrics, nowInMillis);
-
             this.cancelled = new AtomicBoolean(false);
+            this.metricsRecorder = new MetricsRecorder(reshardMetrics, nowInMillis, this.cancelled);
 
             this.currentState = initialState;
         }
@@ -715,29 +715,37 @@ public class SplitTargetService {
         }
 
         private static class MetricsRecorder {
-            private record StateEntry(Class<? extends State> previousState, LongConsumer histogram) {}
+            private record StateEntry(@Nullable Class<? extends State> previousState, LongConsumer record) {}
 
-            // Only actual target shard states are present
             private final Map<Class<? extends State>, StateEntry> targetStates;
             private final LongSupplier nowInMillis;
             Map<Class<? extends State>, Long> timestamps;
 
-            MetricsRecorder(ReshardMetrics reshardMetrics, LongSupplier nowInMillis) {
+            MetricsRecorder(ReshardMetrics reshardMetrics, LongSupplier nowInMillis, AtomicBoolean cancelled) {
                 this.targetStates = new HashMap<>() {
                     {
+                        put(State.Clone.class, new StateEntry(null, ignored -> {}));
                         put(
-                            State.Clone.class,
+                            State.Handoff.class,
                             new StateEntry(
-                                null,
+                                State.Clone.class,
                                 durationMillis -> reshardMetrics.targetCloneDurationHistogram().record(durationMillis / 1000.0)
                             )
                         );
                         put(
-                            State.Handoff.class,
-                            new StateEntry(State.Clone.class, reshardMetrics.targetHandoffDurationHistogram()::record)
+                            State.Split.class,
+                            new StateEntry(State.Handoff.class, reshardMetrics.targetHandoffDurationHistogram()::record)
                         );
-                        put(State.Split.class, new StateEntry(State.Handoff.class, reshardMetrics.targetSplitDurationHistogram()::record));
-                        put(State.Done.class, new StateEntry(State.Split.class, ignored -> {}));
+                        put(State.Done.class, new StateEntry(State.Split.class, reshardMetrics.targetSplitDurationHistogram()::record));
+                        put(State.Failed.class, new StateEntry(null, ignored -> {
+                            if (cancelled.get() == false) {
+                                reshardMetrics.targetShardFailureCounter().increment();
+                            }
+                        }));
+                        put(
+                            State.FailedInRecovery.class,
+                            new StateEntry(null, ignored -> reshardMetrics.targetShardRecoveryFailureCounter().increment())
+                        );
                     }
                 };
                 this.nowInMillis = nowInMillis;
@@ -748,9 +756,13 @@ public class SplitTargetService {
                 StateEntry stateEntry = targetStates.get(newState.getClass());
                 if (stateEntry != null) {
                     long nowInMillis = this.nowInMillis.getAsLong();
-                    Long previousStateStartMillis = timestamps.get(stateEntry.previousState);
-                    if (previousStateStartMillis != null) {
-                        targetStates.get(stateEntry.previousState).histogram.accept(nowInMillis - previousStateStartMillis);
+                    if (stateEntry.previousState == null) {
+                        stateEntry.record().accept(0);
+                    } else {
+                        Long previousStateStartMillis = timestamps.get(stateEntry.previousState);
+                        if (previousStateStartMillis != null) {
+                            stateEntry.record().accept(nowInMillis - previousStateStartMillis);
+                        }
                     }
                     timestamps.put(newState.getClass(), nowInMillis);
                 }

@@ -11,12 +11,16 @@ import com.google.auth.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
@@ -27,6 +31,62 @@ import static org.mockito.Mockito.mock;
 public class GcsStorageProviderTests extends ESTestCase {
 
     private final Storage mockStorage = mock(Storage.class);
+
+    @Override
+    public void tearDown() throws Exception {
+        WorkloadIdentityRegistry.reset();
+        super.tearDown();
+    }
+
+    public void testKeylessAuthFailsWhenWorkloadIdentityDisabled() {
+        WorkloadIdentityRegistry.setIssuerClient(new WorkloadIdentityIssuerClient() {
+            @Override
+            public boolean isEnabled() {
+                return false;
+            }
+
+            @Override
+            public void issueToken(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
+                throw new UnsupportedOperationException("not expected");
+            }
+        });
+        GcsConfiguration config = keylessConfiguration();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new GcsStorageProvider(config));
+        assertThat(e.getMessage(), containsString("workload-identity"));
+    }
+
+    public void testKeylessAuthBuildsWhenWorkloadIdentityEnabled() {
+        WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
+        assertNotNull(new GcsStorageProvider(keylessConfiguration()));
+    }
+
+    public void testKeylessAuthBuildsWithoutServiceAccountImpersonationUrl() {
+        WorkloadIdentityRegistry.setIssuerClient((request, listener) -> fail("token request is not expected during client construction"));
+        GcsConfiguration config = GcsConfiguration.fromFields(
+            null,
+            null,
+            null,
+            null,
+            null,
+            "jwt-audience",
+            "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+            null
+        );
+        assertNotNull(new GcsStorageProvider(config));
+    }
+
+    private static GcsConfiguration keylessConfiguration() {
+        return GcsConfiguration.fromFields(
+            null,
+            null,
+            null,
+            null,
+            null,
+            "jwt-audience",
+            "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+            "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/sa@project.iam.gserviceaccount.com:generateAccessToken"
+        );
+    }
 
     public void testSupportedSchemes() {
         GcsStorageProvider provider = new GcsStorageProvider(mockStorage);

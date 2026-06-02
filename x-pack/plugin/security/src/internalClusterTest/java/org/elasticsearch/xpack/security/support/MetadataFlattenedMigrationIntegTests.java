@@ -65,6 +65,8 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
 
         final int concurrentWriters = scaledRandomIntBetween(6, 10);
         final int updatesPerWriter = scaledRandomIntBetween(20, 50);
+        // Only update half the list so the other half can be verified as migrated
+        final List<RoleDescriptor> concurrentlyUpdatedRoles = roles.subList(0, roles.size() / 2);
 
         startInParallel(concurrentWriters + 1, taskIndex -> {
             if (taskIndex == 0) {
@@ -77,7 +79,7 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
                 }
             } else {
                 for (int u = 0; u < updatesPerWriter; u++) {
-                    RoleDescriptor roleToUpdate = randomFrom(roles.subList(0, roles.size() / 2));
+                    RoleDescriptor roleToUpdate = randomFrom(concurrentlyUpdatedRoles);
                     RoleDescriptor updatedRole = new RoleDescriptor(
                         roleToUpdate.getName(),
                         new String[] { "monitor" },
@@ -167,6 +169,7 @@ public class MetadataFlattenedMigrationIntegTests extends SecurityIntegTestCase 
         for (SearchHit hit : response.getHits().getHits()) {
             @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) hit.getSourceAsMap().get("metadata_flattened");
+            assertNotNull("role [" + hit.getId() + "] is missing metadata_flattened", metadata);
             // Only check non-reserved roles
             if (metadata.get("_reserved") == null) {
                 assertEquals("value", metadata.get("test"));

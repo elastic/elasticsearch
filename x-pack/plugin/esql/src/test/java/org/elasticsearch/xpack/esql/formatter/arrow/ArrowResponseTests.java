@@ -15,12 +15,14 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeStampMilliVector;
 import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampVector;
 import org.apache.arrow.vector.UInt8Vector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.complex.impl.UnionListWriter;
 import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ArrowStreamWriter;
@@ -39,6 +41,8 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder.LongRange;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -190,6 +194,20 @@ public class ArrowResponseTests extends ESTestCase {
         (v, i) -> v.isNull(i) ? null : "non-null in vector"
     );
 
+    // DATE_RANGE: struct with "from" and "to" timestamp[ms] children.
+    static final ValueType DATE_RANGE_VALUES = new ValueTypeImpl<LongRangeBlock.Builder, LongRangeBlock, StructVector>(
+        "date_range",
+        factory -> factory.newLongRangeBlockBuilder(0),
+        block -> block.appendLongRange(new LongRange(randomLong(), randomLong())),
+        (block, valueIndex, scratch) -> {
+            return block.getLongRange(valueIndex, new LongRange());
+        },
+        (vec, position) -> new LongRange(
+            ((TimeStampVector) vec.getChild("from")).get(position),
+            ((TimeStampVector) vec.getChild("to")).get(position)
+        )
+    );
+
     static final Map<DataType, ValueType> VALUE_TYPES = Map.ofEntries(
         Map.entry(DataType.INTEGER, INTEGER_VALUES),
         Map.entry(DataType.COUNTER_INTEGER, INTEGER_VALUES),
@@ -216,7 +234,9 @@ public class ArrowResponseTests extends ESTestCase {
         Map.entry(DataType.GEO_POINT, BINARY_VALUES),
         Map.entry(DataType.GEO_SHAPE, BINARY_VALUES),
         Map.entry(DataType.CARTESIAN_POINT, BINARY_VALUES),
-        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES)
+        Map.entry(DataType.CARTESIAN_SHAPE, BINARY_VALUES),
+
+        Map.entry(DataType.DATE_RANGE, DATE_RANGE_VALUES)
     );
 
     // ---------------------------------------------------------------------------------------------
@@ -227,8 +247,7 @@ public class ArrowResponseTests extends ESTestCase {
      * (ignoring those explicitly marked as not yet implemented).
      */
     public void testTypeSupportConsistency() {
-        var arrowTypes = ArrowResponse.ESQL_FORMATTERS.keySet().stream()
-            .map(DataType::outputType).sorted().toList();
+        var arrowTypes = ArrowResponse.ESQL_FORMATTERS.keySet().stream().map(DataType::outputType).sorted().toList();
 
         var textTypes = DataType.types().stream().filter(t -> {
             try {
@@ -267,7 +286,7 @@ public class ArrowResponseTests extends ESTestCase {
 
         // Test that we have value generator types for all ESQL types
         var arrowTypes = EnumSet.noneOf(DataType.class);
-        arrowTypes.addAll(VALUE_TYPES.keySet());
+        arrowTypes.addAll(ArrowResponse.ESQL_FORMATTERS.keySet());
 
         var valueTypes = EnumSet.noneOf(DataType.class);
         valueTypes.addAll(VALUE_TYPES.keySet());

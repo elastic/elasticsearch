@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.formatter.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.ipc.message.ArrowFieldNode;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongRangeBlock;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
@@ -65,6 +67,22 @@ public abstract class BlockArrowFormatter {
 
     public interface BufWriter {
         long write(RecyclerBytesStreamOutput out) throws IOException;
+    }
+
+    /**
+     * Add Arrow field nodes for this block. Must be called before {@link #convert}.
+     * Override for nested types that contribute multiple nodes (e.g., struct).
+     */
+    public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+        if (multivalued) {
+            // List node
+            nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
+            // Value vector, does not contain nulls.
+            nodes.add(new ArrowFieldNode(valueCount(block), 0));
+        } else {
+
+            nodes.add(new ArrowFieldNode(block.getPositionCount(), nullValuesCount(block)));
+        }
     }
 
     /**
@@ -398,6 +416,118 @@ public abstract class BlockArrowFormatter {
     public static class AsVarBinary extends BytesReFormatter {
         public AsVarBinary(DataType esqlType) {
             super(esqlType, Types.MinorType.VARBINARY);
+        }
+    }
+
+    /**
+     * Conversion of LongRangeBlocks (DATE_RANGE) to an Arrow struct with "from" and "to" timestamp[ms] fields.
+     */
+    public static class AsDateRange extends BlockArrowFormatter {
+
+        public AsDateRange(DataType esqlType) {
+            super(esqlType, Types.MinorType.STRUCT);
+        }
+
+        @Override
+        public Field arrowField(String name) {
+            Field superField = super.arrowField(name);
+            var fromField = new Field("from", new FieldType(true, Types.MinorType.TIMESTAMPMILLI.getType(), null), null);
+            var toField = new Field("to", new FieldType(true, Types.MinorType.TIMESTAMPMILLI.getType(), null), null);
+            return new Field(name, superField.getFieldType(), List.of(fromField, toField));
+        }
+
+        @Override
+        public void addFieldNodes(Block block, boolean multivalued, List<ArrowFieldNode> nodes) {
+            int count = block.getPositionCount();
+            if (multivalued) {
+                int valueCount = valueCount(block);
+                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));  // list
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // struct (items have no independent nulls)
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // from
+                nodes.add(new ArrowFieldNode(valueCount, 0));                  // to
+            } else {
+                nodes.add(new ArrowFieldNode(count, nullValuesCount(block)));
+                if (block.areAllValuesNull()) {
+                    nodes.add(new ArrowFieldNode(count, count));
+                    nodes.add(new ArrowFieldNode(count, count));
+                } else {
+                    LongRangeBlock rangeBlock = (LongRangeBlock) block;
+                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getFromBlock())));
+                    nodes.add(new ArrowFieldNode(count, nullValuesCount(rangeBlock.getToBlock())));
+                }
+            }
+        }
+
+        @Override
+        public void convert(Block b, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
+            LongRangeBlock block = (LongRangeBlock) b;
+            int count = block.getPositionCount();
+
+            if (multivalued) {
+                int valueCount = valueCount(block);
+                addListOffsets(bufs, bufWriters, block);
+                // Struct validity: empty — items inside a list entry are never null in ES|QL
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+                // from child: empty validity + int64 data for all value slots
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+                bufs.add(dummyArrowBuf(valueCount * Long.BYTES));
+                bufWriters.add(out -> {
+                    if (block.areAllValuesNull()) {
+                        return writeZeroes(out, valueCount * Long.BYTES);
+                    }
+                    LongBlock fromBlock = block.getFromBlock();
+                    for (int i = 0; i < valueCount; i++) {
+                        out.writeLongLE(fromBlock.getLong(i));
+                    }
+                    return (long) valueCount * Long.BYTES;
+                });
+                // to child: empty validity + int64 data for all value slots
+                bufs.add(dummyArrowBuf(0));
+                bufWriters.add(out -> 0);
+                bufs.add(dummyArrowBuf(valueCount * Long.BYTES));
+                bufWriters.add(out -> {
+                    if (block.areAllValuesNull()) {
+                        return writeZeroes(out, valueCount * Long.BYTES);
+                    }
+                    LongBlock toBlock = block.getToBlock();
+                    for (int i = 0; i < valueCount; i++) {
+                        out.writeLongLE(toBlock.getLong(i));
+                    }
+                    return (long) valueCount * Long.BYTES;
+                });
+            } else {
+                // Struct validity bitmap
+                accumulateVectorValidity(bufs, bufWriters, block, false);
+                if (block.areAllValuesNull()) {
+                    // ConstantNullBlock: getFromBlock()/getToBlock() return `this`, and getLong() throws.
+                    // Write all-null validity and zeroed data for both children.
+                    addAllNullChildBuffers(bufs, bufWriters, count);
+                    addAllNullChildBuffers(bufs, bufWriters, count);
+                } else {
+                    addChildBuffers(bufs, bufWriters, count, block.getFromBlock());
+                    addChildBuffers(bufs, bufWriters, count, block.getToBlock());
+                }
+            }
+        }
+
+        private static void addAllNullChildBuffers(List<ArrowBuf> bufs, List<BufWriter> bufWriters, int count) {
+            bufs.add(dummyArrowBuf(bitSetLength(count)));
+            bufWriters.add(out -> writeAllFalseValidity(out, count));
+            bufs.add(dummyArrowBuf(count * Long.BYTES));
+            bufWriters.add(out -> writeZeroes(out, count * Long.BYTES));
+        }
+
+        private static void addChildBuffers(List<ArrowBuf> bufs, List<BufWriter> bufWriters, int count, LongBlock childBlock) {
+            accumulateVectorValidity(bufs, bufWriters, childBlock, false);
+            bufs.add(dummyArrowBuf(count * Long.BYTES));
+            bufWriters.add(out -> {
+                for (int i = 0; i < count; i++) {
+                    out.writeLongLE(childBlock.getLong(i));
+                }
+                return (long) count * Long.BYTES;
+            });
         }
     }
 

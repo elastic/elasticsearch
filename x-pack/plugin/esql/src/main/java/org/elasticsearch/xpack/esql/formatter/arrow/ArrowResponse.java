@@ -32,7 +32,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -220,12 +219,15 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                     // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
                     var fieldType = field.getFieldType();
                     // Copy the ESQL type metadata at the list level
-                    var listMetadata = Map.of(BlockArrowFormatter.ESQL_TYPE_METADATA, fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA));
+                    var listMetadata = Map.of(
+                        BlockArrowFormatter.ESQL_TYPE_METADATA,
+                        fieldType.getMetadata().get(BlockArrowFormatter.ESQL_TYPE_METADATA)
+                    );
                     var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, listMetadata);
                     // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
                     var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), fieldType.getMetadata());
                     // The nested vector is named "$data$", following what the Arrow/Java library does.
-                    return new Field(c.name, listType, List.of(new Field("$data$", valueType, null)));
+                    return new Field(c.name, listType, List.of(new Field("$data$", valueType, field.getChildren())));
                 } else {
                     return field;
                 }
@@ -313,14 +315,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
                 var converter = column.converter;
 
                 Block block = page.getBlock(b);
-                if (column.multivalued) {
-                    // List node.
-                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
-                    // Value vector, does not contain nulls.
-                    nodes.add(new ArrowFieldNode(BlockArrowFormatter.valueCount(block), 0));
-                } else {
-                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
-                }
+                converter.addFieldNodes(block, column.multivalued, nodes);
                 converter.convert(block, column.multivalued, bufs, bufWriters);
             }
 
@@ -370,8 +365,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
     private static final BlockArrowFormatter TO_BE_IMPLEMENTED_MARKER = new BlockArrowFormatter(DataType.UNSUPPORTED, MinorType.NULL) {
         @Override
-        public void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {
-        }
+        public void convert(Block block, boolean multivalued, List<ArrowBuf> bufs, List<BufWriter> bufWriters) {}
     };
 
     /**
@@ -438,8 +432,8 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
             // TODO: support also CBOR and SMILE with an additional formatting parameter
             case SOURCE -> new BlockArrowFormatter.TransformedBytesRef(type, MinorType.VARCHAR, ValueConversions::sourceToJson);
 
-            // TODO
-            case DATE_RANGE -> TO_BE_IMPLEMENTED_MARKER;
+            case DATE_RANGE -> new BlockArrowFormatter.AsDateRange(type);
+
             case TSID_DATA_TYPE -> TO_BE_IMPLEMENTED_MARKER;
             case DENSE_VECTOR -> TO_BE_IMPLEMENTED_MARKER;
 

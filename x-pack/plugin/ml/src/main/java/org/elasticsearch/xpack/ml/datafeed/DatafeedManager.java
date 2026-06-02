@@ -124,7 +124,8 @@ public final class DatafeedManager {
             credentialManagerSupplier,
             client,
             xContentRegistry,
-            datafeedConfigProvider
+            datafeedConfigProvider,
+            crossProjectModeDecider
         );
     }
 

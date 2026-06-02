@@ -170,6 +170,8 @@ public class DatafeedNodeSelector {
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
         boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
+        // CPS flat-world names are unqualified; data may live only on a linked project.
+        boolean cannotVerifyLocally = hasRemoteIndices || indicesOptions.resolveCrossProjectIndexExpression();
         String[] index = datafeedIndices.stream()
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
@@ -181,7 +183,7 @@ public class DatafeedNodeSelector {
             concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
 
             // If we have remote indices we cannot check those. We should not fail as they may contain data.
-            if (hasRemoteIndices == false && concreteIndices.length == 0) {
+            if (cannotVerifyLocally == false && concreteIndices.length == 0) {
                 return new AssignmentFailure(
                     "cannot start datafeed ["
                         + datafeedId
@@ -192,6 +194,9 @@ public class DatafeedNodeSelector {
                 );
             }
         } catch (Exception e) {
+            if (cannotVerifyLocally) {
+                return null;
+            }
             String msg = format(
                 "failed resolving indices given [%s] and indices_options [%s]",
                 arrayToCommaDelimitedString(index),

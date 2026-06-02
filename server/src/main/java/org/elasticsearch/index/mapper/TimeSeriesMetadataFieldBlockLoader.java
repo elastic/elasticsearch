@@ -15,6 +15,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
@@ -128,7 +129,14 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         if (loadMetrics == false) {
             IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
             List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+            // The settings shortcut lists dimensions by name and excludes WITHOUT fields via an exact-name removal.
+            // It cannot honor exclusions when an entry is a wildcard (e.g. a passthrough dimension recorded as
+            // "labels.*"), because a concrete field name like "labels.le" never matches the literal "labels.*".
+            // In that case fall through to the mapping-based enumeration below, which resolves the wildcard to
+            // concrete dimension fields and can drop the excluded ones by name.
+            if (dimensionFieldsFromSettings != null
+                && dimensionFieldsFromSettings.isEmpty() == false
+                && (config.withoutFields().isEmpty() || dimensionFieldsFromSettings.stream().noneMatch(Regex::isSimpleMatchPattern))) {
                 Set<String> result = new LinkedHashSet<>(dimensionFieldsFromSettings);
                 result.removeAll(config.withoutFields());
                 return result;

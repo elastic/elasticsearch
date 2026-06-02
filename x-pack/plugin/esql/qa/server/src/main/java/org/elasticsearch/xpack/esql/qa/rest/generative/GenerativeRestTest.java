@@ -1079,15 +1079,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         return CHANGE_POINT_COMMAND_PATTERN.matcher(query).find();
     }
 
-    private static final Pattern CONNECTION_CLOSED_OR_RESET_PATTERN = Pattern.compile(
-        ".*(?:Connection is closed|Connection reset).*",
+    private static final Pattern CONNECTION_FAILURE_PATTERN = Pattern.compile(
+        ".*(?:Connection is closed|Connection reset|Connection refused).*",
         Pattern.DOTALL
     );
     private static final Pattern WILDCARD_SOURCE_PATTERN = Pattern.compile("(?i)\\bFROM\\b[^|;]*\\*");
 
     /**
      * Wildcard sources can crash while decoding long-range values out of {@code TopNOperator} /
-     * {@code GroupedTopNOperator}. The REST test observes the resulting closed connection, so this must match the
+     * {@code GroupedTopNOperator}. The REST test observes the resulting connection failure, so this must match the
      * transport symptom and query shape rather than the underlying assertion.
      * See <a href="https://github.com/elastic/elasticsearch/issues/150383">#150383</a>.
      */
@@ -1095,7 +1095,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         if (errorMessage == null || query == null) {
             return false;
         }
-        return CONNECTION_CLOSED_OR_RESET_PATTERN.matcher(errorMessage).matches()
+        return CONNECTION_FAILURE_PATTERN.matcher(errorMessage).matches()
             && WILDCARD_SOURCE_PATTERN.matcher(query).find();
     }
 

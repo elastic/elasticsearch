@@ -52,6 +52,13 @@ public class GenerativeRestTestTests extends ESTestCase {
         assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
     }
 
+    public void testWildcardLongRangeTopNConnectionBugMatchesConnectionRefused() {
+        String query = "FROM flattened_many,languages_mi* | SORT decade";
+        String error = "Connection refused";
+
+        assertTrue(GenerativeRestTest.isWildcardLongRangeTopNConnectionBug(error, query));
+    }
+
     public void testWildcardLongRangeTopNConnectionBugRequiresWildcardSource() {
         String query = "FROM mv_decades | SORT decade";
         String error = "Connection is closed";

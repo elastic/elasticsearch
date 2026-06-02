@@ -41,6 +41,7 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -388,11 +389,44 @@ public class LuceneSliceQueueTests extends ESTestCase {
             Set.of(guarded),
             2
         );
-        // guarded becomes its own slice; the remaining two are bin-packed into the remaining bin.
-        assertThat(slices, hasSize(2));
+        // guarded becomes its own slice; the remaining two get the full target parallelism (one bin
+        // each), so total slices can exceed the target — the guarded slice doesn't eat into the
+        // budget for the leaves that still need iterating.
+        assertThat(slices, hasSize(3));
         assertThat(slices.get(0), hasSize(1));
         assertThat(slices.get(0).getFirst().leafReaderContext(), equalTo(guarded));
-        assertThat(slices.get(1), hasSize(2));
+        assertThat(slices.get(1), hasSize(1));
+        assertThat(slices.get(2), hasSize(1));
+    }
+
+    /**
+     * Regression for the starvation bug: when guarded (shortcut, O(1)) leaves already meet or exceed
+     * the target slice count, the unguarded leaves — the ones that actually need iterating — must
+     * still get their own full target-sized parallelism, not be crammed onto a single serialized
+     * slice. The guarded slices are independent O(1) work and must not subtract from that budget.
+     */
+    public void testBalancedBinPackDoesNotStarveUnguardedLeaves() {
+        List<LeafReaderContext> guarded = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            guarded.add(new MockLeafReader(100_000).getContext());
+        }
+        LeafReaderContext a = new MockLeafReader(200_000).getContext();
+        LeafReaderContext b = new MockLeafReader(200_000).getContext();
+        List<LeafReaderContext> all = new ArrayList<>(guarded);
+        all.add(a);
+        all.add(b);
+        int target = 2;
+        List<List<PartialLeafReaderContext>> slices = LuceneSliceQueue.PartitioningStrategy.balancedBinPack(
+            all,
+            new HashSet<>(guarded),
+            target
+        );
+        // 5 guarded single-leaf slices + the 2 unguarded leaves spread across min(target, 2) = 2 bins.
+        assertThat(slices, hasSize(7));
+        long unguardedSlices = slices.stream()
+            .filter(s -> s.stream().anyMatch(p -> p.leafReaderContext() == a || p.leafReaderContext() == b))
+            .count();
+        assertThat("unguarded leaves must each get their own slice, not be serialized", unguardedSlices, equalTo(2L));
     }
 
     public void testDocPartitioningKeepWhole() {

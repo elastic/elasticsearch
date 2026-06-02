@@ -493,7 +493,11 @@ public final class LuceneSliceQueue {
             if (remaining.isEmpty()) {
                 return results;
             }
-            int bins = Math.max(1, Math.min(targetSliceCount - results.size(), remaining.size()));
+            // The guarded (kept-whole) leaves above are O(1) shortcut work, each already its own
+            // slice; they must not subtract from the parallelism budget for the leaves that still
+            // need iterating. Give the remainder its own full target-sized bin count. Total slices
+            // may exceed targetSliceCount — harmless, since extra slices just queue in nextSlice.
+            int bins = Math.min(targetSliceCount, remaining.size());
             remaining.sort(Collections.reverseOrder(Comparator.comparingInt(l -> l.reader().maxDoc())));
 
             // PQ ordered by current bin doc sum ascending; tie-break by stable bin id.

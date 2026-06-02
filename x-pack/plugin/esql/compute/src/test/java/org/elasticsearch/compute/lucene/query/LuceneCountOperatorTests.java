@@ -18,6 +18,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -366,25 +367,25 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
     }
 
     /**
-     * Regression test for {@link LuceneCountOperator#count} under DOC partitioning: uses a
-     * {@link TermQuery}, whose {@code Weight.count(leaf)} returns the leaf-wide
-     * {@code docFreq} as a built-in shortcut (no cache required). Without the
-     * {@code coversFullLeaf} guard, every sub-segment driver on the same leaf applies
-     * that leaf-total to its own slice, producing a count multiplied by the slice count.
-     * The assertion enforces the exact expected count, so a regression appears immediately.
+     * End-to-end test of DOC partitioning through the production {@link LuceneCountOperator.Factory},
+     * which wires the {@code leafHasCountShortcut} guard. Uses a {@link TermQuery}, whose
+     * {@code Weight.count(leaf)} returns the leaf-wide {@code docFreq} as a built-in shortcut, so the
+     * guard keeps every leaf whole: each leaf becomes a single full-leaf slice, {@code coversFullLeaf}
+     * fires the shortcut exactly once, and the total is exact. This locks in the keep-whole guard
+     * behavior; the complementary sub-segment-split path — where {@code coversFullLeaf} must
+     * <em>suppress</em> the shortcut on sub-slices that don't own the full leaf — is covered by
+     * {@link #testDocPartitioningForcedSplitRespectsCountShortcut}.
      */
     public void testDocPartitioningRespectsCountShortcutSliceBoundaries() throws IOException {
-        // numDocs must be large enough for AdaptivePartitioner to classify the leaf as "large" and
-        // split it (threshold = 5 * desiredSliceSize = 5 * numDocs / taskConcurrency, so numDocs
-        // >= 5 * numDocs / taskConcurrency simplifies to taskConcurrency >= 5). Use both a high
-        // doc count and a high task_concurrency to guarantee sub-segment slices.
         final int partitioningTaskConcurrency = 8;
         int numDocs = between(100_000, 200_000);
         try (Directory dir = newDirectory()) {
             int expectedMatches;
-            // Use the default merge policy so forceMerge(1) consolidates into a single leaf —
-            // NoMergePolicy would silently disable forceMerge and leave many small segments,
-            // each owned by exactly one driver, hiding the cache-shortcut hazard.
+            // Use the default merge policy so forceMerge(1) consolidates into a single leaf, with high
+            // task_concurrency so several drivers contend for it. The guard must keep that one big leaf
+            // whole (a single slice). NoMergePolicy would disable forceMerge and leave many small
+            // segments, each trivially its own single-leaf slice, so the keep-whole guard would never
+            // be tested against a leaf that the DOC partitioner might otherwise split.
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
                 int matches = 0;
                 for (int d = 0; d < numDocs; d++) {
@@ -427,6 +428,137 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             drivers.add(
                 TestDriverFactory.create(driverCtx, factory.get(driverCtx), List.of(), new TestResultPageSinkOperator(results::add))
             );
+        }
+        new TestDriverRunner().run(drivers);
+        long total = 0;
+        for (Page p : results) {
+            total += getCount(p);
+        }
+        assertThat("DOC-partitioned count must equal the true match count", total, equalTo((long) expectedMatches));
+    }
+
+    /**
+     * Companion to {@link #testDocPartitioningRespectsCountShortcutSliceBoundaries}: the production
+     * {@code leafHasCountShortcut} guard keeps a {@link TermQuery} leaf whole (its
+     * {@code Weight.count(leaf)} returns the leaf-wide {@code docFreq}), so that test never splits the
+     * leaf and so never exercises the {@code coversFullLeaf} protection it claims to cover. Forcing
+     * {@link LuceneSliceQueue.LeafSplitGuard#NEVER} splits the leaf into sub-segment slices while the
+     * count shortcut still fires per leaf — exactly the over-count hazard {@code coversFullLeaf}
+     * guards against. The {@code totalSlices() > 1} assertion fails loudly if future slicing tuning
+     * stops splitting, so this path can't silently fall out of coverage again.
+     */
+    public void testDocPartitioningForcedSplitRespectsCountShortcut() throws IOException {
+        try (Directory dir = newDirectory()) {
+            ForcedSplitIndex index = buildForcedSplitTermIndex(dir);
+            try (IndexReader r = index.reader()) {
+                runDocPartitionedTermQueryCount(
+                    new LuceneSourceOperatorTests.MockShardContext(r, 0),
+                    index.expectedMatches(),
+                    LuceneSliceQueue.LeafSplitGuard.NEVER
+                );
+            }
+        }
+    }
+
+    /**
+     * Cached-shortcut companion to {@link #testDocPartitioningCorrectWhenQueryIsCached}, forcing
+     * {@link LuceneSliceQueue.LeafSplitGuard#NEVER}. This is the genuine race {@code coversFullLeaf}
+     * exists for: a query gains a leaf-wide count shortcut from the {@link LRUQueryCache} after the
+     * leaf has already been split into sub-segment slices, so each sub-slice's
+     * {@code Weight.count(leaf)} returns the cached leaf cardinality. Only {@code coversFullLeaf}
+     * keeps the sub-slices from each applying that full-leaf total to their own range.
+     */
+    public void testDocPartitioningForcedSplitCorrectWhenQueryIsCached() throws IOException {
+        try (Directory dir = newDirectory()) {
+            ForcedSplitIndex index = buildForcedSplitTermIndex(dir);
+            try (IndexReader r = index.reader()) {
+                QueryCachingPolicy alwaysCache = new QueryCachingPolicy() {
+                    @Override
+                    public void onUse(org.apache.lucene.search.Query query) {}
+
+                    @Override
+                    public boolean shouldCache(org.apache.lucene.search.Query query) {
+                        return true;
+                    }
+                };
+                ContextIndexSearcher cachingSearcher = new ContextIndexSearcher(
+                    r,
+                    IndexSearcher.getDefaultSimilarity(),
+                    new LRUQueryCache(100, 100 * 1024 * 1024),
+                    alwaysCache,
+                    true,
+                    Runnable::run,
+                    10,
+                    50_000
+                );
+                // Warm the cache so Weight.count(leaf) returns the cached bitset cardinality.
+                cachingSearcher.count(new TermQuery(new Term("kw", "match")));
+                runDocPartitionedTermQueryCount(
+                    new LuceneSourceOperatorTests.MockShardContext(cachingSearcher, 0),
+                    index.expectedMatches(),
+                    LuceneSliceQueue.LeafSplitGuard.NEVER
+                );
+            }
+        }
+    }
+
+    private record ForcedSplitIndex(IndexReader reader, int expectedMatches) {}
+
+    /**
+     * Builds a single-leaf index large enough that the {@link LuceneSliceQueue.PartitioningStrategy#DOC}
+     * partitioner splits it into sub-segment slices. With the {@code MIN_DOCS_PER_SLICE} floor a leaf
+     * is only split once it exceeds {@code 5 * MIN_DOCS_PER_SLICE} (250k) docs, hence the doc count.
+     */
+    private ForcedSplitIndex buildForcedSplitTermIndex(Directory dir) throws IOException {
+        int numDocs = between(260_000, 300_000);
+        // Default merge policy so forceMerge(1) consolidates into a single leaf — NoMergePolicy would
+        // leave many small segments, each its own driver, hiding the sub-segment-split hazard.
+        try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+            int matches = 0;
+            for (int d = 0; d < numDocs; d++) {
+                Document doc = new Document();
+                boolean match = d % 3 == 0;
+                doc.add(new StringField("kw", match ? "match" : "other", StringField.Store.NO));
+                if (match) {
+                    matches++;
+                }
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            return new ForcedSplitIndex(writer.getReader(), matches);
+        }
+    }
+
+    /**
+     * Builds a DOC-partitioned count over a {@code TermQuery} with an explicit
+     * {@link LuceneSliceQueue.LeafSplitGuard} (bypassing the {@link LuceneCountOperator.Factory},
+     * which hardcodes {@code leafHasCountShortcut}) and asserts the total equals
+     * {@code expectedMatches}. Verifies the leaf actually splits ({@code totalSlices() > 1}) so the
+     * sub-segment path is genuinely exercised.
+     */
+    private void runDocPartitionedTermQueryCount(ShardContext ctx, int expectedMatches, LuceneSliceQueue.LeafSplitGuard guard) {
+        final int taskConcurrency = 8;
+        var contexts = new IndexedByShardIdFromSingleton<>(ctx);
+        Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFn = c -> List.of(
+            new LuceneSliceQueue.QueryAndTags(new TermQuery(new Term("kw", "match")), List.of())
+        );
+        LuceneSliceQueue sliceQueue = LuceneSliceQueue.create(
+            contexts,
+            queryFn,
+            DataPartitioning.DOC,
+            LuceneCountOperator::partitioningStrategyForCount,
+            1,
+            taskConcurrency,
+            shardContext -> ScoreMode.COMPLETE_NO_SCORES,
+            guard
+        );
+        assertThat("forced-split guard must produce sub-segment slices", sliceQueue.totalSlices(), greaterThan(1));
+        List<Page> results = new CopyOnWriteArrayList<>();
+        List<Driver> drivers = new ArrayList<>();
+        for (int i = 0; i < taskConcurrency; i++) {
+            DriverContext driverCtx = driverContext();
+            LuceneCountOperator op = new LuceneCountOperator(contexts, driverCtx, sliceQueue, List.of(), Integer.MAX_VALUE);
+            drivers.add(TestDriverFactory.create(driverCtx, op, List.of(), new TestResultPageSinkOperator(results::add)));
         }
         new TestDriverRunner().run(drivers);
         long total = 0;
@@ -501,12 +633,14 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
     /**
      * Same shape as {@link #testDocPartitioningRespectsCountShortcutSliceBoundaries} but the
      * leaf-wide count shortcut comes from the {@link LRUQueryCache} rather than from a built-in
-     * {@code Weight.count()}. This is the exact scenario the original
-     * {@link LuceneCountOperator#partitioningStrategyForCount} comment warned about: a query that
-     * has no built-in count shortcut still gets one once it lands in the cache, because
-     * {@code CachingWrapperWeight.count(leaf)} returns the cardinality of the cached bitset
-     * (leaf-wide, ignoring slice bounds). Without the {@code coversFullLeaf} guard, sub-segment
-     * drivers would each apply that leaf cardinality to their slice and over-count.
+     * {@code Weight.count()}: a query with no built-in shortcut gains one once it lands in the cache,
+     * because {@code CachingWrapperWeight.count(leaf)} returns the cardinality of the cached bitset.
+     * The cache is warmed before the {@link LuceneCountOperator.Factory} runs, so the
+     * {@code leafHasCountShortcut} guard sees the cached count at plan time and keeps the leaf whole —
+     * the count then fires once and is exact. The harder race — where the query is cached only
+     * <em>after</em> the leaf has already been split, so each sub-slice relies on {@code coversFullLeaf}
+     * to avoid applying the leaf cardinality to its own range — is covered by
+     * {@link #testDocPartitioningForcedSplitCorrectWhenQueryIsCached}.
      */
     public void testDocPartitioningCorrectWhenQueryIsCached() throws IOException {
         final int partitioningTaskConcurrency = 8;

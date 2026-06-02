@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest.geoip.direct;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.ingest.geoip.EnterpriseGeoIpTaskState;
+import org.elasticsearch.ingest.geoip.GeoIpTaskState;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -104,6 +106,43 @@ public class TransportGetDatabaseConfigurationActionTests extends ESTestCase {
             DatabaseConfigurationMetadata result = deduplicated.iterator().next();
             assertThat(result, equalTo(nodeResponses.get(1).getDatabases().get(0)));
         }
+    }
+
+    public void testWithLastUpdate() {
+        DatabaseConfiguration config = new DatabaseConfiguration("my-db-id", "GeoLite2-City", new DatabaseConfiguration.Maxmind("test"));
+        long putTime = 1000L;
+        DatabaseConfigurationMetadata meta = new DatabaseConfigurationMetadata(config, 1, putTime);
+
+        // null task state returns the original metadata unchanged
+        assertThat(TransportGetDatabaseConfigurationAction.withLastUpdate(meta, null).modifiedDate(), equalTo(putTime));
+
+        // task state with no matching database returns the original metadata unchanged
+        EnterpriseGeoIpTaskState emptyTaskState = EnterpriseGeoIpTaskState.EMPTY;
+        assertThat(TransportGetDatabaseConfigurationAction.withLastUpdate(meta, emptyTaskState).modifiedDate(), equalTo(putTime));
+
+        // task state with a matching database returns the lastUpdate from the task state
+        long downloadTime = 5000L;
+        GeoIpTaskState.Metadata taskMeta = new GeoIpTaskState.Metadata(downloadTime, 0, 5, "md5", downloadTime, null);
+        EnterpriseGeoIpTaskState taskState = EnterpriseGeoIpTaskState.EMPTY.put("GeoLite2-City.mmdb", taskMeta);
+        DatabaseConfigurationMetadata result = TransportGetDatabaseConfigurationAction.withLastUpdate(meta, taskState);
+        assertThat(result.modifiedDate(), equalTo(downloadTime));
+        assertThat(result.database(), equalTo(config));
+        assertThat(result.version(), equalTo(1L));
+
+        // ipinfo provider works the same way
+        DatabaseConfiguration ipinfoConfig = new DatabaseConfiguration(
+            "my-ipinfo-id",
+            "standard_privacy",
+            new DatabaseConfiguration.Ipinfo()
+        );
+        DatabaseConfigurationMetadata ipinfoMeta = new DatabaseConfigurationMetadata(ipinfoConfig, 2, putTime);
+        long ipinfoDownloadTime = 7000L;
+        GeoIpTaskState.Metadata ipinfoTaskMeta = new GeoIpTaskState.Metadata(ipinfoDownloadTime, 0, 5, "md5", ipinfoDownloadTime, null);
+        EnterpriseGeoIpTaskState ipinfoTaskState = EnterpriseGeoIpTaskState.EMPTY.put("standard_privacy.mmdb", ipinfoTaskMeta);
+        DatabaseConfigurationMetadata ipinfoResult = TransportGetDatabaseConfigurationAction.withLastUpdate(ipinfoMeta, ipinfoTaskState);
+        assertThat(ipinfoResult.modifiedDate(), equalTo(ipinfoDownloadTime));
+        assertThat(ipinfoResult.database(), equalTo(ipinfoConfig));
+        assertThat(ipinfoResult.version(), equalTo(2L));
     }
 
     private NodeResponse generateTestNodeResponse(List<String> databaseNames) {

@@ -1732,6 +1732,7 @@ public final class PainlessLookupBuilder {
         }
 
         classesToDirectSubClasses.replaceAll((key, set) -> Set.copyOf(set)); // save some memory, especially when set is empty
+        annotationsToMethodKeys.replaceAll((key, set) -> Set.copyOf(set));
         return new PainlessLookup(
             javaClassNamesToClasses,
             canonicalClassNamesToClasses,

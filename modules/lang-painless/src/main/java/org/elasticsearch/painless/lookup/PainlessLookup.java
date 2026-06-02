@@ -14,7 +14,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -60,11 +59,7 @@ public final class PainlessLookup {
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
 
-        Map<Class<?>, Set<String>> copy = new HashMap<>();
-        for (Map.Entry<Class<?>, Set<String>> entry : annotationsToMethodKeys.entrySet()) {
-            copy.put(entry.getKey(), Set.copyOf(entry.getValue()));
-        }
-        this.annotationsToMethodKeys = Map.copyOf(copy);
+        this.annotationsToMethodKeys = Map.copyOf(annotationsToMethodKeys);
     }
 
     public boolean hasAnnotationAwareMethod(Class<?> annotationType, String methodName, int methodArity) {

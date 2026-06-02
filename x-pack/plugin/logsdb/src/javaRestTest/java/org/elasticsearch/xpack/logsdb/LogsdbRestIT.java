@@ -330,7 +330,12 @@ public class LogsdbRestIT extends ESRestTestCase {
 
         int documentsFound = 0;
         for (String level : new String[] { "info", "warning", "error", "fatal" }) {
-            String query = "FROM " + dataSteamName + " | WHERE log.level == \\\"" + level + "\\\" | KEEP message | LIMIT " + numDocs * numBulks;
+            String query = "FROM "
+                + dataSteamName
+                + " | WHERE log.level == \\\""
+                + level
+                + "\\\" | KEEP message | LIMIT "
+                + numDocs * numBulks;
             final Request esqlRequest = new Request("POST", "/_query");
             esqlRequest.setJsonEntity("{\"query\": \"$query\"}".replace("$query", query));
             var esqlResponse = client().performRequest(esqlRequest);

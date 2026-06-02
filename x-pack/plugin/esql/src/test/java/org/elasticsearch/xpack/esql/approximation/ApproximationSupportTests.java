@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstDocId;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMergeOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
@@ -262,6 +263,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Irate.class,
         LegacyIrate.class,
         DeltaOnlyHistogramMergeOverTime.class,
+        HistogramMergeOverTime.class,
         LastOverTime.class,
         MaxOverTime.class,
         MinOverTime.class,

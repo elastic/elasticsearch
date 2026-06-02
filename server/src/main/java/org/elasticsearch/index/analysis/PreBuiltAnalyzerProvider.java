@@ -10,6 +10,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
 public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer> {
 
@@ -19,7 +20,7 @@ public class PreBuiltAnalyzerProvider implements AnalyzerProvider<NamedAnalyzer>
         // we create the named analyzer here so the resources associated with it will be shared
         // and we won't wrap a shared analyzer with named analyzer each time causing the resources
         // to not be shared...
-        this.analyzer = new NamedAnalyzer(name, scope, analyzer);
+        this.analyzer = new NamedAnalyzer(name, scope, analyzer, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP);
     }
 
     @Override

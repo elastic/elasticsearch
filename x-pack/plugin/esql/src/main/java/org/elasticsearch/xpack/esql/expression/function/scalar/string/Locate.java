@@ -47,7 +47,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     private final Expression substr;
     private final Expression start;
 
-    @FunctionInfo(returnType = "integer", description = """
+    @FunctionInfo(returnType = "integer", briefSummary = "Returns the position of a keyword substring within another string.", description = """
         Returns an integer that indicates the position of a keyword substring within another string.
         Returns `0` if the substring cannot be found.
         Note that string positions start from `1`.""", examples = @Example(file = "string", tag = "locate"))

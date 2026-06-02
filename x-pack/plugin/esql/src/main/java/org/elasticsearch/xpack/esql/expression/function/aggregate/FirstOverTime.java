@@ -66,6 +66,7 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long", "integer", "double", "exponential_histogram", "tdigest", "date", "date_nanos", "ip", "keyword" },
+        briefSummary = "Calculates the earliest value of a field over a time window.",
         description = "Calculates the earliest value of a field, where recency determined by the `@timestamp` field.",
         appliesTo = {
             @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),

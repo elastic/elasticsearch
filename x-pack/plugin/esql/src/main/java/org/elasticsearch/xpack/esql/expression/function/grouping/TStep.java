@@ -81,6 +81,7 @@ public class TStep extends GroupingFunction.EvaluatableGroupingFunction
 
     @FunctionInfo(
         returnType = { "date", "date_nanos" },
+        briefSummary = "Creates fixed-width timestamp buckets anchored at the start of the query range.",
         description = """
             Creates groups of values - buckets - out of a `@timestamp` attribute using either a fixed step width
             or a target bucket count.

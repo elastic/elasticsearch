@@ -43,6 +43,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression, Ag
 
     @FunctionInfo(
         returnType = "boolean",
+        briefSummary = "Returns true if the input expression yields no non-null values.",
         description = "Returns true if the input expression yields no non-null values within the current aggregation context. "
             + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,

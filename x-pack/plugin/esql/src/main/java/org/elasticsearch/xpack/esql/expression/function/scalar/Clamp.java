@@ -51,6 +51,7 @@ public class Clamp extends EsqlScalarFunction implements OnlySurrogateExpression
 
     @FunctionInfo(
         returnType = { "double", "integer", "long", "double", "unsigned_long", "keyword", "ip", "boolean", "date", "version" },
+        briefSummary = "Clamps values to a specified minimum and maximum range.",
         description = "Limits (or clamps) the values of all samples to have a lower limit of min and an upper limit of max.",
         examples = { @Example(file = "k8s-timeseries-clamp", tag = "clamp") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }

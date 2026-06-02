@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.apache.logging.log4j.LogManager;
@@ -64,6 +65,15 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     public APMMeterRegistry getMeterRegistry() {
         return meterRegistry;
+    }
+
+    /**
+     * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
+     * Not intended for general metric recording; use {@link #getMeterRegistry()} for that.
+     * Returns {@link MeterProvider#noop()} when the OTel SDK path is not active.
+     */
+    MeterProvider getHealthMeterProvider() {
+        return otelMeterSupplier.getHealthMeterProvider();
     }
 
     /**

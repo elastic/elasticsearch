@@ -68,6 +68,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -1690,15 +1691,23 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Runs the code block for 10 seconds waiting for no assertion to trip.
+     * Runs the code block for 10 seconds waiting for no assertion to trip. Retries on {@link AssertionError} with
+     * exponential backoff, sleeping on the test thread between attempts.
+     * <p>
+     * Use this for conditions that are not tied to cluster state application, such as filesystem state, HTTP callbacks,
+     * executor queues, or leak checks. In integration tests ({@link ESIntegTestCase} and subclasses), if the wait
+     * condition can be expressed as a predicate on applied {@link ClusterState}, prefer
+     * {@link ESIntegTestCase#awaitClusterState(Predicate)}
+     * instead of polling {@code clusterService().state()} inside {@code assertBusy}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock) throws Exception {
         assertBusy(codeBlock, 10, TimeUnit.SECONDS);
     }
 
     /**
-     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on AssertionError
-     * with exponential backoff until provided time runs out
+     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on {@link AssertionError}
+     * with exponential backoff until the timeout is reached. See {@link #assertBusy(CheckedRunnable)} for when to prefer
+     * alternatives such as {@link ESIntegTestCase#awaitClusterState(Predicate)}.
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);

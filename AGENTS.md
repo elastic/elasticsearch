@@ -70,28 +70,7 @@ Plugins can set `deploymentTarget` in `build.gradle`. That value tells the node 
 - Use the Elasticsearch testing framework where possible for unit and yaml tests and be consistent in style with other elasticsearch tests.
 - Use real classes over mocks or stubs for unit tests, unless the real class is complex then either a simplified subclass should be created within the test or, as a last resort, a mock or stub can be used. Unit tests must be as close to real-world scenarios as possible.
 - Ensure mocks or stubs are well-documented and clearly indicate why they were necessary.
-
-### Waiting for cluster state in tests
-
-In integration tests (`ESIntegTestCase` and subclasses), prefer **`awaitClusterState(Predicate<ClusterState>)`** over **`assertBusy`** whenever the wait condition can be expressed as a predicate on applied cluster state.
-
-- **`awaitClusterState`** registers a temporary `ClusterStateListener` on the chosen node and completes as soon as that node applies a state matching the predicate. This removes busy-polling on the test thread.
-- **`assertBusy`** sleeps and retries in a loop; reserve it for conditions that are not tied to cluster state application (filesystem, HTTP callbacks, executor queues, etc.).
-
-```java
-// Prefer:
-awaitClusterState(state -> state.metadata().getProject().hasIndex(indexName));
-awaitClusterState(state -> state.routingTable(ProjectId.DEFAULT).index(indexName).allShardsActive());
-
-// Avoid when the assertion only inspects ClusterState:
-assertBusy(() -> assertTrue(SnapshotsInProgress.get(clusterService().state()).isEmpty()));
-```
-
-- Default overload observes state via the master: `awaitClusterState(statePredicate)`.
-- Use `awaitClusterState(String viaNode, Predicate<ClusterState>)` when the condition must hold on a specific node's applied state (e.g., after disruptions or split-brain scenarios).
-- In unit tests that hold a `ClusterService`, use `ClusterServiceUtils.awaitClusterState(statePredicate, clusterService)`.
-
-When writing or refactoring tests, replace `assertBusy` loops that poll `clusterService().state()` (or `internalCluster().clusterService().state()`) with an equivalent `awaitClusterState` predicate wherever possible.
+- Do not use **`assertBusy`** whenever the wait condition can be expressed as a predicate on applied cluster state, preferring **`awaitClusterState`**. Read the Javadoc on `ESTestCase.assertBusy` for more information.
 
 ### Test Types
 - Unit Tests: Preferred. Extend `ESTestCase`.
@@ -153,7 +132,6 @@ When expected test methods are absent from results (not failed, not skipped — 
 
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
-- In integration tests, prefer `awaitClusterState` over `assertBusy` when waiting for conditions on `ClusterState` (see **Waiting for cluster state in tests** above).
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.

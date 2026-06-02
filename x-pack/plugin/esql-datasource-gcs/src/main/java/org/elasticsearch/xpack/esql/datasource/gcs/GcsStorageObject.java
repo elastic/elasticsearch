@@ -96,7 +96,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (cachedLength != null) {
                 bytes = cachedLength;
             }
-            return Channels.newInputStream(reader);
+            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
         } catch (StorageException e) {
             throw wrapException(e, "Failed to read object from");
         } finally {
@@ -123,7 +123,7 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             if (toEnd == false) {
                 reader.limit(position + length);
             }
-            return Channels.newInputStream(reader);
+            return new GcsTransientTypingInputStream(Channels.newInputStream(reader), path);
         } catch (StorageException e) {
             throw wrapException(e, "Range request failed for");
         } finally {

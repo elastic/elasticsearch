@@ -110,7 +110,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         long startNanos = System.nanoTime();
         long bytes = 0L;
         try {
-            InputStream stream = blobClient.openInputStream();
+            InputStream stream = new AzureTransientTypingInputStream(blobClient.openInputStream(), path);
             if (cachedLength != null) {
                 bytes = cachedLength;
             }
@@ -136,7 +136,7 @@ public final class AzureStorageObject extends AbstractMeteredStorageObject {
         try {
             // READ_TO_END: the offset-only BlobRange reads from position to the end of the blob — no length() lookup.
             BlobRange range = toEnd ? new BlobRange(position) : new BlobRange(position, length);
-            return blobClient.openInputStream(range, new BlobRequestConditions());
+            return new AzureTransientTypingInputStream(blobClient.openInputStream(range, new BlobRequestConditions()), path);
         } catch (Exception e) {
             if (toEnd && e instanceof BlobStorageException bse && bse.getStatusCode() == 416) {
                 // Open-ended read at/after the end of an (empty or shorter) object: nothing to read. The SPI

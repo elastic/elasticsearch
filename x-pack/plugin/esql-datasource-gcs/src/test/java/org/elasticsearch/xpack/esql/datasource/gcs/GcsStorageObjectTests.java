@@ -213,6 +213,36 @@ public class GcsStorageObjectTests extends ESTestCase {
         assertFalse("403 must not be transient", e instanceof TransientStorageException);
     }
 
+    public void testMidReadStorageExceptionRetypedAsThrottling() throws IOException {
+        InputStream faulting = new InputStream() {
+            private int n = 0;
+
+            @Override
+            public int read() {
+                if (n++ < 1) {
+                    return 'x';
+                }
+                throw new StorageException(503, "mid-read drop");
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        assertEquals('x', wrapped.read());
+        TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
+        assertTrue("a 503 surfaced mid-read is throttling", e.throttling());
+    }
+
+    public void testMidReadNon503StorageExceptionIsTransientNotThrottling() {
+        InputStream faulting = new InputStream() {
+            @Override
+            public int read() {
+                throw new StorageException(500, "mid-read error");
+            }
+        };
+        GcsTransientTypingInputStream wrapped = new GcsTransientTypingInputStream(faulting, StoragePath.of("gs://b/k"));
+        TransientStorageException e = expectThrows(TransientStorageException.class, wrapped::read);
+        assertFalse("500 mid-read is transient but not throttling", e.throttling());
+    }
+
     public void testLengthFetchesMetadataOnce() throws IOException {
         Blob mockBlob = mock(Blob.class);
         when(mockBlob.getSize()).thenReturn(2048L);

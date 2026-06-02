@@ -30,9 +30,12 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         var values = createValuesInstance(docIdBuffer, new String[] { "aaa", "aaa", "aaa" });
         dimensionDownsampler.collectOnce(values, docIdBuffer);
         assertThat(dimensionDownsampler.dimensionValue(), equalTo("aaa"));
+        assertThat(dimensionDownsampler.isDone(), equalTo(true));
         dimensionDownsampler.reset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(true));
         assertThat(dimensionDownsampler.dimensionValue(), equalTo("aaa"));
         dimensionDownsampler.tsidReset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(false));
         assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
@@ -44,8 +47,10 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         dimensionDownsampler.collectOnce(values, docIdBuffer);
         assertThat(dimensionDownsampler.dimensionValue(), equalTo(10.20D));
         dimensionDownsampler.reset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(true));
         assertThat(dimensionDownsampler.dimensionValue(), equalTo(10.20D));
         dimensionDownsampler.tsidReset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(false));
         assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
@@ -57,8 +62,10 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         dimensionDownsampler.collectOnce(values, docIdBuffer);
         assertThat(dimensionDownsampler.dimensionValue(), equalTo(10));
         dimensionDownsampler.reset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(true));
         assertThat(dimensionDownsampler.dimensionValue(), equalTo(10));
         dimensionDownsampler.tsidReset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(false));
         assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 
@@ -70,8 +77,10 @@ public class DimensionFieldDownsamplerTests extends ESTestCase {
         dimensionDownsampler.collectOnce(values, docIdBuffer);
         assertThat(dimensionDownsampler.dimensionValue(), equalTo(true));
         dimensionDownsampler.reset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(true));
         assertThat(dimensionDownsampler.dimensionValue(), equalTo(true));
         dimensionDownsampler.tsidReset();
+        assertThat(dimensionDownsampler.isDone(), equalTo(false));
         assertThat(dimensionDownsampler.dimensionValue(), nullValue());
     }
 

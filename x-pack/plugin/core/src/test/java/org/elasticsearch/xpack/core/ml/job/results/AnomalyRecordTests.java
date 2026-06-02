@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -322,5 +324,20 @@ public class AnomalyRecordTests extends AbstractXContentSerializingTestCase<Anom
             reparsed2 = AnomalyRecord.LENIENT_PARSER.apply(parser2, null);
         }
         assertEquals("event.ingested must survive renormalization unchanged", originalIngested, reparsed2.getEventIngested());
+    }
+
+    public void testEventIngestedWireBwc() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("ml_anomaly_event_ingested");
+
+        AnomalyRecord instance = createTestInstance();
+        instance.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
+
+        AnomalyRecord supported = copyInstance(instance, TransportVersionUtils.randomVersionSupporting(gate));
+        assertEquals(instance.getEventIngested(), supported.getEventIngested());
+
+        AnomalyRecord old = copyInstance(instance, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertNull(old.getEventIngested());
+        instance.setEventIngested(null);
+        assertEquals(instance, old);
     }
 }

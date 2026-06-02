@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -97,5 +99,20 @@ public class InfluencerTests extends AbstractXContentSerializingTestCase<Influen
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Influencer.LENIENT_PARSER.apply(parser, null);
         }
+    }
+
+    public void testEventIngestedWireBwc() throws IOException {
+        TransportVersion gate = TransportVersion.fromName("ml_anomaly_event_ingested");
+
+        Influencer instance = createTestInstance();
+        instance.setEventIngested(Instant.ofEpochMilli(randomNonNegativeLong()));
+
+        Influencer supported = copyInstance(instance, TransportVersionUtils.randomVersionSupporting(gate));
+        assertEquals(instance.getEventIngested(), supported.getEventIngested());
+
+        Influencer old = copyInstance(instance, TransportVersionUtils.randomVersionNotSupporting(gate));
+        assertNull(old.getEventIngested());
+        instance.setEventIngested(null);
+        assertEquals(instance, old);
     }
 }

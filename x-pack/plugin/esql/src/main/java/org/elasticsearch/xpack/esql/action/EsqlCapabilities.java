@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -451,6 +451,17 @@ public class EsqlCapabilities {
          * so they skip on mixed clusters where any data node still runs the per-row evaluator.
          */
         FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
+
+        /**
+         * The per-row evaluator for {@code field_extract(<flattened root>, "<key>")} returns a multi-value
+         * keyword block for an array sub-field, a JSON-string keyword for a nested-object sub-field, and a
+         * null position for {@code VALUE_NULL}, instead of always going through {@code parser.text()} (which
+         * threw on every non-scalar value). Tests that exercise the parse path on a non-scalar sub-field
+         * must require this capability so they skip on mixed clusters where any data node still runs the
+         * pre-fix evaluator and would surface the legacy {@code Expected text at &lt;line&gt;:&lt;col&gt;
+         * but found START_ARRAY} warning instead of the new value.
+         */
+        FIELD_EXTRACT_RETURNS_MULTI_VALUE,
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -2513,25 +2524,25 @@ public class EsqlCapabilities {
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the EXTERNAL command (datasource access).
          */
-        EXTERNAL_CSV_IP_SUPPORT(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_IP_SUPPORT(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for the {@code header_row} (and the related {@code column_prefix}) CSV options
          * on the {@code EXTERNAL} command, used to read headerless CSV files.
          */
-        EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_CSV_HEADER_ROW_OPTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Per-file planner-resolved read schema is threaded down to runtime readers via
          * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
          * preventing reader self-inference that drifts across files in a multi-file glob.
          */
-        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_READ_SCHEMA(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
@@ -2540,7 +2551,7 @@ public class EsqlCapabilities {
          * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
          * this capability rather than on {@link #EXTERNAL_COMMAND}.
          */
-        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
@@ -2551,7 +2562,7 @@ public class EsqlCapabilities {
          * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
          * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
          */
-        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
@@ -2560,13 +2571,13 @@ public class EsqlCapabilities {
          * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
          * See esql-planning#794.
          */
-        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
-        DATASET_IN_FROM_COMMAND(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+        DATASET_IN_FROM_COMMAND(DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
          * Datasource file plugins (CSV, ORC, Parquet) no longer return {@code TEXT} types, only {@code KEYWORD}.

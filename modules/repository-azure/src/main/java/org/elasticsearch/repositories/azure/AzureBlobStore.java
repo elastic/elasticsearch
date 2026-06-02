@@ -132,7 +132,7 @@ public class AzureBlobStore implements BlobStore {
     public static final int MAX_ELEMENTS_PER_BATCH = 256;
     private static final long DEFAULT_READ_CHUNK_SIZE = ByteSizeValue.of(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) ByteSizeValue.of(64, ByteSizeUnit.KB).getBytes();
-    private static final Map<String, AccessTier> ALLOWED_ACCESS_TIERS_BY_LOWER_NAME = Stream.of(
+    public static final Map<String, AccessTier> ALLOWED_ACCESS_TIERS_BY_LOWER_NAME = Stream.of(
         AccessTier.HOT,
         AccessTier.COOL,
         AccessTier.COLD

@@ -201,21 +201,22 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
             return term();
         }
 
+        private static BytesRef extractTsid(BytesRef id) {
+            // The synthetic id is Uid-encoded, possibly with a 0xfd escape prefix, so we need to skip that prefix
+            // when extracting the tsid. See TsidExtractingIdFieldMapper#writeSyntheticId
+            final int escapeBytes = id.length > 0 && Byte.toUnsignedInt(id.bytes[id.offset]) >= Uid.BASE64_ESCAPE ? 1 : 0;
+            if (id.length > Long.BYTES + Integer.BYTES + escapeBytes) {
+                return TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id);
+            } else {
+                // Lookup whatever term `id` has been provided
+                return escapeBytes == 0 ? id : new BytesRef(id.bytes, id.offset + escapeBytes, id.length - escapeBytes);
+            }
+        }
+
         @Override
         public SeekStatus seekCeil(BytesRef id) throws IOException {
             assert id != null;
-
-            int tsIdOrd;
-            if (id != null && id.length > Long.BYTES + Integer.BYTES) {
-                // Extract and lookup the _tsid
-                tsIdOrd = docValues.lookupTsIdTerm(TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(id));
-            } else if (id != null) {
-                // Lookup whatever term `id` has been provided
-                tsIdOrd = docValues.lookupTsIdTerm(id);
-            } else {
-                tsIdOrd = -1;
-            }
-
+            int tsIdOrd = docValues.lookupTsIdTerm(extractTsid(id));
             // _tsid not found
             if (tsIdOrd < 0) {
                 tsIdOrd = -tsIdOrd - 1;

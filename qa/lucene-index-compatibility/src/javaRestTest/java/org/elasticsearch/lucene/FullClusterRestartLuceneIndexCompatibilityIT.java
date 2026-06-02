@@ -497,7 +497,9 @@ public class FullClusterRestartLuceneIndexCompatibilityIT extends FullClusterRes
                         req.setJsonEntity("{\"f\": 1}");
                         try {
                             client().performRequest(req);
-                        } catch (IOException ignored) {}
+                        } catch (IOException e) {
+                            throw new AssertionError(e);
+                        }
                         if (counted == false) {
                             firstRequestDone.countDown();
                             counted = true;

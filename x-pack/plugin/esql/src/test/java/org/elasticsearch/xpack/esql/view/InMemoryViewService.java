@@ -27,6 +27,7 @@ import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -179,6 +180,10 @@ public class InMemoryViewService extends ViewService implements Closeable {
 
     public InMemoryViewResolver getViewResolver(CrossProjectModeDecider crossProjectModeDecider) {
         return new InMemoryViewResolver(clusterService, () -> viewMetadata, crossProjectModeDecider);
+    }
+
+    public ViewAndSubqueryResolver getViewAndSubqueryResolver() {
+        return new ViewAndSubqueryResolver(getViewResolver(), clusterService);
     }
 
     public ClusterService getClusterService() {

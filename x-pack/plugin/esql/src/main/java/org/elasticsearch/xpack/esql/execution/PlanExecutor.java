@@ -34,11 +34,11 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
-import org.elasticsearch.xpack.esql.view.ViewResolver;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -93,7 +93,7 @@ public class PlanExecutor {
         TransportVersion localClusterMinimumVersion,
         AnalyzerSettings analyzerSettings,
         EnrichPolicyResolver enrichPolicyResolver,
-        ViewResolver viewResolver,
+        ViewAndSubqueryResolver viewAndSubqueryResolver,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -115,7 +115,7 @@ public class PlanExecutor {
             analyzerSettings,
             indexResolver,
             enrichPolicyResolver,
-            viewResolver,
+            viewAndSubqueryResolver,
             externalSourceResolver,
             parser,
             preAnalyzer,

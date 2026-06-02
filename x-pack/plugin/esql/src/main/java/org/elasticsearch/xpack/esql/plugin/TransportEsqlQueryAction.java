@@ -74,7 +74,7 @@ import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
-import org.elasticsearch.xpack.esql.view.ViewResolver;
+import org.elasticsearch.xpack.esql.session.ViewAndSubqueryResolver;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -101,7 +101,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final ClusterService clusterService;
     private final Executor requestExecutor;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewResolver viewResolver;
+    private final ViewAndSubqueryResolver viewAndSubqueryResolver;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
@@ -124,7 +124,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
-        ViewResolver viewResolver,
+        ViewAndSubqueryResolver viewAndSubqueryResolver,
         ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,
@@ -143,7 +143,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.threadPool = threadPool;
         this.planExecutor = planExecutor;
         this.clusterService = clusterService;
-        this.viewResolver = viewResolver;
+        this.viewAndSubqueryResolver = viewAndSubqueryResolver;
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
@@ -343,7 +343,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 timeseriesResultTruncationDefaultSize
             ),
             enrichPolicyResolver,
-            viewResolver,
+            viewAndSubqueryResolver,
             executionInfo,
             remoteClusterService,
             planRunner,

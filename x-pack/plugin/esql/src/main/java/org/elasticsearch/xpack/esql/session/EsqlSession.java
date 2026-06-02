@@ -179,7 +179,6 @@ public class EsqlSession {
     private final AnalyzerSettings analyzerSettings;
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
-    private final ViewResolver viewResolver;
     private final ViewAndSubqueryResolver viewAndSubqueryResolver;
     private final ExternalSourceResolver externalSourceResolver;
 
@@ -243,7 +242,7 @@ public class EsqlSession {
         AnalyzerSettings analyzerSettings,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
-        ViewResolver viewResolver,
+        ViewAndSubqueryResolver viewAndSubqueryResolver,
         ExternalSourceResolver externalSourceResolver,
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
@@ -263,8 +262,7 @@ public class EsqlSession {
         this.analyzerSettings = analyzerSettings;
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
-        this.viewResolver = viewResolver;
-        this.viewAndSubqueryResolver = new ViewAndSubqueryResolver(viewResolver, services.clusterService());
+        this.viewAndSubqueryResolver = viewAndSubqueryResolver;
         this.externalSourceResolver = externalSourceResolver;
         this.parser = parser;
         this.preAnalyzer = preAnalyzer;

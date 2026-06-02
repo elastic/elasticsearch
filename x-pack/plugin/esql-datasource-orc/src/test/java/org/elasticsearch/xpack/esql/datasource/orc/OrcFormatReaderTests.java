@@ -1326,6 +1326,35 @@ public class OrcFormatReaderTests extends ESTestCase {
         return total;
     }
 
+    public void testCorruptOrcFileDoesNotProduceElasticsearchException() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 10;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 10; i++) {
+                idCol.vector[i] = i;
+            }
+        });
+
+        int corruptStart = 3;
+        int corruptEnd = orcData.length / 2;
+        java.util.Arrays.fill(orcData, corruptStart, corruptEnd, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        Exception ex = expectThrows(Exception.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertFalse(
+            "Corrupt ORC data should not produce ElasticsearchException (HTTP 500), got: " + ex.getClass().getName(),
+            ex instanceof org.elasticsearch.ElasticsearchException
+        );
+    }
+
     // --- ORC file creation helpers ---
 
     @FunctionalInterface

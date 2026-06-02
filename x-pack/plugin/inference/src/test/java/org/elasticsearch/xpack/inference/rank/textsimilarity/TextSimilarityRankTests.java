@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.inference.InputType;
-import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -19,7 +19,7 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -32,6 +32,7 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
@@ -93,18 +94,17 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 failuresAllowed()
             ) {
                 @Override
-                protected InferenceAction.Request generateRequest(List<String> docFeatures) {
-                    return new InferenceAction.Request(
-                        TaskType.RERANK,
-                        this.inferenceId,
-                        inferenceText,
-                        null,
-                        null,
-                        docFeatures,
-                        Map.of("inferenceResultCount", inferenceResultCount),
-                        InputType.INTERNAL_SEARCH,
-                        null,
-                        false
+                protected RerankAction.Request generateRequest(List<String> docFeatures) {
+                    return new RerankAction.Request(
+                        inferenceId,
+                        new RerankRequest(
+                            fromStringList(docFeatures),
+                            InferenceString.ofText(inferenceText),
+                            null,
+                            null,
+                            Map.of("inferenceResultCount", inferenceResultCount)
+                        ),
+                        null
                     );
                 }
             };

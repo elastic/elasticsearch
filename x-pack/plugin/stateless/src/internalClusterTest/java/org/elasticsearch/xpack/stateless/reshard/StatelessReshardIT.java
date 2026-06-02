@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
@@ -52,11 +53,14 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -107,6 +111,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.encryption.EncryptionPlugin;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -1637,7 +1642,8 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
     // A successful realtime get should return the latest value of a doc regardless of refresh.
     // It may fail if it has been routed to a stale shard due to concurrent resharding.
-    public void testRealtimeGet() throws InterruptedException {
+    // A get with a refresh has similar expectations to a realtime get.
+    private void testRealtimeGetOrGetWithRefresh(boolean testRefresh) throws InterruptedException {
         startMasterOnlyNode();
         final var searchNode = startSearchNode();
         final var indexNode = startIndexNode();
@@ -1645,7 +1651,7 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         ensureStableCluster(3);
 
         final String indexName = "test-realtime-get";
-        createIndex(indexName, indexSettings(1, 1).build());
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
@@ -1657,7 +1663,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
         indexDoc(indexName, shard1docId, "field", "shard1_v0");
 
-        var response = client().prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet();
+        var response = client().prepareGet(indexName, shard1docId)
+            .setRealtime(testRefresh == false)
+            .setRefresh(testRefresh)
+            .execute()
+            .actionGet();
         assertThat(response.isExists(), is(true));
         assertThat(response.getSource().get("field"), equalTo("shard1_v0"));
 
@@ -1668,14 +1678,15 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var indexNodeTransportService = MockTransportService.getInstance(indexNode);
         final var searchNodeTransportService = MockTransportService.getInstance(searchNode);
 
+        final var actionToBlock = testRefresh ? TransportShardRefreshAction.NAME : TransportGetFromTranslogAction.NAME;
         searchNodeTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            // block get_from_translog until resharding reaches SPLIT so that the arriving request will be stale
-            if ((TransportGetFromTranslogAction.NAME).equals(action)) {
+            // block get until resharding reaches SPLIT so that the arriving request will be stale
+            if (actionToBlock.equals(action)) {
                 // signal that get has been prepared so resharding can start
                 getPrepared.countDown();
                 try {
                     docUpdated.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-                    logger.info("sending blocked get from translog");
+                    logger.info("sending blocked {}", actionToBlock);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -1699,7 +1710,11 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var getShard1Response = new AtomicReference<GetResponse>();
         final var getShard1Thread = new Thread(
             () -> getShard1Response.set(
-                client(searchNode).prepareGet(indexName, shard1docId).setRealtime(true).execute().actionGet(SAFE_AWAIT_TIMEOUT)
+                client(searchNode).prepareGet(indexName, shard1docId)
+                    .setRealtime(testRefresh == false)
+                    .setRefresh(testRefresh)
+                    .execute()
+                    .actionGet(SAFE_AWAIT_TIMEOUT)
             )
         );
         getShard1Thread.start();
@@ -1717,6 +1732,14 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(getShard1Response.get().getSource().get("field"), equalTo("shard1_v1"));
 
         waitForReshardCompletion(indexName);
+    }
+
+    public void testRealTimeGet() throws InterruptedException {
+        testRealtimeGetOrGetWithRefresh(false);
+    }
+
+    public void testGetWithRefresh() throws InterruptedException {
+        testRealtimeGetOrGetWithRefresh(true);
     }
 
     // A successful realtime multiget should return the latest values of docs regardless of refresh.
@@ -1808,8 +1831,67 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         final var reshardRequest = new ReshardIndexRequest(indexName, 2);
         client().execute(TransportReshardAction.TYPE, reshardRequest).actionGet(SAFE_AWAIT_TIMEOUT);
         waitForReshardCompletion(indexName);
+    }
+
+    // A successful multiget with refresh should return the latest values of docs
+    public void testMultiGetWithRefresh() {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+        ensureStableCluster(3);
+
+        final String indexName = "test-multiget-with-refresh";
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
+
+        // Document that routes to target shard after split.
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard1docId, "field", "shard1_v0");
+
+        final var SHARD_MGET_ACTION = TransportShardMultiGetAction.TYPE.name() + "[s]";
+        final var mgetPrepared = new CountDownLatch(1);
+        final var reshardDone = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (SHARD_MGET_ACTION.equals(action)) {
+                mgetPrepared.countDown();
+                safeAwait(reshardDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var mgetResponse = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(
+            () -> mgetResponse.set(
+                client(indexNode).prepareMultiGet()
+                    .add(indexName, shard1docId)
+                    .setRealtime(false)
+                    .setRefresh(true)
+                    .execute()
+                    .actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
+        mgetThread.start();
+
+        safeAwait(mgetPrepared);
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(
+            searchNode,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+        indexDoc(indexName, shard1docId, "field", "shard1_v1");
+        reshardDone.countDown();
 
         safeJoin(mgetThread);
+        waitForReshardCompletion(indexName);
+        MultiGetItemResponse itemResponse = mgetResponse.get().getResponses()[0];
+        assertThat(itemResponse.getResponse().isExists(), is(true));
+        assertEquals("shard1_v1", itemResponse.getResponse().getSource().get("field"));
     }
 
     public void testReshardMustMatchExpectedNumberOfShards() {
@@ -4556,12 +4638,52 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         }
     }
 
+    public void testHealthNeverGoesRedDuringResharding() {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numShards, 1).build());
+        ensureGreen(indexName);
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var projectId = clusterService.state().metadata().getProject().id();
+        final AtomicReference<AssertionError> failure = new AtomicReference<>();
+        ClusterStateListener listener = event -> {
+            var health = new ClusterStateHealth(event.state(), new String[] { indexName }, projectId);
+            if (health.getStatus() == ClusterHealthStatus.RED) {
+                failure.compareAndSet(null, new AssertionError("cluster turned red during reshard:\n" + event.state().routingTable()));
+            }
+        };
+        clusterService.addListener(listener);
+
+        try {
+            int numDocs = randomIntBetween(10, 100);
+            indexDocs(indexName, numDocs);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+
+            client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            clusterService.removeListener(listener);
+        }
+        if (failure.get() != null) {
+            throw failure.get();
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(EsqlPlugin.class);
+        plugins.add(EncryptionPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         return plugins;
     }

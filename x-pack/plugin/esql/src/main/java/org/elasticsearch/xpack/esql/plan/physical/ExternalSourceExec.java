@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -59,6 +61,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+    private static final TransportVersion DATA_SOURCE_ENCRYPTED_DATA = TransportVersion.fromName("data_source_encrypted_data");
 
     private final String sourcePath;
     private final String sourceType;
@@ -79,6 +82,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     private final FileList fileList; // NOT serialized - resolved on coordinator, null on data nodes
     // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+    // Coordinator-only — not serialized. The pre-prune Unified schema. Survives the optimizer's
+    // projection prune of `attributes` so split discovery can narrow per-file ColumnMappings to
+    // the post-prune Query schema without rebuilding Unified names from per-file mappings.
+    @Nullable
+    private final ExternalSchema unifiedSchema;
     private final List<ExternalSplit> splits;
 
     public ExternalSourceExec(
@@ -140,8 +148,10 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     /**
-     * Longest public ctor; used by {@link #info()}, by
-     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()}, and by tree tests.
+     * Public 13-arg ctor used by {@link #info()} (via constructor reference) and by tree tests.
+     * Passes {@code null} for {@code unifiedSchema}; callers that need to carry the Unified schema
+     * (e.g. {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec})
+     * apply it afterwards via {@link #withUnifiedSchema(ExternalSchema)}.
      */
     public ExternalSourceExec(
         Source source,
@@ -172,14 +182,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            null,
             splits
         );
     }
 
     /**
-     * Primary constructor that also accepts a transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning.
-     * Package-private on purpose so the public, longest constructor (used by tooling and tree tests) remains
-     * the twelve-arg one above. Use {@link #withPushedTopN(BlockHash.TopNDef)} from optimizer rules.
+     * Primary constructor that also accepts the transient {@link BlockHash.TopNDef} hint for in-hash TopN pruning
+     * and the coordinator-only {@link ExternalSchema} that carries the pre-prune Unified schema. Package-private on purpose
+     * so the public, longest constructor (used by tooling and tree tests) remains the thirteen-arg one above.
+     * Use {@link #withPushedTopN(BlockHash.TopNDef)} and {@link #withUnifiedSchema(ExternalSchema)} from outside the package.
      */
     ExternalSourceExec(
         Source source,
@@ -195,6 +207,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         Integer estimatedRowSize,
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable ExternalSchema unifiedSchema,
         List<ExternalSplit> splits
     ) {
         super(source);
@@ -219,6 +232,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.estimatedRowSize = estimatedRowSize;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
+        this.unifiedSchema = unifiedSchema;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
     }
 
@@ -312,7 +326,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeString(sourcePath);
         out.writeString(sourceType);
         out.writeNamedWriteableCollection(attributes);
-        out.writeGenericValue(config);
+        // Encrypted secrets in _datasource ride to data nodes that support the carrier; strip them for
+        // older targets, which cannot deserialize the carrier and revert to prior behavior.
+        out.writeGenericValue(
+            out.getTransportVersion().supports(DATA_SOURCE_ENCRYPTED_DATA) ? config : ExternalSourceResolver.planConfig(config)
+        );
         out.writeGenericValue(sourceMetadata);
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
@@ -370,6 +388,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         return schemaMap;
     }
 
+    @Nullable
+    public ExternalSchema unifiedSchema() {
+        return unifiedSchema;
+    }
+
     public List<ExternalSplit> splits() {
         return splits;
     }
@@ -389,6 +412,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             newSplits
         );
     }
@@ -408,6 +432,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -427,6 +452,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -446,6 +472,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -477,6 +504,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -499,6 +527,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -511,6 +540,32 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     @Nullable
     public BlockHash.TopNDef pushedTopN() {
         return pushedTopN;
+    }
+
+    /**
+     * Returns a copy of this source carrying the given pre-prune Unified schema. See {@link #unifiedSchema()}.
+     * Applied by {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} after
+     * construction so the Unified schema does not appear in {@link #info()} (which would let the optimizer's
+     * attribute-rewriting rules prune it along with {@code attributes}).
+     */
+    public ExternalSourceExec withUnifiedSchema(@Nullable ExternalSchema newUnifiedSchema) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            newUnifiedSchema,
+            splits
+        );
     }
 
     @Override
@@ -535,6 +590,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             newEstimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -544,6 +600,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // pushedTopN: excluded — transient local-execution hint; including it would break the
         // node-reflection invariant in EsqlNodeSubclassTests#testInfoParameters. Preserved via
         // explicit with* methods; rendered in nodeString() for debuggability.
+        // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
+        // in info() and would prune the Unified schema along with `attributes`, defeating its
+        // whole purpose. Preserved through with* methods which carry it explicitly.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -577,6 +636,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             estimatedRowSize,
             fileList,
             schemaMap,
+            unifiedSchema,
             splits
         );
     }
@@ -604,7 +664,16 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(fileList, other.fileList)
             && Objects.equals(schemaMap, other.schemaMap)
+            && Objects.equals(unifiedSchema, other.unifiedSchema)
             && Objects.equals(splits, other.splits);
+    }
+
+    @Override
+    public List<Object> nodeProperties() {
+        // config and sourceMetadata may carry SecureString (dataset path) or plaintext String
+        // (inline EXTERNAL path) secrets. Keep them out of EXPLAIN /
+        // debug-log output.
+        return List.of(sourcePath, sourceType, attributes);
     }
 
     @Override

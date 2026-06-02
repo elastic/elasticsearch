@@ -1282,3 +1282,405 @@ emp_no:unsupported
 null                 
 ;
 
+
+// =====================================================================
+// Subqueries with ROW as the source command. All gated on the
+// `subquery_with_row` capability, which is dev-only.
+// =====================================================================
+
+subqueryInFromWithRowSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Analog of `subqueryInFrom` — replaces the FROM-sample_data subquery with a
+// ROW that synthesises a single (emp_no, languages) tuple. The main filter
+// keeps three rows from employees plus the ROW row.
+FROM
+    employees,
+    (ROW emp_no = 99999, languages = 99)
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+10093          | 3
+99999          | 99
+;
+
+
+subqueryInFromWithMultipleRowSubqueries
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Multiple ROW subqueries alongside an index pattern. Each ROW contributes a
+// synthesised tuple with the same column names/types as the index, so the
+// UnionAll output preserves both columns as their original types.
+FROM 
+    employees,
+    (ROW emp_no = 99999, languages = 99),
+    (ROW emp_no = 99998, languages = 88)
+| WHERE emp_no IN (99998, 99999, 10091, 10092)
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+99998          | 88
+99999          | 99
+;
+
+
+subqueryInFromWithRowSubqueryWithoutMainIndexPattern
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// A FROM whose only child is a ROW subquery — collapses to the bare ROW.
+FROM (ROW emp_no = 99999, languages = 99)
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+99999          | 99
+;
+
+
+subqueryInFromMultipleRowSubqueriesWithoutMainIndexPattern
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Three ROW subqueries with no main index pattern.
+FROM
+    (ROW emp_no = 1, languages = 5),
+    (ROW emp_no = 2, languages = 10),
+    (ROW emp_no = 3, languages = 15)
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+1              | 5
+2              | 10
+3              | 15
+;
+
+
+subqueryInFromWithRowAndFromSubqueries
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Mix of an index pattern, a ROW subquery and a FROM subquery in the same FROM.
+// The ROW contributes (99999, 99) and the FROM-sample_data leg contributes the
+// client_ip rows; the main filter selects the 10091 employee plus the ROW row
+// plus all sample_data rows whose client_ip is not null.
+FROM
+   employees,
+   (ROW emp_no = 99999, languages = 99),
+   (FROM sample_data)
+| WHERE emp_no == 10091 OR emp_no == 99999 OR client_ip IS NOT NULL
+| SORT emp_no, client_ip
+| KEEP emp_no, languages, client_ip
+;
+
+emp_no:integer | languages:integer | client_ip:ip
+10091          | 3                 | null
+99999          | 99                | null
+null           | null              | 172.21.0.5
+null           | null              | 172.21.2.113
+null           | null              | 172.21.2.162
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+null           | null              | 172.21.3.15
+;
+
+
+subqueryInFromWithRowSubqueryWithFilterInRowSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Filter inside the ROW subquery is satisfied by the literal so the branch
+// survives — output identical to `subqueryInFromWithRowSubquery`.
+FROM
+    employees,
+    (ROW emp_no = 99999, languages = 99
+     | WHERE languages > 50)
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+10093          | 3
+99999          | 99
+;
+
+
+subqueryInFromWithRowSubqueryFilteredOutInRowSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Filter inside the ROW subquery is unsatisfiable (`languages > 200` against
+// the literal `99`) so the ROW branch is pruned and only the employees branch
+// contributes rows.
+FROM
+    employees,
+    (ROW emp_no = 99999, languages = 99
+     | WHERE languages > 200)
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+10093          | 3
+;
+
+
+subqueryInFromWithRowSubqueryEvalInRowSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// EVAL inside the ROW subquery folds a constant expression, then the row is
+// merged into the union with the main FROM employees branch.
+FROM
+    employees,
+    (ROW emp_no = 99999 | EVAL languages = 5 + 10)
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+10093          | 3
+99999          | 15
+;
+
+
+subqueryInFromWithMultivalueRowSubquery
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+// Multivalue assignment inside the ROW subquery: the synthesised row carries
+// `languages = [1, 2, 3]` as a multivalue and that flows through the UnionAll
+// alongside the scalar values from employees.
+FROM
+    employees,
+    (ROW emp_no = 99999, languages = [1, 2, 3])
+| WHERE (emp_no >= 10091 AND emp_no < 10094) OR emp_no == 99999
+| SORT emp_no
+| KEEP emp_no, languages
+;
+
+emp_no:integer | languages:integer
+10091          | 3
+10092          | 1
+10093          | 3
+99999          | [1, 2, 3]
+;
+
+
+subqueryInFromRowSubqueriesUnionConflictingTypes
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+required_capability: subquery_in_from_command_union_types_conflict_resolution
+
+// Two ROW subqueries declaring the same column with conflicting types — the
+// `emp_no` column collapses to UNSUPPORTED, mirroring the existing
+// `subqueryInFromUnionConflictingTypes` test for FROM branches.
+FROM
+    (ROW emp_no = 1),
+    (ROW emp_no = "abc")
+| KEEP emp_no
+| LIMIT 1
+;
+
+emp_no:unsupported
+null
+;
+
+subqueryInFromWithRenameBeforeConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| RENAME first_name AS fname
+| EVAL emp_no_str = to_string(emp_no)
+| KEEP emp_no, fname, emp_no_str
+| SORT emp_no, fname
+;
+
+emp_no:integer | fname:keyword | emp_no_str:keyword
+10091          | Amabile       | 10091
+10091          | Amabile       | 10091
+10092          | Valdiodio     | 10092
+10092          | Valdiodio     | 10092
+10093          | Sailaja       | 10093
+10093          | Sailaja       | 10093
+;
+
+subqueryInFromWithKeepBeforeConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| KEEP emp_no, first_name
+| EVAL emp_no_long = to_long(emp_no)
+| SORT emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword | emp_no_long:long
+10091          | Amabile            | 10091
+10091          | Amabile            | 10091
+10092          | Valdiodio          | 10092
+10092          | Valdiodio          | 10092
+10093          | Sailaja            | 10093
+10093          | Sailaja            | 10093
+;
+
+subqueryInFromWithRenameOnSameFieldBeforeConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| RENAME emp_no AS id
+| EVAL id_str = to_string(id)
+| KEEP id, id_str
+| SORT id, id_str
+;
+
+id:integer | id_str:keyword
+10091      | 10091
+10091      | 10091
+10092      | 10092
+10092      | 10092
+10093      | 10093
+10093      | 10093
+;
+
+subqueryInFromWithRenameOnSameFieldAfterConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| EVAL emp_no_str = to_string(emp_no)
+| RENAME emp_no AS id
+| KEEP id, emp_no_str
+| SORT id, emp_no_str
+;
+
+id:integer | emp_no_str:keyword
+10091      | 10091
+10091      | 10091
+10092      | 10092
+10092      | 10092
+10093      | 10093
+10093      | 10093
+;
+
+subqueryInFromWithRenameOtherProcessingCommandsAndConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+required_capability: async_operator_warnings_fix
+
+FROM multi_column_joinable,
+     (FROM multi_column_joinable metadata _index)
+     metadata _index
+| RENAME extra2 AS other2
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2
+| MV_EXPAND other2
+| STATS absent(to_string(id_int))
+;
+
+warning:Line 5:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+absent(to_string(id_int)):boolean
+false
+;
+
+subqueryInFromWithInlineStatsPruning
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d = max(x)
+| STATS d2 = count(*)
+;
+
+d2:long
+34
+;
+
+subqueryInFromWithInlineStatsOutputUsed
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d = max(x)
+| STATS cnt = count(d), max_d = max(d)
+;
+
+cnt:long | max_d:integer
+34       | 21
+;
+
+subqueryInFromWithInlineStatsOutputUsedInFilter
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d = max(x)
+| WHERE d > 0
+| STATS cnt = count(*)
+;
+
+cnt:long
+34
+;
+
+subqueryInFromWithInlineStatsPartialOutputPruned
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int, y = extra2
+| INLINE STATS d1 = max(x), d2 = max(y)
+| STATS max_d1 = max(d1)
+;
+
+max_d1:integer
+21
+;
+
+subqueryInFromWithMultipleInlineStatsBothUnused
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_inline_stats_pruning
+
+FROM multi_column_joinable, (FROM multi_column_joinable)
+| EVAL x = id_int
+| INLINE STATS d1 = max(x)
+| EVAL z = extra2
+| INLINE STATS d2 = max(z)
+| STATS cnt = count(*)
+;
+
+cnt:long
+34
+;

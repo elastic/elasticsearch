@@ -2,3 +2,4 @@ ALL-UNNAMED:
   - manage_threads
   - outbound_network
   - set_https_connection_properties
+  - create_class_loader

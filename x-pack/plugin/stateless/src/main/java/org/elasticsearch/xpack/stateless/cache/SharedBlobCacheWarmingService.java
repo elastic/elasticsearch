@@ -62,7 +62,7 @@ import org.elasticsearch.xpack.stateless.lucene.BlobCacheIndexInput;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.utils.IndexingShardWarmingComparator;
 
 import java.io.IOException;
@@ -712,7 +712,11 @@ public class SharedBlobCacheWarmingService {
                     type,
                     indexShard.shardId(),
                     "generation=" + commit.generation(),
-                    Maps.copyMapWithAddedEntry(RecoveryMetricsCollector.commonMetricLabels(indexShard), "prewarming_type", type.name())
+                    Maps.copyMapWithAddedEntry(
+                        StatelessRecoveryMetricsCollector.commonMetricLabels(indexShard),
+                        "prewarming_type",
+                        type.name()
+                    )
                 );
                 boolean preWarmForIdLookupRequested = preWarmForIdLookup && (type == Type.INDEXING_EARLY || type == Type.INDEXING);
                 if (preWarmForIdLookupRequested) {

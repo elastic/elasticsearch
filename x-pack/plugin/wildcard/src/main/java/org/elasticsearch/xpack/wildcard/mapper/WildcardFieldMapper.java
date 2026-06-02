@@ -74,6 +74,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -838,22 +839,16 @@ public class WildcardFieldMapper extends FieldMapper {
                 BooleanQuery ngramQ = approxBuilder.build();
 
                 // Verification query
-                FuzzyQuery fq = rewriteMethod == null
-                    ? new FuzzyQuery(
-                        new Term(name(), searchTerm),
-                        fuzziness.asDistance(searchTerm),
-                        prefixLength,
-                        maxExpansions,
-                        transpositions
-                    )
-                    : new FuzzyQuery(
-                        new Term(name(), searchTerm),
-                        fuzziness.asDistance(searchTerm),
-                        prefixLength,
-                        maxExpansions,
-                        transpositions,
-                        rewriteMethod
-                    );
+                FuzzyQuery fq = FuzzyQueries.create(
+                    new Term(name(), searchTerm),
+                    fuzziness.asDistance(searchTerm),
+                    prefixLength,
+                    maxExpansions,
+                    transpositions,
+                    rewriteMethod,
+                    context,
+                    name()
+                );
                 if (ngramQ.clauses().size() == 0) {
                     return BinaryDvConfirmedQuery.fromFuzzyQuery(Queries.ALL_DOCS_INSTANCE, name(), searchTerm, fq);
                 }

@@ -16,6 +16,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -28,6 +30,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -37,6 +40,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
@@ -46,19 +50,23 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -102,7 +110,9 @@ import java.util.regex.Pattern;
  *   <tr><td>{@code encoding}</td><td>{@code UTF-8}</td><td>Character encoding</td></tr>
  *   <tr><td>{@code datetime_format}</td><td>ISO-8601 / epoch</td><td>Custom datetime pattern</td></tr>
  *   <tr><td>{@code max_field_size}</td><td>10 MB</td><td>OOM protection; max bytes per field</td></tr>
- *   <tr><td>{@code multi_value_syntax}</td><td>{@code brackets}</td><td>Multi-value field syntax</td></tr>
+ *   <tr><td>{@code multi_value_syntax}</td><td>{@code none}</td>
+ *       <td>Multi-value field syntax; see "Bracket multi-value syntax" below for the
+ *           {@code brackets} opt-in and the element-splitter rules (always comma, even for TSV).</td></tr>
  *   <tr><td>{@code schema_sample_size}</td><td>20,000</td><td>Number of rows to sample for type inference</td></tr>
  *   <tr><td>{@code header_row}</td><td>{@code true}</td>
  *       <td>When {@code false}, no header row is read; column names are synthesized from
@@ -160,6 +170,109 @@ public class CsvFormatReader implements SegmentableFormatReader {
     /** Sentinel passed to {@link CsvBatchIterator#onRowError} when the offending row could not be tokenised. */
     private static final String[] EMPTY_ROW = new String[0];
 
+    /**
+     * Reused {@link DateFormatter} that delegates to ES's hand-rolled
+     * {@code Iso8601DateTimeParser}: covers the {@code YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM]} family
+     * (plus date-only inputs like {@code YYYY-MM-DD}) without the {@link DateTimeFormatter}
+     * {@code Parsed} HashMap allocation and copy that dominates {@code tryParseDatetime} on
+     * datetime-heavy queries. Space-separated {@code YYYY-MM-DD HH:MM:SS} inputs are NOT
+     * accepted by this parser and are handled separately by
+     * {@link #tryParseSpaceSeparatedDatetimeMillis(String)}.
+     * <p>
+     * Note: deliberately not chained with {@code .withZone(UTC)} (unlike
+     * {@code DateUtils.UTC_DATE_TIME_FORMATTER}). The downstream {@code DateFormatters.from} call
+     * already defaults to {@link ZoneOffset#UTC} when the parsed accessor carries no zone, so the
+     * extra {@code withZone} call would only allocate a second {@link DateFormatter} for no
+     * behavioural difference on this hot path.
+     */
+    private static final DateFormatter ISO_DATETIME_FAST_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+
+    /**
+     * Sentinel returned by {@link #tryParseSpaceSeparatedDatetimeMillis(String)} when the input
+     * does not match the supported space-separated template. {@link Long#MIN_VALUE} is chosen
+     * because it cannot be produced by a legal {@code YYYY-MM-DD HH:MM:SS} value (the
+     * {@link LocalDateTime} range tops out billions of years before that millisecond).
+     */
+    static final long FAST_PATH_MISS = Long.MIN_VALUE;
+
+    /**
+     * Hand-rolled fast parser for {@code YYYY-MM-DD HH:MM:SS} (length 19) and
+     * {@code YYYY-MM-DD HH:MM:SS.fff} (length 23). Returns the epoch millisecond value, or
+     * {@link #FAST_PATH_MISS} if {@code value} does not match the supported template (caller
+     * then falls through to the general-purpose parser).
+     * <p>
+     * This is the documented hot path on datetime-heavy queries that filter, sort or group by
+     * a space-separated DATETIME column: the JDK {@link DateTimeFormatter} builds a {@code Parsed}
+     * intermediate (HashMap keyed by {@code TemporalField}) and copies it during resolve,
+     * accounting for ~16% of CPU on profiled CSV scans even though the input is fixed-width and
+     * can be parsed in a constant number of digit comparisons.
+     * <p>
+     * Only inputs that yield the same epoch milliseconds as
+     * {@link DateUtils#asDateTime(String)} are accepted; any rejected input still goes through
+     * the original parser, preserving the existing surface contract.
+     */
+    static long tryParseSpaceSeparatedDatetimeMillis(String value) {
+        int len = value.length();
+        if (len != 19 && len != 23) {
+            return FAST_PATH_MISS;
+        }
+        if (value.charAt(4) != '-'
+            || value.charAt(7) != '-'
+            || value.charAt(10) != ' '
+            || value.charAt(13) != ':'
+            || value.charAt(16) != ':') {
+            return FAST_PATH_MISS;
+        }
+        int year = parseFixedDigits(value, 0, 4);
+        int month = parseFixedDigits(value, 5, 2);
+        int day = parseFixedDigits(value, 8, 2);
+        int hour = parseFixedDigits(value, 11, 2);
+        int minute = parseFixedDigits(value, 14, 2);
+        int second = parseFixedDigits(value, 17, 2);
+        if ((year | month | day | hour | minute | second) < 0) {
+            return FAST_PATH_MISS;
+        }
+        int millis = 0;
+        if (len == 23) {
+            if (value.charAt(19) != '.') {
+                return FAST_PATH_MISS;
+            }
+            millis = parseFixedDigits(value, 20, 3);
+            if (millis < 0) {
+                return FAST_PATH_MISS;
+            }
+        }
+        // LocalDateTime.of validates calendar bounds (month 1..12, day-of-month per month, leap
+        // years etc.). Trapping the DateTimeException here keeps the fast path side-effect-free on
+        // invalid dates: the caller falls through to the general-purpose Stage 3 parser, which
+        // preserves the existing DateUtils.asDateTime semantics (including the user-facing
+        // "Failed to parse" error message it produces for genuinely invalid inputs).
+        try {
+            LocalDateTime ldt = LocalDateTime.of(year, month, day, hour, minute, second);
+            return ldt.toInstant(ZoneOffset.UTC).toEpochMilli() + millis;
+        } catch (DateTimeException e) {
+            return FAST_PATH_MISS;
+        }
+    }
+
+    /**
+     * Parses {@code count} consecutive ASCII decimal digits starting at {@code offset} and
+     * returns the integer value, or {@code -1} if any character is outside {@code '0'..'9'}.
+     * Used by the datetime fast path so a non-digit triggers a fall-through instead of an
+     * exception.
+     */
+    private static int parseFixedDigits(String value, int offset, int count) {
+        int result = 0;
+        for (int i = 0; i < count; i++) {
+            char c = value.charAt(offset + i);
+            if (c < '0' || c > '9') {
+                return -1;
+            }
+            result = result * 10 + (c - '0');
+        }
+        return result;
+    }
+
     static final String CONFIG_DELIMITER = "delimiter";
     static final String CONFIG_QUOTE = "quote";
     static final String CONFIG_ESCAPE = "escape";
@@ -196,6 +309,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
+    private final CsvReaderCounters counters;
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
@@ -242,6 +358,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
+        this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -446,20 +563,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
-        try (
-            InputStream stream = object.newStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE)
-        ) {
+        InputStream stream = object.newStream();
+        // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
+        // the connection. We read only the schema prefix of what may be a multi-GB file, so
+        // draining would block for the full object transfer time. Schema results are cached,
+        // so discarding the connection here is acceptable. The abort is wrapped in a Closeable
+        // so try-with-resources attaches any abort-time error as a suppressed exception on the
+        // primary failure rather than replacing it.
+        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(reader);
             }
             String headerLine = null;
-            while ((headerLine = reader.readLine()) != null) {
-                headerLine = headerLine.trim();
-                if (headerLine.isEmpty()
-                    || (options.commentPrefix().isEmpty() == false && headerLine.startsWith(options.commentPrefix()))) {
+            String record;
+            while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+                String trimmed = record.trim();
+                if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                     continue;
                 }
+                headerLine = trimmed;
                 break;
             }
             if (headerLine == null) {
@@ -794,7 +917,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         } else {
             // Byte-range macro-split (bzip2 / zstd-indexed); leading partial record was emitted by
             // the prior split.
-            reader.readLine();
+            readCsvRecord(
+                reader,
+                options.quoteChar(),
+                options.delimiter(),
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
+            );
             effectiveSchema = resolvedSchema;
         }
         // Falls back to effectivePolicy (resolved from WITH options in withConfig) so a user
@@ -809,229 +937,42 @@ public class CsvFormatReader implements SegmentableFormatReader {
             context.batchSize(),
             effectiveSchema,
             effective,
-            object.path().toString()
+            object.path().toString(),
+            counters
         );
+    }
+
+    /**
+     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
+     * envelope. Zero-valued counters when no batches have run.
+     */
+    @Override
+    public CsvReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
-            return findNextRecordBoundaryQuotedFieldsOnly(stream);
-        }
-        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
-        int markLimit = recordBoundaryMarkLimit();
-        long maxMvcSuffixBytes = Math.max(0L, markLimit - 1L);
-        return findNextRecordBoundaryBracketCommaMvc(bis, markLimit, maxMvcSuffixBytes);
+        return recordSplitter().findNextRecordBoundary(stream);
     }
 
-    /**
-     * Override the SPI default for the QuotedFieldsOnly path so the streaming segmentator gets a
-     * single-pass answer instead of dispatching the per-record scanner once per record.
-     * Bracket-comma MVC stays on the inherited default — its scanner has no per-call bulk
-     * allocation, and the bracket-region state machine (depth, leading-whitespace gating,
-     * mark limit) is non-trivial to fold into a single pass.
-     */
     @Override
     public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
-            return findLastRecordBoundaryQuotedFieldsOnly(buf, length);
-        }
-        return SegmentableFormatReader.super.findLastRecordBoundary(buf, length);
+        return recordSplitter().findLastRecordBoundary(buf, length);
     }
 
-    /**
-     * Quoting contract mirrors {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar}
-     * toggles {@code inQuotes}, doubled quote is a literal, {@code \n} outside quotes terminates.
-     * An unpaired opening quote leaves {@code inQuotes == true} for the rest of the buffer, so
-     * any {@code \n} inside the unterminated tail is skipped and the returned offset stays before
-     * the open region — the open-tail rule the segmentator's grow loop requires.
-     */
-    private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
-        if (length <= 0) {
-            return -1;
-        }
-        int lastBoundary = -1;
-        boolean inQuotes = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        for (int i = 0; i < length; i++) {
-            byte b = buf[i];
-            if (b == quoteAsByte) {
-                if (inQuotes) {
-                    if (i + 1 < length && buf[i + 1] == quoteAsByte) {
-                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
-                        i++;
-                    } else {
-                        inQuotes = false;
-                    }
-                } else {
-                    inQuotes = true;
-                }
-            } else if (b == '\n' && inQuotes == false) {
-                lastBoundary = i;
-            }
-        }
-        return lastBoundary;
+    @Override
+    public RecordSplitter recordSplitter() {
+        return recordSplitter(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES);
     }
 
-    /**
-     * Upper bound for {@link BufferedInputStream#mark(int)} while probing bracket MVC cells during record-boundary
-     * scans. Matches {@link CsvFormatOptions#maxFieldSize()} so an unclosed bracket cell cannot invalidate the mark
-     * before we reset and treat {@code [} as a literal byte.
-     */
-    private int recordBoundaryMarkLimit() {
-        int maxField = options.maxFieldSize();
-        if (maxField <= 0) {
-            return Math.min(64 * 1024 * 1024, Integer.MAX_VALUE - 8);
-        }
-        return Math.min(maxField + 1024, Integer.MAX_VALUE - 8);
+    @Override
+    public RecordSplitter recordSplitter(int maxRecordBytes) {
+        return new CsvRecordSplitter(options, maxRecordBytes);
     }
 
-    /**
-     * Bytes consumed after an opening {@code [} until bracket depth returns to zero, or {@code -1} if EOF was reached
-     * first or the scan exceeded {@link CsvFormatOptions#maxFieldSize()} (unclosed cell).
-     */
-    private long consumeBracketMvcSuffixBytes(BufferedInputStream in, long maxSuffixBytes) throws IOException {
-        int depth = 1;
-        long bytes = 0;
-        while (depth > 0) {
-            if (bytes >= maxSuffixBytes) {
-                return -1;
-            }
-            int ib = in.read();
-            if (ib == -1) {
-                return -1;
-            }
-            bytes++;
-            byte b = (byte) ib;
-            if (b == '[') {
-                depth++;
-            } else if (b == ']') {
-                depth--;
-            }
-        }
-        return bytes;
-    }
-
-    private static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
+    static boolean isAsciiCsvFieldLeadingWhitespace(int ib) {
         return ib == ' ' || ib == '\t' || ib == '\f';
-    }
-
-    /**
-     * Record boundary scan for comma-delimited CSV with bracket MVC. Newlines inside {@code [..]} or quoted fields
-     * must not end the record. Quote opening follows RFC 4180 — only at field start, optionally preceded by whitespace
-     * — so stray {@code "} chars in unquoted cells do not trigger multi-line gluing or pathological segment splits.
-     */
-    private long findNextRecordBoundaryBracketCommaMvc(BufferedInputStream bis, int markLimit, long maxMvcSuffixBytes) throws IOException {
-        long consumed = 0;
-        boolean inQuotes = false;
-        boolean fieldHasNonWhitespace = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        byte escAsByte = (byte) options.escapeChar();
-        byte delimAsByte = (byte) options.delimiter();
-
-        while (true) {
-            int ib = bis.read();
-            if (ib == -1) {
-                return -1;
-            }
-            consumed++;
-            byte b = (byte) ib;
-
-            if (inQuotes) {
-                if (b == quoteAsByte) {
-                    bis.mark(2);
-                    int ib2 = bis.read();
-                    if (ib2 == -1) {
-                        inQuotes = false;
-                        continue;
-                    }
-                    if ((byte) ib2 == quoteAsByte) {
-                        consumed++;
-                        continue;
-                    }
-                    bis.reset();
-                    inQuotes = false;
-                } else if (b == escAsByte) {
-                    bis.mark(2);
-                    int ib2 = bis.read();
-                    if (ib2 != -1 && (byte) ib2 == delimAsByte) {
-                        consumed++;
-                        continue;
-                    }
-                    bis.reset();
-                }
-                continue;
-            }
-
-            if (b == '\n') {
-                return consumed;
-            }
-            if (b == delimAsByte) {
-                fieldHasNonWhitespace = false;
-                continue;
-            }
-            if (b == quoteAsByte && fieldHasNonWhitespace == false) {
-                inQuotes = true;
-                continue;
-            }
-            if (b == '[' && fieldHasNonWhitespace == false) {
-                bis.mark(markLimit);
-                long suffix = consumeBracketMvcSuffixBytes(bis, maxMvcSuffixBytes);
-                if (suffix >= 0) {
-                    consumed += suffix;
-                    fieldHasNonWhitespace = true;
-                    continue;
-                }
-                bis.reset();
-                fieldHasNonWhitespace = true;
-                continue;
-            }
-            if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
-                fieldHasNonWhitespace = true;
-            }
-        }
-    }
-
-    /**
-     * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
-     * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
-     * Mirrors the structure of {@link #findNextRecordBoundaryBracketCommaMvc} for the no-bracket-MVC
-     * quoting contract.
-     */
-    private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
-        BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
-        long consumed = 0;
-        boolean inQuotes = false;
-        byte quoteAsByte = (byte) options.quoteChar();
-        while (true) {
-            int ib = bis.read();
-            if (ib == -1) {
-                return -1;
-            }
-            consumed++;
-            byte b = (byte) ib;
-            if (b == quoteAsByte) {
-                if (inQuotes) {
-                    int next = bis.read();
-                    if (next == -1) {
-                        return -1;
-                    }
-                    consumed++;
-                    if ((byte) next == quoteAsByte) {
-                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
-                        continue;
-                    }
-                    inQuotes = false;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                } else {
-                    inQuotes = true;
-                }
-            } else if (b == '\n' && inQuotes == false) {
-                return consumed;
-            }
-        }
     }
 
     @Override
@@ -1053,9 +994,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * still starts with the file header.
      */
     private void skipHeaderLine(BufferedReader reader) throws IOException {
-        String line;
-        while ((line = reader.readLine()) != null) {
-            String trimmed = line.trim();
+        String record;
+        while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+            String trimmed = record.trim();
             if (trimmed.isEmpty() || (options.commentPrefix().isEmpty() == false && trimmed.startsWith(options.commentPrefix()))) {
                 continue;
             }
@@ -1097,7 +1038,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String trimmedType = parts[1].trim();
             String typeName = trimmedType.toUpperCase(Locale.ROOT);
             DataType dataType = parseDataType(typeName);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, dataType));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, dataType, Nullability.TRUE, null, false));
         }
         return attributes;
     }
@@ -1139,6 +1080,145 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         return true;
+    }
+
+    /**
+     * Returns {@code true} if {@code line} is blank (whitespace-only or empty) or starts with
+     * the given comment prefix after skipping leading whitespace. Scans at most
+     * {@code line.length()} characters and allocates nothing — unlike
+     * {@code line.trim().isEmpty() || line.trim().startsWith(prefix)} which always creates a
+     * new {@link String}.
+     */
+    static boolean isBlankOrComment(String line, String commentPrefix) {
+        int len = line.length();
+        int firstNonWs = 0;
+        while (firstNonWs < len && line.charAt(firstNonWs) <= ' ') {
+            firstNonWs++;
+        }
+        if (firstNonWs == len) {
+            return true;
+        }
+        return commentPrefix != null
+            && commentPrefix.isEmpty() == false
+            && firstNonWs + commentPrefix.length() <= len
+            && line.regionMatches(firstNonWs, commentPrefix, 0, commentPrefix.length());
+    }
+
+    /**
+     * Reads a single logical CSV record from {@code reader}, tracking quote and bracket state so
+     * that {@code \r} and {@code \n} inside quoted fields or bracket-MVC cells are preserved
+     * verbatim as field content. Only {@code \n} (or {@code \r\n}) <em>outside</em> quoted/bracket
+     * context terminates the record — lone {@code \r} outside quotes also terminates (for
+     * {@code \r}-only line-ending files) but is not included in the returned string.
+     *
+     * <p>Mirrors the quoting contract of {@link CsvRecordSplitter}.
+     *
+     * <p><b>Divergence from chunk-layer boundary scanners:</b>
+     * {@link CsvRecordSplitter} treats lone {@code \r} outside quotes as data (only {@code \n} terminates).
+     * This method treats unquoted lone {@code \r} as a record terminator (Mac-classic line endings). The divergence is
+     * acceptable because macro-split boundaries are always re-aligned at the row layer, and Mac-classic files are
+     * vanishingly rare in modern data pipelines. A future byte row-reader will reconcile both layers.
+     *
+     * <p>Uses the same ASCII-only whitespace predicate ({@code ' '}, {@code '\t'}, {@code '\f'}) as
+     * the boundary scanners for field-start detection, via {@link #isAsciiCsvFieldLeadingWhitespace}.
+     *
+     * @return the logical record (without trailing line terminator), or {@code null} at EOF
+     */
+    static String readCsvRecord(Reader reader, char quoteChar, char delimiter, boolean bracketAware) throws IOException {
+        if (reader.markSupported() == false) {
+            throw new IllegalArgumentException("Reader must support mark/reset");
+        }
+        StringBuilder sb = new StringBuilder(256);
+        boolean inQuotes = false;
+        int bracketDepth = 0;
+        boolean fieldHasNonWhitespace = false;
+
+        while (true) {
+            int ch = reader.read();
+            if (ch == -1) {
+                return sb.length() == 0 ? null : sb.toString();
+            }
+
+            if (inQuotes) {
+                if (ch == quoteChar) {
+                    reader.mark(1);
+                    int next = reader.read();
+                    if (next == quoteChar) {
+                        sb.append((char) ch);
+                        sb.append((char) next);
+                        continue;
+                    }
+                    if (next != -1) {
+                        reader.reset();
+                    }
+                    inQuotes = false;
+                    sb.append((char) ch);
+                    continue;
+                }
+                sb.append((char) ch);
+                continue;
+            }
+
+            if (bracketDepth > 0) {
+                if (ch == '[') {
+                    bracketDepth++;
+                } else if (ch == ']') {
+                    bracketDepth--;
+                    if (bracketDepth == 0) {
+                        sb.append((char) ch);
+                        fieldHasNonWhitespace = true;
+                        continue;
+                    }
+                }
+                sb.append((char) ch);
+                continue;
+            }
+
+            if (ch == '\n') {
+                return sb.toString();
+            }
+            if (ch == '\r') {
+                reader.mark(1);
+                int next = reader.read();
+                if (next != '\n' && next != -1) {
+                    reader.reset();
+                }
+                return sb.toString();
+            }
+            if (ch == delimiter) {
+                sb.append((char) ch);
+                fieldHasNonWhitespace = false;
+                continue;
+            }
+            if (ch == quoteChar && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+                sb.append((char) ch);
+                continue;
+            }
+            if (bracketAware && ch == '[' && fieldHasNonWhitespace == false) {
+                bracketDepth = 1;
+                sb.append((char) ch);
+                continue;
+            }
+            if (isAsciiCsvFieldLeadingWhitespace(ch) == false) {
+                fieldHasNonWhitespace = true;
+            }
+            sb.append((char) ch);
+        }
+    }
+
+    /**
+     * Converts accumulated field content to a trimmed string, with a fast path that skips
+     * {@link String#trim()} when the first and last characters are already non-whitespace
+     * (the common case for clean CSV data).
+     */
+    static String emitField(StringBuilder current) {
+        String s = current.toString();
+        int len = s.length();
+        if (len == 0 || (s.charAt(0) > ' ' && s.charAt(len - 1) > ' ')) {
+            return s;
+        }
+        return s.trim();
     }
 
     /**
@@ -1247,6 +1327,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
         int bracketDepth = 0;
+        // Remember where the parser entered the unclosed state so error messages can anchor on
+        // the actual fault site instead of head/tail-truncating a long line and hiding it.
+        int quoteOpenAt = -1;
+        int bracketOpenAt = -1;
         int i = 0;
         while (i < line.length()) {
             char c = line.charAt(i);
@@ -1281,10 +1365,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 i++;
             } else if (c == quote && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
                 inQuotes = true;
+                quoteOpenAt = i;
                 i++;
             } else if (c == '[' && (current.length() == 0 || isWhitespaceOnlyFieldPrefix(current))) {
                 if (hasMvcBracketClose(line, i)) {
                     bracketDepth = 1;
+                    bracketOpenAt = i;
                 }
                 current.append(c);
                 i++;
@@ -1292,7 +1378,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 if (i > 0 && line.charAt(i - 1) == esc) {
                     current.append(c);
                 } else {
-                    entries.add(current.toString().trim());
+                    entries.add(emitField(current));
                     current = new StringBuilder();
                 }
                 i++;
@@ -1302,13 +1388,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (inQuotes) {
-            throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarize(line) + "]");
+            throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
         }
         if (bracketDepth > 0) {
-            throw new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarize(line) + "]");
+            throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
         }
         if (current.length() > 0) {
-            entries.add(current.toString().trim());
+            entries.add(emitField(current));
         }
         return entries.toArray(String[]::new);
     }
@@ -1334,6 +1420,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private DataType[] projectedTypes;
         private Attribute[] projectedAttrs;
         private int columnCount;
+        /** Total number of columns in the file schema (not just projected). */
+        private int schemaColumnCount;
+        /** Which source-column indices are projected (for skipping non-projected fields during splitting). */
+        private BitSet projectedFieldSet;
+        /** Maps a source-column index to its slot in {@link #rowBuffer} / {@link #projectedTypes}; -1 if not projected. */
+        private int[] sourceToBufferIndex;
         private Object[] rowBuffer;
         private Iterator<List<?>> csvIterator;
         private List<String[]> prefetchedRows;
@@ -1344,6 +1436,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long totalRowCount = 0;
         private String lastFieldError;
 
+        // Reader-level counters shared across this iterator and any sibling segments.
+        private final CsvReaderCounters counters;
+
         CsvBatchIterator(
             BufferedReader reader,
             InputStream stream,
@@ -1351,7 +1446,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int batchSize,
             List<Attribute> preResolvedSchema,
             ErrorPolicy errorPolicy,
-            String sourceLocation
+            String sourceLocation,
+            CsvReaderCounters counters
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1367,6 +1463,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.datetimeFormatter = options.datetimeFormatter();
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
+            this.counters = counters;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1385,11 +1482,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (nextPage != null) {
                 return true;
             }
+            long startNanos = System.nanoTime();
+            long startTotal = totalRowCount;
+            long startError = errorCount;
             try {
                 nextPage = readNextBatch();
                 return nextPage != null;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read CSV batch", e);
+            } finally {
+                long deltaTotal = totalRowCount - startTotal;
+                long deltaErrors = errorCount - startError;
+                counters.addRowsEmitted(deltaTotal - deltaErrors);
+                counters.addParseErrors(deltaErrors);
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -1436,18 +1542,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     }
                 } else {
                     String headerLine = null;
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        line = line.trim();
-                        if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
+                    String record;
+                    while ((record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), false)) != null) {
+                        String trimmed = record.trim();
+                        if (trimmed.isEmpty() || (hasCommentFilter && trimmed.startsWith(options.commentPrefix()))) {
                             continue;
                         }
-                        headerLine = line;
+                        headerLine = trimmed;
                         break;
                     }
                     if (headerLine == null) {
                         return null;
                     }
+                    counters.markHeaderDetected();
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);
@@ -1468,56 +1575,62 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
                 }
             }
+            boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
             while (true) {
-                List<String[]> rows = new ArrayList<>();
-                if (prefetchedRows != null) {
-                    rows.addAll(prefetchedRows);
-                    prefetchedRows = null;
-                    blockFactory.breaker().addWithoutBreaking(-prefetchedRowsBytes);
-                    prefetchedRowsBytes = 0;
-                }
-                if (csvIterator == null && bracketMultiValues && options.delimiter() == ',') {
-                    readRowsBracketAware(rows, batchSize - rows.size());
+                if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
+                    List<String> lines = new ArrayList<>();
+                    readLogicalLinesBracketAware(lines, batchSize);
+                    if (lines.isEmpty()) {
+                        return null;
+                    }
+                    Page page = convertLinesToPage(lines);
+                    if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                        return page;
+                    }
                 } else {
-                    while (rows.size() < batchSize) {
-                        try {
-                            if (csvIterator.hasNext() == false) {
-                                break;
-                            }
-                            List<?> rowList = csvIterator.next();
-                            String[] row = new String[rowList.size()];
-                            for (int i = 0; i < rowList.size(); i++) {
-                                Object val = rowList.get(i);
-                                row[i] = val != null ? val.toString() : null;
-                            }
-                            if (hasCommentFilter && row.length > 0 && row[0] != null) {
-                                String trimmedFirstCell = row[0].trim();
-                                if (trimmedFirstCell.startsWith(options.commentPrefix())) {
-                                    continue;
+                    List<String[]> rows = new ArrayList<>();
+                    if (prefetchedRows != null) {
+                        rows.addAll(prefetchedRows);
+                        prefetchedRows = null;
+                        blockFactory.breaker().addWithoutBreaking(-prefetchedRowsBytes);
+                        prefetchedRowsBytes = 0;
+                    }
+                    if (useFusedBracketPath) {
+                        readRowsBracketAware(rows, batchSize - rows.size());
+                    } else {
+                        while (rows.size() < batchSize) {
+                            try {
+                                if (csvIterator.hasNext() == false) {
+                                    break;
                                 }
+                                List<?> rowList = csvIterator.next();
+                                String[] row = new String[rowList.size()];
+                                for (int i = 0; i < rowList.size(); i++) {
+                                    Object val = rowList.get(i);
+                                    row[i] = val != null ? val.toString() : null;
+                                }
+                                if (hasCommentFilter && row.length > 0 && row[0] != null) {
+                                    String trimmedFirstCell = row[0].trim();
+                                    if (trimmedFirstCell.startsWith(options.commentPrefix())) {
+                                        continue;
+                                    }
+                                }
+                                rows.add(row);
+                            } catch (RuntimeException e) {
+                                totalRowCount++;
+                                onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
                             }
-                            rows.add(row);
-                        } catch (RuntimeException e) {
-                            // Jackson's MappingIterator wraps both structural parse errors and any
-                            // underlying IOException as RuntimeException since hasNext()/next() do
-                            // not declare checked exceptions. Routing them through the error policy
-                            // lets SKIP_ROW/NULL_FIELD recover from malformed rows (e.g. unclosed
-                            // quote) without killing the query; FAIL_FAST re-throws inside
-                            // onRowError. Jackson typically resynchronizes at the next record
-                            // boundary so we keep going. Errors (OOM etc.) propagate.
-                            totalRowCount++;
-                            onRowError("CSV parse error: " + CsvErrorMessages.summarize(e.getMessage()), e, EMPTY_ROW, true);
                         }
                     }
-                }
 
-                if (rows.isEmpty()) {
-                    return null;
-                }
+                    if (rows.isEmpty()) {
+                        return null;
+                    }
 
-                Page page = convertRowsToPage(rows);
-                if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
-                    return page;
+                    Page page = convertRowsToPage(rows);
+                    if (page != null || modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
+                        return page;
+                    }
                 }
             }
         }
@@ -1533,84 +1646,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * reader are propagated since they signal an unrecoverable I/O fault.
          */
         private void readRowsBracketAware(List<String[]> rows, int batchSize) throws IOException {
-            String line;
-            while (rows.size() < batchSize && (line = reader.readLine()) != null) {
-                line = line.trim();
-                if (line.isEmpty() || (hasCommentFilter && line.startsWith(options.commentPrefix()))) {
+            String record;
+            while (rows.size() < batchSize && (record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), true)) != null) {
+                if (isBlankOrComment(record, options.commentPrefix())) {
                     continue;
                 }
-                StringBuilder logicalLine = new StringBuilder(line);
-                while (hasUnclosedQuote(logicalLine.toString(), options.quoteChar())) {
-                    String next = reader.readLine();
-                    if (next == null) {
-                        break;
-                    }
-                    logicalLine.append('\n').append(next);
-                }
                 try {
-                    String[] row = splitLineBracketAware(logicalLine.toString());
+                    String[] row = splitLineBracketAware(record);
                     rows.add(row);
                 } catch (MalformedRowException e) {
                     totalRowCount++;
                     onRowError(e.getMessage(), e, EMPTY_ROW, true);
                 }
             }
-        }
-
-        /**
-         * RFC-4180-style detection for whether {@code s} ends inside a quoted field. A {@code "} only
-         * opens quoting at field start (after {@code ,} or line-start, optionally preceded by whitespace);
-         * stray {@code "} inside an unquoted cell or inside a {@code [..]} MVC cell is a literal byte, not a
-         * quote toggle. Without this guard, real-world rows with embedded {@code "} characters cause
-         * {@link #readRowsBracketAware} to merge adjacent physical lines until the {@code "} count is even,
-         * yielding "row has [N] columns but schema defines [M]" failures and pathological multi-line scans.
-         */
-        private static boolean hasUnclosedQuote(String s, char quote) {
-            boolean inQuotes = false;
-            int bracketDepth = 0;
-            boolean fieldHasNonWhitespace = false;
-            for (int i = 0; i < s.length(); i++) {
-                char c = s.charAt(i);
-                if (inQuotes) {
-                    if (c == quote) {
-                        if (i + 1 < s.length() && s.charAt(i + 1) == quote) {
-                            i++;
-                            continue;
-                        }
-                        inQuotes = false;
-                    }
-                    continue;
-                }
-                if (bracketDepth > 0) {
-                    if (c == '[') {
-                        bracketDepth++;
-                    } else if (c == ']') {
-                        bracketDepth--;
-                    }
-                    continue;
-                }
-                if (c == ',') {
-                    fieldHasNonWhitespace = false;
-                    continue;
-                }
-                if (c == quote && fieldHasNonWhitespace == false) {
-                    inQuotes = true;
-                    continue;
-                }
-                if (c == '[' && fieldHasNonWhitespace == false) {
-                    // Intentionally enters bracket mode without calling hasMvcBracketClose: this
-                    // method only determines whether a quote is unclosed for multi-line gluing.
-                    // An unclosed bracket here is harmless (it suppresses quote detection for the
-                    // remainder of the line) while a false-negative hasMvcBracketClose would cause
-                    // spurious multi-line gluing on rows with stray quotes inside bracket cells.
-                    bracketDepth = 1;
-                    continue;
-                }
-                if (Character.isWhitespace(c) == false) {
-                    fieldHasNonWhitespace = true;
-                }
-            }
-            return inQuotes;
         }
 
         /**
@@ -1661,16 +1709,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private void initProjection() {
             int schemaSize = schema.size();
+            schemaColumnCount = schemaSize;
             if (projectedColumns == null) {
-                // null means "no projection info available" — fall back to all columns for backward compat.
                 columnCount = schemaSize;
                 projectedIdx = new int[schemaSize];
                 for (int i = 0; i < schemaSize; i++) {
                     projectedIdx[i] = i;
                 }
             } else if (projectedColumns.isEmpty()) {
-                // Empty list means the optimizer pruned every column (e.g. COUNT(*)). Skip all type
-                // conversion and emit row-count-only Pages from convertRowsToPage.
                 columnCount = 0;
                 projectedIdx = new int[0];
             } else {
@@ -1699,6 +1745,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectedTypes[i] = attr.dataType();
             }
             rowBuffer = new Object[columnCount];
+
+            projectedFieldSet = new BitSet(schemaSize);
+            sourceToBufferIndex = new int[schemaSize];
+            Arrays.fill(sourceToBufferIndex, -1);
+            for (int i = 0; i < columnCount; i++) {
+                projectedFieldSet.set(projectedIdx[i]);
+                sourceToBufferIndex[projectedIdx[i]] = i;
+            }
         }
 
         private Page convertRowsToPage(List<String[]> rows) {
@@ -1769,9 +1823,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
             for (int i = 0; i < columnCount; i++) {
                 int si = projectedIdx[i];
                 String value = si < row.length ? row[si] : null;
-                if (value != null) {
-                    value = value.trim();
-                }
                 Object result = tryConvertValue(value, projectedTypes[i]);
                 if (lastFieldError != null) {
                     if (mode == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
@@ -1781,9 +1832,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     } else {
                         String err = lastFieldError;
                         lastFieldError = null;
-                        // Field-type error: skip_row drops the whole row when one field is bad;
-                        // null_field is usually the better escape hatch. structural=false so the
-                        // FAIL_FAST hint suggests null_field.
                         onRowError(err, null, row, false);
                         return false;
                     }
@@ -1791,6 +1839,303 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     rowBuffer[i] = result;
                 }
             }
+            return true;
+        }
+
+        /**
+         * Collects logical lines from the bracket-aware CSV reader, handling multi-line quoted
+         * fields. Blank/comment lines are skipped. Collected lines are not yet split or
+         * type-converted — that work is deferred to {@link #splitAndConvertProjected}.
+         */
+        private void readLogicalLinesBracketAware(List<String> lines, int batchSize) throws IOException {
+            String record;
+            while (lines.size() < batchSize && (record = readCsvRecord(reader, options.quoteChar(), options.delimiter(), true)) != null) {
+                if (isBlankOrComment(record, options.commentPrefix())) {
+                    continue;
+                }
+                lines.add(record);
+            }
+        }
+
+        /**
+         * Converts raw logical CSV lines to a {@link Page} using the fused
+         * {@link #splitAndConvertProjected} path: splitting, projection filtering, and typed
+         * conversion happen in a single character walk per line.
+         */
+        private Page convertLinesToPage(List<String> lines) {
+            BlockUtils.BuilderWrapper[] builders = new BlockUtils.BuilderWrapper[columnCount];
+            try {
+                for (int i = 0; i < columnCount; i++) {
+                    builders[i] = BlockUtils.wrapperFor(
+                        blockFactory,
+                        ElementType.fromJava(javaClassForDataType(projectedTypes[i])),
+                        lines.size()
+                    );
+                }
+                int acceptedRows = 0;
+                for (String line : lines) {
+                    totalRowCount++;
+                    try {
+                        if (splitAndConvertProjected(line)) {
+                            for (int i = 0; i < columnCount; i++) {
+                                builders[i].append().accept(rowBuffer[i]);
+                            }
+                            acceptedRows++;
+                        }
+                    } catch (MalformedRowException e) {
+                        onRowError(e.getMessage(), e, line, true);
+                    }
+                }
+                if (acceptedRows == 0) {
+                    return null;
+                }
+                Block[] blocks = new Block[columnCount];
+                for (int i = 0; i < columnCount; i++) {
+                    blocks[i] = builders[i].builder().build();
+                }
+                return new Page(acceptedRows, blocks);
+            } finally {
+                Releasables.closeExpectNoException(builders);
+            }
+        }
+
+        /**
+         * Fused field-splitting and typed conversion for the bracket-aware CSV path. Walks the
+         * line character-by-character, maintaining the same quote/bracket/escape state machine as
+         * {@link CsvFormatReader#splitCommaDelimiterBracketAwareFields}, but skips
+         * {@link StringBuilder} accumulation for non-projected fields and inlines integer/long
+         * parsing to avoid a second character walk via {@code Long.parseLong}.
+         *
+         * @return {@code true} if the row was accepted, {@code false} if it was rejected
+         */
+        private boolean splitAndConvertProjected(String line) {
+            final char delim = ',';
+            final char quote = options.quoteChar();
+            final char esc = options.escapeChar();
+
+            StringBuilder current = new StringBuilder();
+            boolean inQuotes = false;
+            int bracketDepth = 0;
+            // Remember where the parser entered the unclosed state so error messages can anchor on
+            // the actual fault site instead of head/tail-truncating a long line and hiding it.
+            // Mirrors the offset tracking in splitCommaDelimiterBracketAwareFields.
+            int quoteOpenAt = -1;
+            int bracketOpenAt = -1;
+            int fieldIndex = 0;
+            boolean fieldHasNonWhitespace = false;
+            boolean trailingFieldHasContent = false;
+
+            boolean isProjected = fieldIndex < schemaColumnCount && projectedFieldSet.get(fieldIndex);
+            int bufIdx = isProjected ? sourceToBufferIndex[fieldIndex] : -1;
+            DataType dt = isProjected ? projectedTypes[bufIdx] : null;
+            boolean tryNumeric = isProjected && (dt == DataType.INTEGER || dt == DataType.LONG);
+
+            long numAcc = 0;
+            boolean negative = false;
+            boolean numericValid = tryNumeric;
+            boolean numStarted = false;
+
+            int i = 0;
+            while (i < line.length()) {
+                char c = line.charAt(i);
+
+                if (inQuotes) {
+                    trailingFieldHasContent = true;
+                    if (c == quote) {
+                        if (i + 1 < line.length() && line.charAt(i + 1) == quote) {
+                            if (isProjected) current.append(quote);
+                            numericValid = false;
+                            i += 2;
+                            continue;
+                        }
+                        inQuotes = false;
+                    } else if (c == esc && i + 1 < line.length() && line.charAt(i + 1) == delim) {
+                        if (isProjected) current.append(delim);
+                        numericValid = false;
+                        i += 2;
+                        continue;
+                    } else {
+                        if (isProjected) current.append(c);
+                        numericValid = false;
+                    }
+                    i++;
+                } else if (bracketDepth > 0) {
+                    trailingFieldHasContent = true;
+                    if (isProjected) current.append(c);
+                    numericValid = false;
+                    if (c == '[') {
+                        bracketDepth++;
+                    } else if (c == ']') {
+                        bracketDepth--;
+                    }
+                    i++;
+                } else if (c == quote && fieldHasNonWhitespace == false) {
+                    trailingFieldHasContent = true;
+                    inQuotes = true;
+                    quoteOpenAt = i;
+                    numericValid = false;
+                    i++;
+                } else if (c == '[' && fieldHasNonWhitespace == false) {
+                    trailingFieldHasContent = true;
+                    if (hasMvcBracketClose(line, i)) {
+                        bracketDepth = 1;
+                        bracketOpenAt = i;
+                    }
+                    if (isProjected) current.append(c);
+                    numericValid = false;
+                    i++;
+                } else if (c == delim) {
+                    if (i > 0 && line.charAt(i - 1) == esc) {
+                        trailingFieldHasContent = true;
+                        if (isProjected) current.append(c);
+                        numericValid = false;
+                    } else {
+                        if (isProjected) {
+                            if (current.length() > 0) {
+                                if (emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted, line) == false) {
+                                    return false;
+                                }
+                            } else {
+                                rowBuffer[bufIdx] = null;
+                            }
+                            current.setLength(0);
+                        }
+                        fieldIndex++;
+                        fieldHasNonWhitespace = false;
+                        trailingFieldHasContent = false;
+                        isProjected = fieldIndex < schemaColumnCount && projectedFieldSet.get(fieldIndex);
+                        bufIdx = isProjected ? sourceToBufferIndex[fieldIndex] : -1;
+                        dt = isProjected ? projectedTypes[bufIdx] : null;
+                        tryNumeric = isProjected && (dt == DataType.INTEGER || dt == DataType.LONG);
+                        numAcc = 0;
+                        negative = false;
+                        numericValid = tryNumeric;
+                        numStarted = false;
+                    }
+                    i++;
+                } else {
+                    trailingFieldHasContent = true;
+                    if (Character.isWhitespace(c) == false) {
+                        fieldHasNonWhitespace = true;
+                    }
+                    if (isProjected) {
+                        current.append(c);
+                        if (numericValid) {
+                            if (c >= '0' && c <= '9') {
+                                long newAcc = numAcc * 10 + (c - '0');
+                                if (numAcc != 0 && newAcc / 10 != numAcc) {
+                                    numericValid = false;
+                                } else {
+                                    numAcc = newAcc;
+                                    numStarted = true;
+                                }
+                            } else if (c == '-' && numStarted == false && negative == false) {
+                                negative = true;
+                            } else if (c <= ' ') {
+                                if (numStarted) {
+                                    numericValid = false;
+                                }
+                            } else {
+                                numericValid = false;
+                            }
+                        }
+                    }
+                    i++;
+                }
+            }
+
+            if (inQuotes) {
+                throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
+            }
+            if (bracketDepth > 0) {
+                throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
+            }
+
+            int totalFields = trailingFieldHasContent ? fieldIndex + 1 : fieldIndex;
+            if (totalFields > schemaColumnCount) {
+                onRowError(
+                    "CSV row has [" + totalFields + "] columns but schema defines [" + schemaColumnCount + "] columns",
+                    null,
+                    line,
+                    true
+                );
+                return false;
+            }
+
+            if (trailingFieldHasContent && isProjected) {
+                if (current.length() > 0) {
+                    if (emitConvertedField(current, bufIdx, dt, numericValid, numAcc, negative, numStarted, line) == false) {
+                        return false;
+                    }
+                } else {
+                    rowBuffer[bufIdx] = null;
+                }
+            }
+
+            for (int c = 0; c < columnCount; c++) {
+                int si = projectedIdx[c];
+                if (si >= totalFields) {
+                    rowBuffer[c] = null;
+                }
+            }
+
+            return true;
+        }
+
+        /**
+         * Emits a converted field value into {@link #rowBuffer}. For INTEGER/LONG fields that
+         * were successfully parsed inline (all digits, no overflow), the numeric value is used
+         * directly; otherwise falls back to the standard string conversion path.
+         *
+         * @param rawLine the raw CSV line, kept for error reporting
+         * @return {@code true} if the field was accepted, {@code false} if a row-level error
+         *         was raised (SKIP_ROW / FAIL_FAST)
+         */
+        private boolean emitConvertedField(
+            StringBuilder current,
+            int bufIdx,
+            DataType dt,
+            boolean numericValid,
+            long numAcc,
+            boolean negative,
+            boolean numStarted,
+            String rawLine
+        ) {
+            if (numericValid && numStarted) {
+                long val = negative ? -numAcc : numAcc;
+                if (dt == DataType.INTEGER) {
+                    if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
+                        rowBuffer[bufIdx] = (int) val;
+                        return true;
+                    }
+                } else {
+                    rowBuffer[bufIdx] = val;
+                    return true;
+                }
+            }
+            return emitConvertedStringField(emitField(current), bufIdx, dt, rawLine);
+        }
+
+        /**
+         * Converts a trimmed string field value and stores it in {@link #rowBuffer}, routing
+         * parse errors through the error policy.
+         */
+        private boolean emitConvertedStringField(String value, int bufIdx, DataType dt, String rawLine) {
+            Object result = tryConvertValue(value, dt);
+            if (lastFieldError != null) {
+                if (modeOrdinal == ErrorPolicy.Mode.NULL_FIELD.ordinal()) {
+                    rowBuffer[bufIdx] = null;
+                    onFieldError(lastFieldError, value, projectedAttrs[bufIdx]);
+                    lastFieldError = null;
+                    return true;
+                } else {
+                    String err = lastFieldError;
+                    lastFieldError = null;
+                    onRowError(err, null, rawLine, false);
+                    return false;
+                }
+            }
+            rowBuffer[bufIdx] = result;
             return true;
         }
 
@@ -1970,7 +2315,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return null;
                 }
             }
-            // Handles ISO-8601 with zone, zone-less timestamps, date-only, and whitespace-separated date-times
+            // Stage 1: ES's hand-rolled ISO-8601 parser (T-separator, date-only, zones, fractions)
+            // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.
+            // tryParse returns null on mismatch so we don't pay an exception per missed input.
+            // Iso8601Parser only checks loose bounds (month <= 12, day <= 31) and defers month-length
+            // validation to LocalDate.of(...) inside DateFormatters.from(...). That call can throw two
+            // distinct unchecked exceptions: a DateTimeException for calendar-invalid inputs like
+            // 2021-02-30T10:00:00, and an IllegalArgumentException for the fallthrough branch in
+            // DateFormatters.from when the parsed accessor cannot be converted to a zoned date-time.
+            // Catch both and fall through so the slow Stage 3 path handles the input instead of
+            // propagating an uncaught exception and aborting the batch.
+            TemporalAccessor parsed = ISO_DATETIME_FAST_FORMATTER.tryParse(value);
+            if (parsed != null) {
+                try {
+                    return DateFormatters.from(parsed).toInstant().toEpochMilli();
+                } catch (DateTimeException | IllegalArgumentException e) {
+                    // fall through to Stage 2 / 3
+                }
+            }
+            // Stage 2: hot path for `YYYY-MM-DD HH:MM:SS[.fff]` (space-separated, no zone), which the
+            // ISO parser does not accept. Returns FAST_PATH_MISS on any mismatch.
+            long spaceMillis = tryParseSpaceSeparatedDatetimeMillis(value);
+            if (spaceMillis != FAST_PATH_MISS) {
+                return spaceMillis;
+            }
+            // Stage 3: full DateUtils.asDateTime fallback for the long tail (space-separated with zone,
+            // lowercase `t`, non-millisecond fractional precision, etc.). Same exception-based path as
+            // before — only reached when neither fast path matched.
             try {
                 return DateUtils.asDateTime(value).toInstant().toEpochMilli();
             } catch (DateTimeParseException e) {
@@ -2031,10 +2402,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
          *                   appended to the FAIL_FAST {@link ParsingException}.
          */
         private void onRowError(String message, Exception cause, String[] row, boolean structural) {
+            onRowErrorImpl(message, cause, CsvErrorMessages.summarizeRow(row), structural);
+        }
+
+        /**
+         * Overload for the fused bracket-aware path where the row has not been split into a
+         * {@code String[]}. Uses the raw CSV line for the error excerpt instead.
+         */
+        private void onRowError(String message, Exception cause, String rawLine, boolean structural) {
+            onRowErrorImpl(message, cause, CsvErrorMessages.summarize(rawLine), structural);
+        }
+
+        private void onRowErrorImpl(String message, Exception cause, String rowExcerpt, boolean structural) {
             if (modeOrdinal == ErrorPolicy.Mode.FAIL_FAST.ordinal()) {
-                // Malformed user data → client error (HTTP 400), not a 500. Include the row index,
-                // a capped row excerpt, and a hint pointing at the relaxed error modes so the
-                // user knows there is a way out without grepping the docs.
                 String hint = structural
                     ? "; set error_mode to skip_row (or null_field) in WITH options to skip and warn instead of failing"
                     : "; set error_mode to null_field in WITH options to null-fill the bad field instead of failing";
@@ -2042,7 +2422,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     cause,
                     Source.EMPTY,
                     "{}",
-                    "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + CsvErrorMessages.summarizeRow(row) + hint
+                    "CSV parse error at row [" + totalRowCount + "]: " + message + "; row: " + rowExcerpt + hint
                 );
             }
             errorCount++;

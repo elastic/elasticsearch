@@ -44,6 +44,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.arrow.ArrowToBlockConverter;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -569,12 +570,25 @@ public class ParquetRsFormatReader implements RangeAwareFormatReader {
         try (ArrowSchema ffiSchema = ArrowSchema.allocateNew(allocator)) {
             ParquetRsBridge.getSchemaFFI(path, configJson, ffiSchema.memoryAddress());
             Schema arrowSchema = Data.importSchema(allocator, ffiSchema, null);
-            List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
-            for (Field field : arrowSchema.getFields()) {
-                attributes.add(new ReferenceAttribute(Source.EMPTY, field.getName(), ArrowToEsql.dataTypeForField(field)));
-            }
-            return attributes;
+            return arrowSchemaToAttributes(arrowSchema);
         }
+    }
+
+    /**
+     * Convert an Arrow schema into ES|QL attributes, honoring Arrow's field-level nullability flag. Defaulting to
+     * non-nullable (as the 3-arg {@link ReferenceAttribute} constructor does) would mislead planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) into dropping legitimate
+     * null rows for nullable Arrow fields.
+     */
+    static List<Attribute> arrowSchemaToAttributes(Schema arrowSchema) {
+        List<Attribute> attributes = new ArrayList<>(arrowSchema.getFields().size());
+        for (Field field : arrowSchema.getFields()) {
+            Nullability nullability = field.isNullable() ? Nullability.TRUE : Nullability.FALSE;
+            attributes.add(
+                new ReferenceAttribute(Source.EMPTY, null, field.getName(), ArrowToEsql.dataTypeForField(field), nullability, null, false)
+            );
+        }
+        return attributes;
     }
 
     @Override

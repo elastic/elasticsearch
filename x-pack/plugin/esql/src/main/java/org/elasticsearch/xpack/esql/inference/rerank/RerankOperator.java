@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.inference.rerank;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
@@ -19,7 +23,11 @@ import java.util.List;
 /**
  * {@link RerankOperator} is an {@link InferenceOperator} that computes relevance scores for rows using a reranking model.
  * It evaluates a row encoder expression for each input row, batches them together, and sends them to the reranking service
- * with a query text to obtain relevance scores.
+ * with a query text to obtain relevance scores using {@link RerankAction.Request}.
+ * <p>
+ * Dispatch routes to {@link InferenceService#executeRerankInference} via an overridden
+ * {@code dispatchInferenceRequest}.
+ * </p>
  */
 public class RerankOperator extends InferenceOperator {
 
@@ -59,6 +67,15 @@ public class RerankOperator extends InferenceOperator {
         );
         this.queryText = queryText;
         this.scoreChannel = scoreChannel;
+    }
+
+    @Override
+    protected void dispatchInferenceRequest(
+        InferenceService inferenceService,
+        BaseInferenceActionRequest request,
+        ActionListener<InferenceAction.Response> listener
+    ) {
+        inferenceService.executeRerankInference((RerankAction.Request) request, listener);
     }
 
     public String toString() {

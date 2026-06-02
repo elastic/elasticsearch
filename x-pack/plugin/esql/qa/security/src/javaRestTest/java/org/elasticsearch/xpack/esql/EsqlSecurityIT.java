@@ -27,14 +27,17 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.datasources.EsqlDataSourcesCapabilities;
 import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -54,6 +57,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class EsqlSecurityIT extends ESRestTestCase {
     private static final String INDEX_PARTIAL_MAPPING = "index-partial-mapping";
     private static final String INDEX_FULL_MAPPING = "index-full-mapping";
+    private static final String SECURITY_IT_SHARED_DATASOURCE = "security_it_shared_ds";
+    private static final String SECURITY_IT_OTHER_DATASOURCE = "other_tenant_ds";
+
+    private static boolean securityItDatasourcesInitialized;
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -65,6 +72,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("user1", "x-pack-test-password", "user1", false)
         .user("user2", "x-pack-test-password", "user2", false)
         .user("user3", "x-pack-test-password", "user3", false)
+        .user("user_dataset_authorize_only", "x-pack-test-password", "user_dataset_authorize_only", false)
         .user("user4", "x-pack-test-password", "user4", false)
         .user("user5", "x-pack-test-password", "user5", false)
         .user("fls_user", "x-pack-test-password", "fls_user", false)
@@ -95,6 +103,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
         .user("view_dls_nested_view_user", "x-pack-test-password", "view_dls_nested_view_user", false)
         .user("view_fls_user", "x-pack-test-password", "view_fls_user", false)
         .user("view_dls_fls_user", "x-pack-test-password", "view_dls_fls_user", false)
+        .user("ds_read_datasource", "x-pack-test-password", "ds_read_datasource", false)
+        .user("ds_read_metadata_datasource", "x-pack-test-password", "ds_read_metadata_datasource", false)
+        .user("ds_manage_datasource", "x-pack-test-password", "ds_manage_datasource", false)
+        .user("ds_dataset_create", "x-pack-test-password", "ds_dataset_create", false)
+        .user("ds_dataset_create_no_datasource", "x-pack-test-password", "ds_dataset_create_no_datasource", false)
+        .user("ds_dataset_create_read_metadata_datasource", "x-pack-test-password", "ds_dataset_create_read_metadata_datasource", false)
+        .user("ds_dataset_read_metadata", "x-pack-test-password", "ds_dataset_read_metadata", false)
+        .user("ds_dataset_delete", "x-pack-test-password", "ds_dataset_delete", false)
         .build();
 
     @Override
@@ -1270,7 +1286,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 errorMap.get("reason"),
                 equalTo(
                     "Views with document or field level security restrictions are not supported."
-                        + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude the views from the request."
+                        + " Remove DLS/FLS restrictions from the affected views in the role definition,"
+                        + " or exclude them from the request."
                 )
             );
             assertThat(errorMap.get("views_with_dls_or_fls"), equalTo(expectedViewNames));
@@ -1996,7 +2013,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     // TODO: use named privileges when available — https://github.com/elastic/elasticsearch/issues/147017
-    public void testDataSourceCrudForbiddenWithoutClusterManage() {
+    public void testDataSourceCrudForbiddenWithoutClusterManage() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         // user2 has cluster: []. All three data source actions are cluster-level → 403.
         for (String path : List.of("/_query/data_source/ds_x", "/_query/data_source")) {
             Request get = new Request("GET", path);
@@ -2017,7 +2035,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
-    public void testDatasetCrudForbiddenWithoutIndexManage() {
+    public void testDatasetCrudForbiddenWithoutIndexManage() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         // user3 has only `read` on `index`. Dataset actions need index `manage`.
         Request put = new Request("PUT", "/_query/dataset/index");
         put.setJsonEntity("{\"data_source\":\"parent\",\"resource\":\"s3://b/\"}");
@@ -2032,7 +2051,12 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     public void testDataSourceAdminListEmpty() throws IOException {
-        // test-admin has cluster:all. GET list on an empty cluster returns 200 with an empty array.
+        // Verifies GET /_query/data_source returns 200 with an empty data_sources array when none
+        // are registered. Tests in this class run in random order and may leave security_it_shared_ds
+        // behind, so we clear all data sources as test-admin first (and reset the lazy-init flag so
+        // ensureSecurityItDatasourcesForTests() can run again for later tests).
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        deleteAllDataSourcesAsAdmin();
         Request req = new Request("GET", "/_query/data_source");
         Response resp = client().performRequest(req);
         assertOK(resp);
@@ -2160,6 +2184,282 @@ public class EsqlSecurityIT extends ESRestTestCase {
             settings.put("node_level_reduction", randomBoolean());
         }
         return settings.build();
+    }
+
+    /**
+     * Deletes every data source returned by GET {@code /_query/data_source} using the default
+     * test-admin client. Resets {@link #securityItDatasourcesInitialized} so
+     * {@link #ensureSecurityItDatasourcesForTests()} can recreate IT datasources if this runs before those tests.
+     */
+    @SuppressWarnings("unchecked")
+    private void deleteAllDataSourcesAsAdmin() throws IOException {
+        Request listReq = new Request("GET", "/_query/data_source");
+        Response listResp = client().performRequest(listReq);
+        assertOK(listResp);
+        Map<String, Object> map = entityAsMap(listResp);
+        List<Map<String, Object>> sources = (List<Map<String, Object>>) map.get("data_sources");
+        if (sources != null) {
+            for (Map<String, Object> ds : sources) {
+                Object nameObj = ds.get("name");
+                if (nameObj != null) {
+                    Request del = new Request("DELETE", "/_query/data_source/" + nameObj);
+                    assertOK(client().performRequest(del));
+                }
+            }
+        }
+        securityItDatasourcesInitialized = false;
+    }
+
+    private boolean dataSourcesApiSupported() throws IOException {
+        Optional<Boolean> supported = clusterHasCapability(
+            adminClient(),
+            "PUT",
+            "/_query/data_source/{name}",
+            Collections.emptyList(),
+            List.of(EsqlDataSourcesCapabilities.DATA_SOURCES)
+        );
+        return supported.isPresent() && supported.get();
+    }
+
+    /** Registers S3 data sources used by datasource/dataset authorization tests (requires {@code esql-datasource-s3}). */
+    private void ensureSecurityItDatasourcesForTests() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        if (securityItDatasourcesInitialized) {
+            return;
+        }
+        registerSecurityItDatasource(SECURITY_IT_SHARED_DATASOURCE);
+        registerSecurityItDatasource(SECURITY_IT_OTHER_DATASOURCE);
+        securityItDatasourcesInitialized = true;
+    }
+
+    private void registerSecurityItDatasource(String name) throws IOException {
+        Request request = new Request("PUT", "/_query/data_source/" + name);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("type", "s3");
+        builder.startObject("settings");
+        builder.field("region", "us-east-1");
+        builder.endObject();
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "test-admin");
+        assertOK(client().performRequest(request));
+    }
+
+    public void testPutDataSourceForbiddenWithoutManagePrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        Request request = new Request("PUT", "/_query/data_source/security_it_denied_put");
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("type", "s3");
+        builder.startObject("settings");
+        builder.field("region", "us-east-1");
+        builder.endObject();
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_read_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/put"));
+    }
+
+    public void testGetDataSourceForbiddenWithoutDatasourcePrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("GET", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE);
+        setUser(request, "user3");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/get"));
+    }
+
+    public void testGetDataSourceForbiddenWithReadOnlyDatasource() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("GET", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE);
+        setUser(request, "ds_read_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/get"));
+    }
+
+    public void testGetDataSourceAllowedWithReadMetadataDatasource() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("GET", "/_query/data_source/" + SECURITY_IT_SHARED_DATASOURCE);
+        setUser(request, "ds_read_metadata_datasource");
+        assertOK(client().performRequest(request));
+    }
+
+    /** {@code ds_read_datasource} grants {@code read} on {@code security_it_*} but only {@code create} on {@code other_*}. */
+    public void testGetDataSourceForbiddenOutsideGrantedNamePatterns() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("GET", "/_query/data_source/" + SECURITY_IT_OTHER_DATASOURCE);
+        setUser(request, "ds_read_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/get"));
+    }
+
+    /** {@code ds_manage_datasource} grants {@code manage} on {@code security_it_*} but only {@code read} on {@code other_*}. */
+    public void testPutDataSourceForbiddenWhenDatasourceOnlyMatchesReadGroup() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        final String name = "other_tenant_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Request request = new Request("PUT", "/_query/data_source/" + name);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("type", "s3");
+        builder.startObject("settings");
+        builder.field("region", "us-east-1");
+        builder.endObject();
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_manage_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/data_source/put"));
+    }
+
+    public void testPutDataSourceAllowedWithManagePrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        final String name = "security_it_manage_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Request request = new Request("PUT", "/_query/data_source/" + name);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("type", "s3");
+        builder.startObject("settings");
+        builder.field("region", "us-east-1");
+        builder.endObject();
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_manage_datasource");
+        assertOK(client().performRequest(request));
+        Request delete = new Request("DELETE", "/_query/data_source/" + name);
+        setUser(delete, "test-admin");
+        assertOK(client().performRequest(delete));
+    }
+
+    public void testPutDatasetForbiddenWithoutCreateDatasetPrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("PUT", "/_query/dataset/security_it_ds_denied_put");
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        builder.field("resource", "s3://bucket/path/*.parquet");
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "user_dataset_authorize_only");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("create_dataset"));
+    }
+
+    /**
+     * PUT dataset requires {@code global.data_source} on the attached datasource (via request interceptor) in addition to index
+     * {@code create_dataset}.
+     */
+    public void testPutDatasetForbiddenWhenAuthorizeDatasourceClusterActionDenied() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("PUT", "/_query/dataset/security_it_ds_denied_authorize_ds");
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        builder.field("resource", "s3://bucket/path/*.parquet");
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_dataset_create_no_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/dataset/authorize_datasource"));
+    }
+
+    /**
+     * PUT dataset requires {@code read} on the attached datasource for {@code authorize_datasource}; {@code read_metadata} alone is
+     * sufficient for GET data source but not for dataset creation.
+     */
+    public void testPutDatasetForbiddenWithReadMetadataOnlyDatasource() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        Request request = new Request("PUT", "/_query/dataset/security_it_ds_denied_read_metadata_authorize");
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        builder.field("resource", "s3://bucket/path/*.parquet");
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_dataset_create_read_metadata_datasource");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("cluster:admin/esql/dataset/authorize_datasource"));
+    }
+
+    public void testPutDatasetAllowedWithCreateDatasetPrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String datasetName = "security_it_ds_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Request request = new Request("PUT", "/_query/dataset/" + datasetName);
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        builder.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        builder.field("resource", "s3://bucket/path/*.parquet");
+        builder.endObject();
+        request.setJsonEntity(Strings.toString(builder));
+        setUser(request, "ds_dataset_create");
+        assertOK(client().performRequest(request));
+        Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
+        setUser(delete, "test-admin");
+        assertOK(client().performRequest(delete));
+    }
+
+    public void testGetDatasetForbiddenWithoutReadDatasetMetadata() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String datasetName = "security_it_ds_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Request put = new Request("PUT", "/_query/dataset/" + datasetName);
+        XContentBuilder putBody = JsonXContent.contentBuilder();
+        putBody.startObject();
+        putBody.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        putBody.field("resource", "s3://bucket/readmeta/*.parquet");
+        putBody.endObject();
+        put.setJsonEntity(Strings.toString(putBody));
+        setUser(put, "test-admin");
+        assertOK(client().performRequest(put));
+
+        Request get = new Request("GET", "/_query/dataset/" + datasetName);
+        setUser(get, "user3");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(get));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+        assertThat(ex.getMessage(), containsString("read_dataset_metadata"));
+
+        Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
+        setUser(delete, "test-admin");
+        assertOK(client().performRequest(delete));
+    }
+
+    public void testGetDatasetAllowedWithReadDatasetMetadataPrivilege() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
+        ensureSecurityItDatasourcesForTests();
+        final String datasetName = "security_it_ds_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
+        Request put = new Request("PUT", "/_query/dataset/" + datasetName);
+        XContentBuilder putBody = JsonXContent.contentBuilder();
+        putBody.startObject();
+        putBody.field("data_source", SECURITY_IT_SHARED_DATASOURCE);
+        putBody.field("resource", "s3://bucket/readok/*.parquet");
+        putBody.endObject();
+        put.setJsonEntity(Strings.toString(putBody));
+        setUser(put, "test-admin");
+        assertOK(client().performRequest(put));
+
+        Request get = new Request("GET", "/_query/dataset/" + datasetName);
+        setUser(get, "ds_dataset_read_metadata");
+        assertOK(client().performRequest(get));
+
+        Request delete = new Request("DELETE", "/_query/dataset/" + datasetName);
+        setUser(delete, "test-admin");
+        assertOK(client().performRequest(delete));
     }
 
     private void createDataStream() throws IOException {

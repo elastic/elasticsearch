@@ -201,11 +201,15 @@ public final class WriterConstants {
     public static final Method RUNNABLE_RUN = getAsmMethod(void.class, "run");
 
     /**
-     * Iterations between cancellation polls. The runnable returned by
-     * {@link org.elasticsearch.painless.PainlessScript#_getCancellationCheck()} runs once every
-     * {@code CANCELLATION_POLL_INTERVAL} iters to amortize the check cost.
+     * Decrement interval for the persistent cancellation poll counter.  The counter is stored in
+     * {@link #CANCEL_POLL_FIELD} on the generated script instance and is decremented at every
+     * function entry and loop back-edge.  The cancellation runnable fires (and the counter resets)
+     * once every {@code CANCELLATION_POLL_INTERVAL} decrements, amortising the check cost.
      */
     public static final int CANCELLATION_POLL_INTERVAL = 1000;
+
+    /** Name of the synthetic {@code int} field added to opted-in generated script classes. */
+    public static final String CANCEL_POLL_FIELD = "$cancelPoll";
 
     public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
 

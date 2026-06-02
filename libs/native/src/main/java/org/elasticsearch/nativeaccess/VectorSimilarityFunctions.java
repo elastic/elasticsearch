@@ -107,27 +107,33 @@ public interface VectorSimilarityFunctions {
      */
     enum BBQType {
         /**
+         * 1-bit data, 1-bit queries, bit-plane striped layout.
+         */
+        D1Q1((byte) 1, (byte) 1, Layout.STRIPED),
+        /**
          * 1-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D1Q4((byte) 1, Layout.STRIPED),
+        D1Q4((byte) 1, (byte) 4, Layout.STRIPED),
         /**
          * 2-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D2Q4((byte) 2, Layout.STRIPED),
+        D2Q4((byte) 2, (byte) 4, Layout.STRIPED),
         /**
          * 4-bit data, 4-bit queries, bit-plane striped layout.
          */
-        D4Q4((byte) 4, Layout.STRIPED),
+        D4Q4((byte) 4, (byte) 4, Layout.STRIPED),
         /**
          * 2-bit data, 4-bit queries, packed-quad layout.
          */
-        D2Q4_PACKED((byte) 2, Layout.PACKED);
+        D2Q4_PACKED((byte) 2, (byte) 4, Layout.PACKED);
 
         private final byte dataBits;
+        private final byte queryBits;
         private final Layout layout;
 
-        BBQType(byte dataBits, Layout layout) {
+        BBQType(byte dataBits, byte queryBits, Layout layout) {
             this.dataBits = dataBits;
+            this.queryBits = queryBits;
             this.layout = layout;
         }
 
@@ -136,7 +142,7 @@ public interface VectorSimilarityFunctions {
         }
 
         public byte queryBits() {
-            return 4;
+            return queryBits;
         }
 
         public Layout layout() {
@@ -213,7 +219,20 @@ public interface VectorSimilarityFunctions {
          *     <li>Score results, as 4-byte floats</li>
          * </ol>
          */
-        BULK_SPARSE
+        BULK_SPARSE,
+        /**
+         * Scores 8 vectors against a single query vector.
+         * <p>
+         * Method handle takes arguments
+         * {@code (MemorySegment a0, a1, a2, a3, a4, a5, a6, a7, MemorySegment query, int dims, MemorySegment results)}:
+         * <ol>
+         *     <li>a0 through a7: the 8 vector segments to score</li>
+         *     <li>query: the query vector segment</li>
+         *     <li>dims: number of dimensions</li>
+         *     <li>results: segment of at least 8 floats receiving the scores</li>
+         * </ol>
+         */
+        BULK8
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);

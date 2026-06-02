@@ -50,7 +50,7 @@ If the expression evaluates to `null` or blank, all output columns are `null`.
 
 The following example parses an FQDN and extracts its parts:
 
-:::{include} ../examples/registered_domain.csv-spec/basic.md
+:::{include} ../../generated/x-pack-esql/commands/examples/registered_domain.csv-spec/basic.md
 :::
 
 You can use the extracted parts in subsequent commands, for example to filter by registered domain:

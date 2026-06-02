@@ -16,5 +16,5 @@ If the same setting is defined multiple times, the last definition takes precede
 
 **Allowed settings**
 
-:::{include} ../settings/toc.md
+:::{include} ../../generated/x-pack-esql/commands/settings/toc.md
 :::

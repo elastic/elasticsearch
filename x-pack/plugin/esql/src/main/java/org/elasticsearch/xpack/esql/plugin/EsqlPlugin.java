@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -59,13 +59,13 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
-import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
 import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.RestPutDataSourceActi
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportDeleteDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportGetDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.datasource.TransportPutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
@@ -118,6 +120,7 @@ import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -155,6 +158,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
+
+    // Data sources store credentials encrypted under the project encryption key, so the feature requires it
+    // (enforced in createComponents). The PEK flag lives in the encryption impl plugin, not the SPI we
+    // compile against, so we reference it by name — FeatureFlag resolves identically off the build flag.
+    private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -245,6 +253,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        // Refuse to start with data sources on but encryption off — the CRUD layer could never store a
+        // secret. Coupling the flags here lets the feature rely on an EncryptionService always being bound.
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+            && PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalStateException(
+                "ES|QL external data sources require the project encryption key feature; enable the "
+                    + "[project_encryption_key] feature flag, or disable [esql_external_datasources]"
+            );
+        }
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -278,6 +295,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
+        // createComponents can't reach the encryption plugin's binding, so TransportPutDataSourceAction's
+        // ctor pushes the EncryptionService into this shared holder for the read-path wrappers.
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
@@ -285,7 +306,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             dataSourceCapabilities,
             settings,
             blockFactoryProvider.blockFactory(),
-            services.threadPool().executor(ThreadPool.Names.GENERIC)
+            services.threadPool().executor(ThreadPool.Names.GENERIC),
+            dataSourceCredentials
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -368,6 +390,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 services.crossProjectModeDecider(),
                 dataSourceModule,
                 functionRegistry,
+                PromqlFunctionRegistry.INSTANCE,
                 parser,
                 cacheService
             ),
@@ -379,6 +402,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             blockFactoryProvider,
             dataSourceModule,
+            dataSourceCredentials,
             new ViewResolver(
                 services.threadPool(),
                 services.clusterService(),
@@ -462,11 +486,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
                 new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class),
                 new ActionHandler(EsqlResolveViewAction.TYPE, EsqlResolveViewAction.class),
-                new ActionHandler(EsqlHasOriginProjectTargetAction.TYPE, EsqlHasOriginProjectTargetAction.class),
                 new ActionHandler(GetViewAction.INSTANCE, TransportGetViewAction.class)
             )
         );
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
             actions.add(new ActionHandler(PutDataSourceAction.INSTANCE, TransportPutDataSourceAction.class));
             actions.add(new ActionHandler(GetDataSourceAction.INSTANCE, TransportGetDataSourceAction.class));
             actions.add(new ActionHandler(DeleteDataSourceAction.INSTANCE, TransportDeleteDataSourceAction.class));
@@ -497,7 +520,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 new RestGetViewAction()
             )
         );
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()) {
             handlers.add(new RestPutDataSourceAction());
             handlers.add(new RestGetDataSourceAction());
             handlers.add(new RestDeleteDataSourceAction());
@@ -519,6 +542,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(ExchangeSinkOperator.Status.ENTRY);
         entries.add(ExchangeSourceOperator.Status.ENTRY);
         entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
+        entries.add(org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(GroupedLimitOperator.Status.ENTRY);
@@ -546,6 +570,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.addAll(ViewMetadata.ENTRIES);
         entries.addAll(DataSourceMetadata.ENTRIES);
         entries.addAll(DatasetMetadata.ENTRIES);
+        // Lets an encrypted data-source secret ride the plan's generic-value serialization to data nodes.
+        entries.add(EncryptedData.ENTRY);
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());

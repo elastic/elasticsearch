@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+esplugin {
+  name = 'x-pack-encryption'
+  description = 'Elasticsearch Expanded Pack Plugin - Project encryption key (PEK) lifecycle and SPI'
+  classname = 'org.elasticsearch.xpack.encryption.EncryptionPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+base {
+  archivesName = 'x-pack-encryption'
+}
+
+configurations {
+  spi
+  compileOnlyApi.extendsFrom(spi)
+  if (isEclipse) {
+    api.extendsFrom(spi)
+  }
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  spi project(':x-pack:plugin:encryption:spi')
+
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('security'))))
+}
+
+esplugin.bundleSpec.into("spi") {
+  from(configurations.spi)
+}
+
+tasks.named('assemble').configure {
+  dependsOn tasks.named('jar')
+}
+
+addQaCheckDependencies(project)

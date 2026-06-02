@@ -12,7 +12,6 @@ package org.elasticsearch.reindex;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -43,6 +42,8 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -55,17 +56,18 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
-import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchRequest;
+import org.elasticsearch.index.reindex.ResumeBulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
@@ -113,6 +115,8 @@ import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
+import static org.apache.logging.log4j.Level.INFO;
+import static org.apache.logging.log4j.Level.WARN;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
@@ -121,7 +125,6 @@ import static org.elasticsearch.test.ActionListenerUtils.neverCalledListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -142,22 +145,23 @@ public class ReindexerTests extends ESTestCase {
 
     public void testWrapWithMetricsSuccess() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
-        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics).recordSuccess(eq(false), any());
-        verify(metrics, never()).recordFailure(anyBoolean(), any(), any());
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        // relocated boolean is driven by task.isRelocatedTask(); existing helpers use a random origin so accept any value here
+        verify(metrics).recordSuccess(eq(false), any(), anyBoolean());
+        verify(metrics, never()).recordFailure(anyBoolean(), any(), anyBoolean(), any());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsFailure() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
@@ -165,54 +169,54 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onFailure(exception);
 
         verify(listener).onFailure(exception);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(eq(false), any(), eq(exception));
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any(), anyBoolean());
+        verify(metrics).recordFailure(eq(false), any(), anyBoolean(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsBulkFailure() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
-        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
+        BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(
             List.of(new BulkItemResponse.Failure("0", "0", exception), new BulkItemResponse.Failure("1", "1", anotherException)),
             null
         );
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(eq(false), any(), eq(exception));
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any(), anyBoolean());
+        verify(metrics).recordFailure(eq(false), any(), anyBoolean(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsSearchFailure() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         Exception exception = new Exception("random failure");
         Exception anotherException = new Exception("another failure");
-        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
+        BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(
             null,
             List.of(new PaginatedSearchFailure(exception), new PaginatedSearchFailure(anotherException))
         );
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
-        verify(metrics, never()).recordSuccess(anyBoolean(), any());
-        verify(metrics).recordFailure(eq(false), any(), eq(exception));
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics, never()).recordSuccess(anyBoolean(), any(), anyBoolean());
+        verify(metrics).recordFailure(eq(false), any(), anyBoolean(), eq(exception));
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsSkipsSliceWorker() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createSliceWorkerTask();
 
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
@@ -223,28 +227,28 @@ public class ReindexerTests extends ESTestCase {
 
     public void testWrapWithMetricsWrapsLeader() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createLeaderTask();
 
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
         assertNotSame(listener, wrapped);
 
-        BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
-        verify(metrics).recordSuccess(eq(false), any());
-        verify(metrics).recordTookTime(anyLong(), eq(false), any());
+        verify(metrics).recordSuccess(eq(false), any(), anyBoolean());
+        verify(metrics).recordTookTime(anyLong(), eq(false), any(), anyBoolean());
     }
 
     public void testWrapWithMetricsSkipsMetricsWhenRelocating() {
         ReindexMetrics metrics = mock();
-        ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
 
         var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest());
 
-        BulkByScrollResponse response = reindexResponseWithResumeInfo();
+        BulkByPaginatedSearchResponse response = reindexResponseWithResumeInfo();
         wrapped.onResponse(response);
 
         verify(listener).onResponse(response);
@@ -257,23 +261,24 @@ public class ReindexerTests extends ESTestCase {
         final long expectedElapsedSeconds = TimeUnit.MILLISECONDS.toSeconds(currentTimeMillis - taskStartTimeMillis);
 
         final ReindexMetrics metrics = mock();
-        final ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(randomTaskId(), taskStartTimeMillis);
         final BulkByPaginatedSearchTask task = nonSlicedWorkerTaskWithOrigin(origin);
 
         final var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), () -> currentTimeMillis);
 
-        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        final BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         final ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
-        verify(metrics).recordTookTime(captor.capture(), eq(false), any());
+        // origin set => task.isRelocatedTask() is true, so relocated=true must propagate
+        verify(metrics).recordTookTime(captor.capture(), eq(false), any(), eq(true));
         assertThat(captor.getValue(), equalTo(expectedElapsedSeconds));
     }
 
     public void testWrapWithMetricsRecordsDurationForNewTask() {
         final ReindexMetrics metrics = mock();
-        final ActionListener<BulkByScrollResponse> listener = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> listener = spy(ActionListener.noop());
         final BulkByPaginatedSearchTask task = nonSlicedWorkerTaskWithOrigin(null);
         final long taskStartTime = task.getStartTime();
         final long currentTimeMillis = taskStartTime + TimeUnit.SECONDS.toMillis(randomIntBetween(0, 100));
@@ -281,18 +286,18 @@ public class ReindexerTests extends ESTestCase {
 
         final var wrapped = Reindexer.wrapWithMetrics(listener, metrics, task, reindexRequest(), () -> currentTimeMillis);
 
-        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        final BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         final ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
-        verify(metrics).recordTookTime(captor.capture(), eq(false), any());
+        // origin null => task.isRelocatedTask() is false, so relocated=false must propagate
+        verify(metrics).recordTookTime(captor.capture(), eq(false), any(), eq(false));
         assertThat(captor.getValue(), equalTo(expectedElapsedSeconds));
     }
 
     // listenerWithRelocations tests
 
     public void testListenerWithRelocationsPassesThroughForWorkerWithLeaderParent() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final long parentTaskId = 99;
         final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), parentTaskId),
@@ -315,8 +320,8 @@ public class ReindexerTests extends ESTestCase {
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", parentTaskId));
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
-        final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final ActionListener<BulkByPaginatedSearchResponse> original = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             neverCalledListener(),
@@ -328,22 +333,21 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsPassesThroughWhenNoRelocationRequested() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         // do NOT call task.requestRelocation()
 
-        final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final ActionListener<BulkByPaginatedSearchResponse> original = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             neverCalledListener(),
             original
         );
 
-        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        final BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(original).onResponse(response);
@@ -352,15 +356,14 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsPassesThroughWhenNoResumeInfo() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
 
-        final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final ActionListener<BulkByPaginatedSearchResponse> original = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             neverCalledListener(),
@@ -368,7 +371,7 @@ public class ReindexerTests extends ESTestCase {
         );
 
         // response without ResumeInfo
-        final BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
+        final BulkByPaginatedSearchResponse response = reindexResponseWithBulkAndSearchFailures(null, null);
         wrapped.onResponse(response);
 
         verify(original).onResponse(response);
@@ -377,7 +380,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsTriggersRelocationWhenResumeInfoPresent() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -390,10 +392,11 @@ public class ReindexerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
-            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
-        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        }).when(transportService)
+            .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -402,9 +405,9 @@ public class ReindexerTests extends ESTestCase {
         task.requestRelocation();
 
         final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(new TaskId("source-node", 987), randomNonNegativeLong());
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<ResumeBulkByScrollResponse> relocationListener = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> relocationListener = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             relocationListener,
@@ -423,55 +426,104 @@ public class ReindexerTests extends ESTestCase {
         assertThat(exception.getMetadata("es.relocated_task_id"), equalTo(List.of("target-node:123")));
     }
 
-    public void testRelocationListenerIsNoopWithoutMetrics() {
-        final var listener = Reindexer.relocationResponseListenerWithMetrics(null);
-        assertThat(listener.toString(), is(equalTo("NoopActionListener")));
+    public void testRelocationLoggingListenerLogsSuccess() {
+        // Dashboards depend on this exact WARN/INFO wording;
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+        final ResumeBulkByPaginatedSearchResponse response = new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123"));
+
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "relocation succeeded info",
+                    Reindexer.class.getCanonicalName(),
+                    INFO,
+                    "reindex task [" + task.getId() + "] relocation succeeded on source node"
+                )
+            );
+            // Failure log must not fire on the success path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no failure log on success",
+                    Reindexer.class.getCanonicalName(),
+                    WARN,
+                    "*relocation failed*"
+                )
+            );
+            listener.onResponse(response);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    public void testRelocationListenerRecordsSuccessMetric() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
-        final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
-        listener.onResponse(response);
-        verify(metrics).recordRelocationSuccess();
-        verifyNoMoreInteractions(metrics);
-    }
-
-    public void testRelocationListenerRecordsFailureMetric() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
+    public void testRelocationLoggingListenerLogsFailure() {
+        // Dashboards depend on this exact WARN wording;
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
         final Exception e = new IllegalStateException(randomAlphaOfLength(5));
-        listener.onFailure(e);
-        verify(metrics).recordRelocationFailure(e);
-        verifyNoMoreInteractions(metrics);
+
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
+                    "relocation failed warn",
+                    Reindexer.class.getCanonicalName(),
+                    WARN,
+                    "reindex task [" + task.getId() + "] relocation failed on source node",
+                    IllegalStateException.class,
+                    e.getMessage()
+                )
+            );
+            // Success log must not fire on the failure path.
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no success log on failure",
+                    Reindexer.class.getCanonicalName(),
+                    INFO,
+                    "*relocation succeeded*"
+                )
+            );
+            listener.onFailure(e);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    public void testRelocationListenerDoesNotRecordFailureMetricForTaskCancelledException() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
-        listener.onFailure(new TaskCancelledException("task cancelled before relocation handoff could begin"));
-        verifyNoMoreInteractions(metrics);
+    public void testRelocationLoggingListenerDoesNotLogForTaskCancelledException() {
+        // Cancellation is expected user action, not a relocation failure — neither the warn nor the info should fire.
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+
+        try (var mockLog = MockLog.capture(Reindexer.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warn for cancellation", Reindexer.class.getCanonicalName(), WARN, "*")
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no info for cancellation",
+                    Reindexer.class.getCanonicalName(),
+                    INFO,
+                    "*relocation succeeded*"
+                )
+            );
+            listener.onFailure(new TaskCancelledException("task cancelled before relocation could begin"));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
-    public void testRelocationListenerCalledForBothSuccessAndFailureFails() {
-        final ReindexMetrics metrics = mock(ReindexMetrics.class);
-        final ActionListener<ResumeBulkByScrollResponse> listener = Reindexer.relocationResponseListenerWithMetrics(metrics);
-        final ResumeBulkByScrollResponse response = new ResumeBulkByScrollResponse(new TaskId("target-node:123"));
+    public void testRelocationLoggingListenerCalledForBothSuccessAndFailureFails() {
+        // assertOnce wrapping still applies: calling both onResponse and onFailure must throw.
+        final BulkByPaginatedSearchTask task = createNonSlicedWorkerTask();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> listener = Reindexer.relocationResponseLoggingListener(task);
+        final ResumeBulkByPaginatedSearchResponse response = new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123"));
         final Exception e = new IllegalStateException(randomAlphaOfLength(5));
         if (randomBoolean()) {
             listener.onResponse(response);
             assertThrows(AssertionError.class, () -> listener.onFailure(e));
-            verify(metrics).recordRelocationSuccess();
         } else {
             listener.onFailure(e);
             assertThrows(AssertionError.class, () -> listener.onResponse(response));
-            verify(metrics).recordRelocationFailure(e);
         }
-        verifyNoMoreInteractions(metrics);
     }
 
     public void testListenerWithRelocationsSendsSourceTaskResultInResumeRequest() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -484,16 +536,17 @@ public class ReindexerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
-            ResumeBulkByScrollRequest resumeRequest = invocation.getArgument(2);
+            ResumeBulkByPaginatedSearchRequest resumeRequest = invocation.getArgument(2);
             TaskResult sourceTaskResult = resumeRequest.getDelegate().getResumeInfo().get().sourceTaskResult();
             assertNotNull("source task result should be set on the resume request", sourceTaskResult);
             assertThat(sourceTaskResult.getTask().taskId(), equalTo(new TaskId("source-node", 987)));
             assertTrue("source task result should be completed", sourceTaskResult.isCompleted());
 
-            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
-        }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        }).when(transportService)
+            .sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -501,9 +554,9 @@ public class ReindexerTests extends ESTestCase {
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<ResumeBulkByScrollResponse> resumeListener = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<ResumeBulkByPaginatedSearchResponse> resumeListener = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             resumeListener,
@@ -512,15 +565,19 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(reindexResponseWithResumeInfo());
 
         assertTrue(future.isDone());
-        verify(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+        verify(transportService).sendRequest(
+            eq(targetNode),
+            eq(ResumeReindexAction.NAME),
+            any(ResumeBulkByPaginatedSearchRequest.class),
+            any()
+        );
         verify(resumeListener).onResponse(any());
         verifyNoMoreInteractions(resumeListener);
     }
 
     public void testRelocationSetsRequestRpsFromWorkerTask() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final float workerRps = randomFloatBetween(0.1f, 1000f, true);
-        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+        final AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest = new AtomicReference<>();
 
         final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -528,8 +585,8 @@ public class ReindexerTests extends ESTestCase {
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             ActionListener.noop(),
@@ -544,11 +601,10 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testRelocationSetsRequestRpsFromLeaderTask() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final float leaderRps = randomFloatBetween(1f, 1000f, true);
         final int totalSlices = randomIntBetween(3, 6);
         final int completedSliceCount = randomIntBetween(1, totalSlices - 1);
-        final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
+        final AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest = new AtomicReference<>();
 
         final Reindexer reindexer = reindexerWithRelocation(relocationClusterService(), relocationTransportService(capturedRequest));
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -558,7 +614,7 @@ public class ReindexerTests extends ESTestCase {
 
         final Map<Integer, ResumeInfo.SliceStatus> slices = new LinkedHashMap<>();
         for (int i = 0; i < completedSliceCount; i++) {
-            final BulkByScrollResponse sliceResponse = new BulkByScrollResponse(
+            final BulkByPaginatedSearchResponse sliceResponse = new BulkByPaginatedSearchResponse(
                 TimeValue.ZERO,
                 new BulkByPaginatedSearchTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
                 List.of(),
@@ -592,7 +648,7 @@ public class ReindexerTests extends ESTestCase {
             slices.put(i, new ResumeInfo.SliceStatus(i, workerResumeInfo, null));
         }
 
-        final BulkByScrollResponse response = new BulkByScrollResponse(
+        final BulkByPaginatedSearchResponse response = new BulkByPaginatedSearchResponse(
             TimeValue.MINUS_ONE,
             new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
             List.of(),
@@ -601,8 +657,8 @@ public class ReindexerTests extends ESTestCase {
             new ResumeInfo(randomOrigin(), null, slices)
         );
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             ActionListener.noop(),
@@ -617,7 +673,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testExecuteStoresSourceTaskResult() throws Exception {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId sourceTaskId = new TaskId("source-node", 42);
         final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(sourceTaskId, System.currentTimeMillis());
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -650,7 +705,7 @@ public class ReindexerTests extends ESTestCase {
         final ReindexRequest request = reindexRequest();
         request.setResumeInfo(new ResumeInfo(origin, workerResumeInfo, null, sourceTaskResult));
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         reindexer.execute(task, request, mock(Client.class), future);
 
         assertTrue(future.isDone());
@@ -658,7 +713,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testRelocationsSetsHandoffFlag() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -677,8 +731,8 @@ public class ReindexerTests extends ESTestCase {
 
         assertFalse("handoff flag should not be set before relocation", task.useCreateSemanticsForResultStorage());
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             ActionListener.noop(),
@@ -695,7 +749,6 @@ public class ReindexerTests extends ESTestCase {
      * cancellation (no resumed task is created on the destination node).
      */
     public void testRelocationAbortedWhenCancellationWonTheRace() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -715,9 +768,9 @@ public class ReindexerTests extends ESTestCase {
         // Simulate cancellation winning the race: flip the state to CANCELLED before the handoff can fire.
         task.ensureCancellable();
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
-        final PlainActionFuture<org.elasticsearch.index.reindex.ResumeBulkByScrollResponse> onRelocationFuture = new PlainActionFuture<>();
-        final ActionListener<BulkByScrollResponse> wrapped = reindexer.listenerWithRelocations(
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<ResumeBulkByPaginatedSearchResponse> onRelocationFuture = new PlainActionFuture<>();
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = reindexer.listenerWithRelocations(
             task,
             reindexRequest(),
             onRelocationFuture,
@@ -744,7 +797,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskResultsService taskResultsService = mock(TaskResultsService.class);
         final Exception storageFailure = new RuntimeException("simulated .tasks write failure");
         doAnswer(invocation -> {
@@ -771,7 +823,7 @@ public class ReindexerTests extends ESTestCase {
         final ReindexRequest request = reindexRequest();
         request.setResumeInfo(new ResumeInfo(origin, workerResumeInfo, null, sourceTaskResult));
 
-        final PlainActionFuture<BulkByScrollResponse> future = new PlainActionFuture<>();
+        final PlainActionFuture<BulkByPaginatedSearchResponse> future = new PlainActionFuture<>();
         reindexer.execute(task, request, mock(Client.class), future);
 
         assertTrue(future.isDone());
@@ -784,9 +836,9 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitDoesNotCloseOnResponseWithResumeInfo() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         });
@@ -802,9 +854,9 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitDoesNotCloseOnTaskRelocatedException() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         });
@@ -820,9 +872,9 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitClosesOnNormalResponse() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         });
@@ -838,13 +890,13 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitClosesOnNormalCompletionWhileRelocationRequested() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         task.requestRelocation();
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         }, task, () -> false);
@@ -862,11 +914,15 @@ public class ReindexerTests extends ESTestCase {
         final BytesReference initialPitId = new BytesArray("initial-pit-id");
         final BytesReference latestPitId = new BytesArray("latest-pit-id");
         final BytesReference[] closedPitId = new BytesReference[1];
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(initialPitId, delegate, (id, done) -> {
-            closedPitId[0] = id;
-            done.onResponse(null);
-        });
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            initialPitId,
+            delegate,
+            (id, done) -> {
+                closedPitId[0] = id;
+                done.onResponse(null);
+            }
+        );
 
         wrapped.onResponse(reindexResponseWithPitId(latestPitId));
 
@@ -880,11 +936,15 @@ public class ReindexerTests extends ESTestCase {
     public void testWrapListenerWithClosePitFallsBackToInitialPitIdWhenResponseHasNone() {
         final BytesReference initialPitId = new BytesArray("initial-pit-id");
         final BytesReference[] closedPitId = new BytesReference[1];
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(initialPitId, delegate, (id, done) -> {
-            closedPitId[0] = id;
-            done.onResponse(null);
-        });
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(
+            initialPitId,
+            delegate,
+            (id, done) -> {
+                closedPitId[0] = id;
+                done.onResponse(null);
+            }
+        );
 
         wrapped.onResponse(reindexResponseWithBulkAndSearchFailures(null, null));
 
@@ -897,9 +957,9 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitDoesNotCloseOnResponseWhenShouldNotClose() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         }, null, () -> true);
@@ -915,9 +975,9 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitClosesOnOtherFailure() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         });
@@ -933,13 +993,13 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitClosesOnFailureWhenTaskHasNoRelocationRequested() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         // Do not call requestRelocation() - task.isRelocationRequested() is false
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         }, task, () -> false);
@@ -956,13 +1016,13 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitClosesOnCancellationWhenHandoffNotCommitted() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         task.requestRelocation();
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         }, task, () -> true);
@@ -979,14 +1039,14 @@ public class ReindexerTests extends ESTestCase {
      */
     public void testWrapListenerWithClosePitDoesNotCloseAfterHandoffCommitted() {
         final AtomicInteger closeCount = new AtomicInteger(0);
-        final ActionListener<BulkByScrollResponse> delegate = spy(ActionListener.noop());
+        final ActionListener<BulkByPaginatedSearchResponse> delegate = spy(ActionListener.noop());
         final BytesReference pitId = new BytesArray("pit-id");
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 1));
         task.setWorker(Float.POSITIVE_INFINITY, 0);
         task.requestRelocation();
         assertTrue(task.tryInitiateRelocationHandoff());
 
-        final ActionListener<BulkByScrollResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
+        final ActionListener<BulkByPaginatedSearchResponse> wrapped = Reindexer.wrapListenerWithClosePit(pitId, delegate, (id, done) -> {
             closeCount.incrementAndGet();
             done.onResponse(null);
         }, task, () -> true);
@@ -1001,7 +1061,6 @@ public class ReindexerTests extends ESTestCase {
      * When a worker with PIT already set completes normally, the PIT must be closed.
      */
     public void testWorkerWithPitAlreadySetClosesPitOnCompletion() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1032,7 +1091,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 // Simulate a worker request: PIT already set by leader, slice info from leader
@@ -1061,7 +1121,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -1083,7 +1143,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsWhenVersionLookupFails() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
@@ -1107,7 +1166,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsWhenVersionLookupRejected() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
@@ -1130,7 +1188,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsToOpenPit() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         AtomicInteger requestCount = new AtomicInteger(0);
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -1160,7 +1217,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsToClosePit() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = createRemotePitMockServer((path, method) -> path.contains("_pit") && "DELETE".equals(method), exchange -> {
             try {
@@ -1174,7 +1230,7 @@ public class ReindexerTests extends ESTestCase {
             MockLog.awaitLogger(() -> {
                 try {
                     runRemotePitTestWithMockServer(server, request -> {}, initFuture -> {
-                        BulkByScrollResponse response = initFuture.actionGet();
+                        BulkByPaginatedSearchResponse response = initFuture.actionGet();
                         assertNotNull(response);
                     });
                 } catch (Exception e) {
@@ -1185,7 +1241,7 @@ public class ReindexerTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "Failed to close remote PIT should be logged",
                     Reindexer.class.getCanonicalName(),
-                    Level.WARN,
+                    WARN,
                     "Failed to close remote PIT"
                 )
             );
@@ -1200,7 +1256,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsWhenClosePitIsRejected() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = createRemotePitMockServer((path, method) -> path.contains("_pit") && "DELETE".equals(method), exchange -> {
             try {
@@ -1214,7 +1269,7 @@ public class ReindexerTests extends ESTestCase {
             MockLog.awaitLogger(() -> {
                 try {
                     runRemotePitTestWithMockServer(server, request -> {}, initFuture -> {
-                        BulkByScrollResponse response = initFuture.actionGet();
+                        BulkByPaginatedSearchResponse response = initFuture.actionGet();
                         assertNotNull(response);
                     });
                 } catch (Exception e) {
@@ -1225,7 +1280,7 @@ public class ReindexerTests extends ESTestCase {
                 new MockLog.SeenEventExpectation(
                     "Failed to close remote PIT (rejected) should be logged",
                     Reindexer.class.getCanonicalName(),
-                    Level.WARN,
+                    WARN,
                     "Failed to close remote PIT (rejected)"
                 )
             );
@@ -1239,7 +1294,6 @@ public class ReindexerTests extends ESTestCase {
      * We use a custom Client that fails on OpenPointInTimeRequest; the listener receives that failure.
      */
     public void testLocalReindexingRequestFailsToOpenPit() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String expectedMessage = "open-pit-failure-" + randomAlphaOfLength(8);
         final OpenPitFailingClient client = new OpenPitFailingClient(getTestName(), expectedMessage);
@@ -1273,7 +1327,8 @@ public class ReindexerTests extends ESTestCase {
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
                 featureService,
-                mock(TaskResultsService.class)
+                mock(TaskResultsService.class),
+                noopCircuitBreakerService()
             );
 
             final ReindexRequest request = new ReindexRequest();
@@ -1292,7 +1347,7 @@ public class ReindexerTests extends ESTestCase {
                 randomOrigin()
             );
 
-            final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+            final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
             reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
             initFuture.actionGet();
 
@@ -1309,7 +1364,6 @@ public class ReindexerTests extends ESTestCase {
      * still receives success. This verifies that close failures are handled gracefully and don't propagate.
      */
     public void testLocalReindexingRequestFailsToClosePit() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String closeFailureMessage = "close-pit-failure-" + randomAlphaOfLength(8);
         final ClosePitFailingClient client = new ClosePitFailingClient(getTestName(), closeFailureMessage);
@@ -1341,7 +1395,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1361,16 +1416,16 @@ public class ReindexerTests extends ESTestCase {
                 );
 
                 MockLog.awaitLogger(() -> {
-                    final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                    final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                     reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
-                    final BulkByScrollResponse response = initFuture.actionGet();
+                    final BulkByPaginatedSearchResponse response = initFuture.actionGet();
                     assertNotNull(response);
                 },
                     Reindexer.class,
                     new MockLog.SeenEventExpectation(
                         "Failed to close local PIT should be logged",
                         Reindexer.class.getCanonicalName(),
-                        Level.WARN,
+                        WARN,
                         "Failed to close local PIT"
                     )
                 );
@@ -1387,7 +1442,6 @@ public class ReindexerTests extends ESTestCase {
      * and allowPartialSearchResults explicitly set to false.
      */
     public void testLocalOpenPitRequestHasExpectedProperties() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1418,7 +1472,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1437,7 +1492,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -1459,7 +1514,6 @@ public class ReindexerTests extends ESTestCase {
      * The case when the source query is null is tested in {@link #testLocalOpenPitRequestHasExpectedProperties} above
      */
     public void testLocalOpenPitSetsIndexFilterFromSourceQuery() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1491,7 +1545,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final var termQuery = QueryBuilders.termQuery("field", "value");
@@ -1512,7 +1567,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -1532,7 +1587,6 @@ public class ReindexerTests extends ESTestCase {
      * so PIT searches validate (see {@link org.elasticsearch.action.search.SearchRequest#validate()}).
      */
     public void testLocalOpenPitCopiesProjectRoutingAndClearsSearchRequest() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1563,7 +1617,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final String projectRouting = "_alias:linked";
@@ -1584,7 +1639,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -1606,7 +1661,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that no OpenPointInTimeRequest is sent in this case.
      */
     public void testWorkerWithPitAlreadySetSkipsOpenPit() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1637,7 +1691,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 // Simulate a worker request: PIT already set by leader, slice info from leader
@@ -1666,7 +1721,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -1683,7 +1738,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has routing set.
      */
     public void testLocalOpenPitFailsWhenRoutingSet() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1714,7 +1768,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1734,7 +1789,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 Throwable e = expectThrows(
                     Throwable.class,
                     () -> reindexer.initTask(
@@ -1756,7 +1811,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has preference set.
      */
     public void testLocalOpenPitFailsWhenPreferenceSet() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1787,7 +1841,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1807,7 +1862,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 Throwable e = expectThrows(
                     Throwable.class,
                     () -> reindexer.initTask(
@@ -1829,7 +1884,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has allowPartialSearchResults set to true.
      */
     public void testLocalOpenPitFailsWhenAllowPartialSearchResultsTrue() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1860,7 +1914,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -1880,7 +1935,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 Throwable e = expectThrows(
                     Throwable.class,
                     () -> reindexer.initTask(
@@ -1906,7 +1961,6 @@ public class ReindexerTests extends ESTestCase {
      * share it. Verifies there is exactly one {@code OpenPointInTime} and one {@code ClosePointInTime} request on the local client
      */
     public void testLocalSlicedReindexOpensPitOnceAndClosesOnce() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
             @Override
@@ -1964,7 +2018,8 @@ public class ReindexerTests extends ESTestCase {
                     transportService,
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
                 reindexerRef.set(reindexer);
 
@@ -1973,7 +2028,7 @@ public class ReindexerTests extends ESTestCase {
                 request.setDestIndex("dest");
                 request.setSlices(numSlices);
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(
                     leaderTask,
                     request,
@@ -1999,7 +2054,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexUsesScrollWhenVersionBeforePitSupport() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TimeValue expectedScroll = TimeValue.timeValueMinutes(randomIntBetween(1, 8));
         final long expectedScrollNanos = expectedScroll.nanos();
@@ -2048,7 +2102,7 @@ public class ReindexerTests extends ESTestCase {
         server.start();
         try {
             runRemotePitTestWithMockServer(server, r -> r.setScroll(expectedScroll), initFuture -> {
-                BulkByScrollResponse response = initFuture.actionGet();
+                BulkByPaginatedSearchResponse response = initFuture.actionGet();
                 assertNotNull(response);
                 assertThat(pitPostCount.get(), equalTo(0));
             });
@@ -2063,7 +2117,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteOpenPitUsesClusterPitKeepAliveSetting() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TimeValue expected = TimeValue.timeValueMinutes(randomIntBetween(5, 20));
         final AtomicReference<String> capturedKeepAlive = new AtomicReference<>();
@@ -2116,7 +2169,6 @@ public class ReindexerTests extends ESTestCase {
      * does not affect PIT.
      */
     public void testLocalOpenPitUsesClusterPitKeepAliveSetting() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -2149,7 +2201,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2169,7 +2222,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -2189,7 +2242,6 @@ public class ReindexerTests extends ESTestCase {
      * {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} (five minutes).
      */
     public void testLocalOpenPitUsesDefaultKeepAliveWhenScrollTimeUnset() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -2221,7 +2273,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2241,7 +2294,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -2261,7 +2314,6 @@ public class ReindexerTests extends ESTestCase {
      * {@link IndicesOptions} as the reindex search request so PIT resolution matches the user's source selection.
      */
     public void testLocalOpenPitRequestCopiesIndicesAndIndicesOptions() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -2293,7 +2345,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
@@ -2314,7 +2367,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -2365,7 +2418,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 final ReindexRequest request = new ReindexRequest();
@@ -2384,7 +2438,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                final PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                final PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(task, request, initFuture.delegateFailure((l, v) -> reindexer.execute(task, request, client, l)));
                 initFuture.actionGet();
 
@@ -2404,7 +2458,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexSkipsOpenPitWhenPointInTimeAlreadySet() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final AtomicInteger pitOpenPostCount = new AtomicInteger();
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -2486,7 +2539,8 @@ public class ReindexerTests extends ESTestCase {
                     mock(TransportService.class),
                     mock(ReindexRelocationNodePicker.class),
                     featureService,
-                    mock(TaskResultsService.class)
+                    mock(TaskResultsService.class),
+                    noopCircuitBreakerService()
                 );
 
                 ReindexRequest request = new ReindexRequest();
@@ -2515,7 +2569,7 @@ public class ReindexerTests extends ESTestCase {
                     randomOrigin()
                 );
 
-                PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+                PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
                 reindexer.initTask(
                     task,
                     request,
@@ -2537,7 +2591,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingFailsWhenOpenPitIsRejected() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         AtomicInteger requestSeq = new AtomicInteger();
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -2595,7 +2648,8 @@ public class ReindexerTests extends ESTestCase {
             mock(TransportService.class),
             mock(ReindexRelocationNodePicker.class),
             mock(FeatureService.class),
-            mock(TaskResultsService.class)
+            mock(TaskResultsService.class),
+            noopCircuitBreakerService()
         );
         RestClient restClient = mock(RestClient.class);
         IOException ioException = new IOException("simulated close failure");
@@ -2607,7 +2661,7 @@ public class ReindexerTests extends ESTestCase {
             new MockLog.SeenEventExpectation(
                 "Failed to close RestClient after version lookup should be logged",
                 Reindexer.class.getCanonicalName(),
-                Level.WARN,
+                WARN,
                 "Failed to close RestClient after version lookup"
             )
         );
@@ -2636,7 +2690,14 @@ public class ReindexerTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest) {
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                    new BytesArray("pit-id"),
+                    1,
+                    1,
+                    0,
+                    0,
+                    SearchResponse.Clusters.EMPTY
+                );
                 listener.onResponse((Response) response);
                 return;
             }
@@ -2729,7 +2790,14 @@ public class ReindexerTests extends ESTestCase {
             if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest pitRequest) {
                 openPitCount.incrementAndGet();
                 capturedPitRequest = pitRequest;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                    new BytesArray("pit-id"),
+                    1,
+                    1,
+                    0,
+                    0,
+                    SearchResponse.Clusters.EMPTY
+                );
                 listener.onResponse((Response) response);
                 return;
             }
@@ -2796,7 +2864,7 @@ public class ReindexerTests extends ESTestCase {
                     false,
                     new ResumeInfo.RelocationOrigin(workerTaskId, System.currentTimeMillis())
                 );
-                ActionListener<BulkByScrollResponse> bulkListener = (ActionListener<BulkByScrollResponse>) listener;
+                ActionListener<BulkByPaginatedSearchResponse> bulkListener = (ActionListener<BulkByPaginatedSearchResponse>) listener;
                 reindexer.initTask(
                     workerTask,
                     rr,
@@ -2888,7 +2956,7 @@ public class ReindexerTests extends ESTestCase {
     private void runRemotePitTestWithMockServer(
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
-        Consumer<PlainActionFuture<BulkByScrollResponse>> assertions
+        Consumer<PlainActionFuture<BulkByPaginatedSearchResponse>> assertions
     ) {
         runRemotePitTestWithMockServer(server, requestConfigurer, assertions, Settings.EMPTY);
     }
@@ -2901,7 +2969,7 @@ public class ReindexerTests extends ESTestCase {
     private void runRemotePitTestWithMockServer(
         HttpServer server,
         Consumer<ReindexRequest> requestConfigurer,
-        Consumer<PlainActionFuture<BulkByScrollResponse>> assertions,
+        Consumer<PlainActionFuture<BulkByPaginatedSearchResponse>> assertions,
         Settings pitKeepAliveLayerSettings
     ) {
         BytesArray matchAll = new BytesArray("{\"match_all\":{}}");
@@ -2961,7 +3029,8 @@ public class ReindexerTests extends ESTestCase {
                 mock(TransportService.class),
                 mock(ReindexRelocationNodePicker.class),
                 featureService,
-                mock(TaskResultsService.class)
+                mock(TaskResultsService.class),
+                noopCircuitBreakerService()
             );
 
             BulkByPaginatedSearchTask task = new BulkByPaginatedSearchTask(
@@ -2975,7 +3044,7 @@ public class ReindexerTests extends ESTestCase {
                 randomOrigin()
             );
 
-            PlainActionFuture<BulkByScrollResponse> initFuture = new PlainActionFuture<>();
+            PlainActionFuture<BulkByPaginatedSearchResponse> initFuture = new PlainActionFuture<>();
             reindexer.initTask(
                 task,
                 request,
@@ -2987,11 +3056,11 @@ public class ReindexerTests extends ESTestCase {
         }
     }
 
-    private BulkByScrollResponse reindexResponseWithBulkAndSearchFailures(
+    private BulkByPaginatedSearchResponse reindexResponseWithBulkAndSearchFailures(
         final List<BulkItemResponse.Failure> bulkFailures,
         List<PaginatedSearchFailure> searchFailures
     ) {
-        return new BulkByScrollResponse(
+        return new BulkByPaginatedSearchResponse(
             TimeValue.ZERO,
             new BulkByPaginatedSearchTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
             bulkFailures,
@@ -3000,8 +3069,8 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
-    private BulkByScrollResponse reindexResponseWithPitId(BytesReference pitId) {
-        return new BulkByScrollResponse(
+    private BulkByPaginatedSearchResponse reindexResponseWithPitId(BytesReference pitId) {
+        return new BulkByPaginatedSearchResponse(
             TimeValue.ZERO,
             new BulkByPaginatedSearchTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
             List.of(),
@@ -3012,18 +3081,18 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
-    private BulkByScrollResponse reindexResponseWithResumeInfo() {
+    private BulkByPaginatedSearchResponse reindexResponseWithResumeInfo() {
         return reindexResponseWithResumeInfo(randomOrigin());
     }
 
-    private BulkByScrollResponse reindexResponseWithResumeInfo(ResumeInfo.RelocationOrigin origin) {
+    private BulkByPaginatedSearchResponse reindexResponseWithResumeInfo(ResumeInfo.RelocationOrigin origin) {
         final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
             "test-scroll-id",
             System.nanoTime(),
             new BulkByPaginatedSearchTask.Status(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0f, null, timeValueMillis(0)),
             null
         );
-        return new BulkByScrollResponse(
+        return new BulkByPaginatedSearchResponse(
             TimeValue.MINUS_ONE,
             new BulkByPaginatedSearchTask.Status(List.of(), null, 0f),
             List.of(),
@@ -3095,6 +3164,12 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
+    private static CircuitBreakerService noopCircuitBreakerService() {
+        CircuitBreakerService service = mock(CircuitBreakerService.class);
+        when(service.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+        return service;
+    }
+
     private static Reindexer reindexerWithRelocation() {
         final TaskManager taskManager = mock(TaskManager.class);
         final TransportService transportService = mock(TransportService.class);
@@ -3138,7 +3213,8 @@ public class ReindexerTests extends ESTestCase {
             mock(ReindexRelocationNodePicker.class),
             // Will default REINDEX_PIT_SEARCH_FEATURE to false
             mock(FeatureService.class),
-            taskResultsService
+            taskResultsService,
+            noopCircuitBreakerService()
         );
     }
 
@@ -3156,15 +3232,15 @@ public class ReindexerTests extends ESTestCase {
         return clusterService;
     }
 
-    private static TransportService relocationTransportService(AtomicReference<ResumeBulkByScrollRequest> capturedRequest) {
+    private static TransportService relocationTransportService(AtomicReference<ResumeBulkByPaginatedSearchRequest> capturedRequest) {
         final TransportService transportService = mock(TransportService.class);
         doAnswer(invocation -> {
             capturedRequest.set(invocation.getArgument(2));
-            TransportResponseHandler<ResumeBulkByScrollResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(new ResumeBulkByScrollResponse(new TaskId("target-node:123")));
+            TransportResponseHandler<ResumeBulkByPaginatedSearchResponse> handler = invocation.getArgument(3);
+            handler.handleResponse(new ResumeBulkByPaginatedSearchResponse(new TaskId("target-node:123")));
             return null;
         }).when(transportService)
-            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
+            .sendRequest(eq(RELOCATION_TARGET_NODE), eq(ResumeReindexAction.NAME), any(ResumeBulkByPaginatedSearchRequest.class), any());
         return transportService;
     }
 
@@ -3195,7 +3271,10 @@ public class ReindexerTests extends ESTestCase {
     }
 
     private static ClusterSettings clusterSettingsForReindexPit(Settings nodeSettings) {
-        return new ClusterSettings(nodeSettings, Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING));
+        return new ClusterSettings(
+            nodeSettings,
+            Set.of(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING, ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING)
+        );
     }
 
     private static ReindexSettings reindexSettingsFor(ClusterService clusterService) {

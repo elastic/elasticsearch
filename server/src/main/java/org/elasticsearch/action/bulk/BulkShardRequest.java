@@ -67,14 +67,6 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         this(shardId, splitShardCountSummary, refreshPolicy, items, false);
     }
 
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
-        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, false);
-    }
-
-    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items, boolean isSimulated) {
-        this(shardId, SplitShardCountSummary.UNSET, refreshPolicy, items, isSimulated);
-    }
-
     public BulkShardRequest(
         ShardId shardId,
         SplitShardCountSummary splitShardCountSummary,

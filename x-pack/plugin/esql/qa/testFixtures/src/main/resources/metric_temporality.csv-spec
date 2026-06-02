@@ -4,7 +4,7 @@
 
 multipleAggsWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster
@@ -24,7 +24,7 @@ prod-null       | 0.2928479               | 264.0
 
 rateGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)) BY my_temporality
@@ -44,7 +44,7 @@ null                   | 0.2928479
 
 multipleAggsByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS bytes_per_second = SUM(rate(network.total_bytes_in)), bytes = SUM(increase(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
@@ -73,7 +73,7 @@ bucket:datetime          | cluster:keyword | bytes_per_second:double | bytes:dou
 
 irateWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY cluster
@@ -93,7 +93,7 @@ prod-null       | 0.5786293
 
 irateGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY my_temporality
@@ -113,7 +113,7 @@ null                   | 0.5786293
 
 irateByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS irate_bytes = SUM(irate(network.total_bytes_in)) BY cluster, bucket = TBUCKET(300s)
@@ -142,7 +142,7 @@ bucket:datetime          | cluster:keyword | irate_bytes:double
 
 histogramAggsWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS cnt = COUNT(bytes_per_request), med = MEDIAN(bytes_per_request), avg = AVG(bytes_per_request), mn = MIN(bytes_per_request), mx = MAX(bytes_per_request) BY cluster
@@ -150,11 +150,9 @@ TS metric_temporality
  | KEEP cluster, cnt, med, avg, mn, mx
  | SORT cluster
 ;
-warningRegex:evaluation of \[bytes_per_request\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Some nodes in your cluster don't support cumulative temporality for exponential_histograms yet. The affected time series are excluded. Upgrade your cluster to fix this.
 
 cluster:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
-prod-cumulative | 0        | null       | null       | null      | null
+prod-cumulative | 667      | 600.0      | 523.18     | 11.0      | 998.0
 prod-delta      | 667      | 600.0      | 523.18     | 11.0      | 998.0
 prod-null       | 667      | 600.0      | 523.18     | 11.0      | 998.0
 ;
@@ -164,7 +162,7 @@ prod-null       | 667      | 600.0      | 523.18     | 11.0      | 998.0
 
 histogramAggsGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS cnt = COUNT(bytes_per_request), med = MEDIAN(bytes_per_request), avg = AVG(bytes_per_request), mn = MIN(bytes_per_request), mx = MAX(bytes_per_request) BY my_temporality
@@ -172,11 +170,9 @@ TS metric_temporality
  | KEEP my_temporality, cnt, med, avg, mn, mx
  | SORT my_temporality
 ;
-warningRegex:evaluation of \[bytes_per_request\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Some nodes in your cluster don't support cumulative temporality for exponential_histograms yet. The affected time series are excluded. Upgrade your cluster to fix this.
 
 my_temporality:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
-cumulative             | 0        | null       | null       | null      | null
+cumulative             | 667      | 600.0      | 523.18     | 11.0      | 998.0
 delta                  | 667      | 600.0      | 523.18     | 11.0      | 998.0
 null                   | 667      | 600.0      | 523.18     | 11.0      | 998.0
 ;
@@ -186,7 +182,7 @@ null                   | 667      | 600.0      | 523.18     | 11.0      | 998.0
 
 histogramAggsByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
  | STATS cnt = COUNT(bytes_per_request), med = MEDIAN(bytes_per_request), avg = AVG(bytes_per_request), mn = MIN(bytes_per_request), mx = MAX(bytes_per_request) BY cluster, bucket = TBUCKET(300s)
@@ -194,22 +190,20 @@ TS metric_temporality
  | KEEP bucket, cluster, cnt, med, avg, mn, mx
  | SORT bucket, cluster
 ;
-warningRegex:evaluation of \[bytes_per_request\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Some nodes in your cluster don't support cumulative temporality for exponential_histograms yet. The affected time series are excluded. Upgrade your cluster to fix this.
 
-bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double | mn:double | mx:double
-2024-05-10T00:00:00.000Z | prod-cumulative | 0        | null       | null       | null      | null
-2024-05-10T00:00:00.000Z | prod-delta      | 228      | 424.0      | 502.75     | 11.0      | 998.0
-2024-05-10T00:00:00.000Z | prod-null       | 228      | 424.0      | 502.75     | 11.0      | 998.0
-2024-05-10T00:05:00.000Z | prod-cumulative | 0        | null       | null       | null      | null
-2024-05-10T00:05:00.000Z | prod-delta      | 195      | 600.0      | 506.65     | 11.0      | 994.0
-2024-05-10T00:05:00.000Z | prod-null       | 195      | 600.0      | 506.65     | 11.0      | 994.0
-2024-05-10T00:10:00.000Z | prod-cumulative | 0        | null       | null       | null      | null
-2024-05-10T00:10:00.000Z | prod-delta      | 226      | 556.0      | 558.87     | 28.0      | 998.0
-2024-05-10T00:10:00.000Z | prod-null       | 226      | 556.0      | 558.87     | 28.0      | 998.0
-2024-05-10T00:15:00.000Z | prod-cumulative | 0        | null       | null       | null      | null
-2024-05-10T00:15:00.000Z | prod-delta      | 18       | 609.0      | 513.06     | 27.0      | 995.0
-2024-05-10T00:15:00.000Z | prod-null       | 18       | 609.0      | 513.06     | 27.0      | 995.0
+bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double | mn:double  | mx:double
+2024-05-10T00:00:00.000Z | prod-cumulative | 228      | 424.0      | 502.75     | 11.0       | 998.0
+2024-05-10T00:00:00.000Z | prod-delta      | 228      | 424.0      | 502.75     | 11.0       | 998.0
+2024-05-10T00:00:00.000Z | prod-null       | 228      | 424.0      | 502.75     | 11.0       | 998.0
+2024-05-10T00:05:00.000Z | prod-cumulative | 195      | 600.0      | 506.65     | 11.0       | 998.0
+2024-05-10T00:05:00.000Z | prod-delta      | 195      | 600.0      | 506.65     | 11.0       | 994.0
+2024-05-10T00:05:00.000Z | prod-null       | 195      | 600.0      | 506.65     | 11.0       | 994.0
+2024-05-10T00:10:00.000Z | prod-cumulative | 226      | 600.0      | 558.87     | 22.6..22.7 | 998.0
+2024-05-10T00:10:00.000Z | prod-delta      | 226      | 556.0      | 558.87     | 28.0       | 998.0
+2024-05-10T00:10:00.000Z | prod-null       | 226      | 556.0      | 558.87     | 28.0       | 998.0
+2024-05-10T00:15:00.000Z | prod-cumulative | 18       | 609.0      | 513.06     | 27.0       | 997.0
+2024-05-10T00:15:00.000Z | prod-delta      | 18       | 609.0      | 513.06     | 27.0       | 995.0
+2024-05-10T00:15:00.000Z | prod-null       | 18       | 609.0      | 513.06     | 27.0       | 995.0
 ;
 
 // ---------------------------------------------------------------------------------
@@ -217,9 +211,10 @@ bucket:datetime          | cluster:keyword | cnt:long | med:double | avg:double 
 
 histogramOverTimeAggsByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
+ | WHERE my_temporality != "cumulative" OR my_temporality IS NULL
  | STATS avg_ot = SUM(avg_over_time(bytes_per_request)),
          min_ot = SUM(min_over_time(bytes_per_request)),
          max_ot = SUM(max_over_time(bytes_per_request)),
@@ -231,16 +226,8 @@ TS metric_temporality
  | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot
  | SORT my_temporality
 ;
-warningRegex:evaluation of \[bytes_per_request\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Some nodes in your cluster don't support cumulative temporality for exponential_histograms yet. The affected time series are excluded. Upgrade your cluster to fix this.
-warningRegex:evaluation of \[avg_over_time\(bytes_per_request\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[min_over_time\(bytes_per_request\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[max_over_time\(bytes_per_request\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[sum_over_time\(bytes_per_request\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[percentile_over_time\(bytes_per_request, 50\)\] failed, treating result as null. Only first 20 failures recorded.
 
 my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
-cumulative             | null          | null          | null          | 0           | null          | null
 delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
 null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 600.0
 ;
@@ -250,19 +237,17 @@ null                   | 523.18        | 11.0          | 998.0         | 667    
 
 tdigestAggsWithoutTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
+ | WHERE my_temporality != "cumulative" OR my_temporality IS NULL
  | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY cluster
  | EVAL med = round(med), avg = round(avg, 2)
  | KEEP cluster, cnt, med, avg, mn, mx
  | SORT cluster
 ;
-warningRegex:evaluation of \[bytes_per_request::tdigest\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Cumulative temporality is not supported for the tdigest type. The affected time series are excluded from the aggregation.
 
 cluster:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
-prod-cumulative | 0        | null          | null       | null      | null
 prod-delta      | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 prod-null       | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 ;
@@ -272,19 +257,17 @@ prod-null       | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 
 tdigestAggsGroupedByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
+ | WHERE my_temporality != "cumulative" OR my_temporality IS NULL
  | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY my_temporality
  | EVAL med = round(med), avg = round(avg, 2)
  | KEEP my_temporality, cnt, med, avg, mn, mx
  | SORT my_temporality
 ;
-warningRegex:evaluation of \[bytes_per_request::tdigest\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Cumulative temporality is not supported for the tdigest type. The affected time series are excluded from the aggregation.
 
 my_temporality:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
-cumulative             | 0        | null          | null       | null      | null
 delta                  | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 null                   | 667      | 503.0..603.0  | 523.18     | 11.0      | 998.0
 ;
@@ -294,28 +277,23 @@ null                   | 667      | 503.0..603.0  | 523.18     | 11.0      | 998
 
 tdigestAggsByTBucket
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
+ | WHERE my_temporality != "cumulative" OR my_temporality IS NULL
  | STATS cnt = COUNT(bytes_per_request::tdigest), med = MEDIAN(bytes_per_request::tdigest), avg = AVG(bytes_per_request::tdigest), mn = MIN(bytes_per_request::tdigest), mx = MAX(bytes_per_request::tdigest) BY cluster, bucket = TBUCKET(300s)
  | EVAL med = round(med), avg = round(avg, 2)
  | KEEP bucket, cluster, cnt, med, avg, mn, mx
  | SORT bucket, cluster
 ;
-warningRegex:evaluation of \[bytes_per_request::tdigest\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Cumulative temporality is not supported for the tdigest type. The affected time series are excluded from the aggregation.
 
 bucket:datetime          | cluster:keyword | cnt:long | med:double    | avg:double | mn:double | mx:double
-2024-05-10T00:00:00.000Z | prod-cumulative | 0        | null          | null       | null      | null
 2024-05-10T00:00:00.000Z | prod-delta      | 228      | 427.0..527.0  | 502.75     | 11.0      | 998.0
 2024-05-10T00:00:00.000Z | prod-null       | 228      | 427.0..527.0  | 502.75     | 11.0      | 998.0
-2024-05-10T00:05:00.000Z | prod-cumulative | 0        | null          | null       | null      | null
 2024-05-10T00:05:00.000Z | prod-delta      | 195      | 514.0..614.0  | 506.65     | 11.0      | 994.0
 2024-05-10T00:05:00.000Z | prod-null       | 195      | 514.0..614.0  | 506.65     | 11.0      | 994.0
-2024-05-10T00:10:00.000Z | prod-cumulative | 0        | null          | null       | null      | null
 2024-05-10T00:10:00.000Z | prod-delta      | 226      | 533.0..633.0  | 558.87     | 28.0      | 998.0
 2024-05-10T00:10:00.000Z | prod-null       | 226      | 533.0..633.0  | 558.87     | 28.0      | 998.0
-2024-05-10T00:15:00.000Z | prod-cumulative | 0        | null          | null       | null      | null
 2024-05-10T00:15:00.000Z | prod-delta      | 18       | 546.0..646.0  | 513.06     | 27.0      | 995.0
 2024-05-10T00:15:00.000Z | prod-null       | 18       | 546.0..646.0  | 513.06     | 27.0      | 995.0
 ;
@@ -325,9 +303,10 @@ bucket:datetime          | cluster:keyword | cnt:long | med:double    | avg:doub
 
 tdigestOverTimeAggsByTemporality
 required_capability: ts_command_v0
-required_capability: tsdb_temporality_support_v7
+required_capability: tsdb_temporality_support_v8
 
 TS metric_temporality
+ | WHERE my_temporality != "cumulative" OR my_temporality IS NULL
  | STATS avg_ot = SUM(avg_over_time(bytes_per_request::tdigest)),
          min_ot = SUM(min_over_time(bytes_per_request::tdigest)),
          max_ot = SUM(max_over_time(bytes_per_request::tdigest)),
@@ -339,16 +318,8 @@ TS metric_temporality
  | KEEP my_temporality, avg_ot, min_ot, max_ot, cnt_ot, sum_ot, p50_ot
  | SORT my_temporality
 ;
-warningRegex:evaluation of \[bytes_per_request::tdigest\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: Cumulative temporality is not supported for the tdigest type. The affected time series are excluded from the aggregation.
-warningRegex:evaluation of \[avg_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[min_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[max_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[sum_over_time\(bytes_per_request::tdigest\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:evaluation of \[percentile_over_time\(bytes_per_request::tdigest, 50\)\] failed, treating result as null. Only first 20 failures recorded.
 
 my_temporality:keyword | avg_ot:double | min_ot:double | max_ot:double | cnt_ot:long | sum_ot:double | p50_ot:double
-cumulative             | null          | null          | null          | 0           | null          | null
 delta                  | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 null                   | 523.18        | 11.0          | 998.0         | 667         | 348963.0      | 503.0..603.0
 ;

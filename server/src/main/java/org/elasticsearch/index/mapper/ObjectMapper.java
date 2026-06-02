@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -53,10 +54,6 @@ public class ObjectMapper extends Mapper {
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
-    /**
-     * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
-     * any objects that are present in the mappings and flattens any fields defined outside the predefined objects.
-     */
     public enum Subobjects {
         ENABLED(Boolean.TRUE),
         DISABLED(Boolean.FALSE);
@@ -91,6 +88,7 @@ public class ObjectMapper extends Mapper {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Explicit<Subobjects> SUBOBJECTS = Explicit.implicit(Subobjects.ENABLED);
+        public static final Explicit<Subobjects> SUBOBJECTS_COLUMNAR = Explicit.implicit(Subobjects.DISABLED);
         public static final Explicit<Boolean> STORE_ARRAY_SOURCE = Explicit.IMPLICIT_FALSE;
         public static final Dynamic DYNAMIC = Dynamic.TRUE;
     }
@@ -512,7 +510,7 @@ public class ObjectMapper extends Mapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             parserContext.incrementMappingObjectDepth(); // throws MapperParsingException if depth limit is exceeded
-            Explicit<Subobjects> subobjects = parseSubobjects(node);
+            Explicit<Subobjects> subobjects = parseSubobjects(node, parserContext);
             Builder builder = new Builder(name, subobjects);
             parseObjectFields(node, parserContext, builder);
             parserContext.decrementMappingObjectDepth();
@@ -542,6 +540,9 @@ public class ObjectMapper extends Mapper {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else if (value.equalsIgnoreCase("runtime")) {
+                    if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                        throw new MapperParsingException("dynamic [runtime] is not supported in strict columnar mode");
+                    }
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
@@ -552,9 +553,31 @@ public class ObjectMapper extends Mapper {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
+                if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new MapperParsingException(
+                        "parameter ["
+                            + STORE_ARRAY_SOURCE_PARAM
+                            + "] is not allowed on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
                 builder.sourceKeepMode(SourceKeepMode.ARRAYS);
                 return true;
             } else if (fieldName.equals(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM)) {
+                if (parserContext.getIndexSettings().getMode().isStrictColumnar()) {
+                    throw new MapperParsingException(
+                        "parameter ["
+                            + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM
+                            + "] is not allowed on object ["
+                            + builder.leafName()
+                            + "] in index using ["
+                            + parserContext.getIndexSettings().getMode()
+                            + "] index mode"
+                    );
+                }
                 builder.sourceKeepMode(SourceKeepMode.from(fieldNode.toString()));
                 return true;
             } else if (fieldName.equals("properties")) {
@@ -577,10 +600,17 @@ public class ObjectMapper extends Mapper {
             return false;
         }
 
-        protected static Explicit<Subobjects> parseSubobjects(Map<String, Object> node) {
+        protected static Explicit<Subobjects> parseSubobjects(Map<String, Object> node, MappingParserContext parserContext) {
+            boolean strictColumnar = IndexSettings.MODE.get(parserContext.getSettings()).isStrictColumnar();
             Object subobjectsNode = node.remove("subobjects");
             if (subobjectsNode != null) {
+                if (strictColumnar) {
+                    throw new MapperParsingException("subobjects params are not supported in columnar mode");
+                }
                 return Explicit.of(Subobjects.from(subobjectsNode));
+            }
+            if (strictColumnar) {
+                return Defaults.SUBOBJECTS_COLUMNAR;
             }
             return Defaults.SUBOBJECTS;
         }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `BYTE_LENGTH` function [esql-byte_length]
 
-:::{include} ../../_snippets/functions/layout/byte_length.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/byte_length.md
 :::

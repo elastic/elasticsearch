@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.esql.core.expression.TemporalityAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -105,6 +106,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -117,6 +119,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
@@ -2615,7 +2618,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     private boolean isMultiTypeEsField(Expression e) {
-        return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
+        return e instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField;
     }
 
     private Stat queryStatsFor(PhysicalPlan plan) {
@@ -2760,5 +2763,158 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         public String esqlQuery() {
             return "knn(" + fieldName() + ", " + Arrays.toString(((float[]) queryString())) + ", " + k + ")";
         }
+    }
+
+    // ── date_range pushdown tests ──────────────────────────────────────────────
+
+    private Analyzer mvDecadesAnalyzer() {
+        var mapping = loadMapping("mapping-mv_decades.json");
+        var index = EsIndexGenerator.esIndex("mv_decades", mapping, Map.of("mv_decades", IndexMode.STANDARD));
+        return makeAnalyzer(IndexResolution.valid(index));
+    }
+
+    /**
+     * RANGE_WITHIN(date_range_field, literal_range) pushes a WITHIN range query to Lucene
+     * and keeps a FilterExec in the plan for row-level recheck (RECHECK semantics).
+     */
+    public void testRangeWithinDateRangeFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_within(date_range, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        // PushFiltersToSource runs at fixed-point; on the second pass the initial range query is wrapped in a bool filter.
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+                    .relation("within")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_WITHIN(date_field, literal_range) pushes a plain range query to Lucene (no relation, date field)
+     * and keeps FilterExec for recheck.
+     */
+    public void testRangeWithinDateFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_within(event_dates, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_INTERSECTS(date_range_field, literal_range) pushes an INTERSECTS range query to Lucene
+     * and keeps FilterExec for recheck.
+     */
+    public void testRangeIntersectsDateRangeFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_intersects(date_range, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("date_range").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+                    .relation("intersects")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_INTERSECTS(date_field, literal_range) pushes a plain range query to Lucene (no relation)
+     * and keeps FilterExec for recheck.
+     */
+    public void testRangeIntersectsDateFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_intersects(event_dates, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
+                    .to("1970-01-01T00:00:00.000Z", false)
+                    .format("strict_date_optional_time")
+                    .relation("intersects")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
+    }
+
+    /**
+     * RANGE_CONTAINS(date_range_field, date_literal) is lowered to RANGE_WITHIN(date_literal, date_range_field)
+     * via surrogate, which pushes a CONTAINS range query to Lucene and keeps FilterExec for recheck.
+     */
+    public void testRangeContainsDateRangeFieldPushdown() {
+        assumeTrue("requires DATE_RANGE_FIELD_TYPE_V6", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        var plan = plannerOptimizer.plan("""
+            FROM mv_decades
+            | WHERE range_contains(date_range, TO_DATETIME("1965-06-01T00:00:00.000Z"))
+            """, EsqlTestUtils.TEST_SEARCH_STATS, mvDecadesAnalyzer());
+
+        assertThat(plan.anyMatch(FilterExec.class::isInstance), is(true));
+
+        var esQueryExec = (EsQueryExec) plan.collectLeaves()
+            .stream()
+            .filter(EsQueryExec.class::isInstance)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no EsQueryExec leaf in plan"));
+        var expected = boolQuery().filter(
+            unscore(
+                rangeQuery("date_range").from("1965-06-01T00:00:00.000Z", true)
+                    .to("1965-06-01T00:00:00.000Z", true)
+                    .format("strict_date_optional_time")
+                    .relation("contains")
+            )
+        );
+        assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));
     }
 }

@@ -193,7 +193,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             // TODO this does more reading & caching because it reads all referenced CCs
             .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
-        startMasterAndIndexNode(nodeSettings);
+        var indexNode = startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
@@ -220,13 +220,6 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // no new commits were created since the search node started, so it didn't receive any commit notifications, nothing to prefetch
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
 
-        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
-        var vBCCGen = latestCommitGeneration + 1;
-        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
-        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
-
-        var beforeNewCommit = bytesReadFromBlobStore.get();
-
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
         String prewarmThreadPool = StatelessPlugin.PREWARM_THREAD_POOL;
         // number of completed tasks in the prewarming threadpool before we start indexing
@@ -236,6 +229,15 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         // create a new commit and upload it
         indexDocs(indexName, 10_000);
         refresh(indexName);
+
+        // Get the actual pending VBCC after refresh rather than predicting generation+1
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        var pendingVbcc = internalCluster().getInstance(StatelessCommitService.class, indexNode).getCurrentVirtualBcc(shardId);
+        assertThat(pendingVbcc, notNullValue());
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(pendingVbcc.getPrimaryTermAndGeneration().generation());
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+        var beforeNewCommit = bytesReadFromBlobStore.get();
+
         flush(indexName);
 
         // wait for the refreshes to complete

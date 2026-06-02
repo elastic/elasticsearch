@@ -89,6 +89,49 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
     }
 
+    /**
+     * Verifies {@link OrcFormatReader#statusSnapshot()} reports populated counters after a real
+     * read drains an ORC file. Sibling-parity with
+     * {@code NdJsonFormatReaderStatusSnapshotTests} / {@code CsvFormatReaderStatusSnapshotTests};
+     * lives here to reuse the Hadoop FileSystem test infrastructure rather than duplicate it.
+     */
+    public void testStatusSnapshotPopulatedAfterDrain() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            for (int i = 0; i < 3; i++) {
+                idCol.vector[i] = i;
+                nameCol.setVal(i, ("row-" + i).getBytes(StandardCharsets.UTF_8));
+            }
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        // Snapshot before drain: format identifier present, row count at zero.
+        var before = reader.statusSnapshot();
+        assertEquals("orc", before.format());
+        assertEquals(0L, before.rowsEmitted());
+        assertEquals(0L, before.readNanos());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                page.releaseBlocks();
+            }
+        }
+
+        var after = reader.statusSnapshot();
+        assertEquals("orc", after.format());
+        assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
+        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+    }
+
     public void testReadSchemaFromSimpleOrc() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())
@@ -659,6 +702,16 @@ public class OrcFormatReaderTests extends ESTestCase {
     }
 
     // --- Pushdown tests ---
+
+    /**
+     * {@link OrcPushedExpressions#MAX_STRUCT_FLATTENING_DEPTH} re-declares the reader-side constant
+     * to keep the pushdown package free of reader-internal coupling. This regression test asserts
+     * the two values agree so a path the flattener emits as UNSUPPORTED cannot end up with a
+     * pushdown column-type entry that no ESQL attribute can ever bind to.
+     */
+    public void testStructFlatteningDepthCapAgreesAcrossReaderAndPushdown() {
+        assertEquals(OrcFormatReader.MAX_STRUCT_FLATTENING_DEPTH, OrcPushedExpressions.MAX_STRUCT_FLATTENING_DEPTH);
+    }
 
     public void testWithPushedFilterReturnsNewInstance() {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
@@ -1273,6 +1326,35 @@ public class OrcFormatReaderTests extends ESTestCase {
         return total;
     }
 
+    public void testCorruptOrcFileDoesNotProduceElasticsearchException() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 10;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            for (int i = 0; i < 10; i++) {
+                idCol.vector[i] = i;
+            }
+        });
+
+        int corruptStart = 3;
+        int corruptEnd = orcData.length / 2;
+        java.util.Arrays.fill(orcData, corruptStart, corruptEnd, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        Exception ex = expectThrows(Exception.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertFalse(
+            "Corrupt ORC data should not produce ElasticsearchException (HTTP 500), got: " + ex.getClass().getName(),
+            ex instanceof org.elasticsearch.ElasticsearchException
+        );
+    }
+
     // --- ORC file creation helpers ---
 
     @FunctionalInterface
@@ -1578,6 +1660,117 @@ public class OrcFormatReaderTests extends ESTestCase {
             }
             assertEquals(rows, seen);
         }
+    }
+
+    public void testNestedStructFilterPushdownPrunesStripes() throws Exception {
+        // Two stripes with disjoint event.id ranges. Pushing event.id > 999 must prune the
+        // first stripe via SearchArgument-based stripe statistics; the surviving row count
+        // must be strictly less than the total.
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("event", TypeDescription.createStruct().addField("id", TypeDescription.createLong()));
+
+        byte[] orcData = createMultiStripeOrcFile(schema, 2, stripe -> {
+            VectorizedRowBatch batch = schema.createRowBatch(100);
+            batch.size = 100;
+            long base = stripe == 0 ? 0L : 1000L;
+            org.apache.hadoop.hive.ql.exec.vector.StructColumnVector ev =
+                (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            LongColumnVector evId = (LongColumnVector) ev.fields[0];
+            for (int i = 0; i < 100; i++) {
+                evId.vector[i] = base + i;
+            }
+            return batch;
+        });
+
+        // Sanity: without pushdown, all 200 rows survive.
+        OrcFormatReader baseline = new OrcFormatReader(blockFactory);
+        StorageObject storageObject = createStorageObject(orcData);
+        int totalRows = countRows(baseline, storageObject, List.of("event.id"), 1024);
+        assertEquals(200, totalRows);
+
+        // Push event.id > 999 — first stripe (max=99) is fully prunable.
+        org.elasticsearch.xpack.esql.core.expression.Expression filter =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                new org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    "event.id",
+                    DataType.LONG
+                ),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    999L,
+                    DataType.LONG
+                )
+            );
+        OrcPushedExpressions pushed = new OrcPushedExpressions(List.of(filter));
+        OrcFormatReader filtered = (OrcFormatReader) new OrcFormatReader(blockFactory).withPushedFilter(pushed);
+        int survived = countRows(filtered, storageObject, List.of("event.id"), 1024);
+        assertTrue("expected pruning to drop the first stripe (100 rows). survived=" + survived, survived <= 100 && survived < totalRows);
+    }
+
+    public void testNestedColumnStatistics() throws Exception {
+        // Two stripes with disjoint event.id ranges; assert per-leaf stats are published with
+        // the dotted name, matching the ESQL attribute names the planner sees. Mirrors the
+        // Parquet-side testNestedColumnStatistics.
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField(
+                "event",
+                TypeDescription.createStruct()
+                    .addField("id", TypeDescription.createLong())
+                    .addField("action", TypeDescription.createString())
+            );
+        byte[] orcData = createMultiStripeOrcFile(schema, 2, stripe -> {
+            VectorizedRowBatch batch = schema.createRowBatch(50);
+            batch.size = 50;
+            long base = stripe == 0 ? 0L : 1000L;
+            String action = stripe == 0 ? "login" : "logout";
+            byte[] actionBytes = action.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            LongColumnVector topId = (LongColumnVector) batch.cols[0];
+            org.apache.hadoop.hive.ql.exec.vector.StructColumnVector ev =
+                (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[1];
+            LongColumnVector evId = (LongColumnVector) ev.fields[0];
+            BytesColumnVector evAction = (BytesColumnVector) ev.fields[1];
+            for (int i = 0; i < 50; i++) {
+                topId.vector[i] = base + i;
+                evId.vector[i] = base + i;
+                evAction.setVal(i, actionBytes);
+            }
+            return batch;
+        });
+
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var optColStats = metadata.statistics().get().columnStatistics();
+        assertTrue("expected per-column statistics", optColStats.isPresent());
+        var colStats = optColStats.get();
+
+        // Nested leaves present at dotted names.
+        assertTrue("event.id stats must be published", colStats.containsKey("event.id"));
+        assertTrue("event.action stats must be published", colStats.containsKey("event.action"));
+        // Top-level still present (no regression).
+        assertTrue("top-level id stats still present", colStats.containsKey("id"));
+        // STRUCT parent should NOT publish stats — collectStatistics descends into STRUCT
+        // children without adding the parent path itself.
+        assertFalse("STRUCT parent must not appear as a stats column", colStats.containsKey("event"));
+
+        // event.id ranges across the two stripes are aggregated by ORC into [0, 1049].
+        var evIdStats = colStats.get("event.id");
+        assertEquals(java.util.Optional.of(0L), evIdStats.minValue());
+        assertEquals(java.util.Optional.of(1049L), evIdStats.maxValue());
+        assertEquals(java.util.OptionalLong.of(0L), evIdStats.nullCount());
+
+        // event.action min/max are STRING; just assert presence rather than exact value.
+        var evActionStats = colStats.get("event.action");
+        assertTrue("event.action min must be present", evActionStats.minValue().isPresent());
+        assertTrue("event.action max must be present", evActionStats.maxValue().isPresent());
+
+        // Top-level id covers the same range.
+        var topIdStats = colStats.get("id");
+        assertEquals(java.util.Optional.of(0L), topIdStats.minValue());
+        assertEquals(java.util.Optional.of(1049L), topIdStats.maxValue());
     }
 
     public void testReadNestedStructAncestorNullPropagation() throws Exception {

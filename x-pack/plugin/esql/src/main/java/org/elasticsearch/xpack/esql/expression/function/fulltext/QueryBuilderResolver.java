@@ -97,6 +97,10 @@ public final class QueryBuilderResolver {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
+                if (expr instanceof FullTextFunction ftf && ftf.isRuntimeSearch()) {
+                    return expr;
+                }
+
                 Expression finalExpression = expr;
                 if (expr instanceof RewriteableAware rewriteableAware) {
                     QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;

@@ -50,8 +50,8 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
     public void testColumnarLogsdbSerializationFailsOnOlderTransportVersion() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(TransportVersionUtils.getPreviousVersion(IndexMode.COLUMNAR_INDEX_MODES_ADDED));
-            IOException e = expectThrows(IOException.class, () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out));
-            assertThat(e.getMessage(), containsString("cannot serialize index mode [logsdb_columnar]"));
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> IndexMode.writeTo(IndexMode.LOGSDB_COLUMNAR, out));
+            assertThat(e.getMessage(), containsString("[logsdb_columnar] doesn't support serialization with transport version"));
         }
     }
 
@@ -243,6 +243,15 @@ public class ColumnarLogsdbIndexModeTests extends ESTestCase {
         Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings(), IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)
             .getSettings();
         assertFalse(MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING.get(settings));
+    }
+
+    public void testIndexDisabledByDefault() {
+        assumeTrue(
+            "index_disabled_by_default feature flag must be enabled",
+            IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()
+        );
+        Settings settings = IndexSettingsTests.newIndexMeta("test", buildSettings()).getSettings();
+        assertTrue(IndexSettings.INDEX_DISABLED_BY_DEFAULT.get(settings));
     }
 
     private Settings buildSettings() {

@@ -72,6 +72,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -448,18 +449,18 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
     /**
      * The optimized iterator is page-at-a-time and does not bulk-allocate row groups. The only
-     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch
-     * reservation, but that path catches the {@link CircuitBreakingException} and falls back to
-     * sync I/O (see {@code OptimizedParquetColumnIterator#triggerNextRowGroupPrefetch}). So a
-     * mid-iteration trip is only observable through the parquet-mr footer/index allocator.
+     * tracked allocation that can trip the breaker mid-iteration is the per-row-group prefetch,
+     * whose bytes are accounted via the Arrow allocator on the REQUEST breaker. If the breaker
+     * trips during a prefetch, the future fails and {@code takePendingPrefetch} falls back to
+     * sync I/O for that row group (see {@code OptimizedParquetColumnIterator}).
      *
      * <p>This test verifies two related properties:
      * <ul>
      *   <li>A breaker too tight to accommodate the file footer trips on file-open and releases
      *       all reserved bytes.</li>
-     *   <li>A breaker tight enough that the prefetcher cannot reserve, but large enough for the
-     *       footer, still produces correct results via the sync fallback and releases all bytes
-     *       on close.</li>
+     *   <li>A breaker tight enough that the per-row-group prefetch cannot fit, but large enough
+     *       for the footer and the sliding window, still produces correct results via the sync
+     *       fallback and releases all bytes on close.</li>
      * </ul>
      */
     public void testCircuitBreakerTripsOnLargerRowGroup() throws Exception {
@@ -507,14 +508,16 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(0, tinyBreaker.getUsed());
         }
 
-        // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
-        // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
+        // 2. Breaker fits the footer and the sliding window but leaves only modest headroom.
+        // Per-row-group prefetches that exceed the headroom trip the Arrow allocator, fail their
+        // future, and trigger the sync-I/O fallback in {@code takePendingPrefetch}. The iteration
+        // still produces all rows and releases every byte on close. Exact prefetch-vs-fallback
+        // mix depends on row-group size and codec, which is fine — the regression we care about
+        // here is "no leaks and no errors under a tight allocator budget".
         {
-            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
-            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
             var smallBreaker = new LimitedBreaker(
                 "test",
-                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 64 * 1024)
             );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
@@ -1642,7 +1645,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         Arrays.fill(garbage, (byte) 0x5a);
         StorageObject storageObject = createStorageObject(garbage, "s3://bucket/path/file.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1655,7 +1658,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
     public void testInvalidParquetOpenEmptyFile() throws Exception {
         StorageObject storageObject = createStorageObject(new byte[0], "memory://empty.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertThat(
             ex.getMessage(),
             allOf(
@@ -1675,8 +1678,131 @@ public class ParquetFormatReaderTests extends ESTestCase {
         byte[] truncated = Arrays.copyOf(full, Math.max(1, full.length / 8));
         StorageObject storageObject = createStorageObject(truncated, "https://host/obj.parquet");
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
-        IOException ex = expectThrows(IOException.class, () -> reader.metadata(storageObject));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> reader.metadata(storageObject));
         assertTrue(ex.getMessage(), ex.getMessage().contains("https://host/obj.parquet"));
+    }
+
+    public void testCorruptDataPageProducesIllegalArgumentException() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        // Overwrite every byte in the data area (between PAR1 header and footer) so that column
+        // data is completely garbled, triggering a decoding error on read(). The footer at the
+        // end of the file stays intact so metadata() still succeeds.
+        int footerLenOffset = parquetData.length - 8;
+        int footerLen = ((parquetData[footerLenOffset] & 0xFF)) | ((parquetData[footerLenOffset + 1] & 0xFF) << 8)
+            | ((parquetData[footerLenOffset + 2] & 0xFF) << 16) | ((parquetData[footerLenOffset + 3] & 0xFF) << 24);
+        int footerStart = parquetData.length - 8 - footerLen;
+        Arrays.fill(parquetData, 4, footerStart, (byte) 0xFF);
+
+        StorageObject storageObject = createStorageObject(parquetData, "https://host/corrupt.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        // metadata() should still succeed (footer is intact)
+        SourceMetadata metadata = reader.metadata(storageObject);
+        assertNotNull(metadata);
+        // read() should fail with IllegalArgumentException (not ElasticsearchException/500)
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 100)) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), containsString("id"));
+    }
+
+    public void testValidateFooterIntegrityRejectsNullsInRequiredColumn() {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(5);
+        PrimitiveType type = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetFormatReader.validateFooterIntegrity("https://example.com/bad.parquet", schema, List.of(block))
+        );
+        assertThat(ex.getMessage(), containsString("https://example.com/bad.parquet"));
+        assertThat(ex.getMessage(), containsString("column [id] is declared required but row group reports 5 null(s)"));
+    }
+
+    public void testValidateFooterIntegrityPassesForOptionalColumnWithNulls() {
+        MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(5);
+        PrimitiveType type = Types.optional(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
+    }
+
+    public void testValidateFooterIntegrityPassesForRequiredColumnWithZeroNulls() {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("test_schema");
+
+        org.apache.parquet.column.statistics.LongStatistics stats = new org.apache.parquet.column.statistics.LongStatistics();
+        stats.setMinMax(1L, 100L);
+        stats.setNumNulls(0);
+        PrimitiveType type = Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id");
+        org.apache.parquet.hadoop.metadata.ColumnChunkMetaData ccm = org.apache.parquet.hadoop.metadata.ColumnChunkMetaData.get(
+            org.apache.parquet.hadoop.metadata.ColumnPath.get("id"),
+            type,
+            org.apache.parquet.hadoop.metadata.CompressionCodecName.UNCOMPRESSED,
+            null,
+            java.util.EnumSet.of(org.apache.parquet.column.Encoding.PLAIN),
+            stats,
+            0L,
+            0L,
+            100L,
+            0L,
+            0L
+        );
+        org.apache.parquet.hadoop.metadata.BlockMetaData block = new org.apache.parquet.hadoop.metadata.BlockMetaData();
+        block.setRowCount(100);
+        block.addColumn(ccm);
+
+        ParquetFormatReader.validateFooterIntegrity("https://example.com/ok.parquet", schema, List.of(block));
     }
 
     public void testValidParquetZeroRowsMetadata() throws Exception {
@@ -2839,6 +2965,164 @@ public class ParquetFormatReaderTests extends ESTestCase {
         );
     }
 
+    public void testNestedStructFilterPushdownPrunesRowGroups() throws Exception {
+        // Two row groups with disjoint event.id ranges. Pushing event.id > 999 must prune the
+        // first row group entirely; the surviving row count must reflect only the second.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            Types.optionalGroup().required(PrimitiveType.PrimitiveTypeName.INT64).named("id").named("event")
+        );
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        // Small row-group size so each batch of writes lands in its own row group, large
+        // enough to fit ~50 rows. Disable column index (small files default off) — row group
+        // statistics are sufficient for this assertion.
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(1024L)
+                .withPageSize(256)
+                .build()
+        ) {
+            for (long i = 1; i <= 50; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", i);
+                g.addGroup("event").append("id", i);
+                writer.write(g);
+            }
+            for (long i = 1000; i <= 1050; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", i);
+                g.addGroup("event").append("id", i);
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+
+        // Sanity: without pushdown, all rows are read.
+        ParquetFormatReader baseline = new ParquetFormatReader(blockFactory);
+        int totalRows = countRows(baseline, parquetData, List.of("event.id"));
+        assertEquals(101, totalRows);
+
+        // Push event.id > 999. The first row group's max is 50 → stats prune it entirely;
+        // only the second row group (51 rows) survives.
+        org.elasticsearch.xpack.esql.core.expression.Expression filter =
+            new org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan(
+                org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                new ReferenceAttribute(org.elasticsearch.xpack.esql.core.tree.Source.EMPTY, "event.id", DataType.LONG),
+                new org.elasticsearch.xpack.esql.core.expression.Literal(
+                    org.elasticsearch.xpack.esql.core.tree.Source.EMPTY,
+                    999L,
+                    DataType.LONG
+                ),
+                null
+            );
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(filter));
+        ParquetFormatReader filtered = new ParquetFormatReader(blockFactory).withPushedFilter(pushed);
+        int survived = countRows(filtered, parquetData, List.of("event.id"));
+        // Strict less-than is the contract: the first row group's 50 rows must be pruned. The
+        // exact count is at most 51 (the second row group), since parquet-mr may not perform
+        // per-row strict cleanup at the reader level without a record filter.
+        assertTrue("expected pruning to drop the first row group (50 rows). survived=" + survived, survived <= 51 && survived < totalRows);
+    }
+
+    private int countRows(ParquetFormatReader reader, byte[] parquetData, List<String> projection) throws IOException {
+        int total = 0;
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(parquetData), projection, 1024)) {
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                total += page.getPositionCount();
+                page.releaseBlocks();
+            }
+        }
+        return total;
+    }
+
+    public void testNestedColumnStatistics() throws Exception {
+        // Two row groups with distinct min/max for event.id, plus a flat top-level "id" to assert
+        // the publication walk does not drop top-level stats when adding nested ones.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.INT64)
+                .named("id")
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("action")
+                .named("event")
+        );
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        OutputFile outputFile = createOutputFile(outputStream);
+        SimpleGroupFactory groupFactory = new SimpleGroupFactory(schema);
+        // Small row-group size so each batch of writes lands in its own row group.
+        try (
+            ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile)
+                .withConf(new PlainParquetConfiguration())
+                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withType(schema)
+                .withCompressionCodec(CompressionCodecName.UNCOMPRESSED)
+                .withRowGroupSize(1024L)
+                .withPageSize(256)
+                .build()
+        ) {
+            // Group 1: event.id in [1, 50], event.action = "login"
+            for (long i = 1; i <= 50; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", i);
+                g.addGroup("event").append("id", i).append("action", "login");
+                writer.write(g);
+            }
+            // Flush by writing more rows that exceed the small row-group budget; group 2
+            // has a disjoint event.id range [1000, 1050] and event.action = "logout".
+            for (long i = 1000; i <= 1050; i++) {
+                Group g = groupFactory.newGroup();
+                g.add("id", i);
+                g.addGroup("event").append("id", i).append("action", "logout");
+                writer.write(g);
+            }
+        }
+        byte[] parquetData = outputStream.toByteArray();
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+
+        assertTrue("expected source statistics", metadata.statistics().isPresent());
+        var optColStats = metadata.statistics().get().columnStatistics();
+        assertTrue("expected per-column statistics", optColStats.isPresent());
+        Map<String, ? extends org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics> colStats = optColStats.get();
+
+        // Nested leaves are present with the dotted name.
+        assertTrue("event.id stats must be published", colStats.containsKey("event.id"));
+        assertTrue("event.action stats must be published", colStats.containsKey("event.action"));
+        // Top-level stats remain (no regression).
+        assertTrue("top-level id stats still present", colStats.containsKey("id"));
+
+        // event.id: 1 .. 1050 across the two row groups.
+        var eventIdStats = colStats.get("event.id");
+        assertEquals(Optional.of(1L), eventIdStats.minValue());
+        assertEquals(Optional.of(1050L), eventIdStats.maxValue());
+        assertEquals(java.util.OptionalLong.of(0L), eventIdStats.nullCount());
+
+        // event.action: KEYWORD → min/max are BytesRef-backed; we only assert presence to avoid
+        // coupling to parquet-mr's internal Binary representation.
+        var eventActionStats = colStats.get("event.action");
+        assertTrue("event.action min must be present", eventActionStats.minValue().isPresent());
+        assertTrue("event.action max must be present", eventActionStats.maxValue().isPresent());
+
+        // Top-level id stats: 1 .. 1050.
+        var topIdStats = colStats.get("id");
+        assertEquals(Optional.of(1L), topIdStats.minValue());
+        assertEquals(Optional.of(1050L), topIdStats.maxValue());
+    }
+
     public void testNestedStructEndToEndWithThreeWayNullPropagation() throws Exception {
         // OPTIONAL event { OPTIONAL action, OPTIONAL outcome }; rows cover:
         // (a) parent null
@@ -2941,4 +3225,5 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertFalse(iterator.hasNext());
         }
     }
+
 }

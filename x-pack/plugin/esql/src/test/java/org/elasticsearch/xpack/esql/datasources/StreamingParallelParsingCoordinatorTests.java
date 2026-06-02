@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -687,6 +688,43 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * If the boundary scanner never reports a boundary (simulating a quoting-rule regression on a
+     * non-EOF chunk), the segmentator's grow loop must fail fast with a bounded, diagnosable error
+     * instead of reading the whole stream into one ever-growing buffer and livelocking. Without the
+     * record-size bound this test would hang and the suite would time out. A small bound is injected
+     * via the package-private iterator constructor so the cap trips cheaply.
+     */
+    public void testGrowLoopFailsFastWhenScannerNeverReportsBoundary() throws Exception {
+        int maxRecordBytes = 8 * 1024;
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < 64 * 1024) {
+            sb.append("some-row-of-bytes-with-a-trailing-newline-and-a-bit-of-padding\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        ExecutorService executor = Executors.newFixedThreadPool(4);
+        try {
+            NeverBoundaryFormatReader reader = new NeverBoundaryFormatReader(64);
+            var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
+                reader,
+                new ByteArrayInputStream(bytes),
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                maxRecordBytes
+            );
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
+            String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
+            assertTrue("expected a bounded grow-loop failure, got: " + chain, chain.contains("record exceeded max_record_size"));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
      * A large stream where every Nth record has a multi-line quoted field: verifies order
      * preservation and correct record count end-to-end under realistic parallelism.
      */
@@ -849,6 +887,84 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    private static RecordSplitter neverBoundarySplitter(int maxRecordBytes) {
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) {
+                return -1;
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                return -1;
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return maxRecordBytes;
+            }
+        };
+    }
+
+    private static RecordSplitter quoteAwareSplitter(int maxRecordBytes) {
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) throws IOException {
+                long consumed = 0;
+                int first = stream.read();
+                if (first == -1) {
+                    return -1;
+                }
+                consumed++;
+                if (consumed > maxRecordBytes) {
+                    return RECORD_TOO_LARGE;
+                }
+                if (first == '\n') {
+                    return consumed;
+                }
+                boolean inQuotes = first == '"';
+                int b;
+                while ((b = stream.read()) != -1) {
+                    consumed++;
+                    if (consumed > maxRecordBytes) {
+                        return RECORD_TOO_LARGE;
+                    }
+                    if (inQuotes) {
+                        if (b == '"') {
+                            inQuotes = false;
+                        }
+                    } else if (b == '\n') {
+                        return consumed;
+                    }
+                }
+                return -1;
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
+                int lastBoundary = -1;
+                int cumulative = 0;
+                while (cumulative < length) {
+                    long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, offset + cumulative, length - cumulative));
+                    if (consumed == RECORD_TOO_LARGE) {
+                        return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                    }
+                    if (consumed < 0) {
+                        return lastBoundary;
+                    }
+                    cumulative += Math.toIntExact(consumed);
+                    lastBoundary = offset + cumulative - 1;
+                }
+                return lastBoundary;
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return maxRecordBytes;
+            }
+        };
+    }
+
     /**
      * A minimal format reader that treats each line as a record, producing one keyword block per page.
      * <p>
@@ -894,16 +1010,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1005,6 +1113,74 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * A format reader whose boundary scanner never reports a boundary — models a quoting-rule
+     * regression that would otherwise drive the segmentator's grow loop unbounded. Used to verify the
+     * grow-loop bound fails fast.
+     */
+    private static class NeverBoundaryFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final long minSegment;
+
+        NeverBoundaryFormatReader(long minSegment) {
+            this.minSegment = minSegment;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return neverBoundarySplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return minSegment;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "line", DataType.KEYWORD, Nullability.TRUE, null, false)
+            );
+            return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            return this;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) {
+            return new CloseableIterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    throw new java.util.NoSuchElementException();
+                }
+
+                @Override
+                public void close() {}
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "never-boundary";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".nb");
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
      * A format reader that fails after reading a configured number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
@@ -1018,16 +1194,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1095,7 +1263,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * <p>
      * The format is trivial: each record is one "field" terminated by {@code \n}. If the field
      * starts with {@code "}, the record ends at the closing {@code "} followed by {@code \n}
-     * (embedded {@code \n} are literal). {@link #findNextRecordBoundary} mirrors this quoting
+     * (embedded {@code \n} are literal). {@link #recordSplitter} mirrors this quoting
      * convention so the streaming coordinator splits chunks at real record boundaries.
      * <p>
      * <b>Limitation:</b> escaped quotes ({@code ""}) are not handled; {@code "} is treated as a
@@ -1117,27 +1285,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int first = stream.read();
-            if (first == -1) return -1;
-            consumed++;
-            if (first == '\n') {
-                return consumed;
-            }
-            boolean inQuotes = (first == '"');
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (inQuotes) {
-                    if (b == '"') {
-                        inQuotes = false;
-                    }
-                } else if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return quoteAwareSplitter(maxRecordBytes);
         }
 
         @Override

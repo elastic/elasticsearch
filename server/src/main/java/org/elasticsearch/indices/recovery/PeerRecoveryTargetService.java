@@ -102,8 +102,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     private final ClusterService clusterService;
     private final SnapshotFilesProvider snapshotFilesProvider;
 
-    // visible for testing
-    final RecoveriesCollection onGoingRecoveries;
+    private final RecoveriesCollection onGoingRecoveries;
 
     public PeerRecoveryTargetService(
         Client client,

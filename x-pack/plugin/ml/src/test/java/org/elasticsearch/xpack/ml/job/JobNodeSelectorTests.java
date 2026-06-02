@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -1197,6 +1198,55 @@ public class JobNodeSelectorTests extends ESTestCase {
             ByteSizeValue.ofGb(64).getBytes()
         );
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
+        assertNull(result.getExecutorNode());
+    }
+
+    public void testEffectiveMaxLazyNodesGivenNoCapAndLazyAssignmentShouldBeUnbounded() {
+        assertEquals(Integer.MAX_VALUE, JobNodeSelector.effectiveMaxLazyNodes(0, true));
+    }
+
+    public void testEffectiveMaxLazyNodesGivenPositiveCapShouldHonourCap() {
+        assertEquals(1, JobNodeSelector.effectiveMaxLazyNodes(1, true));
+        assertEquals(1, JobNodeSelector.effectiveMaxLazyNodes(1, false));
+    }
+
+    public void testConsiderLazyAssignmentGivenNodeCapShouldFail() {
+        long trialNodeMemoryBytes = ByteSizeUnit.GB.toBytes(4);
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(
+                DiscoveryNodeUtils.create(
+                    "trial_ml_node",
+                    "trial_ml_node_id",
+                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                    Map.of(
+                        MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+                        Long.toString(trialNodeMemoryBytes),
+                        MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+                        Long.toString(trialNodeMemoryBytes / 2)
+                    ),
+                    ROLES_WITH_ML
+                )
+            )
+            .build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        cs.nodes(nodes);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", JOB_MEMORY_REQUIREMENT).build(new Date());
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(
+            cs.build(),
+            shuffled(cs.nodes().getAllNodes()),
+            job.getId(),
+            MlTasks.JOB_TASK_NAME,
+            memoryTracker,
+            1,
+            node -> nodeFilter(node, job)
+        );
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.considerLazyAssignment(
+            new PersistentTasksCustomMetadata.Assignment(null, "foo"),
+            ByteSizeValue.ofGb(4).getBytes()
+        );
+        assertEquals("foo", result.getExplanation());
         assertNull(result.getExecutorNode());
     }
 

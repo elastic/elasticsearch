@@ -67,18 +67,6 @@ public final class PainlessLookup {
         this.annotationsToMethodKeys = Map.copyOf(copy);
     }
 
-    /**
-     * Returns {@code true} when at least one whitelisted method registered with this lookup carries
-     * the given annotation under the given user-visible method name and arity.  Consulted at def
-     * call sites — where the receiver type, and therefore the resolved method, is unknown at compile
-     * time — to cheaply decide whether a call could possibly resolve to an annotated method (e.g.
-     * {@code @script_aware}); the only information available there is the name and arity, which
-     * is exactly what the runtime def dispatch keys on.  Keying on {@code name/arity} (rather than
-     * name alone) lets a call whose argument count can never match an annotated overload skip the
-     * special handling.  Matching is necessarily an over-approximation for names/arities that collide
-     * across classes — once the receiver class is known, the resolved method's own annotations are
-     * the exact authority.
-     */
     public boolean hasAnnotationAwareMethod(Class<?> annotationType, String methodName, int methodArity) {
         Set<String> methodKeys = annotationsToMethodKeys.get(annotationType);
         return methodKeys != null && methodKeys.contains(buildPainlessMethodKey(methodName, methodArity));

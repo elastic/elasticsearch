@@ -185,11 +185,6 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
-    // Annotation type -> the user-visible method keys (name/arity) of whitelisted methods carrying
-    // that annotation. Lets def call sites — where the resolved method is unknown at compile time —
-    // cheaply ask "could a call of this name/arity resolve to a method annotated with X?" (e.g.
-    // @script_aware). Keying on arity as well as name lets a call with a non-matching argument count
-    // skip the special handling.
     private final Map<Class<?>, Set<String>> annotationsToMethodKeys;
 
     public PainlessLookupBuilder() {
@@ -625,11 +620,6 @@ public final class PainlessLookupBuilder {
             );
         }
 
-        // @script_aware overrides the whitelist line: resolve to an augmentation overload that takes
-        // a leading PainlessScript parameter (after the receiver) so the augmentation body can use
-        // the script instance (e.g. call _getCancellationCheck() and poll the runnable from inside
-        // its own iteration loop). Whether to actually act on the script is left to the compiler and
-        // the augmentation; the lookup just binds the script-first overload and keeps the annotation.
         boolean injectScript = annotations.containsKey(ScriptAwareAnnotation.class);
         if (annotations.containsKey(ScriptAwareAnnotation.class) && augmentedClass == null) {
             throw lookupException(
@@ -646,10 +636,6 @@ public final class PainlessLookupBuilder {
         List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + (injectScript ? 1 : 0));
 
         if (injectScript) {
-            // PainlessScript goes BEFORE the receiver so that FunctionRef.withSyntheticScriptCapture
-            // (which prepends at factoryMethodType position 0) maps directly to a method ref's
-            // leading capture. Call sites push the script receiver and then swap with the
-            // augmentation receiver that's on the stack from prefix evaluation.
             javaTypeParameters.add(PainlessScript.class);
         }
 
@@ -785,9 +771,6 @@ public final class PainlessLookupBuilder {
         MethodType methodType = methodHandle.type();
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
-        // Index this method's (post-strip) annotations under the user-visible key (post-injection
-        // arity) so it matches both a def call-site's arity and the runtime lookup key in
-        // Def.lookupMethod, enabling hasAnnotationAwareMethod(annotation, name, arity) queries.
         for (Class<?> annotationType : annotations.keySet()) {
             annotationsToMethodKeys.computeIfAbsent(annotationType, unused -> new HashSet<>()).add(painlessMethodKey);
         }

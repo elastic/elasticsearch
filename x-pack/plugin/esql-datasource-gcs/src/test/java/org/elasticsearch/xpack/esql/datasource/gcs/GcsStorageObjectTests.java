@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.TransientStorageException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -178,6 +180,37 @@ public class GcsStorageObjectTests extends ESTestCase {
 
         IOException e = expectThrows(IOException.class, obj::newStream);
         assertTrue(e.getMessage().contains("Failed to read object from"));
+    }
+
+    public void testNewStreamClassifies503AsThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(503, "Service Unavailable"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        IOException e = expectThrows(IOException.class, obj::newStream);
+        assertThat(e, instanceOf(TransientStorageException.class));
+        assertTrue("503 is throttling", ((TransientStorageException) e).throttling());
+    }
+
+    public void testNewStreamClassifies429AsThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(429, "Too Many Requests"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        IOException e = expectThrows(IOException.class, obj::newStream);
+        assertThat(e, instanceOf(TransientStorageException.class));
+        assertTrue("429 is throttling", ((TransientStorageException) e).throttling());
+    }
+
+    public void testNewStreamClassifies500AsTransientNotThrottling() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(500, "Internal Error"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        IOException e = expectThrows(IOException.class, obj::newStream);
+        assertThat(e, instanceOf(TransientStorageException.class));
+        assertFalse("500 is transient but not throttling", ((TransientStorageException) e).throttling());
+    }
+
+    public void testNewStreamClassifies403AsNonTransient() {
+        when(mockStorage.reader(any(BlobId.class))).thenThrow(new StorageException(403, "Forbidden"));
+        GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "k", StoragePath.of("gs://my-bucket/k"));
+        IOException e = expectThrows(IOException.class, obj::newStream);
+        assertFalse("403 must not be transient", e instanceof TransientStorageException);
     }
 
     public void testLengthFetchesMetadataOnce() throws IOException {

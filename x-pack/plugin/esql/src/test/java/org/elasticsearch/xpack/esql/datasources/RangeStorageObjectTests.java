@@ -48,6 +48,25 @@ public class RangeStorageObjectTests extends ESTestCase {
         }
     }
 
+    public void testNewStreamReadToEndReadsToViewEnd() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6); // view = "World!"
+        // READ_TO_END within the view stops at the view's end (offset+length), not the underlying object's end.
+        try (InputStream stream = range.newStream(2, StorageObject.READ_TO_END)) {
+            byte[] result = stream.readAllBytes();
+            assertEquals("rld!", new String(result, StandardCharsets.UTF_8));
+        }
+    }
+
+    public void testNewStreamReadToEndAtViewEndIsEmpty() throws IOException {
+        StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
+        RangeStorageObject range = new RangeStorageObject(delegate, 7, 6);
+        // position at the view's end: nothing left -> an empty stream, never a negative length to the delegate.
+        try (InputStream stream = range.newStream(6, StorageObject.READ_TO_END)) {
+            assertEquals(-1, stream.read());
+        }
+    }
+
     public void testLengthReturnsRangeLength() {
         StorageObject delegate = new InMemoryStorageObject(FILE_BYTES);
         RangeStorageObject range = new RangeStorageObject(delegate, 10, 25);

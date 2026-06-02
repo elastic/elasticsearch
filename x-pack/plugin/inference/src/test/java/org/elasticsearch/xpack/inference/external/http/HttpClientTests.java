@@ -247,23 +247,28 @@ public class HttpClientTests extends ESTestCase {
      */
     public void testStream_CancelAfterPauseReleasesConnection() throws Exception {
         var serverDone = new CountDownLatch(1);
+        var chunkSent = new CountDownLatch(1);
+        long serverThreadJoinTimeoutMillis = TimeUnit.SECONDS.toMillis(5);
         var serverSocket = new ServerSocket(0, 1, InetAddress.getLoopbackAddress());
         var serverThread = new Thread(() -> {
             try (Socket socket = serverSocket.accept()) {
                 drainHttpRequestHeaders(socket.getInputStream());
 
                 OutputStream out = socket.getOutputStream();
-                out.write(
-                    ("HTTP/1.1 200 OK\r\n" + "Content-Type: application/octet-stream\r\n" + "Transfer-Encoding: chunked\r\n" + "\r\n")
-                        .getBytes(StandardCharsets.US_ASCII)
-                );
+                out.write("""
+                    HTTP/1.1 200 OK\r
+                    Content-Type: application/octet-stream\r
+                    Transfer-Encoding: chunked\r
+                    \r
+                    """.getBytes(StandardCharsets.US_ASCII));
                 byte[] chunk = randomAlphaOfLength(8192).getBytes(StandardCharsets.UTF_8);
                 out.write((Integer.toHexString(chunk.length) + "\r\n").getBytes(StandardCharsets.US_ASCII));
                 out.write(chunk);
                 out.write("\r\n".getBytes(StandardCharsets.US_ASCII));
                 out.flush();
+                chunkSent.countDown();
 
-                serverDone.await(30, TimeUnit.SECONDS);
+                serverDone.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS);
             } catch (IOException | InterruptedException e) {
                 // Expected when the test closes the server socket or the client tears down the connection.
             }
@@ -291,10 +296,10 @@ public class HttpClientTests extends ESTestCase {
                 httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
                 var request = new HttpRequest(httpPost, "inferenceEntityId");
 
-                PlainActionFuture<StreamingHttpResult> listener = new PlainActionFuture<>();
+                var listener = new TestPlainActionFuture<StreamingHttpResult>();
                 httpClient.stream(request, HttpClientContext.create(), listener);
 
-                var streamingResult = listener.actionGet(TIMEOUT);
+                var streamingResult = listener.actionGet(TEST_REQUEST_TIMEOUT);
 
                 var subscriptionRef = new AtomicReference<Flow.Subscription>();
                 var subscribed = new CountDownLatch(1);
@@ -316,25 +321,31 @@ public class HttpClientTests extends ESTestCase {
                     @Override
                     public void onComplete() {}
                 });
-                assertTrue("subscriber must be onSubscribe'd", subscribed.await(TIMEOUT.seconds(), TimeUnit.SECONDS));
+                assertTrue("subscriber must be onSubscribe'd", subscribed.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS));
 
-                assertBusy(() -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(1)), 30, TimeUnit.SECONDS);
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(1)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
 
-                // Give Apache time to read the body chunk and pause the producer. On localhost loopback
-                // the chunk arrives in well under 200ms, so 1s is comfortable headroom for slow CI hosts.
-                Thread.sleep(1000);
+                assertTrue("server must send the body chunk", chunkSent.await(TEST_REQUEST_TIMEOUT.seconds(), TimeUnit.SECONDS));
 
                 subscriptionRef.get().cancel();
 
                 // With the fix: IOControl#shutdown is invoked, Apache tears down the channel, and the
                 // FutureCallback fires which releases the lease. Without the fix: the connection stays
                 // leased indefinitely (the server never closes), and this assertBusy times out.
-                assertBusy(() -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(0)), 10, TimeUnit.SECONDS);
+                assertBusy(
+                    () -> assertThat(connectionManager.getTotalStats().getLeased(), equalTo(0)),
+                    TEST_REQUEST_TIMEOUT.seconds(),
+                    TimeUnit.SECONDS
+                );
             }
         } finally {
             serverDone.countDown();
             serverSocket.close();
-            serverThread.join(5_000);
+            serverThread.join(serverThreadJoinTimeoutMillis);
         }
     }
 

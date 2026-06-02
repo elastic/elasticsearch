@@ -54,7 +54,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapab
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1609,6 +1608,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

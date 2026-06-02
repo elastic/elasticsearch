@@ -235,6 +235,7 @@ public final class VersionsAndSeqNoResolver {
         final long[] timestamps = new long[n];
         for (int i = 0; i < n; i++) {
             if (useSyntheticId) {
+                assert uids[i].equals(Uid.encodeId(ids[i]));
                 timestamps[i] = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uids[i]);
             } else {
                 byte[] idAsBytes = Base64.getUrlDecoder().decode(ids[i]);

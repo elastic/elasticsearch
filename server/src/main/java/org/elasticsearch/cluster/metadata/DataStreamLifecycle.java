@@ -406,9 +406,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             ? in.readOptionalWriteable(DownsampleConfig.SamplingMethod::read)
             : null;
         frozenAfter = (DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() && in.getTransportVersion().supports(SEARCHABLE_SNAPSHOTS_DLM_TV)
-            || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV))
-            ? in.readOptionalTimeValue()
-            : null;
+            || in.getTransportVersion().supports(DLM_FROZEN_TIER_GA_TV)) ? in.readOptionalTimeValue() : null;
     }
 
     /**

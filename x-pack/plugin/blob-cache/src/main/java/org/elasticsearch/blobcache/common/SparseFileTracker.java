@@ -190,7 +190,7 @@ public class SparseFileTracker {
         final Range targetRange = new Range(range);
         boolean hasGaps;
         synchronized (ranges) {
-            hasGaps = determineStartingRange(range, pendingRanges, targetRange);
+            hasGaps = determineStartingRangeAndSplit(range, pendingRanges, targetRange);
 
             while (targetRange.start < range.end()) {
                 assert 0 <= targetRange.start : targetRange;
@@ -267,9 +267,31 @@ public class SparseFileTracker {
      * @param range the range that is to be filled, where we want to find the first existing range for.
      * @param pendingRanges the pendingRanges to add a range that overlaps into the range we want to fill.
      * @param targetRange the targetRange to populate the start value of.
+     */
+    private void determineStartingRange(ByteRange range, List<Range> pendingRanges, Range targetRange) {
+        assert invariant();
+        final Range lastEarlierRange = ranges.lower(targetRange);
+        if (lastEarlierRange != null) {
+            if (range.start() < lastEarlierRange.end) {
+                if (lastEarlierRange.isPending()) {
+                    pendingRanges.add(lastEarlierRange);
+                }
+                targetRange.start = Math.min(range.end(), lastEarlierRange.end);
+            }
+        }
+    }
+
+    /**
+     * Populate `pendingRanges` with a prior range overlapping into `range` (if pending), update targetRange.start to allow
+     * searching for further ranges. Return whether an unclaimed range was added to pendingRanges, i.e., a gap still needs
+     * an owner. Split unclaimed ranges if necessary to ensure that gaps returned from waitForRange do not go outside the
+     * originl range.
+     * @param range the range that is to be filled, where we want to find the first existing range for.
+     * @param pendingRanges the pendingRanges to add a range that overlaps into the range we want to fill.
+     * @param targetRange the targetRange to populate the start value of.
      * @return whether a gap still need to be claimed.
      */
-    private boolean determineStartingRange(ByteRange range, List<Range> pendingRanges, Range targetRange) {
+    private boolean determineStartingRangeAndSplit(ByteRange range, List<Range> pendingRanges, Range targetRange) {
         assert invariant();
         final Range lastEarlierRange = ranges.lower(targetRange);
         if (lastEarlierRange != null) {

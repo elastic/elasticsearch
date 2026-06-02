@@ -43,10 +43,10 @@ final class CsvRecordSplitter implements RecordSplitter {
     }
 
     /**
-     * Override the SPI default for the QuotedFieldsOnly path so the streaming segmentator gets a
-     * single-pass answer instead of dispatching the per-record scanner once per record.
-     * Bracket MVC stays on the forward scanner because the bracket-region state machine
-     * (depth, leading-whitespace gating, mark limit) is non-trivial to fold into a single pass.
+     * Override the default for the QuotedFieldsOnly path so the streaming segmentator gets a
+     * single-pass answer instead of dispatching the per-record scanner once per record. Bracket MVC
+     * stays on the forward scanner because the bracket-region state machine (depth,
+     * leading-whitespace gating, mark limit) is non-trivial to fold into a single pass.
      */
     @Override
     public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
@@ -91,7 +91,7 @@ final class CsvRecordSplitter implements RecordSplitter {
      * whitespace); a mid-field {@code quoteChar} is a literal and does not toggle quote state.
      * <p>
      * Best-effort/open-tail contract: the scan assumes the buffer begins at a record boundary and advances
-     * {@code lastBoundary} only on a true unquoted {@code \n}. So a chunk the segmentator cut mid-record
+     * {@code lastBoundary} only on a true unquoted record terminator. So a chunk the segmentator cut mid-record
      * yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
      * {@code inQuotes == true} so its trailing {@code \n}s are skipped - the rule the grow loop requires.
      */
@@ -101,6 +101,7 @@ final class CsvRecordSplitter implements RecordSplitter {
         }
         int end = offset + length;
         int lastBoundary = -1;
+        int recordStart = offset;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
         byte quoteAsByte = (byte) options.quoteChar();
@@ -119,8 +120,22 @@ final class CsvRecordSplitter implements RecordSplitter {
                 continue;
             }
             if (b == '\n') {
-                // only true unquoted '\n's advance the boundary (see open-tail contract above)
+                if (recordExceedsLimit(recordStart, i)) {
+                    return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                }
                 lastBoundary = i;
+                recordStart = i + 1;
+                fieldHasNonWhitespace = false;
+            } else if (b == '\r') {
+                int boundary = i;
+                if (i + 1 < end && buf[i + 1] == '\n') {
+                    boundary = ++i;
+                }
+                if (recordExceedsLimit(recordStart, boundary)) {
+                    return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                }
+                lastBoundary = boundary;
+                recordStart = boundary + 1;
                 fieldHasNonWhitespace = false;
             } else if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
@@ -130,7 +145,11 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = true;
             }
         }
-        return lastBoundary < 0 && length > maxRecordBytes ? (int) RECORD_TOO_LARGE : lastBoundary;
+        return end - recordStart > maxRecordBytes && lastBoundary < 0 ? (int) RECORD_TOO_LARGE : lastBoundary;
+    }
+
+    private boolean recordExceedsLimit(int recordStart, int boundary) {
+        return boundary - recordStart + 1 > maxRecordBytes;
     }
 
     /**
@@ -231,6 +250,9 @@ final class CsvRecordSplitter implements RecordSplitter {
             if (b == '\n') {
                 return consumed;
             }
+            if (b == '\r') {
+                return consumeCrTerminator(bis, consumed);
+            }
             if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
                 continue;
@@ -316,6 +338,9 @@ final class CsvRecordSplitter implements RecordSplitter {
             if (b == '\n') {
                 return consumed;
             }
+            if (b == '\r') {
+                return consumeCrTerminator(bis, consumed);
+            }
             if (b == delimAsByte) {
                 fieldHasNonWhitespace = false;
             } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
@@ -324,5 +349,18 @@ final class CsvRecordSplitter implements RecordSplitter {
                 fieldHasNonWhitespace = true;
             }
         }
+    }
+
+    private long consumeCrTerminator(BufferedInputStream bis, long consumed) throws IOException {
+        bis.mark(1);
+        int next = bis.read();
+        if (next == '\n') {
+            long consumedWithLf = consumed + 1;
+            return consumedWithLf > maxRecordBytes ? RECORD_TOO_LARGE : consumedWithLf;
+        }
+        if (next != -1) {
+            bis.reset();
+        }
+        return consumed;
     }
 }

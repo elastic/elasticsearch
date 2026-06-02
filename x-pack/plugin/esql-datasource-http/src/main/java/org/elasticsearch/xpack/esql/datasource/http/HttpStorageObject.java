@@ -12,6 +12,8 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -21,7 +23,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZonedDateTime;
@@ -250,11 +251,18 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
+     * @param factory produces the destination {@link DirectReadBuffer} for the response body
      * @param executor executor (unused - HttpClient uses executor configured at creation)
      * @param listener callback for the result or failure
      */
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (position < 0) {
             listener.onFailure(new IllegalArgumentException("position must be non-negative, got: " + position));
             return;
@@ -271,31 +279,41 @@ public final class HttpStorageObject extends AbstractMeteredStorageObject {
         HttpRequest request = buildRangeRequest(position, length);
 
         long startNanos = System.nanoTime();
-        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length)).whenComplete((response, throwable) -> {
-            if (throwable != null) {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                // Wrap with path context so stack-trace-only triage names the offending URL.
-                // The original cause (CompletionException, body subscriber's IOException, transport
-                // error, etc.) is preserved in the cause chain.
-                listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
-                return;
-            }
+        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length, factory))
+            .whenComplete((response, throwable) -> {
+                if (throwable != null) {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // Wrap with path context so stack-trace-only triage names the offending URL.
+                    // The original cause (CompletionException, body subscriber's IOException,
+                    // transport error, etc.) is preserved in the cause chain.
+                    listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
+                    return;
+                }
 
-            int statusCode = response.statusCode();
-            // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
-            // slicing internally for both 206 (server-side range) and 200 (full body) responses,
-            // returning a ByteBuffer scoped to the requested window.
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
-                ByteBuffer body = response.body();
-                counters.addRequest(System.nanoTime() - startNanos, body.remaining());
-                listener.onResponse(body);
-            } else {
-                counters.addRequest(System.nanoTime() - startNanos, 0L);
-                // No body snippet here: the async range handler yields a ByteBuffer scoped to the
-                // requested window, not the error body, so there is nothing reliable to include.
-                listener.onFailure(mapReadFailure("Range request failed for", statusCode, null));
-            }
-        });
+                int statusCode = response.statusCode();
+                // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
+                // slicing internally for both 206 (server-side range) and 200 (full body) responses,
+                // returning a DirectReadBuffer scoped to the requested window.
+                if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                    DirectReadBuffer body = response.body();
+                    counters.addRequest(System.nanoTime() - startNanos, body.buffer().remaining());
+                    try {
+                        listener.onResponse(body);
+                    } catch (Exception e) {
+                        try {
+                            body.close();
+                        } catch (Exception closeEx) {
+                            e.addSuppressed(closeEx);
+                        }
+                        throw e;
+                    }
+                } else {
+                    counters.addRequest(System.nanoTime() - startNanos, 0L);
+                    // Discarding subscriber returned no allocator-backed memory but close()-ing is a no-op safe call.
+                    response.body().close();
+                    listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
+                }
+            });
     }
 
     /**

@@ -63,7 +63,10 @@ public class AzureTransientTypingInputStreamTests extends ESTestCase {
         assertFalse("a plain transport IOException is transient but not throttling", e.throttling());
     }
 
-    /** A stream that throws the real wrapped shape on first read: {@code IOException(BlobStorageException)}, or a bare IOException when {@code cause} is null. */
+    /**
+     * A stream that throws the real wrapped shape on first read: {@code IOException(BlobStorageException)}, or a bare
+     * {@code IOException} when {@code cause} is null.
+     */
     private static InputStream faultingStream(BlobStorageException cause) {
         return new InputStream() {
             @Override

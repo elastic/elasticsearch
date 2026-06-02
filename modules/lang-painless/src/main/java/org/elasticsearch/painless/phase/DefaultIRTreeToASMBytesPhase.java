@@ -432,7 +432,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Label skip = new Label();
 
         loadScriptInstance(methodWriter, scriptThisSlot);
-        loadScriptInstance(methodWriter, scriptThisSlot);
+        methodWriter.dup();
         methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.push(-1);
         methodWriter.math(MethodWriter.ADD, Type.INT_TYPE);

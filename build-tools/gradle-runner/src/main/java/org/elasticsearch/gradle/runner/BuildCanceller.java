@@ -11,6 +11,9 @@ package org.elasticsearch.gradle.runner;
 
 import org.gradle.tooling.CancellationTokenSource;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.List;
 
 /**
@@ -28,20 +31,26 @@ import java.util.List;
  */
 public final class BuildCanceller {
 
+    public static final String MARKER_FILENAME = ".preemption-marker.json";
+
     private final CancellationTokenSource tokenSource;
+    private final File projectDir;
     private volatile boolean cancelled;
 
-    public BuildCanceller(CancellationTokenSource tokenSource) {
+    public BuildCanceller(CancellationTokenSource tokenSource, File projectDir) {
         this.tokenSource = tokenSource;
+        this.projectDir = projectDir;
     }
 
     /**
      * Registers this canceller as a listener on the preemption watchdog. When preemption
-     * is detected, the build is cancelled and descendant processes are killed.
+     * is detected, the build is cancelled, a marker file is written for the build scan
+     * script to read, and descendant worker processes are killed.
      */
     public void install() {
         GcpPreemptionWatchdog.onPreempted(() -> {
             cancelled = true;
+            writeMarkerFile();
             cancelBuild();
             killDescendantProcesses();
         });
@@ -54,6 +63,24 @@ public final class BuildCanceller {
     private void cancelBuild() {
         System.out.println("[gcp-preemption-watchdog] cancelling Gradle build via CancellationToken");
         tokenSource.cancel();
+    }
+
+    /**
+     * Writes a JSON marker file into the project's build directory so the Gradle build scan
+     * script can detect that preemption occurred and tag the scan accordingly. Written before
+     * the cancellation token fires so the file is available when {@code buildFinished} runs.
+     */
+    private void writeMarkerFile() {
+        try {
+            File buildDir = new File(projectDir, "build");
+            buildDir.mkdirs();
+            File marker = new File(buildDir, MARKER_FILENAME);
+            try (PrintWriter w = new PrintWriter(marker, "UTF-8")) {
+                w.printf("{ \"preempted\": true, \"preemptedAt\": \"%s\" }%n", GcpPreemptionWatchdog.preemptedAt());
+            }
+        } catch (IOException e) {
+            System.err.println("[gcp-preemption-watchdog] failed to write marker file: " + e.getMessage());
+        }
     }
 
     /**

@@ -88,7 +88,7 @@ public class GradleRunner {
         GcpPreemptionWatchdog.start();
 
         CancellationTokenSource tokenSource = GradleConnector.newCancellationTokenSource();
-        BuildCanceller canceller = new BuildCanceller(tokenSource);
+        BuildCanceller canceller = new BuildCanceller(tokenSource, projectDir);
         canceller.install();
 
         TaskTracker tracker = new TaskTracker(canceller);

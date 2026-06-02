@@ -148,7 +148,46 @@ develocity {
             )
           }
 
-          def isRealFailure = result.failures
+          // Check whether the GradleRunner detected GCP preemption by reading
+          // the marker file it writes before cancelling the build.
+          def preemptionMarker = new File(projectDir, 'build/.preemption-marker.json')
+          def wasPreempted = false
+          def preemptionTime = null
+          if (preemptionMarker.exists()) {
+            try {
+              def markerText = preemptionMarker.text
+              wasPreempted = markerText.contains('"preempted" : true') || markerText.contains('"preempted": true')
+              def timeMatcher = markerText =~ /"preemptedAt"\s*:\s*"([^"]+)"/
+              if (timeMatcher.find()) {
+                preemptionTime = timeMatcher.group(1)
+              }
+            } catch (Exception e) {
+              logger.warn("Could not read preemption marker file", e)
+            }
+          }
+
+          def failedBeforePreemption = false
+          if (wasPreempted) {
+            tag 'PREEMPTED'
+            if (preemptionTime != null) {
+              value 'Preemption Time', preemptionTime
+            }
+            // Check task-status.json for failures that occurred before preemption
+            try {
+              def taskStatusFile = new File(projectDir, 'build/task-status.json')
+              if (taskStatusFile.exists()) {
+                def statusText = taskStatusFile.text
+                if (statusText.contains('"outcome" : "FAILED"') || statusText.contains('"result" : "FAILURE"')) {
+                  tag 'FAILED_BEFORE_PREEMPTION'
+                  failedBeforePreemption = true
+                }
+              }
+            } catch (Exception e) {
+              logger.warn("Could not check for pre-preemption failures", e)
+            }
+          }
+
+          def isRealFailure = result.failures && (!wasPreempted || failedBeforePreemption)
 
           buildScanPublished { scan ->
               // Attach build scan link as build metadata
@@ -168,7 +207,7 @@ develocity {
               // See: https://buildkite.com/docs/agent/v3/cli-annotate
               def jobRetryLabel = Integer.parseInt(System.getenv('BUILDKITE_RETRY_COUNT') ?: "0") >
                 0 ? " (retry #${System.getenv('BUILDKITE_RETRY_COUNT')})" : ""
-              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+              def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}${jobRetryLabel}</span> :gradle: ${isRealFailure ? 'failed' : wasPreempted ? 'preempted' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
               // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
               runBuildkiteAgent(
                 ['annotate', '--context', isRealFailure ? 'gradle-build-scans-failed' : 'gradle-build-scans', '--append', '--style', isRealFailure ? 'error' : 'info'],

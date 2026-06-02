@@ -11,18 +11,7 @@ package org.elasticsearch.index.fielddata;
 
 import java.io.IOException;
 
-public interface FormattedDocValues {
-    /**
-     * Advance the doc values reader to the provided doc.
-     *
-     * @return false if there are no values for this document, true otherwise
-     */
-    boolean advanceExact(int docId) throws IOException;
-
-    /**
-     * A count of the number of values at this document.
-     */
-    int docValueCount() throws IOException;
+public interface FormattedDocValues extends ProcessedDocValues {
 
     /**
      * Load and format the next value.

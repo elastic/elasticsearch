@@ -58,6 +58,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -84,6 +85,13 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
+
+    private static int metricHash;
+
+    @Before
+    public void setUpMetricsNameField() throws Exception {
+        metricHash = randomIntBetween(1, 255);
+    }
 
     /**
      * Represents a time-series document
@@ -666,9 +674,10 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
      * Builds time-series index settings.
      */
     private static IndexSettings buildIndexSettings(final String indexName) {
+        final List<String> dimensions = List.of("hostname", "metric.field", "_metric_names_hash");
         var settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.SYNTHETIC_ID.getKey(), true)
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("hostname", "metric.field"));
+            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), dimensions);
         if (rarely()) {
             settings.put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false);
         }
@@ -693,6 +702,10 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
                                 "time_series_metric": "counter"
                             }
                         }
+                    },
+                    "_metric_names_hash": {
+                       "type": "integer",
+                       "time_series_dimension": true
                     }
                 }
             }""").build(), Settings.EMPTY);
@@ -769,9 +782,9 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             {
                 source.field("field", document.metricField());
                 source.field("value", document.metricValue());
-
             }
             source.endObject();
+            source.field("_metric_names_hash", metricHash);
         }
         source.endObject();
         return source;
@@ -828,7 +841,8 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
     }
 
     private static BytesRef buildTsId(Doc doc) {
-        return new TsidBuilder().addStringDimension("hostname", doc.hostName())
+        return new TsidBuilder().addIntDimension("_metric_names_hash", metricHash)
+            .addStringDimension("hostname", doc.hostName())
             .addStringDimension("metric.field", doc.metricField())
             .buildTsid(IndexVersion.current());
     }

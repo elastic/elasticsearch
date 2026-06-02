@@ -1680,9 +1680,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
                         Request request,
                         ActionListener<Response> listener
                     ) {
-                        assert action == TransportNewCommitNotificationAction.TYPE;
+                        assert action == TransportNewCommitNotificationAction.TYPE || action == TransportFetchShardCommitsInUseAction.TYPE
+                            : "Unexpected ActionType: " + action;
                         if (activateSearchNode.get()) {
                             fakeSearchNode.doExecute(action, request, listener);
+                        } else if (request instanceof FetchShardCommitsInUseAction.Request) {
+                            ((ActionListener<FetchShardCommitsInUseAction.Response>) listener).onResponse(
+                                new FetchShardCommitsInUseAction.Response(ClusterName.DEFAULT, List.of(), List.of())
+                            );
                         } else {
                             ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(
                                 new NewCommitNotificationResponse(Set.of())
@@ -1723,6 +1728,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             var state = clusterStateWithPrimaryAndSearchShards(shardId, 1);
             stateRef.set(state);
             activateSearchNode.set(true);
+            var searchNodeId = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0).currentNodeId();
+            fakeSearchNode.setSearchDiscoveryNode(state.getNodes().get(searchNodeId));
 
             boolean clusterChangedFirst = randomBoolean();
             if (clusterChangedFirst) {

@@ -431,7 +431,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     private static void writePersistentCancellationDecrement(MethodWriter methodWriter, int scriptThisSlot, int runnableSlot) {
         Label skip = new Label();
 
-        loadScriptInstance(methodWriter, scriptThisSlot);
+        methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
         methodWriter.dup();
         methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.push(-1);
@@ -442,16 +442,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
         methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
-        loadScriptInstance(methodWriter, scriptThisSlot);
+        methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
         methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
         methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
 
         methodWriter.mark(skip);
-    }
-
-    private static void loadScriptInstance(MethodWriter methodWriter, int scriptThisSlot) {
-        methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
-        methodWriter.checkCast(WriterConstants.CLASS_TYPE);
     }
 
     @Override

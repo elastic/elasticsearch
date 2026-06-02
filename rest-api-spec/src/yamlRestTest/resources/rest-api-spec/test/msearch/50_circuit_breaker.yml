@@ -3,7 +3,7 @@ setup:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             indices.breaker.request.limit: null
 
 ---
@@ -11,7 +11,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             indices.breaker.request.limit: null
 
 ---
@@ -60,7 +60,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             indices.breaker.request.limit: "40000b"
 
   # max_concurrent_searches=1 forces sequential execution so sub-search 0 completes and

@@ -554,18 +554,16 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
         client.search(request.request, subscribeListener.map(searchResponse -> {
             long queryPhaseAggHandoff = searchResponse.getQueryPhaseAggregationBreakerBytes();
             long bytes = 0;
-            // bytesReserved: addEstimateBytesAndMaybeBreak succeeded — bytes are on the breaker.
-            // addedToAccounting: breakerAccounting.add() was called — releaseAll() owns the release.
-            // These two flags gate the outer-catch cleanup: if addedToAccounting is true, releaseAll()
-            // covers everything; if false but bytesReserved is true, the outer catch must release bytes
-            // directly (they are on the breaker but not tracked in breakerAccounting).
-            boolean bytesReserved = false;
+            // addedToAccounting: breakerAccounting.add() was called — releaseAll() owns the release
+            // of both incremental bytes and the handoff. If false, the outer catch releases the
+            // handoff directly. The window between addEstimateBytesAndMaybeBreak succeeding and
+            // breakerAccounting.add() being called contains only AtomicLong.addAndGet() calls that
+            // cannot throw, so bytesReserved == addedToAccounting at any actual throw point.
             boolean addedToAccounting = false;
             try {
                 bytes = estimateActualBytes(searchResponse);
                 try {
                     circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, "<msearch_response>");
-                    bytesReserved = true;
                 } catch (CircuitBreakingException e) {
                     if (queryPhaseAggHandoff > 0) {
                         circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
@@ -578,15 +576,10 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
                 searchResponse.mustIncRef();
                 return new MultiSearchResponse.Item(searchResponse, null);
             } catch (Exception unexpected) {
-                if (addedToAccounting) {
-                    // releaseAll() will cover both bytes and handoff via breakerAccounting.
-                } else {
-                    if (bytesReserved) {
-                        circuitBreaker.addWithoutBreaking(-bytes);
-                    }
-                    if (queryPhaseAggHandoff > 0) {
-                        circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
-                    }
+                if (addedToAccounting == false && queryPhaseAggHandoff > 0) {
+                    // releaseAll() covers everything once addedToAccounting is true;
+                    // before that point only the handoff needs releasing.
+                    circuitBreaker.addWithoutBreaking(-queryPhaseAggHandoff);
                 }
                 throw unexpected;
             }

@@ -438,9 +438,14 @@ public class EsqlCapabilities {
         /**
          * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
          * fusion that reads the keyed sub-field's doc values directly, and Lucene query pushdown for
-         * {@code ==}, {@code !=}, and {@code IN} against the same shape. Tests that depend on the fused
-         * multi-value output or on the {@code SingleValueQuery} warning text must require this capability
-         * so they skip on mixed clusters where any data node still runs the per-row evaluator.
+         * {@code ==}, {@code !=}, {@code IN}, the four range comparators ({@code >}, {@code >=},
+         * {@code <}, {@code <=}), and closed ranges (combined {@code >=}/{@code <=}, equivalent to
+         * {@code BETWEEN}) against the same shape. The one-sided range forms rely on the keyed
+         * flattened mapper substituting a key-prefix sentinel for the open bound so the resulting
+         * Lucene query stays inside the open key's portion of the term namespace. Tests that
+         * depend on the fused multi-value output or on the {@code SingleValueQuery} warning text
+         * must require this capability so they skip on mixed clusters where any data node still
+         * runs the per-row evaluator.
          */
         FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
 
@@ -2140,6 +2145,12 @@ public class EsqlCapabilities {
         FIX_PROMQL_TIME_BUCKET_V2(FIX_TIME_SERIES_WINDOW_BACKWARD.isEnabled()),
 
         /**
+         * PromQL {@code round(v, to_nearest)} uses the Prometheus formula, fixing wrong rounding
+         * and floating point junk from dividing by small {@code to_nearest} values.
+         */
+        FIX_PROMQL_ROUND_TO_NEAREST,
+
+        /**
          * Extended time-bucket fix covering scalar float-division step-timestamp alignment.
          * Disabled until the serverless-side fix for the one-hour timestamp offset is deployed.
          * https://github.com/elastic/elasticsearch-serverless/issues/6817
@@ -2726,7 +2737,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V7(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V8(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command

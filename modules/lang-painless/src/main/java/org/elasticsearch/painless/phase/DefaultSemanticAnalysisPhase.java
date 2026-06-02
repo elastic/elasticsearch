@@ -2448,45 +2448,6 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     }
 
     /**
-     * Checks whether {@code symbol::methodName} (with the given functional interface type)
-     * would resolve to a {@code @script_aware} augmentation in the current lookup.
-     * Used by {@link #visitFunctionRef} to decide whether to thread the script receiver
-     * into the resulting {@link FunctionRef}'s factory captures.
-     */
-    private static boolean resolvesToCancellationAwareMethod(
-        ScriptScope scriptScope,
-        String symbol,
-        String methodName,
-        Class<?> targetClass
-    ) {
-        PainlessLookup lookup = scriptScope.getPainlessLookup();
-        PainlessMethod interfaceMethod = lookup.lookupFunctionalInterfacePainlessMethod(targetClass);
-        if (interfaceMethod == null) {
-            return false;
-        }
-        int arity = interfaceMethod.typeParameters().size();
-        // Cheap pre-filter: bail unless some cancellation-aware overload exists for this name at
-        // either the bound arity or the unbound arity (receiver as leading interface parameter),
-        // mirroring the two lookups below. The precise annotation check still happens afterwards.
-        if (lookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, arity) == false
-            && (arity == 0 || lookup.hasAnnotationAwareMethod(ScriptAwareAnnotation.class, methodName, arity - 1) == false)) {
-            return false;
-        }
-        Class<?> receiverClass = lookup.canonicalTypeNameToType(symbol);
-        if (receiverClass == null) {
-            return false;
-        }
-        // Try the bound-receiver arity first (functional interface arity matches the augmentation's
-        // user-visible parameter count), then fall back to the unbound case (arity - 1 because the
-        // receiver becomes the leading interface parameter).
-        PainlessMethod method = lookup.lookupPainlessMethod(receiverClass, true, methodName, arity);
-        if (method == null && arity > 0) {
-            method = lookup.lookupPainlessMethod(receiverClass, true, methodName, arity - 1);
-        }
-        return method != null && method.annotations().containsKey(ScriptAwareAnnotation.class);
-    }
-
-    /**
      * Visits a function ref expression which covers class function references,
      * constructor function references, and local function references.
      * Checks: type validation
@@ -2539,14 +2500,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                     isInstanceReference
                 );
 
-                // Same @script_aware augmentation handling as the bound case below: the
-                // unbound method ref (e.g. Iterable::each) needs the script receiver threaded
-                // as a synthetic leading capture so the augmentation body can poll the cancel
-                // runnable. Mutually exclusive with isInstanceReference (which is for this::fn
-                // refs to user-defined Painless functions, not whitelisted augmentations).
-                if (isInstanceReference == false
-                    && resolvesToCancellationAwareMethod(scriptScope, symbol, methodName, targetType.targetType())) {
-                    ref = ref.withSyntheticScriptCapture(scriptScope.getScriptClassInfo().getBaseClass());
+                // create() captures the script receiver for a @script_aware augmentation reference;
+                // mark the node so the construction site pushes it via the instance-capture path.
+                if (ref.isScriptAware) {
                     semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
                 }
 
@@ -2604,17 +2560,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                         false
                     );
 
-                    // If the bound method ref resolves to a @script_aware augmentation,
-                    // augment the FunctionRef with a synthetic leading PainlessScript capture
-                    // and mark the user node as instance-capturing so the IR phase pushes the
-                    // script receiver ahead of the bound capture at the construction site.
-                    if (resolvesToCancellationAwareMethod(
-                        scriptScope,
-                        captured.getCanonicalTypeName(),
-                        methodName,
-                        targetType.targetType()
-                    )) {
-                        ref = ref.withSyntheticScriptCapture(scriptScope.getScriptClassInfo().getBaseClass());
+                    // create() captures the script receiver for a @script_aware augmentation
+                    // reference; mark the node so the IR phase pushes the script receiver ahead of
+                    // the bound capture at the construction site.
+                    if (ref.isScriptAware) {
                         semanticScope.setCondition(userFunctionRefNode, InstanceCapturingFunctionRef.class);
                     }
 

@@ -106,6 +106,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.analyzer-wrapper.reloadable_search_analyzer"
     );
     static final NodeFeature STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE = new NodeFeature("mapper.columnar.store_not_allowed");
+    public static final NodeFeature COLUMNAR_REJECTS_RUNTIME_DYNAMIC = new NodeFeature("mapper.columnar_rejects_runtime_dynamic");
     static final NodeFeature COLUMNAR_MAINTAIN_ARRAY_ORDER = new NodeFeature("mapper.columnar.maintain_array_order");
     static final NodeFeature KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY = new NodeFeature(
         "mapper.keyword.columnar_default_high_cardinality"
@@ -185,6 +186,7 @@ public class MapperFeatures implements FeatureSpecification {
             ROUTING_AS_DOC_VALUES_BY_DEFAULT,
             STORE_NOT_ALLOWED_IN_COLUMNAR_INDEX_MODE,
             COLUMNAR_MAINTAIN_ARRAY_ORDER,
+            COLUMNAR_REJECTS_RUNTIME_DYNAMIC,
             KEYWORD_COLUMNAR_DEFAULT_HIGH_CARDINALITY
         );
     }

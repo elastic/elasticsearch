@@ -124,7 +124,6 @@ public class RecoveriesCollection {
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
                 startRecoveryInternal(newRecoveryTarget);
             }
-            notifyRecoverySchedulingListeners();
 
             // Closes the current recovery target
             boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
@@ -136,6 +135,7 @@ public class RecoveriesCollection {
                     newRecoveryTarget.recoveryId(),
                     oldRecoveryTarget.recoveryId()
                 );
+                notifyRecoverySchedulingListeners();
                 return newRecoveryTarget;
             } else {
                 logger.trace(
@@ -145,6 +145,7 @@ public class RecoveriesCollection {
                     newRecoveryTarget.recoveryId(),
                     oldRecoveryTarget.recoveryId()
                 );
+                // notifyRecoverySchedulingListeners() is called in cancelRecovery
                 cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
                 return null;
             }

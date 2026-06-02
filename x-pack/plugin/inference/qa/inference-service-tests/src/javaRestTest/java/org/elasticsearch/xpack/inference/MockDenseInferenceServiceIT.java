@@ -18,6 +18,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -103,7 +104,11 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
         var inference = embedding(
             inferenceEntityId,
             List.of(
-                new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64," + randomAlphaOfLength(5)),
+                new InferenceString(
+                    DataType.IMAGE,
+                    DataFormat.BASE64,
+                    "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(randomByteArrayOfLength(5))
+                ),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
                 new InferenceString(DataType.TEXT, randomAlphaOfLength(15))
             )
@@ -159,7 +164,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
             assertThat(serviceSettings.get("dimensions"), is(DEFAULT_EMBEDDING_DIMENSIONS));
         }
 
-        var input = List.of(InferenceString.ofText(randomAlphaOfLength(10)));
+        var input = List.of(new InferenceString(DataType.TEXT, randomAlphaOfLength(10)));
         var resultMap = embedding(inferenceEntityId, input);
         @SuppressWarnings("unchecked")
         var embeddings = (List<Map<String, List<Float>>>) resultMap.get(GenericDenseEmbeddingFloatResults.EMBEDDINGS);

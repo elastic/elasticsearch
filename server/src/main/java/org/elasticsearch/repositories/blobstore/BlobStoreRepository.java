@@ -1540,7 +1540,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             snapshotExecutor.execute(ActionRunnable.wrap(listener, l -> {
                 try {
-                    logger.info("---> Running task: cleanupUnlinkedShardLevelBlobs");
                     deleteFromContainer(OperationPurpose.SNAPSHOT_DATA, blobContainer(), blobPathsToDelete);
                     l.onResponse(null);
                 } catch (Exception e) {
@@ -1573,7 +1572,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 if (staleRootBlobs.isEmpty() == false) {
                     staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
                         try (ref) {
-                            logger.info("---> Cleaning up stale root blobs from cleanupUnlinkedRootAndIndicesBlobs");
                             logStaleRootLevelBlobs(newRepositoryData.getGenId() - 1, snapshotIds, staleRootBlobs);
                             deleteFromContainer(OperationPurpose.SNAPSHOT_METADATA, blobContainer(), staleRootBlobs.iterator());
                             for (final var staleRootBlob : staleRootBlobs) {
@@ -1605,11 +1603,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                     staleBlobDeleteRunner.enqueueTask(listeners.acquire(ref -> {
                         try (ref) {
-                            logger.info(" ---> [{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
+                            logger.debug("[{}] Found stale index [{}]. Cleaning it up", metadata.name(), indexId);
                             final var deleteResult = indexEntry.getValue().delete(OperationPurpose.SNAPSHOT_DATA);
                             blobsDeleted.addAndGet(deleteResult.blobsDeleted());
                             bytesDeleted.addAndGet(deleteResult.bytesDeleted());
-                            logger.info("---> [{}] Cleaned up stale index [{}]", metadata.name(), indexId);
+                            logger.debug("[{}] Cleaned up stale index [{}]", metadata.name(), indexId);
                         } catch (IOException e) {
                             logger.warn(() -> format("""
                                 %s index %s is no longer part of any snapshot in the repository, \
@@ -1671,21 +1669,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Collection<SnapshotId> snapshotIds,
             List<String> blobsToDelete
         ) {
-            // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
-            // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
-            // delete would also log a confusing INFO message about "stale blobs".
-            final Set<String> blobNamesToIgnore = snapshotIds.stream()
-                .flatMap(
-                    snapshotId -> Stream.of(
-                        GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
-                        SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
-                        getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
+            if (logger.isInfoEnabled()) {
+                // If we're running root level cleanup as part of a snapshot delete we should not log the snapshot- and global metadata
+                // blobs associated with the just deleted snapshots as they are expected to exist and not stale. Otherwise every snapshot
+                // delete would also log a confusing INFO message about "stale blobs".
+                final Set<String> blobNamesToIgnore = snapshotIds.stream()
+                    .flatMap(
+                        snapshotId -> Stream.of(
+                            GLOBAL_METADATA_FORMAT.blobName(snapshotId.getUUID()),
+                            SNAPSHOT_FORMAT.blobName(snapshotId.getUUID()),
+                            getRepositoryDataBlobName(newestStaleRepositoryDataGeneration)
+                        )
                     )
-                )
-                .collect(Collectors.toSet());
-            final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
-            if (blobsToLog.isEmpty() == false) {
-                logger.info("---> {} Found stale root level blobs {}. Cleaning them up", toStringShort(), blobsToLog);
+                    .collect(Collectors.toSet());
+                final List<String> blobsToLog = blobsToDelete.stream().filter(b -> blobNamesToIgnore.contains(b) == false).toList();
+                if (blobsToLog.isEmpty() == false) {
+                    logger.info("{} Found stale root level blobs {}. Cleaning them up", toStringShort(), blobsToLog);
+                }
             }
         }
     }
@@ -2334,19 +2334,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private void deleteFromContainer(OperationPurpose purpose, BlobContainer container, Iterator<String> blobs) throws IOException {
-        final Iterator<String> wrappedIterator = new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return blobs.hasNext();
-            }
+        final Iterator<String> wrappedIterator;
+        if (logger.isTraceEnabled()) {
+            wrappedIterator = new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return blobs.hasNext();
+                }
 
-            @Override
-            public String next() {
-                final String blobName = blobs.next();
-                logger.info("---> deleteFromContainer: [{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
-                return blobName;
-            }
-        };
+                @Override
+                public String next() {
+                    final String blobName = blobs.next();
+                    logger.trace("[{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
+                    return blobName;
+                }
+            };
+        } else {
+            wrappedIterator = blobs;
+        }
         container.deleteBlobsIgnoringIfNotExists(purpose, wrappedIterator);
     }
 

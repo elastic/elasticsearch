@@ -18,7 +18,7 @@ import java.util.Map;
 
 public class BlobStoreWrapper implements BlobStore {
 
-    public final BlobStore delegate;
+    private final BlobStore delegate;
 
     public BlobStoreWrapper(BlobStore delegate) {
         this.delegate = delegate;

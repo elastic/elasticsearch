@@ -24,7 +24,6 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
-import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -51,6 +50,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -602,15 +602,10 @@ public class MockRepository extends FsRepository {
                     deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
-                final var store = blobStore();
-                logger.info(
-                    "---> Deleting path {}",
-                    store instanceof BlobStoreWrapper && ((BlobStoreWrapper) store).delegate instanceof FsBlobStore
-                        ? ((FsBlobStore) ((BlobStoreWrapper) store).delegate).buildPath(path())
-                        : path()
-                );
-                blobStore().blobContainer(path().parent())
-                    .deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(path().parts().get(path().parts().size() - 1)));
+                // Delete this container's directory via the underlying FsBlobContainer.delete()
+                try {
+                    super.delete(purpose);
+                } catch (NoSuchFileException ignored) {}
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 

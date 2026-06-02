@@ -303,7 +303,7 @@ public final class VersionsAndSeqNoResolver {
     ) throws IOException {
         final long timestamp;
         if (useSyntheticId) {
-            assert uid.equals(Uid.encodeId((id)));
+            assert uid.equals(Uid.encodeId(id));
             timestamp = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uid);
         } else {
             byte[] idAsBytes = Base64.getUrlDecoder().decode(id);

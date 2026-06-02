@@ -377,16 +377,6 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public long findNextRecordBoundary(InputStream stream) throws IOException {
-        return recordSplitter().findNextRecordBoundary(stream);
-    }
-
-    @Override
-    public int findLastRecordBoundary(byte[] buf, int length) {
-        return defaultRecordSplitter().findLastRecordBoundary(buf, 0, length);
-    }
-
-    @Override
     public RecordSplitter recordSplitter() {
         return defaultRecordSplitter();
     }

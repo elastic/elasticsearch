@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 150227
+summary: Add extra validation on `trained_model` creation
+type: bug

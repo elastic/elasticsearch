@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiS
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
+import org.jspecify.annotations.NonNull;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
@@ -81,6 +82,7 @@ import static org.mockito.Mockito.when;
 public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private static final String INFERENCE_ENTITY_ID_VALUE = "some_inference_entity_id";
+    private static final String DEFAULT_INFERENCE_ENTITY_ID_VALUE = ".some_default_inference_entity_id";
     private static final String LOCATION_INITIAL_VALUE = "some_location";
     private static final String PROJECT_ID_INITIAL_VALUE = "some_project";
     private static final String MODEL_ID_INITIAL_VALUE = "some_model";
@@ -172,6 +174,22 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format("Service [%s] not found", SERVICE_NAME_VALUE)));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_DefaultEndpointCheckFailed_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModelForDefaultEndpoint(
+            new UnparsedModel(DEFAULT_INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+
+        var listener = callMasterOperationWithActionFutureForDefaultEndpoint();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("Default endpoint [%s] is not eligible for an update", DEFAULT_INFERENCE_ENTITY_ID_VALUE))
+        );
         verifyNoModelRegistryMutations();
     }
 
@@ -390,11 +408,19 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     }
 
     private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result) {
+        mockGetModelWithSecretsToReturnUnparsedModel(result, INFERENCE_ENTITY_ID_VALUE);
+    }
+
+    private void mockGetModelWithSecretsToReturnUnparsedModelForDefaultEndpoint(UnparsedModel result) {
+        mockGetModelWithSecretsToReturnUnparsedModel(result, DEFAULT_INFERENCE_ENTITY_ID_VALUE);
+    }
+
+    private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result, String inferenceEntityId) {
         doAnswer(invocationOnMock -> {
             ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
             listener.onResponse(result);
             return Void.TYPE;
-        }).when(mockModelRegistry).getModelWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), any());
+        }).when(mockModelRegistry).getModelWithSecrets(eq(inferenceEntityId), any());
     }
 
     private void mockLicenseStateIsAllowed(boolean value) {
@@ -474,8 +500,18 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
+        return callMasterOperationWithActionFuture(INFERENCE_ENTITY_ID_VALUE);
+    }
+
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFutureForDefaultEndpoint() {
+        return callMasterOperationWithActionFuture(DEFAULT_INFERENCE_ENTITY_ID_VALUE);
+    }
+
+    private @NonNull TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture(
+        String inferenceEntityId
+    ) {
+        var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         var requestBody = """
             {
@@ -493,7 +529,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         action.masterOperation(
             mock(Task.class),
             new UpdateInferenceModelAction.Request(
-                INFERENCE_ENTITY_ID_VALUE,
+                inferenceEntityId,
                 new BytesArray(requestBody),
                 XContentType.JSON,
                 TaskType.TEXT_EMBEDDING,

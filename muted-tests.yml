@@ -648,3 +648,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.SemanticTextFieldMappingLegacyFormatIT
   method: testLegacyFormatInferenceIdUpdate
   issue: https://github.com/elastic/elasticsearch/issues/150481
+- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
+  method: testRefreshesAreBlockedUntilBlockIsRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/150492

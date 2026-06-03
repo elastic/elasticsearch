@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.optimizer.UnmappedGoldenTestCase;
 
 import java.util.EnumSet;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.type.CompactMultiTypeEsField.CompactMultiTypeEsField;
 
 /**
  * Golden tests for analyzer behavior with unmapped fields using SET unmapped_fields="nullify" and "load".
@@ -631,7 +635,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTypeConflictTimeseriesLongUnmappedWithCastAfterCompact() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """, randomVersionAfterCompact());
     }
 
     public void testTSTypeConflictTimeseriesLongUnmappedWithCast() throws Exception {
@@ -639,7 +651,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             TS k8s, k8s_unmapped
             | EVAL bytes = network.bytes_in::long
             | KEEP bytes
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTSTypeConflictTimeseriesLongUnmappedWithCastAfterCompact() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | EVAL bytes = network.bytes_in::long
+            | KEEP bytes
+            """, randomVersionAfterCompact());
     }
 
     public void testTypeConflictTimeseriesDoubleUnmappedWithCast() throws Exception {
@@ -647,21 +667,43 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | EVAL cost = network.cost::double
             | KEEP cost
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTypeConflictTimeseriesDoubleUnmappedWithCastAfterCompact() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | EVAL cost = network.cost::double
+            | KEEP cost
+            """, randomVersionAfterCompact());
     }
 
     public void testTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             FROM k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTypeConflictTimeseriesStatsWithCastAfterCompact() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """, randomVersionAfterCompact());
     }
 
     public void testTSTypeConflictTimeseriesStatsWithCast() throws Exception {
         runTests("""
             TS k8s, k8s_unmapped
             | STATS s = SUM(network.bytes_in::long) BY cluster
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTSTypeConflictTimeseriesStatsWithCastAfterCompact() throws Exception {
+        runTests("""
+            TS k8s, k8s_unmapped
+            | STATS s = SUM(network.bytes_in::long) BY cluster
+            """, randomVersionAfterCompact());
     }
 
     public void testTypeConflictTimeseriesWhereWithCast() throws Exception {
@@ -669,7 +711,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM k8s, k8s_unmapped
             | WHERE network.cost::double > 10.0
             | KEEP cluster, network.cost
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTypeConflictTimeseriesWhereWithCastAfterCompact() throws Exception {
+        runTests("""
+            FROM k8s, k8s_unmapped
+            | WHERE network.cost::double > 10.0
+            | KEEP cluster, network.cost
+            """, randomVersionAfterCompact());
     }
 
     public void testPartiallyMappedField() throws Exception {
@@ -705,7 +755,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data, no_mapping_sample_data
             | EVAL event_duration = event_duration::long
             | KEEP event_duration
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTypeConflictMappedAndUnmappedWithCastAfterCompact() throws Exception {
+        runTests("""
+            FROM sample_data, no_mapping_sample_data
+            | EVAL event_duration = event_duration::long
+            | KEEP event_duration
+            """, randomVersionAfterCompact());
     }
 
     public void testTypeConflictMappedTimesTwoAndUnmapped() throws Exception {
@@ -713,7 +771,15 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
             FROM sample_data_ts_long, sample_data, no_mapping_sample_data
             | EVAL ts = @timestamp::date
             | KEEP ts
-            """);
+            """, randomVersionBeforeCompact());
+    }
+
+    public void testTypeConflictMappedTimesTwoAndUnmappedAfterCompact() throws Exception {
+        runTests("""
+            FROM sample_data_ts_long, sample_data, no_mapping_sample_data
+            | EVAL ts = @timestamp::date
+            | KEEP ts
+            """, randomVersionAfterCompact());
     }
 
     public void testNoTypeConflictKeywordAndUnmappedWhere() throws Exception {
@@ -950,7 +1016,19 @@ public class AnalyzerUnmappedGoldenTests extends UnmappedGoldenTestCase {
         runTestsNullifyAndLoad(query, STAGES);
     }
 
+    private void runTests(String query, TransportVersion transportVersion) {
+        runTestsNullifyAndLoad(query, STAGES, transportVersion);
+    }
+
     private void runTests(String query, String... nestedPaths) {
         runTestsNullifyAndLoad(query, STAGES, nestedPaths);
+    }
+
+    private static TransportVersion randomVersionBeforeCompact() {
+        return TransportVersionUtils.randomVersionNotSupporting(CompactMultiTypeEsField);
+    }
+
+    private static TransportVersion randomVersionAfterCompact() {
+        return TransportVersionUtils.randomVersionSupporting(CompactMultiTypeEsField);
     }
 }

@@ -9,10 +9,9 @@
 
 package org.elasticsearch.workload.identity.aws;
 
-import software.amazon.awssdk.auth.credentials.AwsCredentials;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
+import software.amazon.awssdk.identity.spi.IdentityProvider;
 import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
 import software.amazon.awssdk.services.sts.StsAsyncClient;
 import software.amazon.awssdk.services.sts.model.AssumeRoleWithWebIdentityRequest;
@@ -34,14 +33,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
- * An {@link AwsCredentialsProvider} that obtains temporary credentials via STS
+ * An {@link IdentityProvider} of {@link AwsCredentialsIdentity} that obtains temporary credentials via STS
  * {@code AssumeRoleWithWebIdentity} <em>without ever blocking the calling thread</em>.
  *
  * <p>The stock {@code StsAssumeRoleWithWebIdentityCredentialsProvider} only implements the synchronous
- * {@link #resolveCredentials()} and backs it with a blocking cache, so when it is used with an async
+ * {@code resolveCredentials()} and backs it with a blocking cache, so when it is used with an async
  * client such as {@code S3AsyncClient} the default {@code resolveIdentity()} bridge runs the blocking
- * fetch inline on the request thread. This provider instead overrides {@link #resolveIdentity} to return
- * a {@link CompletableFuture} that is completed by asynchronous I/O.
+ * fetch inline on the request thread. This provider instead implements {@link #resolveIdentity} directly to
+ * return a {@link CompletableFuture} that is completed by asynchronous I/O. Because the AWS SDK resolves
+ * credentials for async clients exclusively through {@link IdentityProvider#resolveIdentity}, no synchronous
+ * {@code resolveCredentials()} bridge is provided; this provider is async-only.
  *
  * <h2>Refresh model</h2>
  * Credentials are cached together with two instants derived from the STS expiry (mirroring the stock
@@ -50,7 +51,7 @@ import java.util.function.Consumer;
  *   <li>{@code prefetchAt = expiry - prefetchTime} (default 5 minutes): once passed, a background refresh
  *       is started but the still-valid cached credentials are served immediately;</li>
  *   <li>{@code staleAt = expiry - staleTime} (default 1 minute): once passed (or when nothing is cached),
- *       callers receive the in-flight refresh future and complete only when it does -- asynchronously,
+ *       callers receive the in-flight refresh future and complete only when it does, asynchronously,
  *       so no thread is parked.</li>
  * </ul>
  * A single in-flight refresh is shared by all concurrent callers (single-flight), so a burst of requests
@@ -64,7 +65,7 @@ import java.util.function.Consumer;
  * <p>This class is thread-safe. The {@link StsAsyncClient} is owned by the caller; {@link #close()} is a
  * no-op and does not shut it down.
  */
-public final class AsyncWebIdentityCredentialsProvider implements AwsCredentialsProvider, SdkAutoCloseable {
+public final class AsyncWebIdentityCredentialsProvider implements IdentityProvider<AwsCredentialsIdentity>, SdkAutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AsyncWebIdentityCredentialsProvider.class);
 
@@ -114,7 +115,7 @@ public final class AsyncWebIdentityCredentialsProvider implements AwsCredentials
         Cached current = cache.get();
         Instant now = clock.instant();
         if (current == null || now.isAfter(current.staleAt())) {
-            // Nothing usable cached: wait on a refresh, but asynchronously -- the caller's thread is not parked.
+            // Nothing usable cached: wait on a refresh, but asynchronously, so the caller's thread is not parked.
             return refresh().thenApply(Cached::credentials);
         }
         if (now.isAfter(current.prefetchAt())) {
@@ -125,25 +126,9 @@ public final class AsyncWebIdentityCredentialsProvider implements AwsCredentials
         return CompletableFuture.completedFuture(current.credentials());
     }
 
-    /**
-     * Synchronous bridge retained for sync clients only (for example {@code S3Client}). This blocks the
-     * calling thread and must never be invoked from an event-loop thread; async clients go through
-     * {@link #resolveIdentity}.
-     */
     @Override
-    public AwsCredentials resolveCredentials() {
-        try {
-            return (AwsCredentials) resolveIdentity(ResolveIdentityRequest.builder().build()).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            if (cause instanceof Error error) {
-                throw error;
-            }
-            throw e;
-        }
+    public Class<AwsCredentialsIdentity> identityType() {
+        return AwsCredentialsIdentity.class;
     }
 
     /**
@@ -157,7 +142,7 @@ public final class AsyncWebIdentityCredentialsProvider implements AwsCredentials
                 return existing;
             }
             CompletableFuture<Cached> promise = new CompletableFuture<>();
-            if (inFlight.compareAndSet(existing, promise)) {
+            if (inFlight.compareAndSet(null, promise)) {
                 startRefresh(promise);
                 return promise;
             }
@@ -169,7 +154,7 @@ public final class AsyncWebIdentityCredentialsProvider implements AwsCredentials
         logger.trace("refreshing workload-identity credentials for role [{}]", roleArn);
         requestToken().thenCompose(this::requestCredentials).thenApply(this::toCached).whenComplete((cached, failure) -> {
             // Clear the in-flight slot first so a later call can start a fresh refresh regardless of outcome.
-            inFlight.compareAndSet(promise, null);
+            inFlight.set(null);
             if (failure != null) {
                 // Keep whatever is cached untouched; only the in-flight slot is reset above.
                 Throwable unwrapped = unwrap(failure);
@@ -209,6 +194,9 @@ public final class AsyncWebIdentityCredentialsProvider implements AwsCredentials
 
     private Cached toCached(AssumeRoleWithWebIdentityResponse response) {
         Credentials credentials = response.credentials();
+        if (credentials == null) {
+            throw new IllegalStateException("STS AssumeRoleWithWebIdentity response did not include credentials");
+        }
         Instant expiry = credentials.expiration();
         if (expiry == null) {
             throw new IllegalStateException("STS AssumeRoleWithWebIdentity response did not include a credential expiry");

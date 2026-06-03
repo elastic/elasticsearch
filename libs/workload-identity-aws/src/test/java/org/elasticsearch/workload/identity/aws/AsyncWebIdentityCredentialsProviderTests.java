@@ -25,7 +25,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -145,49 +144,26 @@ public class AsyncWebIdentityCredentialsProviderTests extends ESTestCase {
         assertEquals("AK-3", resolve(provider).accessKeyId());
     }
 
-    public void testSyncBridgeResolvesCredentials() {
-        CountingExchanger exchanger = new CountingExchanger(clock::instant);
-        AsyncWebIdentityCredentialsProvider provider = newProvider(exchanger);
-
-        assertEquals("AK-1", provider.resolveCredentials().accessKeyId());
-    }
-
-    public void testSyncBridgePropagatesRuntimeExceptionUnwrapped() {
-        RuntimeException boom = new IllegalStateException("sts boom");
-        AsyncWebIdentityCredentialsProvider provider = newProvider(failingExchanger(boom));
-
-        // The sync bridge must rethrow the original RuntimeException, not a CompletionException wrapper.
-        RuntimeException thrown = expectThrows(RuntimeException.class, provider::resolveCredentials);
-        assertSame(boom, thrown);
-    }
-
-    public void testSyncBridgePropagatesErrorUnwrapped() {
-        Error boom = new Error("synthetic error");
-        AsyncWebIdentityCredentialsProvider provider = newProvider(failingExchanger(boom));
-
-        // Errors must propagate with their true type preserved rather than being demoted to a RuntimeException.
-        Error thrown = expectThrows(Error.class, provider::resolveCredentials);
-        assertSame(boom, thrown);
-    }
-
-    public void testSyncBridgeWrapsCheckedExceptionInCompletionException() {
+    public void testTokenSupplierFailurePropagatesToFuture() {
         Exception checked = new Exception("token read failed");
         AsyncWebIdentityCredentialsProvider provider = baseBuilder(new CountingExchanger(clock::instant)).tokenSupplier(
             listener -> listener.onFailure(checked)
         ).build();
 
-        // A checked exception is neither a RuntimeException nor an Error, so the bridge surfaces it wrapped.
-        CompletionException thrown = expectThrows(CompletionException.class, provider::resolveCredentials);
+        // A failure sourcing the OIDC token must surface as the future's failure, unwrapped from any CompletionException.
+        CompletableFuture<? extends AwsCredentialsIdentity> failing = provider.resolveIdentity(ResolveIdentityRequest.builder().build());
+        ExecutionException thrown = expectThrows(ExecutionException.class, failing::get);
         assertSame(checked, thrown.getCause());
     }
 
-    private static StubStsAsyncClient failingExchanger(Throwable failure) {
+    /** Returns the same already-completed response for every exchange. */
+    private static StubStsAsyncClient respondingWith(AssumeRoleWithWebIdentityResponse response) {
         return new StubStsAsyncClient() {
             @Override
             public CompletableFuture<AssumeRoleWithWebIdentityResponse> assumeRoleWithWebIdentity(
                 AssumeRoleWithWebIdentityRequest request
             ) {
-                return CompletableFuture.failedFuture(failure);
+                return CompletableFuture.completedFuture(response);
             }
         };
     }
@@ -217,20 +193,37 @@ public class AsyncWebIdentityCredentialsProviderTests extends ESTestCase {
     }
 
     public void testRejectsAlreadyExpiredStsCredentials() {
-        StubStsAsyncClient exchanger = new StubStsAsyncClient() {
-            @Override
-            public CompletableFuture<AssumeRoleWithWebIdentityResponse> assumeRoleWithWebIdentity(
-                AssumeRoleWithWebIdentityRequest request
-            ) {
-                return CompletableFuture.completedFuture(response("AK-stale", clock.instant().minus(Duration.ofSeconds(1))));
-            }
-        };
+        StubStsAsyncClient exchanger = respondingWith(response("AK-stale", clock.instant().minus(Duration.ofSeconds(1))));
         AsyncWebIdentityCredentialsProvider provider = newProvider(exchanger);
 
         CompletableFuture<? extends AwsCredentialsIdentity> failing = provider.resolveIdentity(ResolveIdentityRequest.builder().build());
         ExecutionException thrown = expectThrows(ExecutionException.class, failing::get);
         assertTrue(thrown.getCause() instanceof IllegalStateException);
         assertTrue(thrown.getCause().getMessage(), thrown.getCause().getMessage().contains("already expired"));
+    }
+
+    public void testRejectsResponseWithoutCredentials() {
+        StubStsAsyncClient exchanger = respondingWith(AssumeRoleWithWebIdentityResponse.builder().build());
+        AsyncWebIdentityCredentialsProvider provider = newProvider(exchanger);
+
+        CompletableFuture<? extends AwsCredentialsIdentity> failing = provider.resolveIdentity(ResolveIdentityRequest.builder().build());
+        ExecutionException thrown = expectThrows(ExecutionException.class, failing::get);
+        assertTrue(thrown.getCause() instanceof IllegalStateException);
+        assertTrue(thrown.getCause().getMessage(), thrown.getCause().getMessage().contains("did not include credentials"));
+    }
+
+    public void testRejectsCredentialsWithoutExpiry() {
+        StubStsAsyncClient exchanger = respondingWith(
+            AssumeRoleWithWebIdentityResponse.builder()
+                .credentials(Credentials.builder().accessKeyId("AK").secretAccessKey("secret").sessionToken("token").build())
+                .build()
+        );
+        AsyncWebIdentityCredentialsProvider provider = newProvider(exchanger);
+
+        CompletableFuture<? extends AwsCredentialsIdentity> failing = provider.resolveIdentity(ResolveIdentityRequest.builder().build());
+        ExecutionException thrown = expectThrows(ExecutionException.class, failing::get);
+        assertTrue(thrown.getCause() instanceof IllegalStateException);
+        assertTrue(thrown.getCause().getMessage(), thrown.getCause().getMessage().contains("did not include a credential expiry"));
     }
 
     private AsyncWebIdentityCredentialsProvider newProvider(StsAsyncClient stsAsyncClient) {

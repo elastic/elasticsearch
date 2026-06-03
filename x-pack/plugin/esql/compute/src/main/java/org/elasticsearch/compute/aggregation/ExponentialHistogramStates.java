@@ -13,17 +13,17 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BreakingExponentialHistogramHolder;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.CompressedExponentialHistogramHolder;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 
 public final class ExponentialHistogramStates {
 
-    private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
+    public record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
         public void adjustBreaker(long bytesAllocated) {
             if (bytesAllocated < 0) {
@@ -196,12 +196,12 @@ public final class ExponentialHistogramStates {
      */
     public static final class WithLongSingleState implements AggregatorState {
 
-        private final CircuitBreaker breaker;
+        private final ExponentialHistogramCircuitBreaker breaker;
         private long longValue;
-        private BreakingExponentialHistogramHolder histogramValue;
+        private CompressedExponentialHistogramHolder histogramValue;
 
         public WithLongSingleState(CircuitBreaker breaker) {
-            this.breaker = breaker;
+            this.breaker = new HistoBreaker(breaker);
         }
 
         public boolean isSeen() {
@@ -217,7 +217,7 @@ public final class ExponentialHistogramStates {
             assert histogram != null;
             this.longValue = longValue;
             if (histogramValue == null) {
-                histogramValue = BreakingExponentialHistogramHolder.create(breaker);
+                histogramValue = CompressedExponentialHistogramHolder.create(breaker);
             }
             histogramValue.set(histogram);
         }
@@ -261,13 +261,13 @@ public final class ExponentialHistogramStates {
     public static final class WithLongGroupingState implements GroupingAggregatorState {
 
         private LongArray longValues;
-        private ObjectArray<BreakingExponentialHistogramHolder> histogramValues;
-        private final CircuitBreaker breaker;
+        private ObjectArray<CompressedExponentialHistogramHolder> histogramValues;
+        private final ExponentialHistogramCircuitBreaker breaker;
         private final BigArrays bigArrays;
 
         WithLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             LongArray longValues = null;
-            ObjectArray<BreakingExponentialHistogramHolder> histogramValues = null;
+            ObjectArray<CompressedExponentialHistogramHolder> histogramValues = null;
             boolean success = false;
             try {
                 longValues = bigArrays.newLongArray(1);
@@ -281,15 +281,15 @@ public final class ExponentialHistogramStates {
             this.longValues = longValues;
             this.histogramValues = histogramValues;
             this.bigArrays = bigArrays;
-            this.breaker = breaker;
+            this.breaker = new HistoBreaker(breaker);
         }
 
         public void set(int groupId, long longValue, ExponentialHistogram histogramValue) {
             assert histogramValue != null;
             ensureCapacity(groupId);
-            BreakingExponentialHistogramHolder holder = histogramValues.get(groupId);
+            CompressedExponentialHistogramHolder holder = histogramValues.get(groupId);
             if (holder == null) {
-                holder = BreakingExponentialHistogramHolder.create(breaker);
+                holder = CompressedExponentialHistogramHolder.create(breaker);
                 histogramValues.set(groupId, holder);
             }
             holder.set(histogramValue);
@@ -374,7 +374,7 @@ public final class ExponentialHistogramStates {
     public static final class SeenSingleState implements AggregatorState {
 
         private final CircuitBreaker breaker;
-        private BreakingExponentialHistogramHolder histogramValue;
+        private CompressedExponentialHistogramHolder histogramValue;
 
         public SeenSingleState(CircuitBreaker breaker) {
             this.breaker = breaker;
@@ -387,7 +387,7 @@ public final class ExponentialHistogramStates {
         public void set(ExponentialHistogram histogram) {
             assert histogram != null;
             if (histogramValue == null) {
-                histogramValue = BreakingExponentialHistogramHolder.create(breaker);
+                histogramValue = CompressedExponentialHistogramHolder.create(new HistoBreaker(breaker));
             }
             histogramValue.set(histogram);
         }
@@ -430,7 +430,7 @@ public final class ExponentialHistogramStates {
      */
     public static final class SeenGroupingState implements GroupingAggregatorState {
 
-        private ObjectArray<BreakingExponentialHistogramHolder> histogramValues;
+        private ObjectArray<CompressedExponentialHistogramHolder> histogramValues;
         private final CircuitBreaker breaker;
         private final BigArrays bigArrays;
 
@@ -443,9 +443,9 @@ public final class ExponentialHistogramStates {
         public void set(int groupId, ExponentialHistogram histogramValue) {
             assert histogramValue != null;
             ensureCapacity(groupId);
-            BreakingExponentialHistogramHolder holder = histogramValues.get(groupId);
+            CompressedExponentialHistogramHolder holder = histogramValues.get(groupId);
             if (holder == null) {
-                holder = BreakingExponentialHistogramHolder.create(breaker);
+                holder = CompressedExponentialHistogramHolder.create(new HistoBreaker(breaker));
                 histogramValues.set(groupId, holder);
             }
             holder.set(histogramValue);

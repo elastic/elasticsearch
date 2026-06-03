@@ -11,7 +11,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -51,12 +50,10 @@ import java.util.Set;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldCapabilitiesIndexResponse;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.fieldResponseMap;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexResolutions;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.mergedResolution;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-public class AnalyzerUnmappedTests extends ESTestCase {
+public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
 
     /**
      * Query suffixes that use the unsupported type-conflict field [message] in different commands.
@@ -193,7 +190,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             """, "line 4:8: Unknown column [does_not_exist]");
     }
 
-    // unmapped_fields="load" disallows subqueries and LOOKUP JOIN (see #142033)
+    // unmapped_fields="load" disallows subqueries (see #142033); LOOKUP JOIN is allowed
     public void testSubquerysMixAndLookupJoinLoad() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
 
@@ -217,12 +214,10 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     | MV_EXPAND languageCode
                     """),
                 allOf(
-                    containsString("Found 4 problems"),
+                    containsString("Found 3 problems"),
                     containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     containsString("line 5:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    containsString("line 9:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
-                    not(containsString("FORK is not supported"))
+                    containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\"")
                 )
             );
     }
@@ -425,30 +420,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         );
     }
 
-    public void testLoadModeDisallowsLookupJoin() {
-        assertUnmappedLoadError(
-            test().addLanguagesLookup(),
-            "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code",
-            containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
-        );
-    }
-
-    public void testNullifyLookupJoinUnknownLeftField() {
-        test().addLanguagesLookup()
-            .statementError(
-                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON language_code"),
-                containsString("Unknown column [language_code] in left side of join")
-            );
-    }
-
-    public void testNullifyLookupJoinUnknownRightField() {
-        test().addLanguagesLookup()
-            .statementError(
-                setUnmappedNullify("FROM test | LOOKUP JOIN languages_lookup ON does_not_exist"),
-                containsString("Unknown column [does_not_exist] in right side of join")
-            );
-    }
-
     public void testNullifyLookupJoinExpressionWithNullifiedFields() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",
@@ -470,32 +441,56 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
-    public void testLoadModeDisallowsLookupJoinAfterFilter() {
-        assertUnmappedLoadError(test().addLanguagesLookup(), """
+    // Regression for #142026.
+    public void testNullifyUnmappedFieldOutsideLookupJoinDoesNotPanic() {
+        test().addLanguagesLookup()
+            .statement(
+                setUnmappedNullify(
+                    "FROM test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code | EVAL x = does_not_exist"
+                )
+            );
+    }
+
+    // Regression for #142026.
+    public void testTwoLookupJoinsWhereFirstKeyUnknownDoesNotPanic() {
+        test().addLanguagesLookup()
+            .statementError(
+                "FROM test | LOOKUP JOIN languages_lookup ON unknown_field | EVAL language_code = languages"
+                    + " | LOOKUP JOIN languages_lookup ON language_code",
+                containsString("Unknown column [unknown_field] in left side of join")
+            );
+    }
+
+    // Regression: multi-key LOOKUP JOIN where one key resolves and another doesn't in iteration 1.
+    // Iteration 2 entered resolveUsingColumns with [resolved, unresolved] and crashed on the cast.
+    public void testMultiKeyLookupJoinWithMixedResolution_doesNotPanic() {
+        test().addLanguagesLookup()
+            .statement(
+                setUnmappedNullify(
+                    "FROM test | EVAL language_code = languages "
+                        + "| LOOKUP JOIN languages_lookup ON language_code, language_name "
+                        + "| EVAL x = does_not_exist"
+                )
+            );
+    }
+
+    public void testLoadLookupJoinAfterFilter_Works() {
+        test().addLanguagesLookup().statement(setUnmappedLoad("""
             FROM test
             | WHERE emp_no > 1
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
             | KEEP emp_no, language_name
-            """, containsString("LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
+            """));
     }
 
-    public void testLoadModeDisallowsForkAndLookupJoin() {
-        test().addLanguagesLookup()
-            .statementError(
-                setUnmappedLoad("""
-                    FROM test
-                    | EVAL language_code = languages
-                    | LOOKUP JOIN languages_lookup ON language_code
-                    | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                    """),
-                allOf(
-                    containsString("Found 3 problems"),
-                    containsString("line 4:3: FORK is not supported with unmapped_fields=\"load\""),
-                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
-                    containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
-                )
-            );
+    public void testLoadForkWithLookupJoin_ForkErrors() {
+        test().addLanguagesLookup().statementError(setUnmappedLoad("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """), allOf(containsString("Found 1 problem"), containsString("FORK is not supported with unmapped_fields=\"load\"")));
     }
 
     public void testLoadMode_AllowsSingleSubqueryInFrom() {
@@ -582,9 +577,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                     | LOOKUP JOIN languages_lookup ON language_code)
                 """,
             allOf(
-                containsString("Found 2 problems"),
-                containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                containsString("line 4:19: LOOKUP JOIN is not supported with unmapped_fields=\"load\"")
+                containsString("Found 1 problem"),
+                containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\"")
             )
         );
     }
@@ -886,7 +880,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     public void testTbucketWithUnmappedTimestampWithFork() {
         var query = "FROM test | FORK (STATS c = COUNT(*) BY tbucket(1 hour)) (STATS d = COUNT(*) BY emp_no)";
         for (var statement : List.of(setUnmappedNullify(query), setUnmappedLoad(query))) {
-            test().statementError(statement, allOf(containsString("[tbucket(1 hour)] "), not(containsString("FORK is not supported"))));
+            test().statementError(statement, containsString("[tbucket(1 hour)] "));
         }
     }
 
@@ -1001,8 +995,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                                 + "field, which was either not present in the source index, "
                                 + "or has been dropped or renamed; the [unmapped_fields] "
                                 + "setting does not apply to the implicit @timestamp reference"
-                        ),
-                        not(containsString("LOOKUP JOIN is not supported"))
+                        )
                     )
                 );
         }
@@ -1140,8 +1133,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
                 | EVAL x = field.languages
                 """,
             allOf(
-                containsString("Found 2 problems"),
-                containsString("line 3:15: LOOKUP JOIN is not supported with unmapped_fields=\"load\""),
+                containsString("Found 1 problem"),
                 containsString(
                     "line 4:12: Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
                         + "unmapped_fields=\"load\""
@@ -1492,6 +1484,7 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         }
     }
 
+
     /**
      * Assert that the plan contains exactly one {@code MultiTypeEsField} of the passed type. This is a proxy to the idea that
      * the two-legged PUNK was correctly resolved by the analyzer rule.
@@ -1582,20 +1575,6 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         return new EsField(name, DataType.DOUBLE, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
-    private static EsField keywordField(String name) {
-        return new EsField(name, DataType.KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
-    }
-
-    private static String setUnmappedNullify(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
-        return "SET unmapped_fields=\"nullify\"; " + query;
-    }
-
-    private static String setUnmappedLoad(String query) {
-        assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
-        return "SET unmapped_fields=\"load\"; " + query;
-    }
-
     /**
      * Reproducer for #141927: with unmapped_fields=load, full-text search (MATCH, match operator, MATCH_PHRASE, etc.)
      * must fail at analysis instead of returning empty results.
@@ -1678,8 +1657,4 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         return containsString("Using partially unmapped non-KEYWORD field [" + fieldName + "]");
     }
 
-    @Override
-    protected List<String> filteredWarnings() {
-        return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
-    }
 }

@@ -19,6 +19,7 @@ final class SingletonSortedBinaryDocValues extends SortedBinaryDocValues {
     private final BinaryDocValues in;
 
     SingletonSortedBinaryDocValues(BinaryDocValues in) {
+        super(in);
         this.in = in;
     }
 

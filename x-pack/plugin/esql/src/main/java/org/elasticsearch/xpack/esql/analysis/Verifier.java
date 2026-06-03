@@ -467,7 +467,7 @@ public class Verifier {
     }
 
     /**
-     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, LOOKUP JOIN, subqueries/views).
+     * {@code unmapped_fields="load"} does not yet support branching commands (FORK, subqueries/views).
      * See https://github.com/elastic/elasticsearch/issues/142033
      */
     private static void checkLoadModeDisallowedCommands(LogicalPlan plan, Failures failures) {
@@ -477,9 +477,6 @@ public class Verifier {
             }
             if (p instanceof Subquery) {
                 failures.add(fail(p, "Subqueries and views are not supported with unmapped_fields=\"load\""));
-            }
-            if (p instanceof EsRelation esRelation && esRelation.indexMode() == IndexMode.LOOKUP) {
-                failures.add(fail(p, "LOOKUP JOIN is not supported with unmapped_fields=\"load\""));
             }
             if (p instanceof TimeSeriesAggregate ts && ts.origin() == TimeSeriesAggregate.Origin.PROMQL_COMMAND) {
                 failures.add(fail(p, "PROMQL is not supported with unmapped_fields=\"load\""));

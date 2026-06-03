@@ -361,12 +361,12 @@ public class AnalyzerExternalTests extends ESTestCase {
     public void testStandardMetadataDataTierSnapshotOnly() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
-        DataType registered = MetadataAttribute.dataType("_data_tier");
+        DataType registered = MetadataAttribute.dataType("_tier");
         boolean snapshotOnly = registered == null;
 
-        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_data_tier"), "my_dataset"));
+        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_tier"), "my_dataset"));
 
-        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_data_tier"));
+        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));
         if (snapshotOnly) {
             assertFalse("_data_tier must not bind outside snapshot builds", bound);
         } else {

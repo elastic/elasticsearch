@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -24,7 +25,7 @@ import java.util.Set;
  * {@code _version}, ...) that the external-source pipeline knows how to materialise on
  * external datasets. The data types are sourced from
  * {@link MetadataAttribute#ATTRIBUTES_MAP} so the binding here and in the analyzer
- * always agree (including snapshot-only entries such as {@code _data_tier}).
+ * always agree (including snapshot-only entries such as {@code _tier}).
  * <p>
  * Sibling to {@link FileMetadataColumns} ({@code _file.*}), kept separate because the standard
  * names here are request-driven (via {@code METADATA}) while {@code _file.*} are
@@ -46,7 +47,6 @@ public final class ExternalMetadataColumns {
     public static final String INDEX_MODE = "_index_mode";
     public static final String TSID = "_tsid";
     public static final String SIZE = "_size";
-    public static final String DATA_TIER = "_data_tier";
 
     /**
      * Names of standard metadata columns that are materialised by the producer-side
@@ -67,9 +67,9 @@ public final class ExternalMetadataColumns {
         names.add(INDEX_MODE);
         names.add(TSID);
         names.add(SIZE);
-        // _data_tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; gate matches.
-        if (MetadataAttribute.isSupported(DATA_TIER)) {
-            names.add(DATA_TIER);
+        // _tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; gate matches.
+        if (MetadataAttribute.isSupported(DataTierFieldMapper.NAME)) {
+            names.add(DataTierFieldMapper.NAME);
         }
         PER_FILE_CONSTANT_NAMES = Collections.unmodifiableSet(names);
     }
@@ -143,7 +143,7 @@ public final class ExternalMetadataColumns {
         return switch (name) {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
             case VERSION -> version;
-            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DATA_TIER -> null;
+            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME -> null;
             // Names in PER_FILE_CONSTANT_NAMES enumerated above; ID and SOURCE are excluded
             // because they require per-row composition and go through different operator steps.
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);

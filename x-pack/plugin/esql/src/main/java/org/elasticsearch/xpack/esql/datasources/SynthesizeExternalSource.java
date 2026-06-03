@@ -10,11 +10,8 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -64,7 +61,6 @@ public final class SynthesizeExternalSource {
             return (BytesRefBlock) factory.newConstantNullBlock(0);
         }
         try (BytesRefBlock.Builder builder = factory.newBytesRefBlockBuilder(positions)) {
-            BytesRef scratch = new BytesRef();
             for (int row = 0; row < positions; row++) {
                 Map<String, Object> map = new LinkedHashMap<>(dataColumnNames.length);
                 for (int c = 0; c < dataColumnNames.length; c++) {
@@ -73,43 +69,24 @@ public final class SynthesizeExternalSource {
                         continue; // exclude framework-injected synthetic channels (e.g. _rowPosition)
                     }
                     Block block = dataColumnBlocks[c];
-                    if (block == null || block.isNull(row)) {
-                        // Omit null fields from _source rather than write JSON null, matching
-                        // the precedent set by SourceLoader for natively-indexed _source.
+                    if (block == null) {
                         continue;
                     }
-                    map.put(name, valueAt(block, row, scratch));
+                    // BlockUtils.toJavaObject returns null for null rows, a scalar for single-value
+                    // rows, and ArrayList<Object> for multi-value rows. Omitting null fields from
+                    // _source matches the precedent set by SourceLoader for natively-indexed
+                    // _source. BytesRef values pass through; XContentBuilder handles them as
+                    // UTF-8 strings when the map gets JSON-rendered.
+                    Object value = BlockUtils.toJavaObject(block, row);
+                    if (value == null) {
+                        continue;
+                    }
+                    map.put(name, value);
                 }
                 BytesRef bytes = Source.fromMap(map, XContentType.JSON).internalSourceRef().toBytesRef();
                 builder.appendBytesRef(bytes);
             }
             return builder.build();
         }
-    }
-
-    private static Object valueAt(Block block, int row, BytesRef scratch) {
-        // {@code getFirstValueIndex} is resolved inside each supported arm so blocks whose
-        // implementation throws from {@code getFirstValueIndex} (e.g. {@link
-        // org.elasticsearch.compute.data.CompositeBlock}) hit the explicit "unsupported block
-        // type" branch below instead of leaking an implementation-internal exception message.
-        return switch (block) {
-            case LongBlock l -> l.getLong(l.getFirstValueIndex(row));
-            case IntBlock i -> i.getInt(i.getFirstValueIndex(row));
-            case DoubleBlock d -> d.getDouble(d.getFirstValueIndex(row));
-            case BooleanBlock b -> b.getBoolean(b.getFirstValueIndex(row));
-            case BytesRefBlock br -> {
-                BytesRef out = br.getBytesRef(br.getFirstValueIndex(row), scratch);
-                // Render BytesRef as String — fromMap will JSON-encode it.
-                yield out.utf8ToString();
-            }
-            // Future Block subtypes (DenseVector, AggregateMetricDouble, ...) have no defined
-            // _source rendering on this code path; falling through to toString() would emit
-            // implementation-specific debug text into user-visible JSON. Fail loud so the new
-            // type's handling is added here intentionally rather than discovered as corrupt
-            // _source in production.
-            default -> throw new UnsupportedOperationException(
-                "_source synthesis does not support block type [" + block.getClass().getName() + "]"
-            );
-        };
     }
 }

@@ -141,12 +141,18 @@ public final class ExternalRowIdentity {
      * Decimal-encode {@code value} into {@code out} right-aligned. {@code out} must have at least
      * {@link #MAX_LONG_DIGITS} bytes. Returns the number of digits written.
      * <p>
-     * Non-positive inputs render as {@code 0}: legitimate physical row positions are strictly
-     * positive, so this absorbs corruption (negative values, an unmasked sentinel) into a valid
-     * placeholder instead of emitting a stray minus sign or empty field.
+     * Row position 0 is legitimate (the first row of a file) and renders as {@code "0"}. Negative
+     * inputs can only come from corruption (e.g. an unmasked sentinel) and render as {@code "0"}
+     * defensively; the {@code assert false} surfaces the bug class in CI while production stays
+     * resilient.
      */
     static int encodeDecimal(long value, byte[] out) {
-        if (value <= 0L) {
+        if (value < 0L) {
+            assert false : "ExternalRowIdentity.encodeDecimal called with negative value " + value;
+            out[MAX_LONG_DIGITS - 1] = (byte) '0';
+            return 1;
+        }
+        if (value == 0L) {
             out[MAX_LONG_DIGITS - 1] = (byte) '0';
             return 1;
         }

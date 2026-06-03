@@ -86,6 +86,7 @@ public class ExternalRowIdentityTests extends ESTestCase {
 
     public void testEncodeDecimal() {
         byte[] buf = new byte[19];
+        // Row 0 is a legitimate first row in a file and renders as '0'.
         assertEquals(1, ExternalRowIdentity.encodeDecimal(0L, buf));
         assertEquals('0', buf[18]);
 
@@ -93,11 +94,17 @@ public class ExternalRowIdentityTests extends ESTestCase {
         assertEquals('1', buf[16]);
         assertEquals('2', buf[17]);
         assertEquals('3', buf[18]);
+    }
 
-        // Negative defensively clamps to 0 (physical row positions are non-negative; defends against
-        // a silently-corrupted encoded value rather than emitting a stray minus sign).
-        assertEquals(1, ExternalRowIdentity.encodeDecimal(-7L, buf));
-        assertEquals('0', buf[18]);
+    /**
+     * Negative inputs can only come from corruption (e.g. an unmasked sentinel). The
+     * {@code assert false} surfaces the bug class in CI; the production-only fallthrough still
+     * renders {@code "0"} defensively. We exercise the assertion shape here so a future refactor
+     * that silently drops the assert is caught.
+     */
+    public void testEncodeDecimalAssertsOnNegative() {
+        byte[] buf = new byte[19];
+        expectThrows(AssertionError.class, () -> ExternalRowIdentity.encodeDecimal(-7L, buf));
     }
 
     private LongBlock positions(long... values) {

@@ -84,9 +84,11 @@ public class SynthesizeExternalSourceTests extends ESTestCase {
                     UnsupportedOperationException.class,
                     () -> SynthesizeExternalSource.composePage(names, blocks, 1, blockFactory)
                 );
+                // The error originates inside CompositeBlock.getValueCount, which BlockUtils
+                // calls during the toJavaObject dispatch — "Composite block" is its message.
                 assertTrue(
-                    "exception message must name the rejected block class: " + thrown.getMessage(),
-                    thrown.getMessage().contains("CompositeBlock")
+                    "exception message must identify the rejected block: " + thrown.getMessage(),
+                    thrown.getMessage().contains("Composite block") || thrown.getMessage().contains("COMPOSITE")
                 );
             }
         }

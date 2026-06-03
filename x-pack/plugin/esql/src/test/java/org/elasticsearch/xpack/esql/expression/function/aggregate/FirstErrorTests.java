@@ -37,7 +37,9 @@ public class FirstErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 true,
                 validPerPosition,
                 signature,
-                (v, p) -> p == 0 ? "boolean, date, ip, string or numeric except counter types" : "int or long or date_nanos or datetime"
+                (v, p) -> p == 0
+                    ? "boolean, date, dense_vector, exponential_histogram, ip, string, tdigest or numeric except counter types"
+                    : "int or long or date_nanos or datetime"
             )
         );
     }

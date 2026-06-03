@@ -136,6 +136,9 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
 
     @After
     public void cleanup() {
+        if (cluster().size() == 0) {
+            return;
+        }
         // Clear the default repository setting before teardown so that the repository can be deleted
         try {
             updateClusterSettings(Settings.builder().putNull(RepositoriesService.DEFAULT_REPOSITORY_SETTING.getKey()));
@@ -241,43 +244,42 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
         String expectedFrozenIndexName = DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX + candidateIndex;
         logger.info("--> waiting for frozen index [{}] to appear in data stream", expectedFrozenIndexName);
 
+        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+
         assertBusy(() -> {
-            // Verify the frozen index is now part of the data stream
+            // Fetch fresh cluster state and data stream state on every retry
+            ClusterStateResponse stateResp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+            var projectMetadata = stateResp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat("Project metadata should not be null", projectMetadata, notNullValue());
+
             GetDataStreamAction.Response dsResp = client().execute(
                 GetDataStreamAction.INSTANCE,
                 new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
             ).actionGet();
             assertThat(dsResp.getDataStreams().size(), equalTo(1));
-
             List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
+
+            // Frozen index must be in the data stream
             boolean frozenInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(expectedFrozenIndexName));
             assertThat("Frozen index should be in the data stream's backing indices", frozenInDataStream, is(true));
+
+            // Original and clone must be fully deleted (all three cleanup steps complete)
+            assertThat(
+                "Original index [" + candidateIndex + "] should have been deleted",
+                projectMetadata.index(candidateIndex),
+                nullValue()
+            );
+            assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
+            boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
+            assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
         }, 300, TimeUnit.SECONDS);
 
-        logger.info("--> frozen index [{}] is now in the data stream, verifying cleanup", expectedFrozenIndexName);
+        logger.info("--> frozen index [{}] is now in the data stream and cleanup is complete", expectedFrozenIndexName);
 
-        // --- Verify cleanup of original and clone indices ---
+        // Verify the frozen index exists in project metadata and has the DLM-created setting.
+        // These properties are stable once the frozen index is in the data stream, so a one-shot read is safe.
         ClusterStateResponse resp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
         var projectMetadata = resp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-        assertThat("Project metadata should not be null", projectMetadata, notNullValue());
-
-        // Verify the original index has been cleaned up (removed from cluster state)
-        assertThat("Original index [" + candidateIndex + "] should have been deleted", projectMetadata.index(candidateIndex), nullValue());
-
-        // Verify the clone index has been cleaned up
-        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
-        assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
-
-        // Verify the original index is no longer in the data stream
-        GetDataStreamAction.Response dsResp = client().execute(
-            GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
-        ).actionGet();
-        List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
-        boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
-        assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
-
-        // Verify the frozen index exists in project metadata and has the DLM-created setting
         IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
         assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
         assertThat(

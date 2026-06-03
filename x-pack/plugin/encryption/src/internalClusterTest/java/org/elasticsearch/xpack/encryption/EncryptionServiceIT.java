@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.junit.Before;
@@ -21,6 +23,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 3, supportsDedicatedMasters = false)
 public class EncryptionServiceIT extends SecurityIntegTestCase {
+
+    private static final String PASSWORD_ID = "v1";
+    private static final String PASSWORD = "encryption-test-password";
 
     @Before
     public void checkFeatureFlag() {
@@ -35,6 +40,19 @@ public class EncryptionServiceIT extends SecurityIntegTestCase {
         Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(EncryptionPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        // The encryption settings are only registered when the feature flag is enabled
+        if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            SecuritySettingsSource.addSecureSettings(builder, secure -> {
+                secure.setString(ProjectEncryptionKeyPasswordSettings.ACTIVE_PASSWORD_ID_KEY, PASSWORD_ID);
+                secure.setString(ProjectEncryptionKeyPasswordSettings.PASSWORD_PREFIX + PASSWORD_ID, PASSWORD);
+            });
+        }
+        return builder.build();
     }
 
     private void waitForKey() throws Exception {

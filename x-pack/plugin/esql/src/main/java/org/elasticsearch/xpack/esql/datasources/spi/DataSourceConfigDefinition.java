@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -25,22 +25,38 @@ import java.util.stream.Collectors;
  * @param caseInsensitive whether this field's values are case-insensitive (e.g. enum-like
  *                        fields like "auth"). Case-insensitive fields are normalized to
  *                        lowercase on input for consistent storage and comparison.
+ * @param keylessAuth whether this field contributes to keyless authentication (e.g. workload
+ *                    identity federation settings that replace explicit credentials). A field
+ *                    cannot be both {@code secret} and {@code keylessAuth}: the two represent
+ *                    mutually exclusive authentication kinds, and combining them on a single
+ *                    field would make it self-conflict during validation.
  */
-public record DataSourceConfigDefinition(String name, boolean secret, boolean caseInsensitive) {
+public record DataSourceConfigDefinition(String name, boolean secret, boolean caseInsensitive, boolean keylessAuth) {
+
+    public DataSourceConfigDefinition {
+        if (secret && keylessAuth) {
+            throw new IllegalArgumentException("field [" + name + "] cannot be both secret and keyless auth");
+        }
+    }
 
     /** A field that holds a credential. */
     public static DataSourceConfigDefinition secret(String name) {
-        return new DataSourceConfigDefinition(name, true, false);
+        return new DataSourceConfigDefinition(name, true, false, false);
     }
 
     /** A regular (non-secret) field. */
     public static DataSourceConfigDefinition plaintext(String name) {
-        return new DataSourceConfigDefinition(name, false, false);
+        return new DataSourceConfigDefinition(name, false, false, false);
     }
 
     /** Returns a copy whose values are treated as case-insensitive (normalized to lowercase on input). */
     public DataSourceConfigDefinition asCaseInsensitive() {
-        return new DataSourceConfigDefinition(name, secret, true);
+        return new DataSourceConfigDefinition(name, secret, true, keylessAuth);
+    }
+
+    /** Returns a copy that marks this field as contributing to keyless authentication. */
+    public DataSourceConfigDefinition asKeylessAuth() {
+        return new DataSourceConfigDefinition(name, secret, caseInsensitive, true);
     }
 
     /** Builds a definition map keyed by field name. Each name is typed once. */

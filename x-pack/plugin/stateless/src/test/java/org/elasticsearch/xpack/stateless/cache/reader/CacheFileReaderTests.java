@@ -29,9 +29,10 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.InputStream;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.stateless.TestUtils.newCacheService;
@@ -47,51 +48,18 @@ public class CacheFileReaderTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        threadPool = new TestThreadPool("CacheFileReaderTests", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, true));
+    @Before
+    public void startThreadPool() throws Exception {
+        threadPool = new TestThreadPool("CacheFileReaderTests", StatelessPlugin.statelessExecutorBuilders(Settings.EMPTY, randomBoolean()));
     }
 
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+    @After
+    public void stopThreadPool() throws Exception {
+        assertTrue(terminate(threadPool));
     }
 
-    public void testTryPrefetchOnIndexingNodeIsNoOp() throws Exception {
-        Settings settings = nodeSettings("index");
-        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
-
-        try (
-            NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-            StatelessSharedBlobCacheService service = newCacheService(env, settings, threadPool)
-        ) {
-            String fileName = "no-op-prefetch";
-            byte[] blob = randomByteArrayOfLength(BLOB_LENGTH);
-            FileCacheKey cacheKey = new FileCacheKey(new ShardId(new Index("idx", "uid"), 0), 1L, fileName);
-            AtomicInteger fetchCount = new AtomicInteger();
-            CacheBlobReader reader = countingObjectStoreReader(fileName, blob, service.getRangeSize(), fetchCount);
-            CacheFileReader cacheFileReader = new CacheFileReader(
-                service.getCacheFile(cacheKey, blob.length, SharedBlobCacheService.CacheMissHandler.NOOP),
-                reader,
-                createBlobFileRanges(1L, 0L, 0, blob.length),
-                metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
-            );
-
-            assertFalse("indexing node tryPrefetch must report false", cacheFileReader.tryPrefetch(0L, blob.length));
-            assertThat("indexing node must not fetch from blob store", fetchCount.get(), equalTo(0));
-            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.AlreadyCached, 0);
-            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Fetched, 0);
-            assertPrefetchMetric(meterRegistry, BlobCacheMetrics.PrefetchResult.Failed, 0);
-        }
-    }
-
-    public void testTryPrefetchOnSearchNodeFetchesAndPrefetches() throws Exception {
-        Settings settings = nodeSettings("search");
+    public void testTryPrefetchFetches() throws Exception {
+        Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
 
@@ -109,8 +77,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
+                System::currentTimeMillis
             );
 
             assertFalse("first call should miss the fast path", cacheFileReader.tryPrefetch(0L, blob.length));
@@ -127,7 +94,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchRecordsFailure() throws Exception {
-        Settings settings = nodeSettings("search");
+        Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
 
@@ -154,8 +121,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
+                System::currentTimeMillis
             );
 
             assertFalse(cacheFileReader.tryPrefetch(0L, blob.length));
@@ -166,7 +132,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchWithOversizedFileLength() throws Exception {
-        Settings settings = nodeSettings("search");
+        Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
 
@@ -184,8 +150,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
+                System::currentTimeMillis
             );
 
             long oversizedLength = (long) blob.length * 1024L;
@@ -201,7 +166,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchPastEOF() throws Exception {
-        Settings settings = nodeSettings("search");
+        Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
 
@@ -219,8 +184,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
+                System::currentTimeMillis
             );
 
             long offsetAtOrPastEof = randomBoolean() ? blob.length : blob.length + randomLongBetween(1L, 1024L);
@@ -233,7 +197,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchNonPositiveLength() throws Exception {
-        Settings settings = nodeSettings("search");
+        Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
 
@@ -251,8 +215,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
+                System::currentTimeMillis
             );
 
             long nonPositiveLength = randomBoolean() ? 0L : -randomLongBetween(1L, 1024L);
@@ -265,7 +228,7 @@ public class CacheFileReaderTests extends ESTestCase {
     }
 
     public void testTryPrefetchOversizedLengthIsLimited() throws Exception {
-        Settings settings = nodeSettings("search");
+        Settings settings = nodeSettings();
         RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(meterRegistry);
 
@@ -283,8 +246,7 @@ public class CacheFileReaderTests extends ESTestCase {
                 reader,
                 createBlobFileRanges(1L, 0L, 0, blob.length),
                 metrics,
-                System::currentTimeMillis,
-                service.hasSearchRole()
+                System::currentTimeMillis
             );
 
             long midFileOffset = randomLongBetween(1L, blob.length - 1);
@@ -312,9 +274,8 @@ public class CacheFileReaderTests extends ESTestCase {
         };
     }
 
-    private Settings nodeSettings(String role) {
+    private Settings nodeSettings() {
         return Settings.builder()
-            .putList("node.roles", role)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
             .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .put(

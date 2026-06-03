@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Minimal {@link DocumentParserContext} used by the bulk batch-indexing fast path. It holds a
@@ -78,6 +79,11 @@ final class BatchDocumentParserContext extends DocumentParserContext {
     @Override
     public Iterable<LuceneDocument> nonRootDocuments() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        return List.of(document);
     }
 
     @Override

@@ -121,21 +121,14 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
                 )
             )
         );
-        assertThat(
-            e.getMessage(),
-            containsString("[doc_values.skippers] cannot be enabled when [doc_values.cardinality] is [high]")
-        );
+        assertThat(e.getMessage(), containsString("[doc_values.skippers] cannot be enabled when [doc_values.cardinality] is [high]"));
     }
 
     public void testSkippersAcceptedWhenCardinalityLow() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         MapperService mapperService = createMapperService(
             fieldMapping(
-                b -> b.field("type", "keyword")
-                    .startObject("doc_values")
-                    .field("cardinality", "low")
-                    .field("skippers", true)
-                    .endObject()
+                b -> b.field("type", "keyword").startObject("doc_values").field("cardinality", "low").field("skippers", true).endObject()
             )
         );
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");

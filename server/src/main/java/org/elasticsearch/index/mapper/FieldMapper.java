@@ -1587,9 +1587,7 @@ public abstract class FieldMapper extends Mapper {
                 if (Boolean.TRUE.equals(v)
                     && cardinalityParameter.isPresent()
                     && cardinalityParameter.get().getValue() == Values.Cardinality.HIGH) {
-                    throw new IllegalArgumentException(
-                        "[doc_values.skippers] cannot be enabled when [doc_values.cardinality] is [high]"
-                    );
+                    throw new IllegalArgumentException("[doc_values.skippers] cannot be enabled when [doc_values.cardinality] is [high]");
                 }
             });
         }
@@ -1634,12 +1632,7 @@ public abstract class FieldMapper extends Mapper {
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
                     setValue(
-                        new Values(
-                            true,
-                            getDefaultValue().cardinality(),
-                            getDefaultValue().multiValue(),
-                            getDefaultValue().skippers()
-                        )
+                        new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue(), getDefaultValue().skippers())
                     );
                 } else {
                     setValue(Values.DISABLED);

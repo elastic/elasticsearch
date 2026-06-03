@@ -734,3 +734,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/150678
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/150686

@@ -23,6 +23,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
@@ -77,9 +79,10 @@ public final class DatasetRewriter {
 
     /**
      * Per-relation engine-side resolution, run from the {@code EsqlResolveDatasetAction} body. Returns the authorized
-     * dataset names, whether the relation also targets non-dataset abstractions (drives mixed-FROM rejection), and the
-     * explicitly-named-but-unauthorized datasets — which {@link #rewriteOne} surfaces as {@code Unknown index} (400),
-     * the same error a missing index gives, so an unauthorized dataset can't be told apart from a missing name.
+     * dataset names, the concrete non-dataset names resolved from the same pattern (used in heterogeneous-FROM
+     * {@link UnionAll} building), and the explicitly-named-but-unauthorized datasets — which {@link #rewriteOne}
+     * surfaces as {@code Unknown index} (400), the same error a missing index gives, so an unauthorized dataset
+     * can't be told apart from a missing name.
      */
     public static DatasetResolution resolve(
         String[] authorizedIndices,
@@ -106,17 +109,17 @@ public final class DatasetRewriter {
             true
         ).getLocalIndicesList();
 
-        boolean hasNonDatasetTargets = false;
+        Set<String> nonDatasetNames = new LinkedHashSet<>();
         Set<String> rawDatasetNames = new LinkedHashSet<>();
         for (String name : localNames) {
             IndexAbstraction abs = indicesLookup.get(name);
             if (abs == null) {
-                continue; // synthesized name (date math) — neither; skipping doesn't suppress mixed-FROM rejection
+                continue; // synthesized name (date math) — neither; skipping is safe for the non-dataset set
             }
             if (abs.getType() == IndexAbstraction.Type.DATASET) {
                 rawDatasetNames.add(name);
             } else {
-                hasNonDatasetTargets = true;
+                nonDatasetNames.add(name);
             }
         }
 
@@ -135,7 +138,7 @@ public final class DatasetRewriter {
 
         Set<String> result = new LinkedHashSet<>(rawDatasetNames);
         result.retainAll(authorizedDatasets);
-        return new DatasetResolution(result, hasNonDatasetTargets, explicitUnauthorized);
+        return new DatasetResolution(result, nonDatasetNames, explicitUnauthorized);
     }
 
     /** Minimal {@link IndicesRequest} carrier so {@link IndexNameExpressionResolver#datasets} can read the names. */
@@ -200,8 +203,8 @@ public final class DatasetRewriter {
      * {@link DatasetResolution} computed engine-side by {@link #resolve}. All other relations are left untouched. The
      * {@code projectMetadata == null} / no-datasets-registered short-circuits avoid touching the common path.
      *
-     * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets), non-{@code STANDARD}
-     * {@link IndexMode} on a dataset, or {@code UnionAll} branch-cap exceeded. Designed
+     * <p>Throws {@link VerificationException} for: non-{@code STANDARD} {@link IndexMode} on a dataset, or
+     * {@code UnionAll} branch-cap exceeded. Designed
      * to run once on the parsed plan before pre-analysis (so the analyzer sees a uniform
      * {@code UnresolvedExternalRelation} tree regardless of whether the user wrote {@code FROM <dataset>} or inline
      * {@code EXTERNAL}).
@@ -249,7 +252,7 @@ public final class DatasetRewriter {
             throw new VerificationException("Unknown index [" + resolution.explicitUnauthorized().iterator().next() + "]");
         }
 
-        List<String> datasetNames = new ArrayList<>(resolution.authorizedDatasets());
+        Set<String> datasetNames = resolution.authorizedDatasets();
 
         if (datasetNames.isEmpty()) {
             // Nothing authorized (or matched) here: the relation flows through to index resolution unchanged. Note this
@@ -269,47 +272,57 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
-        if (resolution.hasNonDatasetTargets()) {
-            // Counts only in the user-facing message (names may be unreadable to the caller); full names go to DEBUG for
-            // operator triage. Rejection demanded by heterogeneous FROM (datasets + indices/aliases/data-streams).
+        Set<String> nonDatasetNamesList = resolution.nonDatasetNames();
+        if (nonDatasetNamesList.isEmpty() == false) {
+            // Heterogeneous FROM: indices and datasets in the same FROM clause.
+            // Build UnionAll(UnresolvedRelation(indices), UnresolvedExternalRelation(ds1), UnresolvedExternalRelation(ds2), ...).
             logger.debug(
-                "DatasetRewriter rejecting mixed FROM: pattern=[{}] datasets={} (relation also targets non-dataset abstractions)",
+                "DatasetRewriter building heterogeneous UnionAll: pattern=[{}] datasets={} non-datasets={}",
                 relation.indexPattern().indexPattern(),
-                datasetNames
+                datasetNames,
+                nonDatasetNamesList
             );
-            throw new VerificationException(
-                "FROM mixing datasets and non-datasets is not supported; the pattern also matched non-dataset target(s) "
-                    + "alongside "
-                    + datasetNames.size()
-                    + " dataset(s)"
-            );
-        }
-        List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
-        for (String name : datasetNames) {
-            Dataset dataset = datasets.get(name);
-            DataSource parent = dataSources.get(dataset.dataSource().getName());
-            // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
-            // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
-            if (parent == null) {
-                throw new IllegalStateException(
-                    "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
+            int totalBranches = 1 + datasetNames.size(); // 1 index branch + one per dataset
+            if (Fork.exceedsMaxBranches(totalBranches)) {
+                throw new VerificationException(
+                    "FROM ["
+                        + relation.indexPattern().indexPattern()
+                        + "] matched "
+                        + datasetNames.size()
+                        + " dataset(s) and "
+                        + nonDatasetNamesList.size()
+                        + " non-dataset index/alias(es); total "
+                        + totalBranches
+                        + " branches exceeds the current limit of "
+                        + Fork.MAX_BRANCHES
+                        + " per FROM. Narrow the pattern, exclude some datasets, or split into multiple queries."
                 );
             }
-            Map<String, Object> merged = mergeSettings(parent, dataset);
-            Literal path = Literal.keyword(relation.source(), dataset.resource());
-            // Thread the user's METADATA clause through to the external leaf so
-            // ResolveExternalRelations binds each requested name to an ExternalMetadataAttribute of
-            // the type registered in MetadataAttribute.ATTRIBUTES_MAP. Every name in that map is
-            // accepted on external datasets; values are framework-synthesized by the COMPOSED path.
-            // The dataset name rides alongside so the per-file _index synthesizer can populate
-            // _index with the user-facing identifier rather than the underlying resource path.
-            children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
+            List<LogicalPlan> branches = new ArrayList<>(totalBranches);
+            // Index branch: concrete resolved non-dataset names, joined for the index resolver.
+            branches.add(
+                new UnresolvedRelation(
+                    relation.source(),
+                    new IndexPattern(relation.source(), String.join(",", nonDatasetNamesList)),
+                    relation.frozen(),
+                    List.of(),
+                    relation.indexMode(),
+                    null
+                )
+            );
+            for (String name : datasetNames) {
+                branches.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
+            }
+            return new UnionAll(relation.source(), branches, List.of());
+        }
+        // Dataset-only case: all resolved names are datasets.
+        List<LogicalPlan> children = new ArrayList<>(datasetNames.size());
+        for (String name : datasetNames) {
+            children.add(buildDatasetBranch(name, datasets, dataSources, relation.source(), relation.metadataFields()));
         }
         // Cross-project (CPS): a wildcard that matched a dataset locally may also match indices in linked projects.
         // Mirror ViewResolver — keep the original wildcard as a sibling UnresolvedRelation so the remote half resolves
         // at field-caps, instead of the dataset replacing the whole relation and silently dropping the remote indices.
-        // Reached only when the wildcard matched no local non-dataset target (a local index/dataset mix is rejected
-        // above), so the preserved relation contributes only the remote indices the wildcard pulls in.
         if (crossProjectEnabled) {
             List<String> remotePatterns = crossProjectPatternsToPreserve(patternsOf(relation));
             if (remotePatterns.isEmpty() == false) {
@@ -399,6 +412,27 @@ public final class DatasetRewriter {
         return hasPositiveWildcard ? preserved : List.of();
     }
 
+    private static LogicalPlan buildDatasetBranch(
+        String name,
+        DatasetMetadata datasets,
+        DataSourceMetadata dataSources,
+        Source source,
+        List<NamedExpression> metadataFields
+    ) {
+        Dataset dataset = datasets.get(name);
+        DataSource parent = dataSources.get(dataset.dataSource().getName());
+        // DataSourceService.deleteDataSources rejects (409) on orphans, so a null parent here
+        // means a broken-invariant state (e.g. corrupt cluster-state restore) — throw with context.
+        if (parent == null) {
+            throw new IllegalStateException(
+                "dataset [" + name + "] references unknown data source [" + dataset.dataSource().getName() + "]"
+            );
+        }
+        Map<String, Object> merged = mergeSettings(parent, dataset);
+        Literal path = Literal.keyword(source, dataset.resource());
+        return new UnresolvedExternalRelation(source, path, merged, metadataFields, name);
+    }
+
     /**
      * Dataset format settings at the top level; data-source auth/connection settings stored under
      * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
@@ -422,9 +456,10 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Per-relation result of {@link #resolve}: the authorized concrete dataset names the relation targets, whether it
-     * also targets non-dataset abstractions (drives mixed-FROM rejection), and the explicitly-named datasets absent
-     * from the authorized set (surfaced by {@link #rewriteOne} as {@code Unknown index}).
+     * Per-relation result of {@link #resolve}: the authorized concrete dataset names the relation targets, the
+     * concrete non-dataset names resolved from the same pattern (drives heterogeneous-FROM {@link UnionAll} building),
+     * and the explicitly-named datasets absent from the authorized set (surfaced by {@link #rewriteOne} as
+     * {@code Unknown index}).
      */
-    public record DatasetResolution(Set<String> authorizedDatasets, boolean hasNonDatasetTargets, Set<String> explicitUnauthorized) {}
+    public record DatasetResolution(Set<String> authorizedDatasets, Set<String> nonDatasetNames, Set<String> explicitUnauthorized) {}
 }

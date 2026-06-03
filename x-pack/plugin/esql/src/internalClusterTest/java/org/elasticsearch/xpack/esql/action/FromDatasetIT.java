@@ -138,7 +138,8 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         "employees_alt",
         "logs_dataset",
         "events_hive",
-        "employees_external"
+        "employees_external",
+        "employees_mixed"
     );
 
     /**
@@ -262,9 +263,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromMixedIndexAndDatasetRejected() throws Exception {
-        // Real ES index alongside the dataset so the resolver finds both abstractions and the
-        // mixed-FROM rejection actually fires (rather than the resolver silently filtering an unknown name).
+    public void testFromMixedIndexAndDatasetSucceeds() throws Exception {
+        // Heterogeneous FROM (index + dataset) should succeed rather than reject.
+        // some_real_index has no documents; employees dataset has 3 rows (Alice, Bob, Carol).
         createIndex("some_real_index");
         ensureGreen("some_real_index");
 
@@ -276,8 +277,66 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM some_real_index, employees | LIMIT 1"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        // Empty index + 3-row dataset = 3 rows total
+        try (var response = run(syncEsqlQueryRequest("FROM some_real_index, employees | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
+    }
+
+    public void testFromMixedWithWhere() throws Exception {
+        // Heterogeneous FROM + WHERE: filter pushed into each UnionAll branch.
+        // employees_mixed dataset (CSV): emp_no 1,2,3. ES index "employees_idx_where" is empty.
+        createIndex("employees_idx_where");
+        ensureGreen("employees_idx_where");
+
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_mixed", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees_idx_where, employees_mixed | WHERE emp_no > 1 | STATS c = COUNT(*)"),
+                TIMEOUT
+            )
+        ) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            // 0 from empty index + 2 from dataset (emp_no 2 and 3)
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(2L));
+        }
+    }
+
+    public void testFromMixedWithStatsCount() throws Exception {
+        // Heterogeneous FROM + STATS COUNT: aggregate pushed into each UnionAll branch.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees_alt", "local_ds", csvFixtureAlt.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // Two datasets (3 + 2 = 5 rows) plus an empty index = 5 total.
+        createIndex("employees_idx_stats");
+        ensureGreen("employees_idx_stats");
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees_idx_stats, employees, employees_alt | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(5L));
+        }
     }
 
     public void testTSCommandRejectedOnDataset() throws Exception {
@@ -610,10 +669,9 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
-        // Real index plus a dataset, both matching the same wildcard. The resolver expands the
-        // pattern through IndexAbstractionResolver and finds both abstractions; the rewriter buckets
-        // them and fires the mixed-FROM rejection — same path as a literal `FROM idx, ds` mix.
+    public void testWildcardSpanningIndexAndDatasetSucceeds() throws Exception {
+        // A wildcard matching both a real index and a dataset should succeed, producing a
+        // heterogeneous UnionAll. logs_index is empty; logs_dataset has 3 rows from the CSV fixture.
         createIndex("logs_index");
         ensureGreen("logs_index");
 
@@ -625,8 +683,12 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(Exception.class, () -> run(syncEsqlQueryRequest("FROM logs_* | LIMIT 1"), TIMEOUT));
-        assertCauseMessageContains(ex, "mixing datasets and non-datasets");
+        // logs_* expands to logs_index (empty) + logs_dataset (3 rows) = 3 total
+        try (var response = run(syncEsqlQueryRequest("FROM logs_* | STATS c = COUNT(*)"), TIMEOUT)) {
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(1));
+            assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(3L));
+        }
     }
 
     public void testFromDatasetExplainDoesNotLeakSecrets() throws Exception {

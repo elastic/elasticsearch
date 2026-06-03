@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -214,24 +217,25 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
      * the attribute list on an external relation directly controls which columns the format reader loads from storage.
      * <p>
-     * Exception: when {@code _source} is in the projected output, the synthesizer needs every file-resident
-     * data column at compose time — pruning them would render {@code {}} for the user. Pin them as "used"
-     * before the prune so the relation still carries them downstream. Indexed {@code _source} reads from the
-     * stored doc and is independent of projection; external {@code _source} has no stored doc to fall back to.
+     * Exception: when {@code _source} survives downstream and is referenced, the synthesizer needs every
+     * file-resident data column at compose time — pruning them would render {@code {}} for the user. Pin
+     * them as "used" before the prune. Gating on {@code used.contains(_source-attr)} rather than
+     * {@code ext.output()} ensures the pin only fires when {@code _source} is actually consumed (a query
+     * that requests {@code _source} but drops it without reading does not need the pin). Indexed
+     * {@code _source} reads from the stored doc and is independent of projection; external {@code _source}
+     * has no stored doc to fall back to.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
-        boolean sourceProjected = false;
+        boolean sourceConsumed = false;
         for (Attribute a : ext.output()) {
-            if (a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute
-                && org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns.SOURCE.equals(a.name())) {
-                sourceProjected = true;
+            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name()) && used.contains(a)) {
+                sourceConsumed = true;
                 break;
             }
         }
-        if (sourceProjected) {
+        if (sourceConsumed) {
             for (Attribute a : ext.output()) {
-                if (a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute == false
-                    && a instanceof org.elasticsearch.xpack.esql.core.expression.VirtualAttribute == false) {
+                if (a instanceof ExternalMetadataAttribute == false && a instanceof VirtualAttribute == false) {
                     used.add(a);
                 }
             }

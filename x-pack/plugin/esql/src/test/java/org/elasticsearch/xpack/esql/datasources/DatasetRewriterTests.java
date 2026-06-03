@@ -159,10 +159,10 @@ public class DatasetRewriterTests extends ESTestCase {
     }
 
     public void testMetadataFieldsThreadedToUnresolvedExternalRelation() {
-        // Per the universal-rule semantics (esql-planning#813), METADATA fields on FROM <dataset>
-        // are no longer rejected; the rewriter carries them verbatim into UnresolvedExternalRelation
-        // so the analyzer's ResolveExternalRelations can bind each one to an ExternalMetadataAttribute.
-        // The registered dataset name also flows through (drives the per-file _index synthesizer).
+        // METADATA fields on FROM <dataset> are no longer rejected; the rewriter carries them
+        // verbatim into UnresolvedExternalRelation so the analyzer's ResolveExternalRelations can
+        // bind each one to an ExternalMetadataAttribute. The registered dataset name also flows
+        // through (drives the per-file _index synthesizer).
         DataSource parent = dataSource("s3_parent", Map.of());
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));

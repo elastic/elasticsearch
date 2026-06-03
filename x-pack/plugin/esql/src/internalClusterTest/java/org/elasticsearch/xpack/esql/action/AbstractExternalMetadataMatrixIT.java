@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
 import org.junit.Before;
 
+import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -307,8 +309,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         // _file.modified plumbing through FileMetadataColumns + the StoragePath stat). Read the
         // mtime back from the fixture path and pin the response value, so a regression in the
         // mtime → _version threading is caught.
-        long fixtureMtimeMillis = java.nio.file.Files.getLastModifiedTime(java.nio.file.Path.of(java.net.URI.create(fixtureUri)))
-            .toMillis();
+        long fixtureMtimeMillis = Files.getLastModifiedTime(Path.of(URI.create(fixtureUri))).toMillis();
 
         try (
             var response = run(

@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
@@ -150,10 +152,13 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         // When `_source` is projected, its synthesizer needs every file-resident data column at
         // compose time. Deferring those columns would render `{}`. Pin every data attribute as
         // eager in that case; the synthesizer runs on the producer thread before the TopN gate.
+        // Side effect: with `_source` projected there are typically zero deferrable columns, so
+        // the {@link #DEFERRED_COLUMN_MIN} threshold below intentionally bails out — TopN
+        // late-materialisation is disabled for `_source` queries (correctness preserves over the
+        // I/O optimisation).
         boolean sourceProjected = false;
         for (Attribute a : sourceOutput) {
-            if (a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute
-                && org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns.SOURCE.equals(a.name())) {
+            if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.SOURCE.equals(a.name())) {
                 sourceProjected = true;
                 break;
             }
@@ -171,7 +176,7 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             // keeps future virtual attributes correct by construction.
             if (a instanceof VirtualAttribute || eagerRefs.contains(a)) {
                 eagerColumns.add(a);
-            } else if (sourceProjected && a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute == false) {
+            } else if (sourceProjected && a instanceof ExternalMetadataAttribute == false) {
                 // File-resident data column under `_source` projection — must be eager.
                 eagerColumns.add(a);
             } else {

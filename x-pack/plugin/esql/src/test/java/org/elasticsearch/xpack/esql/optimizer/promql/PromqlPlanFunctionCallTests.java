@@ -22,14 +22,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGauge;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -42,8 +40,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -61,6 +57,14 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
         assertConstantResult("round(vector(pi()), 0.001)", equalTo(3.142)); // round up 3 decimal places
         assertConstantResult("round(vector(pi()), 0.15)", equalTo(3.15)); // rounds up to nearest
         assertConstantResult("round(vector(pi()), 0.5)", equalTo(3.0)); // rounds down to nearest
+    }
+
+    public void testRoundToNearestMatchesPrometheusFormula() {
+        assertConstantResult("round(vector(0.0215), 0.001)", equalTo(0.022));
+        assertConstantResult("round(vector(11.298657), 0.001)", equalTo(11.299));
+        assertConstantResult("round(vector(15.92077), 0.001)", equalTo(15.921));
+        assertConstantResult("round(vector(1.8376549999999998), 0.001)", equalTo(1.838));
+        assertConstantResult("round(vector(25.832432999999998), 0.001)", equalTo(25.832));
     }
 
     public void testYearUsesStepTimestampWhenNoArgument() {
@@ -180,9 +184,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
     private Rate rateFromPromql(String query) {
         LogicalPlan analyzed = planPromql(query, false);
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate tsAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         return tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
     }
 
@@ -209,9 +211,7 @@ public class PromqlPlanFunctionCallTests extends AbstractPromqlPlanOptimizerTest
 
     private AvgOverTime avgOverTimeFromPromql(String query) {
         LogicalPlan analyzed = planPromql(query, false);
-        PromqlCommand promql = analyzed.collect(PromqlCommand.class).getFirst();
-        LogicalPlan translated = new TranslatePromqlToEsqlPlan().apply(promql, logicalOptimizerCtx);
-        TimeSeriesAggregate tsAggregate = translated.collect(TimeSeriesAggregate.class).getFirst();
+        TimeSeriesAggregate tsAggregate = analyzed.collect(TimeSeriesAggregate.class).getFirst();
         return tsAggregate.aggregates().getFirst().collect(AvgOverTime.class).getFirst();
     }
 

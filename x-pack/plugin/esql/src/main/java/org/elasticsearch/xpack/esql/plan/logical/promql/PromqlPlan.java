@@ -65,7 +65,7 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsScalar(LogicalPlan plan) {
-        return getType(plan) == PromqlDataType.SCALAR;
+        return plan.resolved() && getType(plan) == PromqlDataType.SCALAR;
     }
 
     /**

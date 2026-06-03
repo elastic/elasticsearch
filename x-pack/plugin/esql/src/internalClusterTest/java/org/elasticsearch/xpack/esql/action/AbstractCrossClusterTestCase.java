@@ -81,6 +81,8 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         plugins.add(FailingPauseFieldPlugin.class);
         plugins.add(FailingFieldPlugin.class);
         plugins.add(CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.class);
+        // EncryptionService binding for the always-registered data-source CRUD actions (see AbstractEsqlIntegTestCase).
+        plugins.add(org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin.class);
         return plugins;
     }
 

@@ -27,8 +27,18 @@ dependencies {
   // GCS fixture infrastructure for mocking GCS operations
   javaRestTestImplementation project(':test:fixtures:gcs-fixture')
 
-  // Parquet support - needed for reading test fixtures
+  // Parquet support - needed for reading test fixtures and ground-truth generation
   javaRestTestImplementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+
+  // The parquet datasource plugin -- also on the test classpath for PlainCompressionCodecFactory
+  // and PlainParquetReadOptions (which bypass all Hadoop dependencies at runtime)
+  javaRestTestImplementation project(xpackModule('esql-datasource-parquet'))
+  javaRestTestImplementation project(xpackModule('esql-datasource-compression-libs'))
+
+  // Hadoop stubs required at compile time only. ParquetFileReader's class file references
+  // Hadoop types even though our PlainParquetReadOptions bypasses them at runtime.
+  javaRestTestCompileOnly("org.apache.hadoop:hadoop-common:3.4.3") { transitive = false }
+  javaRestTestCompileOnly("org.apache.hadoop:hadoop-mapreduce-client-core:3.4.3") { transitive = false }
   
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')

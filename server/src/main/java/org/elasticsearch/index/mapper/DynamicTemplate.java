@@ -495,7 +495,6 @@ public class DynamicTemplate implements ToXContentObject {
                 return false;
             }
         }
-
         if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {
             return false;
         }

@@ -118,7 +118,7 @@ public class GradleRunner {
         // Kill any remaining worker processes after the build has finished and the daemon
         // has had a chance to collect results and upload the build scan.
         if (canceller.isCancelled()) {
-            BuildCanceller.killRemainingWorkers();
+            // BuildCanceller.killRemainingWorkers(); // TODO
         }
 
         writeStatusReport(tracker, projectDir);

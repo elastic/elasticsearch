@@ -313,9 +313,9 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             long fileSizeBytes = file.length();
             long fileSizeMB = fileSizeBytes / (1024 * 1024);
 
-            // Allocate 4 seconds per MB (assumes ~250 KB/s upload speed)
+            // Allocate 8 seconds per MB (assumes ~125 KB/s upload speed)
             // with min 10 seconds and max 30 minutes
-            return Math.max(10, Math.min(1800, fileSizeMB * 4));
+            return Math.max(10, Math.min(1800, fileSizeMB * 8));
         }
     }
 }

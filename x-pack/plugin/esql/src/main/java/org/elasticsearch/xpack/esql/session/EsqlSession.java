@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -735,7 +736,32 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+            // execute main plan. Wrap the listener so the coordinator reconciles any data-node-captured
+            // source stats into ExternalSourceCacheService before delivering Result.
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
+                reconcileCapturedSourceStats(result.completionInfo());
+                next.onResponse(result);
+            }));
+        }
+    }
+
+    /**
+     * Pushes data-node-captured per-file source stats (carried by {@link DriverCompletionInfo#capturedSourceMetadata})
+     * into the coordinator's {@code ExternalSourceCacheService}, so the next query's planning-time
+     * lookup finds the {@code _stats.*} keys embedded in the matching {@code SchemaCacheEntry}'s
+     * {@code safeMetadata} — same shape Parquet's footer-derived stats already use.
+     */
+    private void reconcileCapturedSourceStats(DriverCompletionInfo info) {
+        if (info == null) {
+            return;
+        }
+        Map<String, List<Map<String, Object>>> captured = info.capturedSourceMetadata();
+        if (captured == null || captured.isEmpty()) {
+            return;
+        }
+        ExternalSourceCacheService cache = externalSourceResolver.cacheService();
+        if (cache != null) {
+            cache.reconcileSourceStatsFromContributions(captured);
         }
     }
 
@@ -927,15 +953,10 @@ public class EsqlSession {
                         planTimeProfile,
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            reconcileCapturedSourceStats(merged);
                             finalListener.onResponse(
-                                new Result(
-                                    finalResult.schema(),
-                                    finalResult.pages(),
-                                    null,
-                                    configuration,
-                                    completionInfoAccumulator.finish(),
-                                    executionInfo
-                                )
+                                new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)
                             );
                         })
                     );

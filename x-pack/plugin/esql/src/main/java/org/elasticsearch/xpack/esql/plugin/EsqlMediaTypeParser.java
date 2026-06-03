@@ -13,8 +13,8 @@ import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
+import org.elasticsearch.xpack.esql.formatter.arrow.ArrowFormat;
 
 import java.util.Arrays;
 import java.util.Locale;

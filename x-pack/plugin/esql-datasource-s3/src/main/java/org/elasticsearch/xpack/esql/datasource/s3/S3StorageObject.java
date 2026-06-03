@@ -23,12 +23,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectBufferFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.DirectReadBuffer;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalUnavailableException;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 
@@ -121,13 +123,40 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
             bytes = metadata.contentLength() != null ? metadata.contentLength() : 0L;
             return response;
-        } catch (NoSuchKeyException e) {
-            throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {
-            throw new IOException("Failed to read object from " + path, e);
+            throw throwReadFailure("Failed to read object from", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
+    }
+
+    /**
+     * Maps a failure from the S3 client into the exception to surface to ES|QL. A retryable transport
+     * status (5xx/429) becomes an {@link ExternalUnavailableException} (503 — the read may succeed on
+     * retry); a missing object or any other failure becomes an {@link IOException}, which the external
+     * source operator classifies as a client-class 400. Returns the exception (never throws) so both
+     * the synchronous and async read paths can route it.
+     */
+    private Exception mapReadFailure(String context, Throwable cause) {
+        if (cause instanceof S3Exception s3 && ExternalUnavailableException.isRetryableStatus(s3.statusCode())) {
+            return new ExternalUnavailableException(cause, "S3 store unavailable reading [{}] (HTTP {})", path, s3.statusCode());
+        }
+        if (cause instanceof NoSuchKeyException) {
+            return new IOException("Object not found: " + path, cause);
+        }
+        return new IOException(context + " " + path, cause);
+    }
+
+    /**
+     * Synchronous-path bridge for {@link #mapReadFailure}: rethrows the mapped exception. The return
+     * type lets callers write {@code throw throwReadFailure(...)} so the compiler sees an exit.
+     */
+    private RuntimeException throwReadFailure(String context, Throwable cause) throws IOException {
+        Exception mapped = mapReadFailure(context, cause);
+        if (mapped instanceof RuntimeException re) {
+            throw re;
+        }
+        throw (IOException) mapped;
     }
 
     @Override
@@ -159,10 +188,8 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
             }
 
             return response;
-        } catch (NoSuchKeyException e) {
-            throw new IOException("Object not found: " + path, e);
         } catch (Exception e) {
-            throw new IOException("Range request failed for " + path, e);
+            throw throwReadFailure("Range request failed for", e);
         } finally {
             counters.addRequest(System.nanoTime() - startNanos, length);
         }
@@ -314,9 +341,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
     }
 
     @Override
-    public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+    public void readBytesAsync(
+        long position,
+        long length,
+        DirectBufferFactory factory,
+        Executor executor,
+        ActionListener<DirectReadBuffer> listener
+    ) {
         if (s3AsyncClient == null) {
-            super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, factory, executor, listener);
             return;
         }
 
@@ -346,16 +379,15 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
         long startNanos = System.nanoTime();
-        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>((int) length);
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>(
+            (int) length,
+            factory
+        );
         s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                if (cause instanceof NoSuchKeyException) {
-                    listener.onFailure(new IOException("Object not found: " + path, cause));
-                } else {
-                    listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
-                }
+                listener.onFailure(mapReadFailure("Failed to read object from", cause));
                 return;
             }
 
@@ -372,8 +404,17 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
                 }
             }
 
-            counters.addRequest(System.nanoTime() - startNanos, buffer.remaining());
-            listener.onResponse(buffer);
+            counters.addRequest(System.nanoTime() - startNanos, buffer.buffer().remaining());
+            try {
+                listener.onResponse(buffer);
+            } catch (Exception e) {
+                try {
+                    buffer.close();
+                } catch (Exception closeEx) {
+                    e.addSuppressed(closeEx);
+                }
+                throw e;
+            }
         });
     }
 

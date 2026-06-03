@@ -529,6 +529,10 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
                 return lazyDelegate().histogramValue();
             }
 
+            @Override
+            public DocIdSetIterator docIdIterator() {
+                return delegate.docIdIterator();
+            }
         };
     }
 

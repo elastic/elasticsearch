@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.csv;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.xpack.esql.datasources.FixtureUtils;
 
@@ -22,7 +23,10 @@ import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.SECRET_KEY
  */
 public class Clusters {
 
-    public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
+    private static LocalClusterSpecBuilder<ElasticsearchCluster> baseBuilder(
+        Supplier<String> s3EndpointSupplier,
+        LocalClusterConfigProvider configProvider
+    ) {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .shared(true)
@@ -52,11 +56,32 @@ public class Clusters {
             .environment("AWS_CONFIG_FILE", "/dev/null/aws/config")
             .environment("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/aws/credentials")
             // Apply any additional configuration
-            .apply(() -> configProvider)
-            .build();
+            .apply(() -> configProvider);
+    }
+
+    public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier, LocalClusterConfigProvider configProvider) {
+        return baseBuilder(s3EndpointSupplier, configProvider).build();
     }
 
     public static ElasticsearchCluster testCluster(Supplier<String> s3EndpointSupplier) {
         return testCluster(s3EndpointSupplier, config -> {});
+    }
+
+    /**
+     * A two-node cluster that splits roles so the coordinator and the data node are separate JVMs:
+     * node 0 is <em>coordinating-only</em> (empty roles — no {@code data}) and node 1 is master+data.
+     * The empty-roles coordinator is deliberate: a node that can also host the data phase makes ES|QL
+     * collapse the plan to a single-node execution and run the external scan locally, which would not
+     * exercise the cross-JVM return-flow. With no data role on node 0, ES|QL must dispatch the scan to
+     * node 1, whose JVM-static {@code ExternalStats} is separate — so the only way node 0's
+     * planning-time cache can be populated for the warm query is the {@code DriverCompletionInfo}
+     * return-flow. A single-JVM {@code internalClusterTest} cannot exercise this because all nodes
+     * share one static cache. Tests target node 0's HTTP endpoint for both the cold and warm query so
+     * the per-coordinator schema cache is consulted consistently.
+     */
+    public static ElasticsearchCluster multiNodeTestCluster(Supplier<String> s3EndpointSupplier) {
+        return baseBuilder(s3EndpointSupplier, config -> {}).withNode(node -> node.name("coordinator").setting("node.roles", "[]"))
+            .withNode(node -> node.name("data-node").setting("node.roles", "[master, data]"))
+            .build();
     }
 }

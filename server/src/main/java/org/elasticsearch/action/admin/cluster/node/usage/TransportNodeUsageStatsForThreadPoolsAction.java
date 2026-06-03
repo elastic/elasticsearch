@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,7 +47,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final LongGaugeMetric maxQueueLatencyMillisGauge;
+    private final ConsumingLongGaugeMetric maxQueueLatencyMillisGauge;
 
     @Inject
     public TransportNodeUsageStatsForThreadPoolsAction(

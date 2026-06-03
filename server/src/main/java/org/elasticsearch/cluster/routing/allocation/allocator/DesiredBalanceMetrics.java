@@ -173,7 +173,7 @@ public class DesiredBalanceMetrics {
 
     public DesiredBalanceMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.writeLoadDeciderMaxQueueLatencyGauge = ConsumingLongGaugeMetric.createConsuming(
+        this.writeLoadDeciderMaxQueueLatencyGauge = ConsumingLongGaugeMetric.create(
             meterRegistry,
             WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
             "max latency for write load decider",

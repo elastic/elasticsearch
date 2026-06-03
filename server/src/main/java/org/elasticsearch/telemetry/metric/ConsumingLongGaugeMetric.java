@@ -33,8 +33,8 @@ public record ConsumingLongGaugeMetric(AtomicLong value, LongGauge gauge, long n
      * @param unit The unit of the gauge.
      * @return The created gauge.
      */
-    public static ConsumingLongGaugeMetric createConsuming(MeterRegistry meterRegistry, String name, String description, String unit) {
-        return createConsuming(meterRegistry, name, description, unit, DEFAULT_NO_VALUE);
+    public static ConsumingLongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit) {
+        return create(meterRegistry, name, description, unit, DEFAULT_NO_VALUE);
     }
 
     /**
@@ -47,13 +47,7 @@ public record ConsumingLongGaugeMetric(AtomicLong value, LongGauge gauge, long n
      * @param noValue The value to signify that the gauge has not been set.
      * @return The created gauge.
      */
-    public static ConsumingLongGaugeMetric createConsuming(
-        MeterRegistry meterRegistry,
-        String name,
-        String description,
-        String unit,
-        long noValue
-    ) {
+    public static ConsumingLongGaugeMetric create(MeterRegistry meterRegistry, String name, String description, String unit, long noValue) {
         final AtomicLong value = new AtomicLong(noValue);
         return new ConsumingLongGaugeMetric(value, meterRegistry.registerLongsGauge(name, description, unit, () -> {
             final var currentValue = value.getAndSet(noValue);

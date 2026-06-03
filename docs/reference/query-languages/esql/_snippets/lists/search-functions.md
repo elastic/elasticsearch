@@ -18,3 +18,5 @@
   :::
 % * [`TERM`](../../functions-operators/search-functions/term.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`TOP_SNIPPETS`](../../functions-operators/search-functions/top-snippets.md) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+  :::{include} ../generated/x-pack-esql/functions/briefSummary/top_snippets.md
+  :::

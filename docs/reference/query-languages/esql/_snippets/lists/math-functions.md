@@ -1,4 +1,6 @@
 * [`ABS`](../../functions-operators/math-functions/abs.md)
+  :::{include} ../generated/x-pack-esql-function-math/functions/briefSummary/abs.md
+  :::
 * [`ACOS`](../../functions-operators/math-functions/acos.md)
   :::{include} ../generated/x-pack-esql/functions/briefSummary/acos.md
   :::

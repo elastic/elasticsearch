@@ -588,7 +588,13 @@ public final class DefaultDocumentParser implements DocumentParser {
                     );
                 }
             } else {
-                dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
+                // When subobjects are disabled, only check for a matching dynamic template for this object field.
+                // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
+                // If a template matches with an object type, or if no template matches (null), the object is
+                // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
+                dynamicObjectBuilder = context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED
+                    ? DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName)
+                    : DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
             }
             if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
                 if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {

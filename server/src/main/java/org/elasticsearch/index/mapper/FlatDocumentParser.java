@@ -414,6 +414,11 @@ final class FlatDocumentParser implements DocumentParser {
         }
         Mapper.Builder dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
         if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
+            // When subobjects are disabled, only check for a matching dynamic template for this object field.
+            // If a template matches with a non-object type (e.g. geo_point), that mapper is created normally.
+            // If a template matches with an object type, or if no template matches (null), the object is
+            // auto-flattened: its children are parsed as if their paths were prefixed with currentFieldName.
+            dynamicObjectBuilder = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
             if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
                 throw new DocumentParsingException(
                     context.parser().getTokenLocation(),
@@ -424,7 +429,7 @@ final class FlatDocumentParser implements DocumentParser {
                         + "] which does not support subobjects"
                 );
             }
-            if (dynamicObjectBuilder instanceof ObjectMapper.Builder) {
+            if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
                 // subobjects disallowed → flatten children by prepending currentFieldName
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 return;

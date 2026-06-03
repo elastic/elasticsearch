@@ -75,7 +75,7 @@ public interface SecretSettings extends ToXContentObject, VersionedNamedWriteabl
      * @param provided     the non-empty map of fields supplied by the caller
      * @param factory      builds a new instance when the value changes
      */
-    default <T extends SecretSettings> T updateOnlyField(
+    default <T extends SecretSettings> T updateExactlyOneField(
         String scope,
         String allowedField,
         SecureString currentValue,

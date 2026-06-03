@@ -97,8 +97,20 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
     @Override
     protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
         if (apiKey != null) {
-            return updateOnlyField(SERVICE_SETTINGS, API_KEY, apiKey, provided, value -> new AzureOpenAiEntraIdApiKeySecrets(value, null));
+            return updateExactlyOneField(
+                SERVICE_SETTINGS,
+                API_KEY,
+                apiKey,
+                provided,
+                value -> new AzureOpenAiEntraIdApiKeySecrets(value, null)
+            );
         }
-        return updateOnlyField(SERVICE_SETTINGS, ENTRA_ID, entraId, provided, value -> new AzureOpenAiEntraIdApiKeySecrets(null, value));
+        return updateExactlyOneField(
+            SERVICE_SETTINGS,
+            ENTRA_ID,
+            entraId,
+            provided,
+            value -> new AzureOpenAiEntraIdApiKeySecrets(null, value)
+        );
     }
 }

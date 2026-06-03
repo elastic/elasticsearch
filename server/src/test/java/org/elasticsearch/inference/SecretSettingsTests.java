@@ -35,29 +35,29 @@ public class SecretSettingsTests extends ESTestCase {
 
     // --- updateOnlyField tests ---
 
-    public void testUpdateOnlyField_UnchangedValue_ReturnsSameInstance() {
+    public void testUpdateExactlyOneField_UnchangedValue_ReturnsSameInstance() {
         var value = new SecureString(randomAlphaOfLength(10).toCharArray());
         var settings = new TestSecretSettings(value);
-        var result = settings.updateOnlyField(SCOPE, FIELD, value, Map.of(FIELD, value), TestSecretSettings::new);
+        var result = settings.updateExactlyOneField(SCOPE, FIELD, value, Map.of(FIELD, value), TestSecretSettings::new);
         assertThat(result, sameInstance(settings));
     }
 
-    public void testUpdateOnlyField_ChangedValue_BuildsNewInstanceViaFactory() {
+    public void testUpdateExactlyOneField_ChangedValue_BuildsNewInstanceViaFactory() {
         var str1 = randomAlphaOfLength(10);
         var str2 = randomValueOtherThan(str1, () -> randomAlphaOfLength(10));
         var value1 = new SecureString(str1.toCharArray());
         var value2 = new SecureString(str2.toCharArray());
         var settings = new TestSecretSettings(value1);
-        var result = settings.updateOnlyField(SCOPE, FIELD, value1, Map.of(FIELD, value2), TestSecretSettings::new);
+        var result = settings.updateExactlyOneField(SCOPE, FIELD, value1, Map.of(FIELD, value2), TestSecretSettings::new);
         assertThat(result, is(new TestSecretSettings(value2)));
     }
 
-    public void testUpdateOnlyField_MultipleFields_ThrowsValidationException() {
+    public void testUpdateExactlyOneField_MultipleFields_ThrowsValidationException() {
         var value = new SecureString(randomAlphaOfLength(10).toCharArray());
         var settings = new TestSecretSettings(value);
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> settings.updateOnlyField(
+            () -> settings.updateExactlyOneField(
                 SCOPE,
                 FIELD,
                 value,
@@ -76,12 +76,12 @@ public class SecretSettingsTests extends ESTestCase {
         );
     }
 
-    public void testUpdateOnlyField_MissingAllowedField_ThrowsValidationException() {
+    public void testUpdateExactlyOneField_MissingAllowedField_ThrowsValidationException() {
         var value = new SecureString(randomAlphaOfLength(10).toCharArray());
         var settings = new TestSecretSettings(value);
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> settings.updateOnlyField(
+            () -> settings.updateExactlyOneField(
                 SCOPE,
                 FIELD,
                 value,

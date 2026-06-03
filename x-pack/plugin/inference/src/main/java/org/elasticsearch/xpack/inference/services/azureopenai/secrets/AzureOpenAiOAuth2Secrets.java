@@ -98,6 +98,6 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
 
     @Override
     protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
-        return updateOnlyField(SERVICE_SETTINGS, CLIENT_SECRET_FIELD, getClientSecret(), provided, AzureOpenAiOAuth2Secrets::new);
+        return updateExactlyOneField(SERVICE_SETTINGS, CLIENT_SECRET_FIELD, getClientSecret(), provided, AzureOpenAiOAuth2Secrets::new);
     }
 }

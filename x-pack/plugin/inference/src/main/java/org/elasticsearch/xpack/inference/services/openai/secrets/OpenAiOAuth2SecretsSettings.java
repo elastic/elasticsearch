@@ -89,7 +89,7 @@ public class OpenAiOAuth2SecretsSettings extends OpenAiSecretSettings {
 
     @Override
     protected SecretSettings updated(Map<String, SecureString> provided) {
-        return updateOnlyField(SECRET_SETTINGS, CLIENT_SECRET_FIELD, clientSecret(), provided, OpenAiOAuth2SecretsSettings::new);
+        return updateExactlyOneField(SECRET_SETTINGS, CLIENT_SECRET_FIELD, clientSecret(), provided, OpenAiOAuth2SecretsSettings::new);
     }
 
     @Override

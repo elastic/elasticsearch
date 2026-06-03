@@ -166,11 +166,12 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
 
     /**
      * A per-query {@code similarity_function} override that differs from the field's mapped similarity
-     * ({@code l2_norm}) must score the raw stored vectors with the literal chosen metric. This is the
-     * regression guard for the cosine override: previously the {@code NORMALIZE_COSINE} optimization
-     * mapped the override to {@code DOT_PRODUCT}, producing dot-product scores against un-normalized
-     * vectors instead of true cosine. The raw path always reads raw vectors, so scores must match the
-     * cosine ground truth within float tolerance on every codec, quantized or not.
+     * ({@code l2_norm}) must score the raw stored vectors with the literal chosen metric. The override path
+     * uses the literal {@code COSINE} function — which normalizes both operands itself — rather than the
+     * {@code NORMALIZE_COSINE} storage optimization (which maps {@code COSINE} to {@code DOT_PRODUCT} and
+     * assumes unit-normalized vectors), so a cosine override yields true cosine regardless of how the field
+     * was stored. The raw path always reads raw vectors, so scores must match the cosine ground truth within
+     * float tolerance on every codec, quantized or not.
      */
     public void testDenseVectorSimilarityOverrideMatchesGroundTruth() {
         TestParams params = indexRandomDocs();

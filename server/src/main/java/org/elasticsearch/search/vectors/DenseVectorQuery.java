@@ -186,9 +186,8 @@ public abstract class DenseVectorQuery extends Query {
 
         private final float[] query;
         private final VectorSimilarityFunction function;
-        // Set only for non-indexed (index:false) fields, whose vectors are stored as binary doc values
-        // rather than KNN vector values. When non-null, scoring decodes each doc's vector from doc values
-        // and applies {@code function} directly. {@code function} is always non-null in this mode.
+        // Non-null only for non-indexed (index:false) fields, which are scored from binary doc values; see the
+        // doc-values constructor. elementType selects float vs bfloat16 decoding.
         private final ElementType docValuesElementType;
         private final IndexVersion docValuesIndexVersion;
 
@@ -211,9 +210,8 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         /**
-         * Raw scoring over a non-indexed (index:false) field. The vectors are read from binary doc values
-         * and decoded per-document ({@code elementType} selects float vs bfloat16 decoding) before applying
-         * {@code function}. Use this only when the field has no KNN vector values.
+         * Scores a non-indexed (index:false) field from binary doc values, decoding each document's vector
+         * (per {@code elementType}) and applying {@code function}. Use only when the field has no KNN values.
          */
         public Floats(
             float[] query,
@@ -303,11 +301,7 @@ public abstract class DenseVectorQuery extends Query {
             return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesElementType, docValuesIndexVersion);
         }
 
-        /**
-         * Scores a non-indexed field by decoding each matching document's vector from binary doc values
-         * and applying {@code function}. {@code bfloat16} fields decode through the bfloat16 path; all other
-         * float-family element types decode as full-precision floats.
-         */
+        /** Decodes each document's float vector from binary doc values and applies {@code function}. */
         private static final class DocValuesFloatVectorScorer implements VectorScorer {
             private final BinaryDocValues values;
             private final float[] target;
@@ -377,9 +371,8 @@ public abstract class DenseVectorQuery extends Query {
 
         private final byte[] query;
         private final VectorSimilarityFunction function;
-        // Set only for non-indexed (index:false) byte fields, whose vectors are stored as binary doc values
-        // rather than KNN vector values. When non-null, scoring decodes each doc's vector from doc values
-        // and applies {@code function} directly. {@code function} is always non-null in this mode.
+        // Non-null only for non-indexed (index:false) byte fields, which are scored from binary doc values;
+        // see the doc-values constructor.
         private final IndexVersion docValuesIndexVersion;
 
         /**
@@ -400,9 +393,8 @@ public abstract class DenseVectorQuery extends Query {
         }
 
         /**
-         * Raw scoring over a non-indexed (index:false) byte field. The vectors are read from binary doc
-         * values and decoded per-document before applying {@code function}. Use this only when the field
-         * has no KNN vector values.
+         * Scores a non-indexed (index:false) byte field from binary doc values, decoding each document's
+         * vector and applying {@code function}. Use only when the field has no KNN values.
          */
         public Bytes(byte[] query, String field, Query filter, VectorSimilarityFunction function, IndexVersion indexVersion) {
             super(field, filter);
@@ -483,10 +475,7 @@ public abstract class DenseVectorQuery extends Query {
             return Objects.hash(field, Arrays.hashCode(query), filter, function, docValuesIndexVersion);
         }
 
-        /**
-         * Scores a non-indexed byte field by decoding each matching document's vector from binary doc
-         * values and applying {@code function}.
-         */
+        /** Decodes each document's byte vector from binary doc values and applies {@code function}. */
         private static final class DocValuesByteVectorScorer implements VectorScorer {
             private final BinaryDocValues values;
             private final byte[] target;

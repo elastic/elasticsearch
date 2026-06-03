@@ -1501,16 +1501,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
 
         /**
-         * The exact Lucene {@link VectorSimilarityFunction} for this similarity, ignoring the index-time
-         * {@code NORMALIZE_COSINE} storage optimization that {@link #vectorSimilarityFunction} applies
-         * (mapping {@code COSINE} to {@link VectorSimilarityFunction#DOT_PRODUCT} on the assumption that the
-         * stored vectors are unit-normalized).
-         * <p>
-         * This is used when a query supplies a per-query {@code similarity_function} override, which scores
-         * stored raw vectors with the chosen metric. That optimization's assumption only holds for fields
-         * mapped with {@code cosine}, so an override must use the literal function — {@link
-         * VectorSimilarityFunction#COSINE} normalizes both operands itself and is therefore correct
-         * regardless of how the field was stored.
+         * The Lucene {@link VectorSimilarityFunction} for scoring stored vectors directly, used by a per-query
+         * similarity override and by non-indexed fields. Unlike {@link #vectorSimilarityFunction}, it does not
+         * apply the {@code NORMALIZE_COSINE} optimization (which maps {@code COSINE} to {@code DOT_PRODUCT} and
+         * assumes unit-normalized vectors): the literal {@code COSINE} normalizes both operands itself, so it is
+         * correct whether or not the stored vectors are normalized.
          */
         public VectorSimilarityFunction rawVectorSimilarityFunction() {
             return switch (this) {
@@ -3109,21 +3104,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             VectorSimilarity similarityOverride,
             boolean useQuantized
         ) {
-            // null function ⇒ use the codec-bound scorer; non-null ⇒ raw iteration with this function.
+            // null function ⇒ codec-bound scorer; non-null ⇒ raw scoring with this function.
             final VectorSimilarityFunction function;
             if (useQuantized) {
-                // similarityOverride is null here (the combination is rejected above), so use the codec scorer.
                 // On a codec with no quantized representation (flat/hnsw, byte, bit) the codec scorer reads the
                 // raw values, so quantized:true is a silent no-op there.
-                // TODO(reviewers): that no-op is silent. We could surface a HeaderWarning ("[quantized] has no
-                // effect: field [x] has no quantized representation") to make it explicit. To avoid introducing
-                // a new inconsistency it would need to fire for every no-quantized-representation case or none.
-                // Proposing it as a follow-up.
+                // TODO(reviewers): we could make that explicit with a HeaderWarning ("[quantized] has no effect:
+                // field [x] has no quantized representation"), but to stay consistent it must fire for every such
+                // case or none. Proposing as a follow-up.
                 function = null;
             } else if (similarityOverride != null) {
-                // A per-query override scores stored raw vectors with the chosen metric. The NORMALIZE_COSINE
-                // storage optimization (COSINE ⇒ DOT_PRODUCT) assumes the stored vectors are unit-normalized,
-                // which only holds for fields mapped with cosine, so use the literal similarity function.
                 function = similarityOverride.rawVectorSimilarityFunction();
             } else {
                 function = effectiveSimilarity.vectorSimilarityFunction(indexVersionCreated, element.elementType());
@@ -3142,16 +3132,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         /**
-         * Builds a raw exact kNN query over a non-indexed (index:false) field, whose vectors are stored as
-         * binary doc values rather than KNN vector values. Scoring decodes each document's vector and applies
-         * the literal {@link VectorSimilarityFunction} (see {@link VectorSimilarity#rawVectorSimilarityFunction}):
-         * non-indexed vectors are stored raw (never normalized), so the literal COSINE function — which
-         * normalizes both operands itself — is correct, and the query vector is not pre-normalized.
-         * <p>
-         * A non-indexed field has no configured similarity, so the caller must supply one via
-         * {@code similarity_function}; {@code effectiveSimilarity} is therefore always non-null here. Because
-         * {@code similarity_function} and {@code quantized: true} are mutually exclusive, and there is no
-         * quantized representation for a non-indexed field anyway, scoring is always raw on this path.
+         * Scores a non-indexed (index:false) field, whose vectors are stored as binary doc values rather than
+         * KNN vector values, by decoding each document's vector and applying the
+         * {@link VectorSimilarity#rawVectorSimilarityFunction literal} similarity function. The caller supplies
+         * the metric via {@code similarity_function}, so {@code effectiveSimilarity} is always non-null here.
          */
         private Query createDocValuesExactKnnQuery(VectorData resolvedQueryVector, VectorSimilarity effectiveSimilarity) {
             VectorSimilarityFunction function = effectiveSimilarity.rawVectorSimilarityFunction();
@@ -3220,10 +3204,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (effectiveSimilarity == VectorSimilarity.DOT_PRODUCT || effectiveSimilarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(effectiveSimilarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
-                // Only the non-override path normalizes the query vector: on a normalized-cosine field the bound
-                // function is DOT_PRODUCT against unit-stored vectors, so the query must be unit-length too. An
-                // override instead uses the literal similarity function (see rawVectorSimilarityFunction); the
-                // literal COSINE function normalizes both operands itself, so pre-normalizing here would be wrong.
+                // Normalize the query only on the non-override path: a normalized-cosine field is scored with
+                // DOT_PRODUCT against unit-stored vectors, so the query must be unit-length too. An override uses
+                // the literal function, which normalizes both operands itself, so normalizing here would be wrong.
                 if (isOverridden == false && isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     queryVector = normalizeQueryVector(queryVector, squaredMagnitude);
                 }

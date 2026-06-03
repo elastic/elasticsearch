@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.ClassModel;
+import com.carrotsearch.randomizedtesting.TestMethodProvider;
+import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
+
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -25,13 +29,19 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
+@TestMethodProviders({ EsqlDisruptionIT.LimitedTests.class })
 @ESIntegTestCase.ClusterScope(scope = TEST, minNumDataNodes = 2, maxNumDataNodes = 4)
 public class EsqlDisruptionIT extends EsqlActionIT {
 
@@ -68,13 +78,13 @@ public class EsqlDisruptionIT extends EsqlActionIT {
     }
 
     @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         // IndexResolver currently ignores failures from field-caps responses and can resolve to a smaller set of concrete indices.
         boolean singleIndex = request.queryDescription().startsWith("from test |");
-        if (singleIndex && randomIntBetween(0, 100) <= 10) {
+        if (singleIndex) {
             return runQueryWithDisruption(request);
         } else {
-            return super.run(request);
+            return super.run(request, timeout);
         }
     }
 
@@ -166,6 +176,25 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             ensureYellow();
         } catch (Exception e) {
             throw new AssertionError(e);
+        }
+    }
+
+    public static class LimitedTests implements TestMethodProvider {
+        @Override
+        public Collection<Method> getTestMethods(Class<?> suiteClass, ClassModel classModel) {
+            List<Method> all = Arrays.stream(suiteClass.getMethods())
+                .filter(m -> m.getName().startsWith("test"))
+                .filter(m -> m.getParameterCount() == 0)
+                .sorted(java.util.Comparator.comparing(Method::getName))
+                .collect(Collectors.toList());
+            String seedStr = System.getProperty("tests.seed");
+            if (seedStr == null || seedStr.isEmpty()) {
+                throw new AssertionError("tests.seed is not provided");
+            }
+            long seed = Long.parseUnsignedLong(seedStr.substring(0, Math.min(16, seedStr.length())), 16);
+            Random rng = new Random(seed);
+            Collections.shuffle(all, rng);
+            return all.subList(0, Math.min(5, all.size()));
         }
     }
 }

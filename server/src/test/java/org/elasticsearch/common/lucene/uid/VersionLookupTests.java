@@ -509,6 +509,33 @@ public class VersionLookupTests extends ESTestCase {
         dir.close();
     }
 
+    public void testBatchTimeSeriesLookupUpdateAcrossSegments() throws Exception {
+        // Write version 1 alongside an unrelated doc, flush to seal segment 0, then
+        // update the same doc (version 2) into segment 1. The unrelated doc keeps segment 0
+        // alive after version 1 is deleted, and closing the writer commits the deletion.
+        // The lookup must skip the deleted version 1 in segment 0 and return version 2.
+        Directory dir = newDirectory();
+        long ts = 1_000L;
+        String id = makeTsdbId(1, ts);
+        String idOther = makeTsdbId(2, ts);
+        try (IndexWriter writer = newNoMergeWriter(dir)) {
+            writer.addDocument(makeDocWithTimestamp(id, ts, 1L, 1L, 1L));
+            writer.addDocument(makeDocWithTimestamp(idOther, ts, 99L, 9L, 1L)); // keeps segment alive
+            writer.flush(); // seal segment 0: version 1 + unrelated doc
+            writer.updateDocument(new Term(IdFieldMapper.NAME, id), makeDocWithTimestamp(id, ts, 2L, 2L, 1L));
+        } // close commits and applies pending deletion of version 1 to segment 0
+        DirectoryReader reader = DirectoryReader.open(dir);
+        assertEquals(2, reader.leaves().size());
+
+        DocIdAndVersion[] results = batchTimeSeriesLookup(reader, id);
+
+        assertNotNull(results[0]);
+        assertEquals(2L, results[0].version);
+
+        reader.close();
+        dir.close();
+    }
+
     public void testBatchTimeSeriesLookupDeletedDoc() throws Exception {
         Directory dir = newDirectory();
         IndexWriter writer = newNoMergeWriter(dir);

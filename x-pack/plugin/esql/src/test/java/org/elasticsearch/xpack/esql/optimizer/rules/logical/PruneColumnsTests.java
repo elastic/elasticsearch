@@ -2436,11 +2436,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("extracted_first"));
         assertThat(Expressions.names(agg.aggregates()), contains("count", "extracted_first"));
         // Dissect is fully pruned since extracted_first/extracted_last are overwritten by EVAL
         var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("extracted_first"));
-        // Dissect is fully pruned — next node is EsRelation, no Dissect in the tree
         as(eval.child(), EsRelation.class);
     }
 

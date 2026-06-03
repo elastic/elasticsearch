@@ -103,6 +103,16 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
      * character before the response reaches us.
      */
     private static final char KEYED_TERM_SEPARATOR = '\0';
+    /**
+     * Upper-end sentinel byte the keyed flattened mapper substitutes for an open upper bound,
+     * see {@code KeyedFlattenedFieldType.rangeQuery}. Byte {@code 0x01} is the lowest byte
+     * strictly greater than the {@code \0} key-value separator so it sits past every
+     * {@code <key>\0<value>} encoding for the open key and strictly before the first term of
+     * any sibling key. The assertions below use the literal {@code char} because the Java REST
+     * client decodes JSON's mandatory {@code \u0001} escape back to one character before the
+     * response reaches us.
+     */
+    private static final char KEYED_TERM_OPEN_UPPER_SENTINEL = (char) 0x01;
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -220,12 +230,12 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
     }
 
     /**
-     * Range comparisons cannot push to the keyed sub-field (the underlying
-     * {@code KeyedFlattenedFieldType.rangeQuery} requires both bounds), so the plan keeps a
-     * {@code FilterOperator} on the data node and the per-row evaluator handles the comparison.
-     * The Lucene query degenerates to match-all because no part of the predicate is pushable.
+     * {@code field_extract(...) > "m"} pushes to a single-sided {@code RangeQuery} against the
+     * keyed sub-field. The keyed flattened mapper substitutes a {@code <key>\1} sentinel for the
+     * open upper bound on the data node so the Lucene term range stays inside this key's slice
+     * of the term namespace, and the data driver drops the {@code FilterOperator}.
      */
-    public void testGreaterThanNotPushed() throws IOException {
+    public void testGreaterThanPushed() throws IOException {
         assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
         String low = "a" + randomAlphaOfLengthBetween(1, 8);
         String high = "z" + randomAlphaOfLengthBetween(1, 8);
@@ -233,9 +243,169 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
 
         runAndAssert(String.format(Locale.ROOT, """
             FROM test
-            | WHERE field_extract(%s, "%s") > "m"
+            | WHERE %s
             | KEEP id
-            """, FLATTENED_ROOT, SUBKEY), equalTo("*:*"), ComputeSignature.FILTER_IN_COMPUTE, 1);
+            """, randomizedComparison(">", "m")), equalTo(expectedLowerOnlyRangeQuery("m", false)), ComputeSignature.FILTER_IN_QUERY, 1);
+    }
+
+    /**
+     * Same shape as {@link #testGreaterThanPushed} but with an inclusive lower bound. The
+     * {@code includeLower=true} flag must reach the printed Lucene query.
+     */
+    public void testGreaterThanOrEqualPushed() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String low = "a" + randomAlphaOfLengthBetween(1, 8);
+        String high = "z" + randomAlphaOfLengthBetween(1, 8);
+        indexDocs(List.of(low, high));
+
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | WHERE %s
+            | KEEP id
+            """, randomizedComparison(">=", "m")), equalTo(expectedLowerOnlyRangeQuery("m", true)), ComputeSignature.FILTER_IN_QUERY, 1);
+    }
+
+    /**
+     * {@code field_extract(...) < "m"} pushes to a single-sided {@code RangeQuery} against the
+     * keyed sub-field. The keyed flattened mapper substitutes a {@code <key>\0} sentinel for the
+     * open lower bound on the data node so the Lucene term range starts at the smallest term
+     * for this key, and the data driver drops the {@code FilterOperator}.
+     */
+    public void testLessThanPushed() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String low = "a" + randomAlphaOfLengthBetween(1, 8);
+        String high = "z" + randomAlphaOfLengthBetween(1, 8);
+        indexDocs(List.of(low, high));
+
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | WHERE %s
+            | KEEP id
+            """, randomizedComparison("<", "m")), equalTo(expectedUpperOnlyRangeQuery("m", false)), ComputeSignature.FILTER_IN_QUERY, 1);
+    }
+
+    /**
+     * Same shape as {@link #testLessThanPushed} but with an inclusive upper bound. The
+     * {@code includeUpper=true} flag must reach the printed Lucene query.
+     */
+    public void testLessThanOrEqualPushed() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        String low = "a" + randomAlphaOfLengthBetween(1, 8);
+        String high = "z" + randomAlphaOfLengthBetween(1, 8);
+        indexDocs(List.of(low, high));
+
+        runAndAssert(String.format(Locale.ROOT, """
+            FROM test
+            | WHERE %s
+            | KEEP id
+            """, randomizedComparison("<=", "m")), equalTo(expectedUpperOnlyRangeQuery("m", true)), ComputeSignature.FILTER_IN_QUERY, 1);
+    }
+
+    /**
+     * A closed range over {@code field_extract(root, "key")} (the conjunction of one {@code >=}
+     * and one {@code <=}, equivalent to {@code BETWEEN}) must push to a {@code RangeQuery}
+     * against the keyed sub-field {@code <root>._keyed} and drop the {@code FilterOperator} on
+     * the data node. The Lucene profile should show a single per-key range query with both
+     * bounds prefixed by the key's {@code <key>\0} separator.
+     */
+    public void testBetweenPushed() throws IOException {
+        assumeTrue("fn_field_extract must be enabled", FieldExtract.isFnFieldExtractCapabilityMet());
+        // Three documents with fixed, strictly-ordered host.name values so the [b, y] range
+        // catches exactly the middle doc. Using random strings here would risk collisions
+        // with the bounds and make the expected hit count non-deterministic.
+        indexDocs(List.of("aaa", "mmm", "zzz"));
+
+        runAndAssert(
+            String.format(Locale.ROOT, """
+                FROM test
+                | WHERE %s AND %s
+                | KEEP id
+                """, randomizedComparison(">=", "b"), randomizedComparison("<=", "y")),
+            equalTo(expectedRangeQuery("b", true, "y", true)),
+            ComputeSignature.FILTER_IN_QUERY,
+            1
+        );
+    }
+
+    /**
+     * Expected printed form of a closed {@code field_extract} range pushed to the keyed
+     * sub-field. Mirrors {@link #expectedEqualityQuery}'s mode split: STANDARD rewrites the
+     * SVQ wrapper away (SortedSetDocValues lets the per-row singleton check trivialize at
+     * rewrite time), TIME_SERIES and LOGSDB keep the wrapper because BinaryDocValues can't
+     * prove singleton-ness up front. Lucene's {@code TermRangeQuery.toString} renders as
+     * {@code field:[lower TO upper]} for inclusive bounds (and {@code {…}} for exclusive),
+     * with each bound being the raw UTF-8 of the keyed term ({@code <key>\0<value>}).
+     */
+    private String expectedRangeQuery(String lower, boolean includeLower, String upper, boolean includeUpper) {
+        String openBracket = includeLower ? "[" : "{";
+        String closeBracket = includeUpper ? "]" : "}";
+        String inner = KEYED_INTERNAL_FIELD
+            + ":"
+            + openBracket
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + lower
+            + " TO "
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + upper
+            + closeBracket;
+        return switch (mode) {
+            case STANDARD -> inner;
+            case TIME_SERIES, LOGSDB -> "#" + inner + " #single_value_match(" + KEYED_INTERNAL_FIELD + ")";
+        };
+    }
+
+    /**
+     * Expected printed form of a single-sided {@code field_extract} range with only the lower
+     * bound set, pushed to the keyed sub-field. The keyed flattened mapper substitutes
+     * {@code <key>\1} (the {@link #KEYED_TERM_OPEN_UPPER_SENTINEL}) exclusive for the open upper
+     * bound. The bracket choice reflects only the caller-supplied {@code includeLower}: the
+     * upper side is always exclusive because the sentinel itself is exclusive. Same SVQ
+     * rewrite rules as {@link #expectedRangeQuery}.
+     */
+    private String expectedLowerOnlyRangeQuery(String lower, boolean includeLower) {
+        String openBracket = includeLower ? "[" : "{";
+        String inner = KEYED_INTERNAL_FIELD
+            + ":"
+            + openBracket
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + lower
+            + " TO "
+            + SUBKEY
+            + KEYED_TERM_OPEN_UPPER_SENTINEL
+            + "}";
+        return switch (mode) {
+            case STANDARD -> inner;
+            case TIME_SERIES, LOGSDB -> "#" + inner + " #single_value_match(" + KEYED_INTERNAL_FIELD + ")";
+        };
+    }
+
+    /**
+     * Expected printed form of a single-sided {@code field_extract} range with only the upper
+     * bound set, pushed to the keyed sub-field. The keyed flattened mapper substitutes
+     * {@code <key>\0} (the {@link #KEYED_TERM_SEPARATOR}) inclusive for the open lower bound,
+     * which is the encoding of value {@code ""} and the smallest term in this key's slice. The
+     * bracket choice reflects only the caller-supplied {@code includeUpper}: the lower side is
+     * always inclusive because the sentinel is inclusive. Same SVQ rewrite rules as
+     * {@link #expectedRangeQuery}.
+     */
+    private String expectedUpperOnlyRangeQuery(String upper, boolean includeUpper) {
+        String closeBracket = includeUpper ? "]" : "}";
+        String inner = KEYED_INTERNAL_FIELD
+            + ":["
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + " TO "
+            + SUBKEY
+            + KEYED_TERM_SEPARATOR
+            + upper
+            + closeBracket;
+        return switch (mode) {
+            case STANDARD -> inner;
+            case TIME_SERIES, LOGSDB -> "#" + inner + " #single_value_match(" + KEYED_INTERNAL_FIELD + ")";
+        };
     }
 
     /**
@@ -308,6 +478,35 @@ public class FieldExtractPushQueriesIT extends ESRestTestCase {
             assertMap(sig, dataNodeSignature.matcher);
         }
         assertTrue("expected the data driver profile in result", assertedDataDriver);
+    }
+
+    /**
+     * Returns a randomized comparison fragment between {@code field_extract(<root>, "<key>")} and
+     * {@code "<literal>"} that is semantically equivalent to {@code field_extract(...) op literal}
+     * but with a 50/50 chance of being printed as {@code "literal" flipped(op) field_extract(...)}.
+     * The {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight} optimizer
+     * rule rotates the literal back to the right, and {@code BinaryComparison#swapLeftAndRight}
+     * flips the operator on the way (so {@code 5 < x} becomes {@code x > 5}). The pushed Lucene
+     * query is therefore identical regardless of which side the literal started on. Randomizing
+     * here guards against a regression where the rotation rule is skipped for {@code field_extract}
+     * call sites and an otherwise-pushed comparison silently falls back to a per-row filter.
+     */
+    private String randomizedComparison(String op, String literal) {
+        boolean literalOnRight = randomBoolean();
+        String fieldExtract = String.format(Locale.ROOT, "field_extract(%s, \"%s\")", FLATTENED_ROOT, SUBKEY);
+        return literalOnRight
+            ? String.format(Locale.ROOT, "%s %s \"%s\"", fieldExtract, op, literal)
+            : String.format(Locale.ROOT, "\"%s\" %s %s", literal, flippedComparator(op), fieldExtract);
+    }
+
+    private static String flippedComparator(String op) {
+        return switch (op) {
+            case ">" -> "<";
+            case ">=" -> "<=";
+            case "<" -> ">";
+            case "<=" -> ">=";
+            default -> throw new IllegalArgumentException("unsupported operator for flip [" + op + "]");
+        };
     }
 
     private void indexDocs(List<String> hostNameValues) throws IOException {

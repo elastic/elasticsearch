@@ -167,4 +167,62 @@ public class S3ConfigurationTests extends ESTestCase {
         S3Configuration config2 = S3Configuration.fromFields(null, null, "ep", null, null);
         assertNotEquals(config1, config2);
     }
+
+    public void testSessionToken() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", "tok", "http://endpoint", "us-west-2", null);
+        assertNotNull(config);
+        assertEquals("ak", config.accessKey());
+        assertEquals("sk", config.secretKey());
+        assertEquals("tok", config.sessionToken());
+        assertTrue(config.hasCredentials());
+        assertFalse(config.isAnonymous());
+    }
+
+    public void testSessionTokenFromMap() {
+        S3Configuration config = S3Configuration.fromMap(Map.of("access_key", "ak", "secret_key", "sk", "session_token", "tok"));
+        assertNotNull(config);
+        assertEquals("tok", config.sessionToken());
+        assertTrue(config.hasCredentials());
+    }
+
+    public void testSessionTokenAbsentByDefault() {
+        S3Configuration config = S3Configuration.fromFields("ak", "sk", "http://endpoint", "us-west-2");
+        assertNotNull(config);
+        assertNull(config.sessionToken());
+    }
+
+    public void testSessionTokenConflictsWithAuthNone() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromFields(null, null, "tok", null, null, "none")
+        );
+        assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));
+    }
+
+    public void testFromQueryConfigWithSessionToken() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("access_key", "ak");
+        raw.put("secret_key", "sk");
+        raw.put("session_token", "tok");
+        raw.put("header_row", false);
+
+        Configured<S3Configuration> result = S3Configuration.fromQueryConfig(raw);
+        S3Configuration config = result.value();
+        assertNotNull(config);
+        assertEquals("tok", config.sessionToken());
+        assertThat(result.consumedKeys(), containsInAnyOrder("access_key", "secret_key", "session_token"));
+    }
+
+    public void testEqualsWithSessionToken() {
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok", "ep", null, null);
+        assertEquals(config1, config2);
+        assertEquals(config1.hashCode(), config2.hashCode());
+    }
+
+    public void testNotEqualsWithDifferentSessionToken() {
+        S3Configuration config1 = S3Configuration.fromFields("ak", "sk", "tok1", "ep", null, null);
+        S3Configuration config2 = S3Configuration.fromFields("ak", "sk", "tok2", "ep", null, null);
+        assertNotEquals(config1, config2);
+    }
 }

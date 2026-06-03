@@ -17,7 +17,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
@@ -62,10 +61,10 @@ final class ParquetColumnDecoding {
      */
     static String formatUuid(byte[] bytes, int offset, int length) {
         if (bytes == null || length != 16) {
-            throw new QlIllegalArgumentException("UUID requires exactly 16 bytes, got " + (bytes == null ? "null" : length));
+            throw new IllegalArgumentException("UUID requires exactly 16 bytes, got " + (bytes == null ? "null" : length));
         }
         if (offset < 0 || offset + 16 > bytes.length) {
-            throw new QlIllegalArgumentException("UUID byte offset out of bounds: offset=" + offset + ", array length=" + bytes.length);
+            throw new IllegalArgumentException("UUID byte offset out of bounds: offset=" + offset + ", array length=" + bytes.length);
         }
         StringBuilder sb = new StringBuilder(36);
         for (int i = 0; i < 16; i++) {

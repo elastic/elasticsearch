@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -35,10 +36,34 @@ public class RecoveriesCollection {
     /** This is the single source of truth for ongoing recoveries. If it's not here, it was canceled or done */
     private final ConcurrentMap<Long, RecoveryTarget> onGoingRecoveries = ConcurrentCollections.newConcurrentMap();
 
+    private final List<RecoverySchedulingListener> recoverySchedulingListeners = new CopyOnWriteArrayList<>();
+
     private final Logger logger;
 
     public RecoveriesCollection(Logger logger) {
         this.logger = logger;
+    }
+
+    /** Registers a recovery scheduling listener */
+    public void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
+        recoverySchedulingListeners.add(listener);
+    }
+
+    /** Unregisters a recovery scheduling listener */
+    public void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
+        recoverySchedulingListeners.remove(listener);
+    }
+
+    private void notifyRecoverySchedulingListeners() {
+        assert Thread.holdsLock(onGoingRecoveries) == false;
+        for (RecoverySchedulingListener listener : recoverySchedulingListeners) {
+            try {
+                listener.onRecoverySchedulingChange();
+            } catch (Exception e) {
+                assert false : e;
+                logger.warn("exception from recovery schedule listener", e);
+            }
+        }
     }
 
     /**
@@ -63,6 +88,7 @@ public class RecoveriesCollection {
             listener
         );
         startRecoveryInternal(recoveryTarget);
+        notifyRecoverySchedulingListeners();
         return recoveryTarget.recoveryId();
     }
 
@@ -75,6 +101,7 @@ public class RecoveriesCollection {
             recoveryTarget.sourceNode(),
             recoveryTarget.recoveryId()
         );
+        recoveryTarget.indexShard().recoveryStats().incCurrentAsTarget();
     }
 
     /**
@@ -95,10 +122,11 @@ public class RecoveriesCollection {
                 if (oldRecoveryTarget == null) {
                     return null;
                 }
-
+                oldRecoveryTarget.indexShard().recoveryStats().decCurrentAsTarget();
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
                 startRecoveryInternal(newRecoveryTarget);
             }
+            notifyRecoverySchedulingListeners();
 
             // Closes the current recovery target
             boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());
@@ -134,7 +162,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
+     * Gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
      * to make sure it's safe to use. However, you must call {@link RecoveryTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
@@ -158,7 +186,7 @@ public class RecoveriesCollection {
         return recoveryRef;
     }
 
-    /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
+    /** Cancels the recovery with the given id (if found) and remove it from the recovery collection */
     public boolean cancelRecovery(long id, String reason) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         boolean cancelled = false;
@@ -170,14 +198,16 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 reason
             );
+            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.cancel(reason);
             cancelled = true;
+            notifyRecoverySchedulingListeners();
         }
         return cancelled;
     }
 
     /**
-     * fail the recovery with the given id (if found) and remove it from the recovery collection
+     * Fails the recovery with the given id (if found) and remove it from the recovery collection
      *
      * @param id               id of the recovery to fail
      * @param e                exception with reason for the failure
@@ -193,16 +223,20 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 sendShardFailure
             );
+            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.fail(e, sendShardFailure);
+            notifyRecoverySchedulingListeners();
         }
     }
 
-    /** mark the recovery with the given id as done (if found) */
+    /** Marks the recovery with the given id as done (if found) */
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
             logger.trace("{} marking recovery from {} as done, id [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId());
+            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.markAsDone();
+            notifyRecoverySchedulingListeners();
         }
     }
 
@@ -212,7 +246,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * cancel all ongoing recoveries for the given shard
+     * Cancels all ongoing recoveries for the given shard
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
@@ -238,14 +272,18 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 reason
             );
+            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.cancel(reason);
             cancelled = true;
+        }
+        if (cancelled) {
+            notifyRecoverySchedulingListeners();
         }
         return cancelled;
     }
 
     /**
-     * a reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
+     * A reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */

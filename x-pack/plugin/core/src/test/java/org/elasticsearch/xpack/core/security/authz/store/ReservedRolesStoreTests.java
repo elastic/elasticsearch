@@ -2110,12 +2110,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-axonius.alert_and_incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.alert_finding-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.compute-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.exposure-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.gateway-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.identity-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.network-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.storage-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
@@ -3996,8 +3997,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
-        assertNoAccessAllowed(role, "traces-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
-        assertNoAccessAllowed(role, "logs-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
         // Check application privileges
         assertThat(
             role.application()
@@ -4085,8 +4084,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
-        assertNoAccessAllowed(role, "traces-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
-        assertNoAccessAllowed(role, "logs-agent_builder.otel-" + randomAlphaOfLengthBetween(3, 8));
 
         // Check application privileges
         assertThat(

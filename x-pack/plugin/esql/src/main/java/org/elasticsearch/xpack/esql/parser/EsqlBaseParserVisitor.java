@@ -810,13 +810,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
   /**
-   * Visit a parse tree produced by the {@code emptyArrayLiteral}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx);
-  /**
    * Visit a parse tree produced by the {@code numericArrayLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree

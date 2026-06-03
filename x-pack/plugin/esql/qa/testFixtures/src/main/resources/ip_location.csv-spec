@@ -41,18 +41,6 @@ US                         | Homestead
 ;
 
 
-emptyProperties
-required_capability: ip_location_command
-
-ROW ip = "2602:306:33d3:8000::3257:9652"
-| IP_LOCATION g = ip WITH { "properties": [] }
-;
-
-ip:keyword
-2602:306:33d3:8000::3257:9652
-;
-
-
 dottedPrefix
 required_capability: ip_location_command
 

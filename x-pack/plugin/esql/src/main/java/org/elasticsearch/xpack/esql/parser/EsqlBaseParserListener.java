@@ -1348,18 +1348,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitStringLiteral(EsqlBaseParser.StringLiteralContext ctx);
   /**
-   * Enter a parse tree produced by the {@code emptyArrayLiteral}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void enterEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code emptyArrayLiteral}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void exitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx);
-  /**
    * Enter a parse tree produced by the {@code numericArrayLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree

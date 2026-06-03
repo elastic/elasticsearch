@@ -100,6 +100,7 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
      */
     @Override
     public void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare) {
+        assert outputFieldsCollector.warnings != null : "warnings must be wired before evaluation";
         outputFieldsCollector.startRow(target);
         try {
             if (input.isNull(row) == false) {
@@ -154,12 +155,13 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         protected final RowOutput rowOutput;
 
         /**
-         * The warnings sink for this driver. Set exactly once by
-         * {@link CompoundOutputEvaluator#CompoundOutputEvaluator} after construction;
-         * defaults to {@link Warnings#NOOP_WARNINGS} until then. Package-private so
-         * that only collectors in this package (e.g. IP_LOCATION) can access it.
+         * The warnings sink for this driver. Wired exactly once by
+         * {@link CompoundOutputEvaluator#CompoundOutputEvaluator} immediately after the collector
+         * is constructed and before any row is evaluated, so it is guaranteed to be non-null by the
+         * time {@link #evaluate(String)} runs. Package-private so that only collectors in this
+         * package (e.g. IP_LOCATION) can access it.
          */
-        Warnings warnings = Warnings.NOOP_WARNINGS;
+        Warnings warnings;
 
         protected OutputFieldsCollector(int outputFieldCount) {
             this.rowOutput = new RowOutput(outputFieldCount);

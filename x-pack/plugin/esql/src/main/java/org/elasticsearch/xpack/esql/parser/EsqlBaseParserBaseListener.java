@@ -1525,18 +1525,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
   @Override public void enterNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) { }
   /**
    * {@inheritDoc}

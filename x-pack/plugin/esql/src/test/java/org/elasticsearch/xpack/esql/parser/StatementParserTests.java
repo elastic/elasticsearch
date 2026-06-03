@@ -4845,11 +4845,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("row a = \"test\" | ip_location g = a WITH { \"unknown_option\": \"value\" }", "Invalid option");
     }
 
-    public void testIpLocationCommandEmptyProperties() {
+    public void testIpLocationCommandEmptyPropertiesRejected() {
         assumeTrue("requires ip_location command capability", EsqlCapabilities.Cap.IP_LOCATION_COMMAND.isEnabled());
-        LogicalPlan cmd = processingCommand("ip_location g = a WITH { \"properties\": [] }");
-        IpLocation ip = as(cmd, IpLocation.class);
-        assertEquals(0, ip.generatedAttributes().size());
+        // ES|QL has no empty-array literal; an empty list is rejected as a syntax error rather than producing zero columns.
+        expectError("row a = \"test\" | ip_location g = a WITH { \"properties\": [] }", "no viable alternative at input '[]'");
     }
 
     public void testIpLocationCommandFirstOnlyAcceptsBothValues() {

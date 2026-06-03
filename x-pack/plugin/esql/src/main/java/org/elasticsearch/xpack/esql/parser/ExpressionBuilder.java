@@ -301,11 +301,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return visitArrayLiteral(ctx, ctx.string(), DataType.KEYWORD);
     }
 
-    @Override
-    public Object visitEmptyArrayLiteral(EsqlBaseParser.EmptyArrayLiteralContext ctx) {
-        return new Literal(source(ctx), List.of(), DataType.KEYWORD);
-    }
-
     private Object visitArrayLiteral(ParserRuleContext ctx, List<? extends ParserRuleContext> contexts, DataType dataType) {
         Source source = source(ctx);
         List<Literal> literals = visitList(this, contexts, Literal.class);

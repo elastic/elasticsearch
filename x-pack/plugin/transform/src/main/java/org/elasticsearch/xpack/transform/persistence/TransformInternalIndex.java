@@ -67,6 +67,7 @@ public final class TransformInternalIndex {
      * version 5 (7.7): stats::processing_time_in_ms, stats::processing_total
      * version 6 (7.12):stats::delete_time_in_ms, stats::documents_deleted
      * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
+     * version 8 (9.5):add mapping for cloud_credential::persisted_credential (version, id, value)
      */
 
     /**
@@ -75,7 +76,7 @@ public final class TransformInternalIndex {
      * of changes above. Increment this constant by one at the same time as adding a new
      * entry to the table of changes above.
      */
-    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 1;
+    public static final int TRANSFORM_INDEX_MAPPINGS_VERSION = 2;
     /**
      * No longer used for determining the age of mappings, but system index descriptor
      * code requires <em>something</em> be set. We use a value that can be parsed by
@@ -197,6 +198,8 @@ public final class TransformInternalIndex {
         addTransformStoredDocMappings(builder);
         // add the schema for checkpoints
         addTransformCheckpointMappings(builder);
+        // add the schema for cloud credentials
+        addTransformCloudCredentialMappings(builder);
         // end type
         builder.endObject();
         // end properties
@@ -361,6 +364,22 @@ public final class TransformInternalIndex {
             .endObject()
             .startObject(TransformCheckpoint.CHECKPOINT.getPreferredName())
             .field(TYPE, LONG)
+            .endObject();
+    }
+
+    private static XContentBuilder addTransformCloudCredentialMappings(XContentBuilder builder) throws IOException {
+        return builder.startObject("persisted_credential")
+            .startObject(PROPERTIES)
+            .startObject("version")
+            .field(TYPE, LONG)
+            .endObject()
+            .startObject("id")
+            .field(TYPE, KEYWORD)
+            .endObject()
+            .startObject("value")
+            .field(ENABLED, false)
+            .endObject()
+            .endObject()
             .endObject();
     }
 

@@ -53,9 +53,11 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
         int nVectors = nClusters * 200;
         int dims = 16;
 
+        // Generate well-separated clusters
         byte[][] trueCentroids = new byte[nClusters][dims];
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < dims; j++) {
+                // Spread centroids far apart
                 trueCentroids[i][j] = (byte) ((i * 64) - 128 + randomIntBetween(-5, 5));
             }
         }
@@ -79,6 +81,7 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
 
         int[] assignments = result.assignments();
 
+        // Check that vectors in the same true cluster mostly get the same assignment
         int[][] assignmentCounts = new int[nClusters][result.centroids().length];
         for (int i = 0; i < nVectors; i++) {
             assignmentCounts[trueLabels[i]][assignments[i]]++;
@@ -89,14 +92,17 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
             int maxCount = Arrays.stream(assignmentCounts[c]).max().orElse(0);
             correctCount += maxCount;
         }
+        // Expect at least 70% of vectors assigned to their correct cluster
         float accuracy = (float) correctCount / nVectors;
         assertTrue("Byte KMeans accuracy too low: " + accuracy, accuracy >= 0.7f);
     }
 
     public void testRemoveEmptyClusters() throws IOException {
+        // Test that removeEmptyClusters works correctly when V=byte[]
         int dims = 8;
         int nVectors = 100;
 
+        // Create vectors that naturally cluster into 2 groups, but request more clusters
         List<byte[]> vectorList = new ArrayList<>(nVectors);
         for (int i = 0; i < nVectors; i++) {
             byte[] vector = new byte[dims];
@@ -109,13 +115,16 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
 
         KMeansByteVectorValues vectors = KMeansByteVectorValues.build(vectorList, null, dims);
 
+        // Request more clusters than natural groups — some should end up empty and get removed
         int targetSize = nVectors / 10;
         HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 5, nVectors, 512, -1f);
         KMeansResult<byte[]> result = hkmeans.cluster(vectors, targetSize);
 
+        // Should not throw ClassCastException
         assertNotNull(result);
         assertTrue(result.centroids().length > 0);
 
+        // All assignments valid
         for (int a : result.assignments()) {
             assertTrue(a >= 0 && a < result.centroids().length);
         }

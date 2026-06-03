@@ -107,6 +107,7 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         int sampleSize = random().nextInt(100, nVectors + 1);
         int maxIterations = random().nextInt(0, 100);
         // We require clustersPerNeighborhood > nClusters so that neighborhoods are not used in BalancedOTKMeansLocalSerial
+        // (this path is not used in production, just for the test).
         int clustersPerNeighborhood = random().nextInt(11, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
 

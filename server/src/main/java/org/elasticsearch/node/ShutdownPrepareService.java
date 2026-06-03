@@ -238,12 +238,13 @@ public class ShutdownPrepareService {
                 final var nodeClosedException = new NodeClosedException(transportService.getLocalNode());
                 final var tasksFailedFuture = new PlainActionFuture<Void>();
                 try (RefCountingListener refCountingListener = new RefCountingListener(tasksFailedFuture)) {
-                    tasks.forEach(
-                        t -> ((BulkByPaginatedSearchTask) t).wakeUpAndFail(
-                            nodeClosedException,
-                            refCountingListener.acquire().map(result -> null)
-                        )
-                    );
+                    tasks.forEach(t -> {
+                        if (t instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
+                            bulkByPaginatedSearchTask.wakeUpAndFail(nodeClosedException, refCountingListener.acquire().map(result -> null));
+                        } else {
+                            assert false : "unexpected task type: " + t.getClass();
+                        }
+                    });
                 }
                 try {
                     tasksFailedFuture.get(REINDEXING_FAILURE_TIMEOUT.millis(), TimeUnit.MILLISECONDS);

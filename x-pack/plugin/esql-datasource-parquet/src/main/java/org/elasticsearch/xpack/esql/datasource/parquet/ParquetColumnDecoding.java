@@ -112,7 +112,11 @@ final class ParquetColumnDecoding {
         int maxDef = info.maxDefLevel();
         return switch (elementType) {
             case INTEGER -> readListIntColumn(cr, maxDef, rows, blockFactory);
-            case LONG -> readListLongColumn(cr, maxDef, rows, blockFactory);
+            case LONG -> {
+                long multiplier = info.logicalType() instanceof LogicalTypeAnnotation.TimeLogicalTypeAnnotation time
+                    && time.getUnit() == LogicalTypeAnnotation.TimeUnit.MICROS ? 1_000L : 1L;
+                yield readListLongColumn(cr, maxDef, rows, blockFactory, multiplier);
+            }
             case DOUBLE -> readListDoubleColumn(cr, maxDef, rows, blockFactory);
             case BOOLEAN -> readListBooleanColumn(cr, maxDef, rows, blockFactory);
             case KEYWORD, TEXT -> readListBytesRefColumn(cr, maxDef, rows, blockFactory);
@@ -178,9 +182,9 @@ final class ParquetColumnDecoding {
         }
     }
 
-    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory) {
+    private static Block readListLongColumn(ColumnReader cr, int maxDef, int rows, BlockFactory blockFactory, long multiplier) {
         try (var builder = blockFactory.newLongBlockBuilder(rows)) {
-            Runnable appender = () -> builder.appendLong(cr.getLong());
+            Runnable appender = () -> builder.appendLong(cr.getLong() * multiplier);
             for (int row = 0; row < rows; row++) {
                 readListRow(cr, maxDef, builder, appender);
             }

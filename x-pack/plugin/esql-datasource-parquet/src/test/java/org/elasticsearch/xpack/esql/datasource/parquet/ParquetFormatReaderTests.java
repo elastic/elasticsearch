@@ -1190,6 +1190,122 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- TIME logical type tests (PARQUET-6) ---
+    // Storage rule: TIME_MILLIS (INT32) → DataType.INTEGER, raw ms value in IntBlock (no conversion);
+    // TIME_MICROS (INT64) → DataType.LONG, converted to nanoseconds (×1_000);
+    // TIME_NANOS (INT64) → DataType.LONG, raw ns value in LongBlock (no conversion).
+
+    public void testTimeMillisLogicalType() throws Exception {
+        // 12:00:00 encoded as TIME_MILLIS (INT32): 43_200_000 ms since midnight.
+        // TIME_MILLIS stays INTEGER; raw ms value is stored as-is in an IntBlock.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("start_time")
+            .named("test_schema");
+
+        int rawMillis = 43_200_000; // 12:00:00 in ms since midnight
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawMillis)));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("TIME_MILLIS should map to INTEGER", DataType.INTEGER, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            IntBlock block = (IntBlock) page.getBlock(0);
+            assertEquals("TIME_MILLIS: raw ms value stored as-is", rawMillis, block.getInt(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeMicrosLogicalType() throws Exception {
+        // 12:00:00 encoded as TIME_MICROS (INT64): 43_200_000_000 µs since midnight.
+        // Expected in LongBlock: 43_200_000_000 * 1_000 = 43_200_000_000_000 ns.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MICROS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawMicros = 43_200_000_000L; // 12:00:00 in µs since midnight
+        long expectedNanos = rawMicros * 1_000L;
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawMicros)));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("TIME_MICROS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals("TIME_MICROS must be converted to nanoseconds (×1_000)", expectedNanos, block.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeNanosLogicalType() throws Exception {
+        // 12:00:00 encoded as TIME_NANOS (INT64): 43_200_000_000_000 ns since midnight.
+        // Expected in LongBlock: same raw value — already nanoseconds, no conversion.
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.NANOS))
+            .named("start_time")
+            .named("test_schema");
+
+        long rawNanos = 43_200_000_000_000L; // 12:00:00 in ns since midnight
+
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("start_time", rawNanos)));
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals("TIME_NANOS should map to LONG", DataType.LONG, metadata.schema().get(0).dataType());
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals("TIME_NANOS value is already nanoseconds, stored as-is", rawNanos, block.getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testTimeMillisNullableLogicalType() throws Exception {
+        // Nullable TIME_MILLIS column: one null row, one value row.
+        // TIME_MILLIS stays INTEGER; the block is an IntBlock with the raw ms value.
+        MessageType schema = Types.buildMessage()
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.timeType(true, LogicalTypeAnnotation.TimeUnit.MILLIS))
+            .named("start_time")
+            .named("test_schema");
+
+        int rawMillis = 3_600_000; // 01:00:00 in ms
+
+        byte[] data = createParquetFile(schema, f -> {
+            Group g1 = f.newGroup(); // null row
+            Group g2 = f.newGroup().append("start_time", rawMillis);
+            return List.of(g1, g2);
+        });
+        StorageObject so = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(so, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            IntBlock block = (IntBlock) page.getBlock(0);
+            assertTrue("first row should be null", block.isNull(0));
+            assertEquals("second row: raw ms value stored as-is", rawMillis, block.getInt(1));
+            page.releaseBlocks();
+        }
+    }
+
     // --- INT96 timestamp tests ---
 
     public void testReadInt96TimestampColumn() throws Exception {

@@ -42,7 +42,9 @@ public final class IndexWarmer {
     IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, IndexSettings indexSettings, Listener... listeners) {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
-        list.add(new FieldDataWarmer(executor, indexFieldDataService, shouldWarmGlobalOrdinals(indexSettings)));
+        if (shouldWarmGlobalOrdinals(indexSettings)) {
+            list.add(new FieldDataWarmer(executor, indexFieldDataService));
+        }
 
         Collections.addAll(list, listeners);
         this.listeners = Collections.unmodifiableList(list);
@@ -109,19 +111,14 @@ public final class IndexWarmer {
 
         private final Executor executor;
         private final IndexFieldDataService indexFieldDataService;
-        private final boolean eagerGlobalOrdinals;
 
-        FieldDataWarmer(Executor executor, IndexFieldDataService indexFieldDataService, boolean eagerGlobalOrdinals) {
+        FieldDataWarmer(Executor executor, IndexFieldDataService indexFieldDataService) {
             this.executor = executor;
             this.indexFieldDataService = indexFieldDataService;
-            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 
         @Override
         public TerminationHandle warmReader(final IndexShard indexShard, final ElasticsearchDirectoryReader reader) {
-            if (eagerGlobalOrdinals == false) {
-                return TerminationHandle.NO_WAIT;
-            }
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (MappedFieldType fieldType : mapperService.getEagerGlobalOrdinalsFields()) {

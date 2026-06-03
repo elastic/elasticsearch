@@ -775,8 +775,16 @@ public final class ParallelParsingCoordinator {
             // empty (the consumer took every page) — an early close (e.g. LIMIT) leaves one or the other
             // non-terminal. Captured before flipping closed=true, which short-circuits the workers' enqueue
             // loops; we only treat it as clean if they had already drained naturally.
-            boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty();
+            // `buffered != null` means a hasNext() handed a page out that next() never consumed — an early close
+            // (LIMIT, cancellation, downstream error), so the file was not fully drained: not a clean completion.
+            boolean cleanCompletion = firstError.get() == null && remainingSegments.get() == 0 && sharedQueue.isEmpty() && buffered == null;
             closed = true;
+            // Release the page parked by a hasNext() with no following next(); drainQueue() only sees the shared
+            // queue, so without this its Blocks leak against the breaker on every early close.
+            if (buffered != null) {
+                buffered.releaseBlocks();
+                buffered = null;
+            }
             drainQueue();
             try {
                 if (allDone.await(CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS) == false) {

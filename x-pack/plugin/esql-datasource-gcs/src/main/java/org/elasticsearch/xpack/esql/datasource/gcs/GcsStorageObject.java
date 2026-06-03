@@ -112,8 +112,8 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
             throw new IllegalArgumentException("position must be non-negative, got: " + position);
         }
         boolean toEnd = length == READ_TO_END;
-        if (toEnd == false && length < 0) {
-            throw new IllegalArgumentException("length must be non-negative or READ_TO_END, got: " + length);
+        if (toEnd == false && length <= 0) {
+            throw new IllegalArgumentException("length must be positive or READ_TO_END, got: " + length);
         }
 
         long startNanos = System.nanoTime();

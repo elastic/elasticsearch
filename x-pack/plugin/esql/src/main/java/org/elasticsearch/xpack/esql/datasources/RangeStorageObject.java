@@ -59,7 +59,13 @@ class RangeStorageObject implements StorageObject {
             long remaining = length - position;
             return remaining <= 0 ? InputStream.nullInputStream() : delegate.newStream(Math.addExact(offset, position), remaining);
         }
-        return delegate.newStream(Math.addExact(offset, position), rangeLength);
+        // Closed range: clamp to the view so an oversized request never reads past offset+length into the next
+        // split's bytes — matching the READ_TO_END branch above and the by-length async sibling below.
+        long closedRemaining = length - position;
+        if (closedRemaining <= 0) {
+            return InputStream.nullInputStream();
+        }
+        return delegate.newStream(Math.addExact(offset, position), Math.min(rangeLength, closedRemaining));
     }
 
     @Override
@@ -67,7 +73,19 @@ class RangeStorageObject implements StorageObject {
         if (position >= length) {
             return -1;
         }
-        return delegate.readBytes(Math.addExact(offset, position), target);
+        // Cap the read to the view: a target larger than the view's remaining bytes would otherwise read past
+        // offset+length into the next split. Shrink the target's limit so the delegate cannot overrun it.
+        long viewRemaining = length - position;
+        if (target.remaining() <= viewRemaining) {
+            return delegate.readBytes(Math.addExact(offset, position), target);
+        }
+        int savedLimit = target.limit();
+        target.limit(target.position() + Math.toIntExact(viewRemaining));
+        try {
+            return delegate.readBytes(Math.addExact(offset, position), target);
+        } finally {
+            target.limit(savedLimit);
+        }
     }
 
     @Override
@@ -127,7 +145,21 @@ class RangeStorageObject implements StorageObject {
             listener.onResponse(-1);
             return;
         }
-        delegate.readBytesAsync(Math.addExact(offset, position), target, executor, listener);
+        long viewRemaining = this.length - position;
+        if (target.remaining() <= viewRemaining) {
+            delegate.readBytesAsync(Math.addExact(offset, position), target, executor, listener);
+            return;
+        }
+        // Cap to the view (as the sync readBytes does); restore the caller's limit once the read completes.
+        int savedLimit = target.limit();
+        target.limit(target.position() + Math.toIntExact(viewRemaining));
+        delegate.readBytesAsync(Math.addExact(offset, position), target, executor, ActionListener.wrap(n -> {
+            target.limit(savedLimit);
+            listener.onResponse(n);
+        }, e -> {
+            target.limit(savedLimit);
+            listener.onFailure(e);
+        }));
     }
 
     @Override

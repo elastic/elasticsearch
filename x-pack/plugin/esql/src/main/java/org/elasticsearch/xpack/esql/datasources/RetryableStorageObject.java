@@ -252,7 +252,9 @@ class RetryableStorageObject implements StorageObject {
     private final class ResumingInputStream extends InputStream {
         private final long position;
         private final long length;
-        private InputStream current;
+        // Volatile: the reader thread re-assigns this on resume while {@link #abortStream} reads it (via
+        // currentStream()) from the operator/cancel thread, so the abort must see the live stream, not a stale ref.
+        private volatile InputStream current;
         private long delivered = 0;
 
         ResumingInputStream(InputStream initial, long position, long length) {

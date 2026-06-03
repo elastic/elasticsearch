@@ -144,9 +144,9 @@ public class GcsStorageObjectTests extends ESTestCase {
     public void testNewStreamWithNegativeLengthThrows() {
         StoragePath path = StoragePath.of("gs://my-bucket/data/file.parquet");
         GcsStorageObject obj = new GcsStorageObject(mockStorage, "my-bucket", "data/file.parquet", path);
-        // -1 is now the READ_TO_END open-ended sentinel; a different negative length is still invalid.
+        // -1 is now the READ_TO_END open-ended sentinel; a different non-positive length is still invalid.
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> obj.newStream(0, -2));
-        assertEquals("length must be non-negative or READ_TO_END, got: -2", e.getMessage());
+        assertEquals("length must be positive or READ_TO_END, got: -2", e.getMessage());
     }
 
     public void testNewStreamOpensReader() throws IOException {

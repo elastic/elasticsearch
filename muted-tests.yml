@@ -689,3 +689,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterField}
   issue: https://github.com/elastic/elasticsearch/issues/150641
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.zst/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150642

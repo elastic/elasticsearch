@@ -132,7 +132,11 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                             1.0F
                         );
                         fetchResult.shardResult(hits, fetchProfile(profiled));
-                        listener.onResponse(new Response(fetchResult));
+                        try {
+                            listener.onResponse(new Response(fetchResult));
+                        } finally {
+                            fetchResult.decRef();
+                        }
                     }
                 };
                 provideSearchTransportWithChunkedFetch(mockSearchPhaseContext, mockTransportService, threadPool, fetchCoordinationAction);
@@ -209,7 +213,11 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                             1.0F
                         );
                         fetchResult.shardResult(hits, fetchProfile(profiled));
-                        listener.onResponse(new Response(fetchResult));
+                        try {
+                            listener.onResponse(new Response(fetchResult));
+                        } finally {
+                            fetchResult.decRef();
+                        }
                     }
                 };
                 provideSearchTransportWithChunkedFetch(mockSearchPhaseContext, mockTransportService, threadPool, fetchCoordinationAction);
@@ -292,7 +300,11 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                             1.0F
                         );
                         fetchResult.shardResult(hits, fetchProfile(profiled));
-                        listener.onResponse(new Response(fetchResult));
+                        try {
+                            listener.onResponse(new Response(fetchResult));
+                        } finally {
+                            fetchResult.decRef();
+                        }
                     }
                 };
                 provideSearchTransportWithChunkedFetch(mockSearchPhaseContext, mockTransportService, threadPool, fetchCoordinationAction);
@@ -370,7 +382,11 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                             1.0F
                         );
                         fetchResult.shardResult(hits, fetchProfile(profiled));
-                        listener.onResponse(new Response(fetchResult));
+                        try {
+                            listener.onResponse(new Response(fetchResult));
+                        } finally {
+                            fetchResult.decRef();
+                        }
                     }
                 };
                 provideSearchTransportWithChunkedFetch(mockSearchPhaseContext, mockTransportService, threadPool, fetchCoordinationAction);
@@ -811,7 +827,11 @@ public class FetchSearchPhaseChunkedTests extends ESTestCase {
                     1.0F
                 );
                 fetchResult.shardResult(hits, fetchProfile(profiled));
-                listener.onResponse(fetchResult);
+                try {
+                    listener.onResponse(fetchResult);
+                } finally {
+                    fetchResult.decRef();
+                }
             }
         };
     }

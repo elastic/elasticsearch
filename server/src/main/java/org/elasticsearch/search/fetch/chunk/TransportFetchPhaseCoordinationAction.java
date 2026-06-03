@@ -236,8 +236,12 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.profileResult()
             );
 
-            // SearchActionListener.onResponse owns the birth ref and releases it via its finally block.
-            listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
+            // Release the birth ref after passing ownership to the listener via consumeResult's incRef.
+            try {
+                listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
+            } finally {
+                finalResult.decRef();
+            }
         }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();

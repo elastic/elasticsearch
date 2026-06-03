@@ -152,6 +152,37 @@ setup:
                 index_options:
                   type: int8_hnsw
 
+  # Non-indexed (index:false) fields store vectors as binary doc values and have no configured similarity,
+  # so the query must supply [similarity_function]. dv_unindexed mirrors dv_flat's vectors so l2_norm scoring
+  # can be compared against the indexed equivalent.
+  - do:
+      indices.create:
+        index: dv_unindexed
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 5
+                index: false
+
+  # dv_unindexed_bfloat16 mirrors dv_bfloat16_hnsw's vectors for the same comparison on a bfloat16 field.
+  - do:
+      indices.create:
+        index: dv_unindexed_bfloat16
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              vector:
+                type: dense_vector
+                element_type: bfloat16
+                dims: 5
+                index: false
+
   - do:
       index:
         index: dv_flat
@@ -326,6 +357,40 @@ setup:
         index: dv_bfloat16_int8_hnsw
         id: "3"
         body: { name: rabbit.jpg, vector: [0.5, 0.5, 0.5, 0.5, 0.5] }
+
+  # dv_unindexed mirrors dv_flat exactly so l2_norm scoring can be compared against the indexed equivalent.
+  - do:
+      index:
+        index: dv_unindexed
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_unindexed
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_unindexed
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
+
+  # dv_unindexed_bfloat16 mirrors dv_bfloat16_hnsw exactly.
+  - do:
+      index:
+        index: dv_unindexed_bfloat16
+        id: "1"
+        body: { name: cow.jpg,    vector: [230.0, 300.33, -34.8988, 15.555, -200.0] }
+  - do:
+      index:
+        index: dv_unindexed_bfloat16
+        id: "2"
+        body: { name: moose.jpg,  vector: [-0.5, 100.0, -13, 14.8, -156.0] }
+  - do:
+      index:
+        index: dv_unindexed_bfloat16
+        id: "3"
+        body: { name: rabbit.jpg, vector: [0.5, 111.3, -13.0, 14.8, -156.0] }
 
   - do:
       indices.refresh: {}
@@ -631,3 +696,92 @@ setup:
               similarity_function: l2_norm
   - match: {hits.hits.0._id: "3"}
   - close_to: {hits.hits.0._score: {value: 0.986, error: 0.01}}
+
+---
+"dense_vector raw scoring on a non-indexed field matches the indexed equivalent":
+  # A non-indexed field stores vectors as binary doc values and has no configured similarity, so the query
+  # supplies l2_norm. The raw scores must match the indexed flat field (same vectors, same metric).
+  - do:
+      search:
+        index: dv_flat
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: top_id }
+  - set: { hits.hits.0._score: indexed_score_0 }
+  - set: { hits.hits.1._score: indexed_score_1 }
+  - set: { hits.hits.2._score: indexed_score_2 }
+
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $top_id }
+  - close_to: {hits.hits.0._score: {value: $indexed_score_0, error: 0.000001}}
+  - close_to: {hits.hits.1._score: {value: $indexed_score_1, error: 0.000001}}
+  - close_to: {hits.hits.2._score: {value: $indexed_score_2, error: 0.000001}}
+
+---
+"dense_vector raw scoring on a non-indexed bfloat16 field matches the indexed equivalent":
+  - do:
+      search:
+        index: dv_bfloat16_hnsw
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+  - match: { hits.total.value: 3 }
+  - set: { hits.hits.0._id: bf16_top_id }
+  - set: { hits.hits.0._score: bf16_indexed_score_0 }
+
+  - do:
+      search:
+        index: dv_unindexed_bfloat16
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+              similarity_function: l2_norm
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: $bf16_top_id }
+  - close_to: {hits.hits.0._score: {value: $bf16_indexed_score_0, error: 0.000001}}
+
+---
+"dense_vector on a non-indexed field requires a similarity_function":
+  # The field has no configured similarity, so omitting similarity_function is an error.
+  - do:
+      catch: bad_request
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+---
+"dense_vector on a non-indexed field supports a cosine similarity_function":
+  - do:
+      search:
+        index: dv_unindexed
+        body:
+          query:
+            dense_vector:
+              field: vector
+              query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+              similarity_function: cosine
+  - match: { hits.total.value: 3 }
+  # Query equals doc 3 (rabbit) verbatim ⇒ cosine ≈ 1.0 ⇒ Lucene score (1 + cosine) / 2 ≈ 1.0.
+  - match: { hits.hits.0._id: "3" }
+  - close_to: {hits.hits.0._score: {value: 1.0, error: 0.001}}

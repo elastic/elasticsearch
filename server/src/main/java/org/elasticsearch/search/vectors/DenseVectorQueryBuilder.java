@@ -286,9 +286,16 @@ public class DenseVectorQueryBuilder extends LeafQueryBuilder<DenseVectorQueryBu
             ).queryName(queryName);
         }
         // Simple-case rewrite: when the user opts in to quantized scoring without a similarity override,
-        // the existing internal ExactKnnQueryBuilder produces the exact same Lucene query.
+        // the existing internal ExactKnnQueryBuilder produces the exact same Lucene query. This only holds
+        // for indexed fields, which have a codec-bound scorer. Non-indexed (index:false) fields have no
+        // quantized representation and are scored from doc values by doToQuery, so they must not take this
+        // shortcut. When the field type isn't resolvable yet (e.g. coordinator-node rewrite), fall through;
+        // the shard-level rewrite re-resolves it.
         if (Boolean.TRUE.equals(quantized) && similarityFunction == null) {
-            return new ExactKnnQueryBuilder(queryVector, fieldName, null).boost(boost).queryName(queryName);
+            MappedFieldType fieldType = ctx.getFieldType(fieldName);
+            if (fieldType instanceof DenseVectorFieldType vectorFieldType && vectorFieldType.isSearchable()) {
+                return new ExactKnnQueryBuilder(queryVector, fieldName, null).boost(boost).queryName(queryName);
+            }
         }
         return this;
     }

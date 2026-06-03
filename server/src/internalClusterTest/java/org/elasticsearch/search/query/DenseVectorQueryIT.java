@@ -45,6 +45,7 @@ import java.util.function.Function;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Integration tests for the {@code dense_vector} query against every supported {@link VectorIndexType}.
@@ -149,7 +150,7 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
     public void testDenseVectorRawMatchesGroundTruth() {
         TestParams params = indexRandomDocs();
         DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(VECTOR_FIELD, params.queryVector(), null, false);
-        runAndCompare(query, params, VECTOR_SCORE_SCRIPT, DELTA);
+        runAndCompare(INDEX_NAME, query, params, VECTOR_SCORE_SCRIPT, DELTA);
     }
 
     public void testDenseVectorQuantizedScoring() {
@@ -160,7 +161,7 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
         // codecs the codec scorer uses the quantized representation, so scores stay within a per-codec
         // budget of the ground truth.
         double tolerance = selectedIndexType.isQuantized() ? quantizedTolerance(selectedIndexType) : DELTA;
-        runAndCompare(query, params, VECTOR_SCORE_SCRIPT, tolerance);
+        runAndCompare(INDEX_NAME, query, params, VECTOR_SCORE_SCRIPT, tolerance);
     }
 
     /**
@@ -179,7 +180,51 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
             DenseVectorFieldMapper.VectorSimilarity.COSINE,
             false
         );
-        runAndCompare(query, params, VECTOR_SCORE_SCRIPT_COSINE, DELTA);
+        runAndCompare(INDEX_NAME, query, params, VECTOR_SCORE_SCRIPT_COSINE, DELTA);
+    }
+
+    /**
+     * A non-indexed (index:false) field stores its vectors as binary doc values rather than KNN vector
+     * values, so it is scored through a separate doc-values path. It has no configured similarity, so the
+     * query supplies one via similarity_function. The script-score baseline reads the same binary doc values,
+     * so the raw scores must match the ground truth within float tolerance for both float and bfloat16.
+     */
+    public void testDenseVectorOnNonIndexedField() throws IOException {
+        String index = "dense_vector_query_it_unindexed";
+        ElementType elementType = randomFrom(ElementType.FLOAT, ElementType.BFLOAT16);
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("element_type", elementType.toString())
+            .field("index", false)
+            .endObject()
+            .endObject()
+            .endObject();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
+            .build();
+        prepareCreate(index).setMapping(mapping).setSettings(settings).get();
+        ensureGreen(index);
+
+        TestParams params = TestParams.generate();
+        IndexRequestBuilder[] docs = new IndexRequestBuilder[params.numDocs()];
+        for (int i = 0; i < params.numDocs(); i++) {
+            docs[i] = prepareIndex(index).setId(String.valueOf(i)).setSource(VECTOR_FIELD, randomVector(params.numDims()));
+        }
+        indexRandom(true, docs);
+
+        // index:false has no configured similarity, so a similarity_function is required; use l2_norm to match
+        // the script-score baseline.
+        DenseVectorQueryBuilder query = new DenseVectorQueryBuilder(
+            VECTOR_FIELD,
+            params.queryVector(),
+            DenseVectorFieldMapper.VectorSimilarity.L2_NORM,
+            false
+        );
+        runAndCompare(index, query, params, VECTOR_SCORE_SCRIPT, DELTA);
     }
 
     /** Loose per-codec budget for codec-path vs raw script-score distance. */
@@ -208,26 +253,28 @@ public class DenseVectorQueryIT extends ESIntegTestCase {
      *
      * @param tolerance per-doc score delta tolerance.
      */
-    private void runAndCompare(DenseVectorQueryBuilder query, TestParams params, String baselineScript, double tolerance) {
-        SearchRequestBuilder search = prepareSearch(INDEX_NAME).setQuery(query)
-            .setSize(params.numDocs())
-            .setTrackTotalHits(randomBoolean());
+    private void runAndCompare(String index, DenseVectorQueryBuilder query, TestParams params, String baselineScript, double tolerance) {
+        SearchRequestBuilder search = prepareSearch(index).setQuery(query).setSize(params.numDocs()).setTrackTotalHits(randomBoolean());
         assertNoFailuresAndResponse(
             search,
-            denseResponse -> compareWithExactSearch(denseResponse, params.queryVector(), params.numDocs(), baselineScript, tolerance)
+            denseResponse -> compareWithExactSearch(index, denseResponse, params.queryVector(), params.numDocs(), baselineScript, tolerance)
         );
     }
 
     private static void compareWithExactSearch(
+        String index,
         SearchResponse denseResponse,
         float[] queryVector,
         int docCount,
         String baselineScript,
         double tolerance
     ) {
+        // Guard against a vacuous pass: the per-hit comparison below loops over the dense hits, so it would
+        // silently succeed if the dense query matched nothing. Every doc has the field, so all are scored.
+        assertThat("dense_vector query returned fewer hits than indexed docs", denseResponse.getHits().getHits().length, equalTo(docCount));
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, baselineScript, Map.of(QUERY_VECTOR_PARAM, queryVector));
         ScriptScoreQueryBuilder scriptScoreQueryBuilder = QueryBuilders.scriptScoreQuery(new MatchAllQueryBuilder(), script);
-        assertNoFailuresAndResponse(prepareSearch(INDEX_NAME).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
+        assertNoFailuresAndResponse(prepareSearch(index).setQuery(scriptScoreQueryBuilder).setSize(docCount), exactResponse -> {
             assertHitCount(exactResponse, docCount);
 
             int i = 0;

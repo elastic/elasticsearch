@@ -10,6 +10,9 @@ Vector queries are specialized queries that work on vector fields to efficiently
 [`knn` query](/reference/query-languages/query-dsl/query-dsl-knn-query.md)
 :   A query that finds the *k* nearest vectors to a query vector for [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md) fields, as measured by a similarity metric.
 
+[`dense_vector` query](/reference/query-languages/query-dsl/query-dsl-dense-vector-query.md)
+:   A query that performs exact, brute-force scoring of a query vector against every [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md) document, with no approximate-search cutoff.
+
 [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md)
 :   A query used to search [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md) field types.
 

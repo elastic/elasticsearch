@@ -467,6 +467,48 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         }
     }
 
+    public void testExactKnnQueryOnNonIndexedField() {
+        int dims = randomIntBetween(BBQ_MIN_DIMS, 2048);
+        if (dims % 2 != 0) {
+            dims++;
+        }
+        // A non-indexed field has no configured similarity, mirroring real mappings (similarity cannot be set
+        // when index:false).
+        DenseVectorFieldType field = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            dims,
+            false,
+            null,
+            null,
+            Collections.emptyMap(),
+            false
+        );
+        float[] queryVector = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            queryVector[i] = randomFloat();
+        }
+
+        // Without a similarity_function override there is no metric to score with.
+        IllegalArgumentException missingSimilarity = expectThrows(
+            IllegalArgumentException.class,
+            () -> field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false)
+        );
+        assertThat(missingSimilarity.getMessage(), containsString("a [similarity_function] must be provided"));
+
+        // With an override, a doc-values-backed query is produced (no codec/KNN values for a non-indexed field).
+        Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
+        assertTrue(query instanceof DenseVectorQuery.Floats);
+
+        // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
+        IllegalArgumentException requiresIndexed = expectThrows(
+            IllegalArgumentException.class,
+            () -> field.createExactKnnQuery(VectorData.fromFloats(queryVector), null)
+        );
+        assertThat(requiresIndexed.getMessage(), containsString("its mapping must have [index] set to [true]"));
+    }
+
     public void testFloatCreateKnnQuery() {
         DenseVectorFieldType unindexedField = new DenseVectorFieldType(
             "f",

@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 148568
+summary: Add encryption at rest for primary encryption key
+type: enhancement

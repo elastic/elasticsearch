@@ -413,17 +413,20 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         // Each call to the supplier increments the counter by countStep
         var directoryBytesRead = (java.util.function.LongSupplier) () -> counter.addAndGet(countStep);
 
-        int numTerms = randomIntBetween(5, 20);
+        // Use enough terms to guarantee multiple pages with small maxPageSize
+        int numTerms = 30;
         List<List<String>> directoryTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
         List<List<String>> inputTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
 
         try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
             QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
             Page inputPage = new Page(inputTerms);
+            // Small maxPageSize forces multiple getOutput() calls
+            int maxPageSize = 5;
             try (
                 EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
                     blockFactory,
-                    128,
+                    maxPageSize,
                     queryList,
                     inputPage,
                     BlockOptimization.NONE,
@@ -438,19 +441,25 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 assertThat(queryOperator.status().bytesRead(), equalTo(0L));
 
                 int pages = 0;
+                long lastBytesRead = 0L;
                 while (queryOperator.isFinished() == false) {
                     Page page = queryOperator.getOutput();
                     if (page != null) {
                         pages++;
+                        // bytes_read should be monotonically increasing across pages
+                        long currentBytesRead = queryOperator.status().bytesRead();
+                        assertThat(currentBytesRead, greaterThan(lastBytesRead));
+                        lastBytesRead = currentBytesRead;
                         page.releaseBlocks();
                     }
                 }
-                assertThat(pages, greaterThan(0));
+                // With 30 terms and maxPageSize=5, expect multiple pages
+                assertThat(pages, greaterThan(1));
 
-                // Each getOutput() call snapshots bytes before+after; delta per call = countStep
+                // This doesn't actually test the real bytes read, just tests that if there were any bytes counted,
+                // the operator would retain the correct count.
                 long bytesRead = queryOperator.status().bytesRead();
-                assertThat(bytesRead, greaterThan(0L));
-                assertThat(bytesRead % countStep, equalTo(0L));
+                assertThat(bytesRead, equalTo(pages * countStep));
             }
         }
     }

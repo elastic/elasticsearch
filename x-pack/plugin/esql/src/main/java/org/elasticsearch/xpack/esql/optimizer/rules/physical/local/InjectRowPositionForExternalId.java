@@ -56,7 +56,7 @@ public class InjectRowPositionForExternalId extends PhysicalOptimizerRules.Param
             if (a instanceof ExternalMetadataAttribute && ExternalMetadataColumns.ID.equals(a.name())) {
                 positionRequested = true;
             }
-            if (FileMetadataColumns.RECORD_REF.equals(a.name())) {
+            if (a instanceof ExternalMetadataAttribute && FileMetadataColumns.RECORD_REF.equals(a.name())) {
                 positionRequested = true;
             }
             if (ColumnExtractor.ROW_POSITION_COLUMN.equals(a.name())) {

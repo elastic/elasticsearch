@@ -225,10 +225,11 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         }
     }
 
-    public void testSourceRoundTripsRowColumns() throws Exception {
-        // KEEP must list _source to surface it, but it must ALSO keep the data columns alive: _source
-        // is synthesized producer-side from the data columns the read binds, so pruning first_name /
-        // host_ip before synthesis would shrink _source to just emp_no. Keep all three plus _source.
+    public void testSourceRoundTripsRowColumnsWithDataKept() throws Exception {
+        // Explicit-KEEP path: when the user lists the data columns in KEEP alongside _source, the
+        // synthesizer renders every column. This used to be the workaround for the pruning bug
+        // — kept here as the explicit-projection baseline; the narrowed-projection case is covered
+        // by {@link #testSourceSurvivesKeepNarrowingDataColumns}.
         try (
             var response = run(
                 syncEsqlQueryRequest(
@@ -261,7 +262,54 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         }
     }
 
-    public void testVersionIsNonNull() throws Exception {
+    /**
+     * Narrowed-KEEP path: when the user projects only {@code _source} (no data columns in KEEP),
+     * the synthesizer must still render the full row. Indexed {@code _source} reads from the
+     * stored doc and is independent of projection; external {@code _source} has no stored doc, so
+     * the optimizer must pin the file-resident data columns when {@code _source} is in the output.
+     * Regression guard for the data-column pruning bug.
+     */
+    public void testSourceSurvivesKeepNarrowingDataColumns() throws Exception {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _source | SORT emp_no | KEEP _source | LIMIT 10"), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat("only _source in projected columns", names, equalTo(List.of("_source")));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+
+            String[] expectedFirstName = { "Alice", "Bob", "Carol" };
+            String[] expectedHostIp = { "10.0.0.1", "10.0.0.2", "10.0.0.3" };
+            Integer[] expectedEmpNo = { 1, 2, 3 };
+
+            for (int i = 0; i < rows.size(); i++) {
+                Map<?, ?> parsed = asMap(rows.get(i).get(0));
+                assertThat(
+                    "emp_no in _source even though KEEP narrowed it away (row " + i + ")",
+                    ((Number) parsed.get("emp_no")).intValue(),
+                    equalTo(expectedEmpNo[i])
+                );
+                assertThat(
+                    "first_name in _source even though KEEP narrowed it away (row " + i + ")",
+                    objToString(parsed.get("first_name")),
+                    equalTo(expectedFirstName[i])
+                );
+                assertThat(
+                    "host_ip in _source even though KEEP narrowed it away (row " + i + ")",
+                    objToString(parsed.get("host_ip")),
+                    equalTo(expectedHostIp[i])
+                );
+            }
+        }
+    }
+
+    public void testVersionIsFileMtimeMillis() throws Exception {
+        // _version is wired to the file's last-modified-time in milliseconds (see the
+        // _file.modified plumbing through FileMetadataColumns + the StoragePath stat). Read the
+        // mtime back from the fixture path and pin the response value, so a regression in the
+        // mtime → _version threading is caught.
+        long fixtureMtimeMillis = java.nio.file.Files.getLastModifiedTime(java.nio.file.Path.of(java.net.URI.create(fixtureUri)))
+            .toMillis();
+
         try (
             var response = run(
                 syncEsqlQueryRequest("FROM employees METADATA _version | SORT emp_no | KEEP emp_no, _version | LIMIT 10"),
@@ -275,7 +323,11 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_version (file mtime) must be non-null", row.get(1), notNullValue());
+                assertThat(
+                    "_version must equal the fixture file's last-modified-time in millis",
+                    ((Number) row.get(1)).longValue(),
+                    equalTo(fixtureMtimeMillis)
+                );
             }
         }
     }

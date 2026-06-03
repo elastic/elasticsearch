@@ -456,9 +456,10 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        // _data_tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; omit it so the query is
-        // valid in non-snapshot builds. _score, _tsid, _size, _ignored, _index_mode have no value on
-        // external rows and must render as NULL columns rather than being dropped or erroring.
+        // _tier (DataTierFieldMapper.NAME) is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP;
+        // omit it so the query is valid in non-snapshot builds. _score, _tsid, _size, _ignored,
+        // _index_mode have no value on external rows and must render as NULL columns rather than
+        // being dropped or erroring.
         String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
             + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "

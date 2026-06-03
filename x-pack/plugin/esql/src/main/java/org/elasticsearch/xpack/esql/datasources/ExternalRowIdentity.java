@@ -64,9 +64,10 @@ public final class ExternalRowIdentity {
      * {@code rowPositionBlock.getPositionCount()}; null row-positions yield null {@code _id}. The
      * block allocates against {@code factory} so its breaker bytes follow the producer-thread
      * accounting path used by other constant-block allocations. Two-pass design: pass 1 walks
-     * the row-position block to decimal-encode each masked physical position into scratch and
-     * sum byte lengths; pass 2 copies the prefix + scratch bytes into the vector builder. No
-     * {@link Long#toString} allocation.
+     * the row-position block and writes {@code prefix + decimal(physical)} for each row directly
+     * into a single producer-side {@code backing} array while recording per-row offsets; pass 2
+     * walks {@code offsets[]} and feeds an {@code (offset, length)} scratch view per row to the
+     * vector / block builder. No {@link Long#toString} allocation.
      */
     public static BytesRefBlock composePage(BytesRef prefix, LongBlock rowPositionBlock, BlockFactory factory) {
         int positions = rowPositionBlock.getPositionCount();

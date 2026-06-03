@@ -147,6 +147,17 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         }
 
         List<Attribute> sourceOutput = externalSource.output();
+        // When `_source` is projected, its synthesizer needs every file-resident data column at
+        // compose time. Deferring those columns would render `{}`. Pin every data attribute as
+        // eager in that case; the synthesizer runs on the producer thread before the TopN gate.
+        boolean sourceProjected = false;
+        for (Attribute a : sourceOutput) {
+            if (a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute
+                && org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns.SOURCE.equals(a.name())) {
+                sourceProjected = true;
+                break;
+            }
+        }
         List<Attribute> eagerColumns = new ArrayList<>(sourceOutput.size());
         List<Attribute> deferredColumns = new ArrayList<>(sourceOutput.size());
         for (Attribute a : sourceOutput) {
@@ -159,6 +170,9 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             // as eager unconditionally; relying on the marker rather than a specific subclass
             // keeps future virtual attributes correct by construction.
             if (a instanceof VirtualAttribute || eagerRefs.contains(a)) {
+                eagerColumns.add(a);
+            } else if (sourceProjected && a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute == false) {
+                // File-resident data column under `_source` projection — must be eager.
                 eagerColumns.add(a);
             } else {
                 deferredColumns.add(a);

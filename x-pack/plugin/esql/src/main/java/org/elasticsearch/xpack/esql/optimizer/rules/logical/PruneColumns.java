@@ -213,8 +213,29 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
      * Prunes unused columns from an {@link ExternalRelation}.
      * Unlike {@link EsRelation} (where {@code InsertFieldExtraction} handles field-level pruning for non-LOOKUP modes),
      * the attribute list on an external relation directly controls which columns the format reader loads from storage.
+     * <p>
+     * Exception: when {@code _source} is in the projected output, the synthesizer needs every file-resident
+     * data column at compose time — pruning them would render {@code {}} for the user. Pin them as "used"
+     * before the prune so the relation still carries them downstream. Indexed {@code _source} reads from the
+     * stored doc and is independent of projection; external {@code _source} has no stored doc to fall back to.
      */
     private static LogicalPlan pruneColumnsInExternalRelation(ExternalRelation ext, AttributeSet.Builder used) {
+        boolean sourceProjected = false;
+        for (Attribute a : ext.output()) {
+            if (a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute
+                && org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns.SOURCE.equals(a.name())) {
+                sourceProjected = true;
+                break;
+            }
+        }
+        if (sourceProjected) {
+            for (Attribute a : ext.output()) {
+                if (a instanceof org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute == false
+                    && a instanceof org.elasticsearch.xpack.esql.core.expression.VirtualAttribute == false) {
+                    used.add(a);
+                }
+            }
+        }
         var remaining = pruneUnusedAndAddReferences(ext.output(), used);
         return remaining != null ? ext.withAttributes(remaining) : ext;
     }

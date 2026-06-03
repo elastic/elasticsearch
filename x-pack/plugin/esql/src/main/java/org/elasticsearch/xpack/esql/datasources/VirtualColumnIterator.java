@@ -276,6 +276,11 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     /**
      * Builds a page containing only the projected data blocks and releases the surplus. Used when
      * there are no partition columns to inject but the producer over-projected.
+     * <p>
+     * Producer invariant: every format reader emits data columns at the head of the page in the
+     * order declared by {@link #dataColumnNames}; surplus blocks (e.g. the parquet-mr "empty
+     * projection → full schema" fallback) trail at higher indices. This method drops the trailing
+     * surplus; callers that emit a permuted block order will silently lose data.
      */
     private Page projectAndReleaseSurplus(Page dataPage) {
         int positions = dataPage.getPositionCount();

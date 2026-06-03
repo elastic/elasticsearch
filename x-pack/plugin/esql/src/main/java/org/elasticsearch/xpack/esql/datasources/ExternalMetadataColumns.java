@@ -31,10 +31,10 @@ import java.util.Set;
  * names here are request-driven (via {@code METADATA}) while {@code _file.*} are
  * always-materialized by {@link VirtualColumnIterator}.
  * <p>
- * {@code _id} and {@code _source} are bound at analysis time but excluded from
- * {@link #PER_FILE_CONSTANT_NAMES}: they require per-row composition
- * ({@code ExternalRowIdentity} and {@code SynthesizeExternalSource} respectively) rather than a
- * per-file constant.
+ * Two materialisation lanes exist: see {@link #PER_FILE_CONSTANT_NAMES} for the canonical
+ * per-file-constant set; the remaining standard names ({@code _id} via
+ * {@link ExternalRowIdentity}, {@code _source} via {@link SynthesizeExternalSource}) are
+ * per-row composed.
  */
 public final class ExternalMetadataColumns {
 
@@ -51,8 +51,9 @@ public final class ExternalMetadataColumns {
     /**
      * Names of standard metadata columns that are materialised by the producer-side
      * constant-block path (per-file values, including SQL {@code NULL} where unavailable).
-     * Excludes {@link #ID} and {@link #SOURCE}: those require per-row composition and are
-     * produced by separate operator steps.
+     * The other standard names ({@link #ID}, {@link #SOURCE}) are not in this set — they go
+     * through per-row composition operators ({@link ExternalRowIdentity},
+     * {@link SynthesizeExternalSource}).
      */
     public static final Set<String> PER_FILE_CONSTANT_NAMES;
 
@@ -144,8 +145,6 @@ public final class ExternalMetadataColumns {
             case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
             case VERSION -> version;
             case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DataTierFieldMapper.NAME -> null;
-            // Names in PER_FILE_CONSTANT_NAMES enumerated above; ID and SOURCE are excluded
-            // because they require per-row composition and go through different operator steps.
             default -> throw new AssertionError("Unhandled per-file constant name: " + name);
         };
     }

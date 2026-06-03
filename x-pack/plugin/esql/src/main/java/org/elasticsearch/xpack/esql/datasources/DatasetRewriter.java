@@ -185,10 +185,9 @@ public final class DatasetRewriter {
             // Thread the user's METADATA clause through to the external leaf so
             // ResolveExternalRelations binds each requested name to an ExternalMetadataAttribute of
             // the type registered in MetadataAttribute.ATTRIBUTES_MAP. Every name in that map is
-            // accepted on external datasets (per esql-planning#813); values are framework-
-            // synthesized by the COMPOSED path. The dataset name rides alongside so the per-file
-            // _index synthesizer can populate _index with the user-facing identifier rather than
-            // the underlying resource path.
+            // accepted on external datasets; values are framework-synthesized by the COMPOSED path.
+            // The dataset name rides alongside so the per-file _index synthesizer can populate
+            // _index with the user-facing identifier rather than the underlying resource path.
             children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
         }
         if (children.size() == 1) {

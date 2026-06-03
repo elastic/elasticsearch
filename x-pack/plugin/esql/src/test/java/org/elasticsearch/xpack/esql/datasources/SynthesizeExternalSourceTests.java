@@ -94,6 +94,39 @@ public class SynthesizeExternalSourceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Multi-value columns must round-trip into {@code _source} as a JSON array of UTF-8 strings,
+     * not as a base64-encoded scalar or as the first value only.
+     * {@link org.elasticsearch.compute.data.BlockUtils#toJavaObject} returns an {@code ArrayList}
+     * for multi-value rows; the synthesizer's {@code unwrapBytesRefs} branch must unwrap each
+     * element. Regression guard for Julian's review thread on multi-value handling.
+     */
+    public void testMultiValueBytesRefRoundTripsAsJsonArray() throws Exception {
+        try (IntBlock idCol = intBlock(7); BytesRefBlock tags = multiValueBytesRefBlock("alpha", "beta", "gamma")) {
+            String[] names = { "id", "tags" };
+            Block[] blocks = { idCol, tags };
+            try (BytesRefBlock source = SynthesizeExternalSource.composePage(names, blocks, 1, blockFactory)) {
+                String json = bytesAt(source, 0);
+                assertTrue(
+                    "multi-value tags must render as a JSON array of UTF-8 strings: " + json,
+                    json.contains("[\"alpha\",\"beta\",\"gamma\"]")
+                );
+                assertFalse("multi-value tags must not render as a single string: " + json, json.contains("\"tags\":\"alpha\""));
+            }
+        }
+    }
+
+    private BytesRefBlock multiValueBytesRefBlock(String... values) {
+        try (BytesRefBlock.Builder b = blockFactory.newBytesRefBlockBuilder(1)) {
+            b.beginPositionEntry();
+            for (String v : values) {
+                b.appendBytesRef(new BytesRef(v));
+            }
+            b.endPositionEntry();
+            return b.build();
+        }
+    }
+
     private IntBlock intBlock(int value) {
         try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(1)) {
             b.appendInt(value);

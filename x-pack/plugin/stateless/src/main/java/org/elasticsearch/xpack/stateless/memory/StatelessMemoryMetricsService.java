@@ -334,19 +334,18 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      */
     public long estimateShardMemoryUsageInBytes(ShardMemoryMetrics metrics) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;
-        final long pointsInMemoryBytes = metrics.getPointsInMemoryBytes();
         if (fixedShardOverhead.getBytes() > 0) {
-            return fixedShardOverhead.getBytes() + pointsInMemoryBytes;
+            return fixedShardOverhead.getBytes();
         }
         long estimateBytes = ADAPTIVE_SHARD_MEMORY_OVERHEAD.getBytes() + metrics.numSegments * ADAPTIVE_SEGMENT_MEMORY_OVERHEAD.getBytes()
-            + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes;
+            + metrics.totalFields * ADAPTIVE_FIELD_MEMORY_OVERHEAD.getBytes() + metrics.liveDocsBytes + metrics.pointsInMemoryBytes;
         long extraBytes = (long) (estimateBytes * adaptiveExtraOverheadRatio);
 
         if (this.adaptiveShardMemoryEstimationMinThresholdEnabled) {
-            return Math.max(getAdaptiveShardMemoryEstimationMinThreshold(), estimateBytes + extraBytes) + pointsInMemoryBytes;
+            return Math.max(getAdaptiveShardMemoryEstimationMinThreshold(), estimateBytes + extraBytes);
         }
 
-        return estimateBytes + extraBytes + pointsInMemoryBytes;
+        return estimateBytes + extraBytes;
     }
 
     public long getAdaptiveShardMemoryEstimationMinThreshold() {

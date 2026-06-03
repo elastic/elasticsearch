@@ -366,34 +366,6 @@ public class StatelessMemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
-    public void testPerNodeMemoryMetricsIncludesPointsMemory() {
-        ClusterState clusterState = randomInitialTwoNodeClusterState(1);
-        final DiscoveryNode node0 = clusterState.getNodes().get("node_0");
-        service.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
-
-        final var metricsWithoutPoints = withPointsInMemoryBytes(randomMemoryMetrics(node0, clusterState), 0L);
-        assertFalse(metricsWithoutPoints.isEmpty());
-        service.updateShardsMappingSize(new HeapMemoryUsage(1, metricsWithoutPoints));
-        final Map<String, Long> perNodeWithoutPoints = service.getPerNodeMemoryMetrics(clusterState);
-        final Map<ShardId, Long> shardHeapWithoutPoints = new HashMap<>();
-        metricsWithoutPoints.keySet()
-            .forEach(shardId -> shardHeapWithoutPoints.put(shardId, service.getShardHeapUsages().get(shardId).shardHeapUsageBytes()));
-
-        final long pointsInMemoryBytes = randomLongBetween(1, 100_000);
-        final var metricsWithPoints = withPointsInMemoryBytes(metricsWithoutPoints, pointsInMemoryBytes);
-        service.updateShardsMappingSize(new HeapMemoryUsage(2, metricsWithPoints));
-
-        final Map<String, Long> perNodeWithPoints = new HashMap<>(perNodeWithoutPoints);
-        perNodeWithPoints.merge(node0.getId(), pointsInMemoryBytes * metricsWithPoints.size(), Long::sum);
-        assertThat(service.getPerNodeMemoryMetrics(clusterState), equalTo(perNodeWithPoints));
-        metricsWithPoints.keySet().forEach(shardId -> {
-            assertThat(
-                service.getShardHeapUsages().get(shardId).shardHeapUsageBytes(),
-                equalTo(shardHeapWithoutPoints.get(shardId) + pointsInMemoryBytes)
-            );
-        });
-    }
-
     public void testEstimatedHeapMemoryCalculations() {
         ClusterState clusterState1 = randomInitialTwoNodeClusterState(4);
         var discoveryNodes = clusterState1.getNodes();

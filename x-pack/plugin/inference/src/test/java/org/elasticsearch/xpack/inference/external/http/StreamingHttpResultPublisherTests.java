@@ -454,6 +454,46 @@ public class StreamingHttpResultPublisherTests extends ESTestCase {
     }
 
     /**
+     * Given the Apache producer is paused for backpressure
+     * When the subscriber cancels the subscription
+     * Then we shut down the saved IOControl so the leased connection is released
+     * (otherwise Apache never calls consumeContent again and the connection stays paused indefinitely)
+     */
+    public void testCancelShutsDownPausedProducer() throws IOException {
+        var subscriber = subscribe();
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes - 1));
+        publisher.consumeContent(contentDecoder(message), ioControl);
+        verify(ioControl).suspendInput();
+
+        subscriber.subscription.cancel();
+
+        verify(ioControl).shutdown();
+        verify(ioControl, times(0)).requestInput();
+    }
+
+    /**
+     * Given the Apache producer was never paused
+     * When the subscriber cancels the subscription
+     * Then we do not touch IOControl, since there is no saved reference and the existing consumeContent cancel
+     * branch handles any later data
+     */
+    public void testCancelWithoutPauseDoesNotShutDownProducer() throws IOException {
+        var subscriber = subscribe();
+
+        var ioControl = mock(IOControl.class);
+        when(settings.getMaxResponseSize()).thenReturn(ByteSizeValue.ofBytes(maxBytes + 1));
+        publisher.consumeContent(contentDecoder(message), ioControl);
+        verify(ioControl, times(0)).suspendInput();
+
+        subscriber.subscription.cancel();
+
+        verify(ioControl, times(0)).shutdown();
+        verify(ioControl, times(0)).requestInput();
+    }
+
+    /**
      * When a subscriber requests a negative number
      * Then the subscription should call onError with an IllegalArgumentException
      */

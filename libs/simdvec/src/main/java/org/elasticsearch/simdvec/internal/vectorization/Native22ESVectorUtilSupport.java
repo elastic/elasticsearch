@@ -56,24 +56,35 @@ public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport
     public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         if (canUseF32BulkPath(source)) {
             final BytesRef vectors = source.vectorBytes();
+            
+            
             final MemorySegment vectorsSegment = MemorySegment.ofArray(vectors.bytes)
-                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());
+                .asSlice(vectors.offset, (long) source.vectorByteSize() * source.vectorCount());  
             final MemorySegment scoresSegment = MemorySegment.ofArray(scoresScratch);
+            
             float sum = 0f;
+            final int dims = source.vectorDims();
+            final int count = source.vectorCount();
+            
+           
             for (float[] floats : query) {
+                
+                final MemorySegment querySegment = MemorySegment.ofArray(floats);
+                
                 Similarities.dotProductF32Bulk(
                     vectorsSegment,
-                    MemorySegment.ofArray(floats),
-                    source.vectorDims(),
-                    source.vectorCount(),
+                    querySegment,
+                    dims,
+                    count,
                     scoresSegment
                 );
-                sum += ESVectorUtil.max(scoresScratch, source.vectorCount());
+                sum += ESVectorUtil.max(scoresScratch, count);
             }
             return sum;
         }
         return super.maxSimDotProduct(source, query, scoresScratch);
     }
+    
 
     @Override
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {

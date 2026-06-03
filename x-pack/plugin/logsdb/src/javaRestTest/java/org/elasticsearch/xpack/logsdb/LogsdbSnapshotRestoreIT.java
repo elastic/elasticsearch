@@ -26,8 +26,8 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
@@ -55,11 +55,6 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
 
     private static boolean columnarEnabled;
 
-    @BeforeClass
-    public static void randomizeColumnar() {
-        columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
-    }
-
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("path.repo", () -> getRepoPath())
@@ -69,8 +64,15 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled))
         .build();
 
+    // columnarEnabled must be set before the cluster starts (ClassRule.before() runs before @BeforeClass),
+    // so we initialize it as an ExternalResource in the rule chain ahead of the cluster rule.
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(new ExternalResource() {
+        @Override
+        protected void before() {
+            columnarEnabled = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean();
+        }
+    }).around(cluster);
 
     static final String LOGS_TEMPLATE = """
         {

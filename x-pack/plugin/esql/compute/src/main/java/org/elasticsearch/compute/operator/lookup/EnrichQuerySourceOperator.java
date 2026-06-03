@@ -350,7 +350,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.minimumCompatible();
+            return ESQL_ENRICH_BYTES_READ;
         }
 
         @Override

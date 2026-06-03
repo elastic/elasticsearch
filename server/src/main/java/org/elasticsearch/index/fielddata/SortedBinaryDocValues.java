@@ -11,6 +11,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -22,9 +23,13 @@ import java.io.IOException;
 // TODO: Should it expose a count (current approach) or return null when there are no more values?
 public abstract class SortedBinaryDocValues {
 
+    @Nullable
     private final DocIdSetIterator docIdIterator;
 
-    public SortedBinaryDocValues(DocIdSetIterator docIdSetIterator) {
+    /**
+     * @param docIdSetIterator, the {@link DocIdSetIterator} that backs this instance.
+     */
+    public SortedBinaryDocValues(@Nullable DocIdSetIterator docIdSetIterator) {
         this.docIdIterator = docIdSetIterator;
     }
 
@@ -42,6 +47,10 @@ public abstract class SortedBinaryDocValues {
      */
     public abstract int docValueCount();
 
+    /**
+     * @return the doc id set iterator or null when not available.
+     */
+    @Nullable
     public DocIdSetIterator docIdIterator() {
         return docIdIterator;
     }

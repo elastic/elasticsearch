@@ -46,7 +46,8 @@ public enum MissingValues {
     }
 
     public static SortedBinaryDocValues replaceMissing(final SortedBinaryDocValues values, final BytesRef missing) {
-        // We do not delegate to the SortedBinaryDocValues because it doesn't account for the missing values.
+        // We do not directly delegate to the SortedBinaryDocValues because it doesn't account for the missing values.
+        // If needed, this could be supported by using DocIdSetIterator.range() along with the maxDoc.
         return new SortedBinaryDocValues(null) {
 
             private int count;

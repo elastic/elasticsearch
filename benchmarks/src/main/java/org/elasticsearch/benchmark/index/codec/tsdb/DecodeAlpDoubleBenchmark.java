@@ -39,7 +39,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Dedicated decode benchmark for the ALP double transform stage.
  *
- * <p>Encodes one block with the {@code alpDouble > offset > gcd > bitpack} pipeline at
+ * <p>Encodes one block with the {@code alpDouble > delta > offset > gcd > bitpack} pipeline at
  * setup time and measures the cost of decoding it repeatedly. The {@code scale} and
  * {@code exceptionFraction} parameters mirror {@link EncodeAlpDoubleBenchmark} so that
  * encode and decode results line up.
@@ -111,7 +111,7 @@ public class DecodeAlpDoubleBenchmark {
             .build()
             .get();
 
-        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
+        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
 

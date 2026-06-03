@@ -148,9 +148,9 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
 
         final PipelineConfig config = resolver.resolve(context);
 
-        assertEquals("alpDouble>offset>gcd>bitPack", config.describeStages());
+        assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
         assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
-        assertEquals(3, config.transforms().size());
+        assertEquals(4, config.transforms().size());
         assertNotNull(config.payload());
     }
 
@@ -196,7 +196,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
 
         assertNotEquals(alpDouble, baseline);
         assertNotEquals(alpDouble, splitDelta);
-        assertEquals("alpDouble>offset>gcd>bitPack", alpDouble.describeStages());
+        assertEquals("alpDouble>delta>offset>gcd>bitPack", alpDouble.describeStages());
         assertEquals("delta>offset>gcd>bitPack", baseline.describeStages());
         assertEquals("splitDelta>delta>offset>gcd>bitPack", splitDelta.describeStages());
     }
@@ -210,7 +210,7 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         );
 
         assertEquals(blockSize, config.blockSize());
-        assertEquals("alpDouble>offset>gcd>bitPack", config.describeStages());
+        assertEquals("alpDouble>delta>offset>gcd>bitPack", config.describeStages());
     }
 
     public void testResolvesBaselinePipelineForLongWithoutMetricType() {

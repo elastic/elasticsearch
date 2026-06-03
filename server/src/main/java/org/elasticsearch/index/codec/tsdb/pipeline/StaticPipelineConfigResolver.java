@@ -21,9 +21,13 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
  *       to decline and bit-pack to use {@code log2(time_range)} bits per value).</li>
  *   <li>Double gauges ({@link MetricRole#GAUGE} with
  *       {@link PipelineDescriptor.DataType#DOUBLE}) use
- *       {@code alpDouble > offset > gcd > bitPack} so ALP can convert the IEEE 754
+ *       {@code alpDouble > delta > offset > gcd > bitPack} so ALP can convert the IEEE 754
  *       doubles to integer mantissas before the standard integer transforms compress
- *       them further.</li>
+ *       them further. {@code delta} is included even though gauges are typically
+ *       non-monotonic: stages opt out per block, so it costs nothing on oscillating
+ *       blocks and shaves bits on any block where the gauge does happen to run
+ *       monotonically (a slow drift, a saturating metric, a counter mislabeled as a
+ *       gauge).</li>
  *   <li>All other fields use the ES819 baseline {@code delta > offset > gcd > bitPack}.</li>
  * </ul>
  *
@@ -113,6 +117,6 @@ public final class StaticPipelineConfigResolver implements PipelineConfigResolve
     }
 
     private static PipelineConfig buildAlpDouble(final int blockSize) {
-        return PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
+        return PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().bitPack();
     }
 }

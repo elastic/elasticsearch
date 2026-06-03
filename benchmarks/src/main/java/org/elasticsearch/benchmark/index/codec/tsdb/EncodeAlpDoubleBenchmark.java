@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Dedicated encode benchmark for the ALP double transform stage.
  *
- * <p>Runs an {@code alpDouble > offset > gcd > bitpack} pipeline against decimal double
+ * <p>Runs an {@code alpDouble > delta > offset > gcd > bitpack} pipeline against decimal double
  * inputs. The {@code scale} and {@code exceptionFraction} parameters span the regimes
  * where ALP either round-trips cleanly, takes the exception path, or falls through to
  * the integer pipeline.
@@ -126,7 +126,7 @@ public class EncodeAlpDoubleBenchmark {
             outputs[i] = new ByteArrayDataOutput(outputBuffers[i]);
         }
 
-        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
+        final PipelineConfig config = PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
         blockEncoder = encoder.newBlockEncoder();
     }

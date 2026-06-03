@@ -196,6 +196,16 @@ public record PipelineConfig(
         }
 
         /**
+         * Adds a delta encoding stage.
+         *
+         * @return this builder
+         */
+        public DoubleBuilder delta() {
+            transforms.add(new StageSpec.DeltaStage());
+            return this;
+        }
+
+        /**
          * Adds an offset removal stage.
          *
          * @return this builder

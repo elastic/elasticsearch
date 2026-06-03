@@ -143,7 +143,7 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
     }
 
     private static PipelineConfig alpPipeline(int blockSize) {
-        return PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
+        return PipelineConfig.forDoubles(blockSize).alpDoubleStage().delta().offset().gcd().bitPack();
     }
 
     private static PipelineConfig baselinePipeline(int blockSize) {

@@ -80,12 +80,6 @@ public final class SearchFeatures implements FeatureSpecification {
         "search.aggs.date_histogram.hard_bounds_outside_data_fix"
     );
     public static final NodeFeature COUNT_STATS_PARAMETER = new NodeFeature("search.count.stats_parameter");
-    /**
-     * Test-only gate for the msearch REQUEST circuit breaker. The breaker reserves bytes per buffered
-     * sub-response on the coordinating node; pre-9.5 coordinators lack this feature and will not trip
-     * the breaker even when the limit is set, so tests must be skipped on mixed BWC clusters.
-     */
-    public static final NodeFeature MSEARCH_REQUEST_CIRCUIT_BREAKER = new NodeFeature("search.msearch.request_circuit_breaker");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -118,8 +112,7 @@ public final class SearchFeatures implements FeatureSpecification {
             PROFILE_COORDINATOR_REQUEST_METADATA,
             SCROLL_EMPTY_CONTEXT_RETURNS_200,
             DATE_HISTOGRAM_HARD_BOUNDS_OUTSIDE_DATA_FIX,
-            COUNT_STATS_PARAMETER,
-            MSEARCH_REQUEST_CIRCUIT_BREAKER
+            COUNT_STATS_PARAMETER
         );
     }
 }

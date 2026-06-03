@@ -33,6 +33,7 @@ dependencies {
 
 tasks.named("yamlRestTest") {
   ArrayList<String> blacklist = [
+    'msearch/50_circuit_breaker/msearch circuit breaker trips and returns failure item without aborting the request', // cluster.put_settings applies to the write cluster but msearch runs on the query cluster, so the REQUEST breaker limit is never lowered on the coordinator that buffers sub-responses
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', // terms lookup query with index
     'search/170_terms_query/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', // terms lookup query with index
     'search.aggregation/220_filters_bucket/cache busting', // node_selector?

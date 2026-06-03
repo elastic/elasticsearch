@@ -16,10 +16,6 @@ teardown:
 
 ---
 "msearch circuit breaker trips and returns failure item without aborting the request":
-  - requires:
-      cluster_features: ["search.msearch.request_circuit_breaker"]
-      reason: "Requires coordinator-side REQUEST breaker for msearch; pre-9.5 coordinators lack this feature"
-
   - do:
       indices.create:
         index: msearch-cb-test

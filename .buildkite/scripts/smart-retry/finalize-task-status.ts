@@ -17,9 +17,10 @@ import type { TaskStatusReport, MultiRunTaskStatus } from "./types.ts";
 const currentPath = process.argv[2];
 const previousPath = process.argv[3];
 const outputPath = process.argv[4];
+const buildscanIdPath = process.argv[5];
 
-if (!currentPath || !previousPath || !outputPath) {
-  console.error("Usage: node finalize-task-status.ts <current.json> <previous.json> <output.json>");
+if (!currentPath || !previousPath || !outputPath || !buildscanIdPath) {
+  console.error("Usage: node finalize-task-status.ts <current.json> <previous.json> <output.json> <.buildscan-id>");
   process.exit(1);
 }
 
@@ -29,9 +30,8 @@ const current: TaskStatusReport = JSON.parse(readFileSync(currentPath, "utf-8"))
 // Stamp build scan URL from build/.buildscan-id file
 // ---------------------------------------------------------------------------
 
-const buildScanIdFile = "../build/.buildscan-id"; // TODO fix this
-if (existsSync(buildScanIdFile)) {
-  const buildScanId = readFileSync(buildScanIdFile, "utf-8").trim();
+if (existsSync(buildscanIdPath)) {
+  const buildScanId = readFileSync(buildscanIdPath, "utf-8").trim();
   if (buildScanId) {
     current.buildScanId = buildScanId;
     current.buildScanUrl = `https://gradle-enterprise.elastic.co/s/${buildScanId}`;

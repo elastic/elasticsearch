@@ -49,6 +49,7 @@ dependencies {
 
   // The GCS datasource plugin under test
   clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  clusterPlugins project(':modules:workload-identity')
   clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 

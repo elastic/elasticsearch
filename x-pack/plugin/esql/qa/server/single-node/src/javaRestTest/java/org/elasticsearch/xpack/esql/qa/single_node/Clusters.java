@@ -19,6 +19,9 @@ import java.nio.file.Path;
 
 public class Clusters {
 
+    private static final String ENCRYPTION_PASSWORD_ID = "test";
+    private static final String ENCRYPTION_PASSWORD = "esql-test-encryption-password";
+
     /**
      * System property that, when set to {@code "true"}, enables xpack security on the test
      * cluster and provisions a single superuser. The corresponding credentials must also be
@@ -46,6 +49,10 @@ public class Clusters {
             .setting("xpack.security.enabled", Boolean.toString(securityEnabled))
             .setting("xpack.license.self_generated.type", "trial")
             .setting("path.repo", csvDataPath::toString)
+            // Enable the PEK flag so the cluster.state.encryption.* settings below register.
+            .systemProperty("es.project_encryption_key_feature_flag_enabled", "true")
+            .keystore("cluster.state.encryption.password." + ENCRYPTION_PASSWORD_ID, ENCRYPTION_PASSWORD)
+            .keystore("cluster.state.encryption.active_password_id", ENCRYPTION_PASSWORD_ID)
             .shared(true)
             .configFile("user-agent/custom-regexes.yml", Resource.fromClasspath("custom-regexes.yml"))
             .apply(() -> configProvider)

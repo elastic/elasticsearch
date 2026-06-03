@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.containsString;
@@ -30,6 +31,7 @@ public class SecretSettingsTests extends ESTestCase {
     private static final String FIELD = "secret_field";
     private static final String OTHER_FIELD = "other_field";
     private static final String SCOPE = "service_settings";
+    private static final Set<String> FIELDS = Set.of(FIELD, OTHER_FIELD);
 
     // --- updateOnlyField tests ---
 
@@ -93,27 +95,37 @@ public class SecretSettingsTests extends ESTestCase {
         );
     }
 
+    // --- exactlyOneFieldError tests ---
+
+    public void testExactlyOneFieldError_BuildsMessage() {
+        var error = SecretSettings.exactlyOneFieldError(SCOPE, FIELDS);
+        // fields are sorted alphabetically: other_field < secret_field
+        assertThat(error, is(Strings.format("[%s] must have exactly one field of [%s, %s] set", SCOPE, OTHER_FIELD, FIELD)));
+    }
+
     // --- validateExactlyOneField tests ---
 
     public void testValidateExactlyOneField_SingleField_DoesNotThrow() {
-        SecretSettings.validateExactlyOneField(Map.of("some_field", "value"), "error message");
+        SecretSettings.validateExactlyOneField(Map.of(FIELD, "value"), SCOPE, FIELDS);
     }
 
     public void testValidateExactlyOneField_EmptyMap_ThrowsWithBaseMessage() {
-        var errorMessage = "must provide exactly one field";
-        var thrownException = expectThrows(ValidationException.class, () -> SecretSettings.validateExactlyOneField(Map.of(), errorMessage));
-        assertThat(thrownException.getMessage(), containsString(errorMessage));
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> SecretSettings.validateExactlyOneField(Map.of(), SCOPE, FIELDS)
+        );
+        assertThat(thrownException.getMessage(), containsString(SecretSettings.exactlyOneFieldError(SCOPE, FIELDS)));
     }
 
     public void testValidateExactlyOneField_MultipleFields_ThrowsWithReceivedKeys() {
-        var errorMessage = "must provide exactly one field";
-        var key1 = "key1";
-        var key2 = "key2";
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> SecretSettings.validateExactlyOneField(new TreeMap<>(Map.of(key1, "val1", key2, "val2")), errorMessage)
+            () -> SecretSettings.validateExactlyOneField(new TreeMap<>(Map.of(FIELD, "val1", OTHER_FIELD, "val2")), SCOPE, FIELDS)
         );
-        assertThat(thrownException.getMessage(), containsString(Strings.format("%s, received: [%s, %s]", errorMessage, key1, key2)));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(SecretSettings.exactlyOneFieldError(SCOPE, FIELDS) + Strings.format(", received: [%s, %s]", OTHER_FIELD, FIELD))
+        );
     }
 
     /**

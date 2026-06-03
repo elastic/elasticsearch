@@ -18,6 +18,8 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 public interface SecretSettings extends ToXContentObject, VersionedNamedWriteable {
@@ -31,10 +33,28 @@ public interface SecretSettings extends ToXContentObject, VersionedNamedWriteabl
     SecretSettings newSecretSettings(Map<String, Object> newSecrets);
 
     /**
-     * Validates that {@code provided} contains exactly one field, using {@code errorMessage} as the base.
-     * Throws a {@link ValidationException} if the map is empty or has more than one entry.
+     * Builds the canonical "exactly one field" validation message for a given settings scope and set of
+     * acceptable field names. The fields are sorted alphabetically to ensure a deterministic, human-readable
+     * output regardless of the input {@link Set} implementation.
+     *
+     * @param scope the settings scope name used as the message prefix (e.g. {@code "service_settings"})
+     * @param fields    the acceptable field names
+     * @return the formatted error message
      */
-    static void validateExactlyOneField(Map<String, ?> provided, String errorMessage) {
+    static String exactlyOneFieldError(String scope, Set<String> fields) {
+        return Strings.format("[%s] must have exactly one field of %s set", scope, new TreeSet<>(fields));
+    }
+
+    /**
+     * Validates that {@code provided} contains exactly one field. Throws a {@link ValidationException} if the
+     * map is empty or has more than one entry.
+     *
+     * @param provided  the map of fields supplied by the caller
+     * @param scope the settings scope name used in the error message (e.g. {@code "service_settings"})
+     * @param fields    the acceptable field names used in the error message
+     */
+    static void validateExactlyOneField(Map<String, ?> provided, String scope, Set<String> fields) {
+        var errorMessage = exactlyOneFieldError(scope, fields);
         var validationException = new ValidationException();
         if (provided.isEmpty()) {
             validationException.addValidationError(errorMessage);

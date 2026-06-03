@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -20,8 +19,8 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
@@ -35,13 +34,9 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String API_KEY = "api_key";
     public static final String ENTRA_ID = "entra_id";
 
-    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
-        "[%s] must have exactly one of [%s], [%s], or [%s] field set",
-        ModelConfigurations.SERVICE_SETTINGS,
-        API_KEY,
-        ENTRA_ID,
-        CLIENT_SECRET_FIELD
-    );
+    private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, ENTRA_ID, CLIENT_SECRET_FIELD);
+
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(SERVICE_SETTINGS, SECRET_FIELDS);
 
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION =
         "You must provide exactly one of API key, Entra ID, or OAuth2 client secret.";
@@ -56,7 +51,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
         var extractedSecretsMap = extractSecretsMap(map);
 
-        SecretSettings.validateExactlyOneField(extractedSecretsMap, EXACTLY_ONE_SECRETS_FIELD_ERROR);
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, SERVICE_SETTINGS, SECRET_FIELDS);
 
         if (extractedSecretsMap.containsKey(API_KEY)) {
             return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.openai.secrets;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -21,6 +20,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
@@ -37,11 +37,11 @@ import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretS
  */
 public abstract class OpenAiSecretSettings implements SecretSettings {
 
-    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = Strings.format(
-        "[%s] must have exactly one of [%s] or [%s] field set",
+    private static final Set<String> SECRET_FIELDS = Set.of(API_KEY, CLIENT_SECRET_FIELD);
+
+    public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = SecretSettings.exactlyOneFieldError(
         ModelConfigurations.SERVICE_SETTINGS,
-        API_KEY,
-        CLIENT_SECRET_FIELD
+        SECRET_FIELDS
     );
 
     public static final String EXACTLY_ONE_CONFIG_DESCRIPTION = "You must provide exactly one of API key or OAuth2 client secret.";
@@ -57,7 +57,7 @@ public abstract class OpenAiSecretSettings implements SecretSettings {
 
         var extractedSecretsMap = extractSecretsMap(map);
 
-        SecretSettings.validateExactlyOneField(extractedSecretsMap, EXACTLY_ONE_SECRETS_FIELD_ERROR);
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, ModelConfigurations.SERVICE_SETTINGS, SECRET_FIELDS);
 
         if (extractedSecretsMap.containsKey(API_KEY)) {
             return new DefaultSecretSettings(extractedSecretsMap.get(API_KEY));

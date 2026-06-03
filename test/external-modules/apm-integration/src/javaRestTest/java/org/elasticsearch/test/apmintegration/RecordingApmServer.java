@@ -9,6 +9,18 @@
 
 package org.elasticsearch.test.apmintegration;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceRequest;
+import io.opentelemetry.proto.collector.logs.v1.ExportLogsServiceResponse;
+import io.opentelemetry.proto.collector.logs.v1.LogsServiceGrpc;
+import io.opentelemetry.proto.common.v1.AnyValue;
+import io.opentelemetry.proto.common.v1.KeyValue;
+import io.opentelemetry.proto.logs.v1.LogRecord;
+import io.opentelemetry.proto.logs.v1.ResourceLogs;
+import io.opentelemetry.proto.logs.v1.ScopeLogs;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
@@ -24,7 +36,11 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +59,8 @@ public class RecordingApmServer extends ExternalResource {
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 
     private HttpServer server;
+    /** OTLP/gRPC server for audit-log export. */
+    private Server grpcServer;
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
@@ -54,6 +72,8 @@ public class RecordingApmServer extends ExternalResource {
         server.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", this::handle);
         server.start();
+
+        grpcServer = ServerBuilder.forPort(0).addService(new LogsServiceImpl()).build().start();
 
         messageConsumerThread.start();
     }
@@ -84,6 +104,14 @@ public class RecordingApmServer extends ExternalResource {
         messageConsumerThread.interrupt();
         if (server != null) {
             server.stop(1);
+        }
+        if (grpcServer != null) {
+            grpcServer.shutdown();
+            try {
+                grpcServer.awaitTermination(1, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
         consumer = null;
         try {
@@ -123,6 +151,7 @@ public class RecordingApmServer extends ExternalResource {
                         switch (path) {
                             case "/v1/metrics" -> OtlpMetricsParser.parse(requestBody).forEach(this::route);
                             case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
+                            case "/v1/logs" -> OtlpLogsParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);
                                 for (String line : lines) {
@@ -171,6 +200,79 @@ public class RecordingApmServer extends ExternalResource {
             host = "[" + host + "]";
         }
         return host + ":" + getPort();
+    }
+
+    /** @return the port the gRPC server is listening on. */
+    public int getGrpcPort() {
+        return grpcServer.getPort();
+    }
+
+    /**
+     * Returns the gRPC endpoint URL the OTLP/gRPC exporter expects: {@code http://host:port}
+     * (no path component, unlike the HTTP endpoint which includes {@code /v1/logs}).
+     */
+    public String getGrpcEndpoint() {
+        String host = InetAddress.getLoopbackAddress().getHostAddress();
+        if (host.contains(":")) {
+            host = "[" + host + "]";
+        }
+        return "http://" + host + ":" + getGrpcPort();
+    }
+
+    /**
+     * Receives OTLP/gRPC log export requests, converts each {@link LogRecord} to a
+     * {@link ReceivedTelemetry.ReceivedLog}, and feeds them into the shared {@link #received} queue.
+     */
+    private final class LogsServiceImpl extends LogsServiceGrpc.LogsServiceImplBase {
+        @Override
+        public void export(ExportLogsServiceRequest request, StreamObserver<ExportLogsServiceResponse> responseObserver) {
+            if (running) {
+                try {
+                    for (ResourceLogs resourceLogs : request.getResourceLogsList()) {
+                        for (ScopeLogs scopeLogs : resourceLogs.getScopeLogsList()) {
+                            for (LogRecord record : scopeLogs.getLogRecordsList()) {
+                                received.add(toReceivedLog(record));
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    logger.warn("failed to handle gRPC ExportLogsServiceRequest", t);
+                }
+            }
+            responseObserver.onNext(ExportLogsServiceResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        }
+
+        private ReceivedTelemetry.ReceivedLog toReceivedLog(LogRecord record) {
+            Map<String, Object> attributes = new HashMap<>();
+            for (KeyValue kv : record.getAttributesList()) {
+                Object value = unwrap(kv.getValue());
+                if (value != null) {
+                    attributes.put(kv.getKey(), value);
+                }
+            }
+            Optional<String> traceId = record.getTraceId().isEmpty()
+                ? Optional.empty()
+                : Optional.of(HexFormat.of().formatHex(record.getTraceId().toByteArray()));
+            return new ReceivedTelemetry.ReceivedLog(
+                record.getTimeUnixNano(),
+                record.getSeverityNumberValue(),
+                record.getSeverityText(),
+                record.getBody().getStringValue(),
+                attributes,
+                traceId
+            );
+        }
+
+        private Object unwrap(AnyValue value) {
+            return switch (value.getValueCase()) {
+                case STRING_VALUE -> value.getStringValue();
+                case INT_VALUE -> value.getIntValue();
+                case DOUBLE_VALUE -> value.getDoubleValue();
+                case BOOL_VALUE -> value.getBoolValue();
+                default -> null;
+            };
+        }
     }
 
     public void addMessageConsumer(Consumer<ReceivedTelemetry> messageConsumer) {

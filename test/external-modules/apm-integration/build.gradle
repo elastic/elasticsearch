@@ -23,6 +23,7 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRe
 tasks.named('javaRestTest').configure {
   def buildParams = project.rootProject.extensions.getByName('buildParams')
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
+  usesDefaultDistribution("OtelAuditLogsIT requires xpack security + audit (default distribution)")
 }
 
 dependencies {
@@ -30,4 +31,13 @@ dependencies {
   implementation project(':libs:logging')
   javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
   testImplementation sourceSets.javaRestTest.output
+  // gRPC server-side deps for RecordingApmServer (version aligned with :x-pack:plugin:esql-datasource-grpc)
+  javaRestTestImplementation "io.grpc:grpc-api:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-protobuf:1.78.0"
+  javaRestTestImplementation "io.grpc:grpc-stub:1.78.0"
+  javaRestTestRuntimeOnly "io.grpc:grpc-netty:1.78.0"
+  javaRestTestRuntimeOnly "io.grpc:grpc-core:1.78.0"
+  javaRestTestRuntimeOnly "io.netty:netty-codec-http2:${versions.netty}"
+  javaRestTestRuntimeOnly "com.google.guava:guava:33.4.0-jre"
+  javaRestTestRuntimeOnly "com.google.guava:failureaccess:1.0.2"
 }

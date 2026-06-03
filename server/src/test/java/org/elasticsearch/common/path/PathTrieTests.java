@@ -101,7 +101,6 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
 
-    // https://github.com/elastic/elasticsearch/pull/17916
     public void testWildcardMatchingModes() {
         PathTrie<String> trie = new PathTrie<>(NO_DECODER);
         trie.insert("{testA}", "test1");

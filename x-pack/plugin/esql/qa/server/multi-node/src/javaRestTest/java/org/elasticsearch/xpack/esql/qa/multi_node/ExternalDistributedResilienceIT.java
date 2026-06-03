@@ -162,13 +162,17 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         // ~16 MiB of uncompressed NDJSON: comfortably above 2x the 4 MiB minimum segment size, so a
         // parsing_parallelism of 4 yields multiple segments.
         byte[] ndjson = generateNdjson(rows);
-        String key = WAREHOUSE + "/reset/big.ndjson";
-        s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
-
-        String query = externalS3Query(key) + " | STATS count = COUNT(*)";
         for (String mode : DISTRIBUTION_MODES) {
+            // A distinct object per mode so every read is a cold multi-segment scan: external-text aggregate
+            // pushdown (#149380) would short-circuit a warm re-read of a shared path from cached source stats and
+            // skip the faulted streaming read. See testMultiSegmentNdjsonReadRecoversFromMidReadReset.
+            String fileName = "big-" + mode + ".ndjson";
+            String key = WAREHOUSE + "/reset/" + fileName;
+            s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
+
+            String query = externalS3Query(key) + " | STATS count = COUNT(*)";
             // Two resets on the data object's reads; each segment re-open is within the retry budget.
-            faultHandler().setFault(FaultType.CONNECTION_RESET, 2, path -> path.endsWith("big.ndjson"));
+            faultHandler().setFault(FaultType.CONNECTION_RESET, 2, path -> path.endsWith(fileName));
 
             Map<String, Object> result = runQueryWithMode(query, mode, 4);
             @SuppressWarnings("unchecked")
@@ -198,17 +202,26 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
     public void testFaultedMidReadResultEqualsCleanBaseline() throws Exception {
         int rows = 200_000;
         byte[] ndjson = generateNdjson(rows);
-        String key = WAREHOUSE + "/baseline/data.ndjson";
-        s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
-
-        String query = externalS3Query(key) + " | STATS c = COUNT(*), s = SUM(salary), m = MAX(salary)";
         for (String mode : DISTRIBUTION_MODES) {
-            @SuppressWarnings("unchecked")
-            List<List<Object>> clean = (List<List<Object>>) runQueryWithMode(query, mode, 4).get("values");
+            // Two distinct objects with identical content per mode so BOTH the clean and the faulted run are cold
+            // streaming scans. Sharing one path would let external-text aggregate pushdown (#149380) answer the
+            // second (faulted) run from the cache the clean run warmed — skipping the read the fault targets.
+            String cleanFile = "clean-" + mode + ".ndjson";
+            String faultedFile = "faulted-" + mode + ".ndjson";
+            String cleanKey = WAREHOUSE + "/baseline/" + cleanFile;
+            String faultedKey = WAREHOUSE + "/baseline/" + faultedFile;
+            s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + cleanKey, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
+            s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + faultedKey, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
 
-            faultHandler().setMidBodyResetFault(2, 256, path -> path.endsWith("data.ndjson"));
+            String statsTail = " | STATS c = COUNT(*), s = SUM(salary), m = MAX(salary)";
             @SuppressWarnings("unchecked")
-            List<List<Object>> faulted = (List<List<Object>>) runQueryWithMode(query, mode, 4).get("values");
+            List<List<Object>> clean = (List<List<Object>>) runQueryWithMode(externalS3Query(cleanKey) + statsTail, mode, 4).get("values");
+
+            faultHandler().setMidBodyResetFault(2, 256, path -> path.endsWith(faultedFile));
+            @SuppressWarnings("unchecked")
+            List<List<Object>> faulted = (List<List<Object>>) runQueryWithMode(externalS3Query(faultedKey) + statsTail, mode, 4).get(
+                "values"
+            );
 
             assertEquals(Strings.format("faulted result must equal the clean baseline for mode %s", mode), clean, faulted);
             assertEquals(Strings.format("all injected resets consumed for mode %s", mode), 0, faultHandler().remainingFaults());
@@ -232,16 +245,21 @@ public class ExternalDistributedResilienceIT extends AbstractExternalDistributed
         // ~42 MiB so parsing_parallelism=4 yields ~10 MiB segments — each segment read streams far more than
         // the 1 MiB reset threshold, while record-boundary probes (a few KiB) stay under it.
         byte[] ndjson = generateNdjson(rows);
-        String key = WAREHOUSE + "/reset-midbody/big.ndjson";
-        s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
-
-        // Reference a column (salary) so the read does NOT take the empty-projection schema-bind, which streams
-        // the whole file as one object read during setup. With a projected column the fault lands on a segment
-        // byte-range read — exactly the newStream(pos,len) range the storage layer re-opens and resumes.
-        // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 500k rows is 89999.
-        String query = externalS3Query(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
         for (String mode : DISTRIBUTION_MODES) {
-            faultHandler().setMidBodyResetFault(1, 1024 * 1024, path -> path.endsWith("big.ndjson"));
+            // A distinct object per mode so every read is a cold multi-segment scan. External-text aggregate
+            // pushdown (#149380) short-circuits a warm re-read of the same path from cached source stats —
+            // skipping the streaming read this test injects the mid-body fault into — so a shared key would let a
+            // later mode (whichever routes to the coordinator the first mode warmed) never hit the fault.
+            String fileName = "big-" + mode + ".ndjson";
+            String key = WAREHOUSE + "/reset-midbody/" + fileName;
+            s3Fixture.getHandler().blobs().put("/" + BUCKET + "/" + key, new BlobEntry(new BytesArray(ndjson), "STANDARD"));
+
+            // Reference a column (salary) so the read does NOT take the empty-projection schema-bind, which streams
+            // the whole file as one object read during setup. With a projected column the fault lands on a segment
+            // byte-range read — exactly the newStream(pos,len) range the storage layer re-opens and resumes.
+            // max(salary) is deterministic: salary = 40000 + (i % 50000), so the max over 500k rows is 89999.
+            String query = externalS3Query(key) + " | STATS count = COUNT(*), max_salary = MAX(salary)";
+            faultHandler().setMidBodyResetFault(1, 1024 * 1024, path -> path.endsWith(fileName));
 
             Map<String, Object> result = runQueryWithMode(query, mode, 4);
             @SuppressWarnings("unchecked")

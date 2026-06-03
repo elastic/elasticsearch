@@ -1,6 +1,6 @@
 = Elasticsearch
 
-Elasticsearch is a distributed search and analytics engine, scalable data store and vector database optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
+Elasticsearch is a distributed search and analytics engine, scalable data store, and a vector database optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's Open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
 
 Use cases enabled by Elasticsearch include:
 
@@ -17,7 +17,7 @@ Use cases enabled by Elasticsearch include:
 To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].
 
-To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], more information can be found in https://www.elastic.co/search-labs[Search Labs].
+To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], More information is available in https://www.elastic.co/search-labs [Search Labs].
 
 [[get-started]]
 == Get started
@@ -82,7 +82,7 @@ The script generates a random password for the `elastic` user, which is displaye
 
 [CAUTION]
 ====
-This setup is for local testing only. HTTPS is disabled, and Basic authentication is used for Elasticsearch. For security, Elasticsearch and Kibana are accessible only through `localhost`.
+This setup is for local testing only. HTTPS is disabled and Basic authentication is used. For security, Elasticsearch and Kibana are only accessible via localhost.
 ====
 
 ==== API access
@@ -171,7 +171,7 @@ Elasticsearch efficiently stores and indexes it in a way that supports fast sear
 For timestamped data such as logs and metrics, you typically add documents to a
 data stream made up of multiple auto-generated backing indices.
 
-To add a single document to an index, submit an HTTP post request that targets the index.
+To add a single document to an index, submit an HTTP Post request that targets the index.
 
 ----
 POST /customer/_doc/1

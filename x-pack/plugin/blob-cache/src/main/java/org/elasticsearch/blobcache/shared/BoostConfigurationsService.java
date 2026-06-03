@@ -18,6 +18,10 @@ import org.elasticsearch.common.time.TimeProvider;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * This service class tracks a set of BoostConfiguration and manages their updates. Consumers are
+ * meant to interact with this service to get boost configurations.
+ */
 public class BoostConfigurationsService {
 
     private static final Logger logger = LogManager.getLogger(BoostConfigurationsService.class);
@@ -44,13 +48,19 @@ public class BoostConfigurationsService {
         });
     }
 
+    /**
+     * This method is the entry point for accessing boost configuration. It returns a BoostWindow for
+     * the given index and timestamp.
+     */
     public BoostWindow getBoostWindow(IndexMetadata indexMetadata, long absoluteTimeInMillis) {
         final var ageInMillis = timeProvider.absoluteTimeInMillis() - absoluteTimeInMillis;
 
         // TODO: resolve index specific overrides
         final Map<String, BoostWindow.Overrides> overridesPerWindow = null;
 
-        return getBoostConfiguration(indexMetadata).withOverrides(overridesPerWindow).getBoostWindow(ageInMillis);
+        return getBoostConfiguration(indexMetadata) // 1. determine the BoostConfiguration to use based on, e.g. index mode
+            .withOverrides(overridesPerWindow) // 2. apply index level overrides, if any
+            .getBoostWindow(ageInMillis); // 3. determine the BoostWindow
     }
 
     // TODO: Add mapping for index to its boost configuration, e.g. based on IndexMode and boost overrides

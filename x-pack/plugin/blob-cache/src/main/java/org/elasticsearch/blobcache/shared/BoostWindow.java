@@ -10,6 +10,10 @@ package org.elasticsearch.blobcache.shared;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
+/**
+ * BoostWindow defines the base configuration for a time window. It also stores overrides
+ * so that the methods, e.g. cachedRatio, return values taking the overrides into account.
+ */
 public class BoostWindow {
 
     private static final int CACHE_POWER_FOR_FULLY_CACHED = 200;
@@ -56,7 +60,12 @@ public class BoostWindow {
         return overrideMaxAge != null ? overrideMaxAge : maxAge;
     }
 
-    public BoostWindow withOverrides(Overrides overrides) {
+    /**
+     * This method creates a new BoostWindow by using the passed-in overrides, which is meant to be
+     * finer grained, e.g. index level overrides, while the existing one is coarser grained, e.g.
+     * project wide or a single configuration wide (e.g. `logs`).
+     */
+    public BoostWindow withOverrides(@Nullable Overrides overrides) {
         if (overrides == null) {
             return this;
         }

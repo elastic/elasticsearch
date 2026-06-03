@@ -19,6 +19,10 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+/**
+ * BoostConfiguration is essentially a set of BoostWindow instances that collectively define the complete boost
+ * configuration for a certain type of data, e.g. "logs".
+ */
 public class BoostConfiguration {
 
     // Identifier for the boost configuration, e.g. "logs".
@@ -64,6 +68,11 @@ public class BoostConfiguration {
         return entry != null ? entry.getValue() : boostWindowLookup.lastEntry().getValue();
     }
 
+    /**
+     * Create a new BoostConfiguration by applying the overrides to the existing one. The passed-in
+     * overrides are meant to be finer grained, e.g. index level overrides, while the existing one is coarser grained,
+     * e.g. project wide or a single configuration wide (e.g. `logs`).
+     */
     public BoostConfiguration withOverrides(Map<String, BoostWindow.Overrides> overridesPerWindow) {
         if (overridesPerWindow == null) {
             return this;

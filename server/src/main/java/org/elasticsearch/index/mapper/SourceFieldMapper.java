@@ -539,30 +539,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     /**
      * Returns {@code true} for Lucene fields that exist only to support per-field synthetic-source reconstruction and are therefore
      * redundant once {@link #postParse} has materialized the whole-document source blob into {@code _ignored_source}.
-     *
-     * <p>The following are removed:</p>
-     * <ul>
-     *   <li>{@code _ignored_source} per-field entries — the whole-document blob replaces them
-     *   <li>{@code <field>._ignore_malformed} (and {@code .counts}) — used only by synthetic-source loaders;
-     *       no block loader, query, or aggregation reads malformed values.</li>
-     *   <li>{@code <field>._original} (and {@code .counts}) — the text / keyword fallback field for ignored-above and normalized values;
-     *       block loaders that would otherwise read it are guarded to fall back to {@code BlockSourceReader} in columnar_stored mode.</li>
-     * </ul>
-     *
      */
     private static boolean isRedundantInColumnarStoredSource(String fieldName) {
-        if (IgnoredSourceFieldMapper.NAME.equals(fieldName)) {
-            return true;
-        }
-        String countsSuffix = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        if (fieldName.endsWith(countsSuffix)) {
-            String base = fieldName.substring(0, fieldName.length() - countsSuffix.length());
-            return IgnoredSourceFieldMapper.NAME.equals(base)
-                || base.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
-                || base.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX);
-        }
-        return fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
-            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX);
+        String counts = MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        return IgnoredSourceFieldMapper.NAME.equals(fieldName)
+            || (IgnoredSourceFieldMapper.NAME + counts).equals(fieldName)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(IgnoreMalformedStoredValues.IGNORE_MALFORMED_FIELD_NAME_SUFFIX + counts)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX)
+            || fieldName.endsWith(TextFamilyFieldType.FALLBACK_FIELD_NAME_SUFFIX + counts);
     }
 
     /**

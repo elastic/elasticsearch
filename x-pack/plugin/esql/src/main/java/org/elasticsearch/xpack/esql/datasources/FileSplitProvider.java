@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FrameIndex;
 import org.elasticsearch.xpack.esql.datasources.spi.IndexedDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitDiscoveryContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplitProvider;
@@ -77,7 +78,7 @@ import java.util.function.BiFunction;
  *
  * <ul>
  *   <li><b>Record-aligned macro splits</b> — for uncompressed line-oriented formats
- *       (NDJSON/JSONL/JSON, CSV/TSV). {@link SegmentableFormatReader#findNextRecordBoundary}
+ *       (NDJSON/JSONL/JSON, CSV/TSV). {@link RecordSplitter#findNextRecordBoundary}
  *       probes near {@code target_split_size} strides so each {@link FileSplit} starts on a
  *       record boundary. Splits are tagged with {@link #RECORD_ALIGNED_MACRO_SPLIT_KEY} and
  *       readers receive {@code recordAligned=true}, so they must <em>not</em> drop any leading
@@ -286,7 +287,9 @@ public class FileSplitProvider implements SplitProvider {
                 }
             }
 
-            tasks.add(new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema));
+            tasks.add(
+                new FileTask(filePath, fileLength, format, config, partitionValues, columnMapping, readSchema, context.maxRecordBytes())
+            );
         }
 
         if (tasks.isEmpty()) {
@@ -337,7 +340,8 @@ public class FileSplitProvider implements SplitProvider {
         Map<String, Object> config,
         Map<String, Object> partitionValues,
         @Nullable ColumnMapping columnMapping,
-        @Nullable List<Attribute> readSchema
+        @Nullable List<Attribute> readSchema,
+        int maxRecordBytes
     ) {}
 
     /**
@@ -397,6 +401,7 @@ public class FileSplitProvider implements SplitProvider {
             columnMapping,
             readSchema,
             effectiveTargetSplitBytes,
+            task.maxRecordBytes(),
             fileSplits,
             hoistedProvider
         )) {
@@ -636,6 +641,7 @@ public class FileSplitProvider implements SplitProvider {
         @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema,
         long targetStrideBytes,
+        int maxRecordBytes,
         List<ExternalSplit> splits,
         @Nullable StorageProvider hoistedProvider
     ) throws IOException {
@@ -665,7 +671,7 @@ public class FileSplitProvider implements SplitProvider {
         SegmentableFormatReader segmentableReader = (SegmentableFormatReader) reader;
         StorageProvider provider = resolveProvider(filePath, config, hoistedProvider);
         StorageObject object = provider.newObject(filePath, fileLength);
-        List<Long> starts = computeRecordAlignedMacroSplitStarts(segmentableReader, object, fileLength, targetStrideBytes);
+        List<Long> starts = computeRecordAlignedMacroSplitStarts(segmentableReader, object, fileLength, targetStrideBytes, maxRecordBytes);
         if (starts.size() <= 1) {
             return false;
         }
@@ -709,11 +715,13 @@ public class FileSplitProvider implements SplitProvider {
         SegmentableFormatReader reader,
         StorageObject storageObject,
         long fileLength,
-        long targetStrideBytes
+        long targetStrideBytes,
+        int maxRecordBytes
     ) throws IOException {
         List<Long> boundaries = new ArrayList<>();
         boundaries.add(0L);
         long minSegment = reader.minimumSegmentSize();
+        RecordSplitter splitter = reader.recordSplitter(maxRecordBytes);
         long pos = targetStrideBytes;
         while (pos < fileLength) {
             long remaining = fileLength - pos;
@@ -724,7 +732,10 @@ public class FileSplitProvider implements SplitProvider {
             // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
             // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
             try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
-                long skipped = reader.findNextRecordBoundary(stream);
+                long skipped = splitter.findNextRecordBoundary(stream);
+                if (skipped == RecordSplitter.RECORD_TOO_LARGE) {
+                    break;
+                }
                 if (skipped < 0) {
                     break;
                 }

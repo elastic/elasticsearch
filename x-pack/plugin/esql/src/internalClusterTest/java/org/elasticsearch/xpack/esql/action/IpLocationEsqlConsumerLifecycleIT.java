@@ -20,6 +20,7 @@ import org.elasticsearch.iplocation.api.IpLocationConsumer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 
@@ -47,7 +48,8 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
             ReindexPlugin.class,
             IngestGeoIpPlugin.class,
             IngestGeoIpSettingsPlugin.class,
-            EsqlPluginWithEnterpriseOrTrialLicense.class
+            EsqlPluginWithEnterpriseOrTrialLicense.class,
+            TestEncryptionServicePlugin.class
         );
     }
 

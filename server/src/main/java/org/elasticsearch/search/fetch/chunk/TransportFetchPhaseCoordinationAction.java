@@ -236,13 +236,8 @@ public class TransportFetchPhaseCoordinationAction extends HandledTransportActio
                 dataNodeResult.profileResult()
             );
 
-            // Release finalResult after delivery: the transport layer serializes it so the
-            // local FetchSearchResult (and its SearchHit ByteBuf retained slices) can be freed.
-            try {
-                listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
-            } finally {
-                finalResult.decRef();
-            }
+            // SearchActionListener.onResponse owns the birth ref and releases it via its finally block.
+            listener.<FetchSearchResult>map(Response::new).onResponse(finalResult);
         }, listener::onFailure), () -> Releasables.close(registration, responseStream::decRef));
 
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();

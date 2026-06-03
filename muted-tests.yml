@@ -642,3 +642,15 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
   issue: https://github.com/elastic/elasticsearch/issues/150214
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictMappedTimesTwoAndUnmapped
+  issue: https://github.com/elastic/elasticsearch/issues/150567
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zst/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150571
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.bz/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150572
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTSTypeConflictTimeseriesLongUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150584

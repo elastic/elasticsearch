@@ -20,7 +20,7 @@ When the {{infer}} API is invoked without an explicit timeout, a default timeout
 `xpack.inference.query_timeout`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Specifies the default timeout for {{infer}} requests used in search contexts when the caller does not provide a timeout. Defaults to 10 seconds (`10s`).
 
-### Inference API logging settings [xpack-inference-logging]
+## Inference API logging settings [xpack-inference-logging]
 
 When certain failures occur, a log message is emitted. In the case of a reoccurring failure the logging throttler restricts repeated messages from being logged.
 

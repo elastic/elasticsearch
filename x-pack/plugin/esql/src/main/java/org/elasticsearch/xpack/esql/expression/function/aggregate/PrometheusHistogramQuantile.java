@@ -35,8 +35,8 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
 /**
  * Internal aggregate implementing Prometheus classic-histogram quantile evaluation.
- * This is only intended for lowering {@code histogram_quantile()} inside PROMQL, after the
- * classic-histogram {@code le} label has been normalized to a numeric upper bound.
+ * This is only intended for lowering {@code histogram_quantile()} inside PROMQL, with the
+ * classic-histogram {@code le} label passed through as a keyword upper bound.
  */
 public class PrometheusHistogramQuantile extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -60,7 +60,7 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
     public PrometheusHistogramQuantile(
         Source source,
         @Param(name = "count", type = { "double" }) Expression field,
-        @Param(name = "upper_bound", type = { "double" }) Expression upperBound,
+        @Param(name = "upper_bound", type = { "keyword" }) Expression upperBound,
         @Param(name = "quantile", type = { "double", "integer", "long" }) Expression quantile
     ) {
         this(source, field, Literal.TRUE, NO_WINDOW, upperBound, quantile);
@@ -106,7 +106,7 @@ public class PrometheusHistogramQuantile extends AggregateFunction implements To
     @Override
     protected TypeResolution resolveType() {
         return isType(field(), dt -> dt == DataType.DOUBLE, sourceText(), FIRST, "double").and(
-            isType(upperBound, dt -> dt == DataType.DOUBLE, sourceText(), SECOND, "double")
+            isType(upperBound, dt -> dt == DataType.KEYWORD, sourceText(), SECOND, "keyword")
         )
             .and(
                 isType(quantile, dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), THIRD, "numeric except unsigned_long")

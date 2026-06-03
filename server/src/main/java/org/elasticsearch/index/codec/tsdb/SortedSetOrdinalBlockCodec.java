@@ -10,23 +10,24 @@
 package org.elasticsearch.index.codec.tsdb;
 
 /**
- * Factory for block-level encoders and decoders of the ordinal stream in SORTED and SORTED_SET
- * doc values.
+ * Factory for block-level encoders and decoders of the ordinal stream of SORTED_SET doc values
+ * (multiple values per document).
  *
- * <p>TSDB doc values are stored in fixed-size blocks. This interface controls how each block
- * of ordinals is encoded on write and decoded on read. The field-level layout (block index,
- * DISI, metadata) is handled by {@link TSDBDocValuesBlockWriter} and
- * {@link TSDBDocValuesBlockReader}; this interface only provides the per-block encoding strategy.
+ * <p>TSDB doc values are stored in fixed-size blocks. This interface controls how each block of
+ * ordinals is encoded on write and decoded on read for SORTED_SET fields. The field-level layout
+ * (block index, DISI, metadata, per-doc ordinal counts) is handled by {@link TSDBDocValuesBlockWriter}
+ * and {@link TSDBDocValuesBlockReader}; this interface only provides the per-block encoding
+ * strategy.
  *
  * <p>An instance is held by {@link AbstractTSDBDocValuesProducer} and
  * {@link AbstractTSDBDocValuesConsumer} for the lifetime of a segment and consulted once per
  * field. Implementations should return fresh instances to avoid shared mutable state across
  * merge threads.
  */
-public interface OrdinalBlockCodec {
+public interface SortedSetOrdinalBlockCodec {
 
     /**
-     * Returns a reader that can decode ordinal value blocks for a field in this segment.
+     * Returns a reader that can decode ordinal value blocks for a SORTED_SET field in this segment.
      *
      * @param ctx segment-scoped read state shared by every field in this segment
      * @return    the block-level field reader
@@ -34,7 +35,7 @@ public interface OrdinalBlockCodec {
     OrdinalFieldReader createReader(NumericReadContext ctx);
 
     /**
-     * Returns a writer that can encode ordinal value blocks for a field in this segment.
+     * Returns a writer that can encode ordinal value blocks for a SORTED_SET field in this segment.
      *
      * @param ctx segment-scoped write state shared by every field in this segment
      * @return    the block-level field writer

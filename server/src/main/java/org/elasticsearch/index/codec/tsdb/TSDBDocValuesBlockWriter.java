@@ -39,6 +39,19 @@ public final class TSDBDocValuesBlockWriter {
     }
 
     /**
+     * Encodes one block of values with per-document context for codecs that exploit doc
+     * boundaries (e.g. tuple-run encoding on SORTED_SET fields). The {@code perDocK} array
+     * holds the full K of every doc whose ords appear in the block (including any doc that
+     * straddles into a neighboring block); {@code headOffset} and {@code tailMissing}
+     * indicate how many ords of the first and last docs live in the previous and next
+     * blocks respectively.
+     */
+    @FunctionalInterface
+    public interface TupleAwareBlockEncoder {
+        void encode(long[] buffer, int[] perDocK, int numDocs, int headOffset, int tailMissing, IndexOutput data) throws IOException;
+    }
+
+    /**
      * Optional callback invoked after the block-shift marker is written to metadata but before
      * the block encoding loop begins. Codec-specific formats (e.g. ES95) use this to write
      * additional per-field metadata such as a {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor}.
@@ -101,6 +114,51 @@ public final class TSDBDocValuesBlockWriter {
         final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
         final SortedFieldObserver sortedFieldObserver,
         final BlockEncoder blockEncoder,
+        final FieldMetaWriter fieldMetaWriter
+    ) throws IOException {
+        final TupleAwareBlockEncoder wrapped = (buffer, perDocK, numDocs, headOffset, tailMissing, data) -> blockEncoder.encode(
+            buffer,
+            data
+        );
+        return writeFieldEntryWithTupleAwareness(
+            ctx,
+            field,
+            valuesSource,
+            maxOrd,
+            docValueCountConsumer,
+            sortedFieldObserver,
+            wrapped,
+            fieldMetaWriter
+        );
+    }
+
+    /**
+     * Writes one field's value blocks using a tuple-aware encoder that receives per-doc
+     * boundary metadata for every block. Used by SORTED_SET ordinal codecs that pick better
+     * encodings when doc boundaries are visible (e.g. tuple-run encoding).
+     *
+     * @param ctx                   segment-scoped write state
+     * @param field                 field being written
+     * @param valuesSource          source of doc values for this field
+     * @param maxOrd                maximum ordinal for ordinal fields, or
+     *                              {@link AbstractTSDBDocValuesConsumer#NO_MAX_ORD} for numeric fields
+     * @param docValueCountConsumer receives the per-doc value count for offset tracking,
+     *                              or {@code null} when offsets are not needed
+     * @param sortedFieldObserver   receives {@code (docId, value)} pairs during the doc pass,
+     *                              or {@code null} when no observer is attached
+     * @param tupleEncoder          codec-specific tuple-aware encoder for each value block
+     * @param fieldMetaWriter       optional callback invoked after the block-shift marker to write
+     *                              additional per-field metadata, or {@code null}
+     * @return the field's doc value count statistics
+     */
+    public DocValueFieldCountStats writeFieldEntryWithTupleAwareness(
+        final NumericWriteContext ctx,
+        final FieldInfo field,
+        final TsdbDocValuesProducer valuesSource,
+        long maxOrd,
+        final AbstractTSDBDocValuesConsumer.DocValueCountConsumer docValueCountConsumer,
+        final SortedFieldObserver sortedFieldObserver,
+        final TupleAwareBlockEncoder tupleEncoder,
         final FieldMetaWriter fieldMetaWriter
     ) throws IOException {
         final IndexOutput meta = ctx.meta();
@@ -191,7 +249,12 @@ public final class TSDBDocValuesBlockWriter {
                         fieldMetaWriter.write();
                     }
                     final long[] buffer = new long[blockSize];
+                    // NOTE: blockSize + 1 because a straddling doc carries an entry in both
+                    // this block and the next, on top of up to blockSize single-valued docs.
+                    final int[] perDocK = new int[blockSize + 1];
                     int bufferSize = 0;
+                    int perDocKCount = 0;
+                    int pendingHeadOffset = 0;
                     values = valuesSource.getSortedNumeric(field);
                     if (valuesSource.mergeStats.supported() && numDocsWithValue < maxDoc) {
                         disiAccumulator = new DISIAccumulator(ctx.dir(), ctx.ioContext(), data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
@@ -204,6 +267,7 @@ public final class TSDBDocValuesBlockWriter {
                         if (docValueCountConsumer != null) {
                             docValueCountConsumer.accept(count);
                         }
+                        perDocK[perDocKCount++] = count;
                         for (int i = 0; i < count; ++i) {
                             final long v = values.nextValue();
                             if (sortedFieldObserver != null) {
@@ -212,15 +276,28 @@ public final class TSDBDocValuesBlockWriter {
                             buffer[bufferSize++] = v;
                             if (bufferSize == blockSize) {
                                 indexWriter.add(data.getFilePointer() - valuesDataOffset);
-                                blockEncoder.encode(buffer, data);
+                                final int tailMissing = count - i - 1;
+                                tupleEncoder.encode(buffer, perDocK, perDocKCount, pendingHeadOffset, tailMissing, data);
                                 bufferSize = 0;
+                                if (tailMissing > 0) {
+                                    // NOTE: doc straddles; its full K reappears as the next
+                                    // block's leading perDocK entry so the tuple encoder
+                                    // there can pair the partial visible portion with the
+                                    // matching tuple revealed by later docs.
+                                    pendingHeadOffset = i + 1;
+                                    perDocK[0] = count;
+                                    perDocKCount = 1;
+                                } else {
+                                    pendingHeadOffset = 0;
+                                    perDocKCount = 0;
+                                }
                             }
                         }
                     }
                     if (bufferSize > 0) {
                         indexWriter.add(data.getFilePointer() - valuesDataOffset);
                         Arrays.fill(buffer, bufferSize, blockSize, 0L);
-                        blockEncoder.encode(buffer, data);
+                        tupleEncoder.encode(buffer, perDocK, perDocKCount, pendingHeadOffset, 0, data);
                     }
                 }
 

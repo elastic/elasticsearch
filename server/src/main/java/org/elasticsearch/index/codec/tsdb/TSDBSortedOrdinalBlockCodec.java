@@ -10,15 +10,18 @@
 package org.elasticsearch.index.codec.tsdb;
 
 /**
- * {@link OrdinalBlockCodec} that encodes ordinal value blocks with {@link TSDBDocValuesEncoder}.
+ * Baseline {@link SortedOrdinalBlockCodec} that encodes SORTED ordinal value blocks with
+ * {@link TSDBDocValuesEncoder}.
  *
- * <p>Each call to {@link #createReader} and {@link #createWriter} returns a fresh instance
- * so that each producer or consumer owns its own encoder buffers without shared mutable state.
+ * <p>Each call to {@link #createReader} and {@link #createWriter} returns a fresh instance so
+ * that each producer or consumer owns its own encoder buffers without shared mutable state.
+ * Subclasses may override either method to swap in a specialized block encoder while keeping
+ * the field-level layout unchanged.
  */
-public final class TSDBOrdinalBlockCodec implements OrdinalBlockCodec {
+public class TSDBSortedOrdinalBlockCodec implements SortedOrdinalBlockCodec {
 
     /** Creates a new codec that uses {@link TSDBDocValuesEncoder} for block encoding. */
-    public TSDBOrdinalBlockCodec() {}
+    public TSDBSortedOrdinalBlockCodec() {}
 
     @Override
     public OrdinalFieldReader createReader(final NumericReadContext ctx) {

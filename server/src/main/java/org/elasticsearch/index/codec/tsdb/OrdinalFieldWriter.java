@@ -64,4 +64,35 @@ public interface OrdinalFieldWriter {
          */
         void encodeOrdinals(long[] values, IndexOutput data, int bitsPerOrd) throws IOException;
     }
+
+    /**
+     * Encodes one block of ordinal values with per-document context.
+     *
+     * <p>This is the per-doc-aware variant of {@link Encoder} for SORTED_SET fields whose
+     * block encoder picks better encodings when it knows the doc boundaries inside the block
+     * (e.g. tuple-run encoding). The receiver gets {@code perDocK[0..numDocs - 1]} giving the
+     * full K (number of ords) of each doc whose values appear in this block, plus
+     * {@code headOffset}/{@code tailMissing} indicating how many ords of the first and last
+     * docs are split into neighboring blocks.
+     */
+    @FunctionalInterface
+    interface TupleAwareEncoder {
+
+        /**
+         * Encodes one block into {@code data}.
+         *
+         * @param values        ordinal values to encode
+         * @param perDocK       full per-doc value counts for every doc whose ords appear in
+         *                      this block, including any doc that straddles a block boundary
+         * @param numDocs       number of valid entries in {@code perDocK}
+         * @param headOffset    number of ords of the first doc that belong to the PREVIOUS
+         *                      block (0 if the block starts at a doc boundary)
+         * @param tailMissing   number of ords of the last doc that belong to the NEXT block
+         *                      (0 if the block ends at a doc boundary)
+         * @param data          data output to write the encoded block to
+         * @param bitsPerOrd    number of bits per ordinal
+         */
+        void encodeOrdinals(long[] values, int[] perDocK, int numDocs, int headOffset, int tailMissing, IndexOutput data, int bitsPerOrd)
+            throws IOException;
+    }
 }

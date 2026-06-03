@@ -45,25 +45,56 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
     private final Codec codec = new Elasticsearch93Lucene104Codec() {
 
-        final DocValuesFormat docValuesFormat = new ES95TSDBDocValuesFormat(
-            ESTestCase.randomIntBetween(2, 4096),
-            ESTestCase.randomIntBetween(1, 512),
-            random().nextBoolean(),
-            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
-            true,
-            random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
-            random().nextBoolean(),
-            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
-            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
-            NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
-        );
+        final DocValuesFormat docValuesFormat = buildRandomFormat();
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return docValuesFormat;
         }
     };
+
+    // NOTE: pick the right format CLASS so the codec name written to segments
+    // matches what Lucene SPI will re-instantiate on read. Constructing
+    // `ES95TSDBDocValuesFormat` directly with `adaptiveOrdinalBlocks=true`
+    // would still announce `CODEC_NAME="ES95TSDB"`, so SPI would return the
+    // legacy format on read and corrupt the round-trip.
+    private static DocValuesFormat buildRandomFormat() {
+        final int skipIndexIntervalSize = ESTestCase.randomIntBetween(2, 4096);
+        final int minDocsPerOrdinal = ESTestCase.randomIntBetween(1, 512);
+        final boolean optimizedMerge = random().nextBoolean();
+        final int numericBlockShift = random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT;
+        final boolean writePrefixPartitions = random().nextBoolean();
+        final boolean adaptive = random().nextBoolean();
+        if (adaptive) {
+            return new ES95AdaptiveTSDBDocValuesFormat(
+                skipIndexIntervalSize,
+                minDocsPerOrdinal,
+                optimizedMerge,
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                true,
+                numericBlockShift,
+                writePrefixPartitions,
+                ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+                ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+                NumericCodecFactory.DEFAULT,
+                ES95NumericFieldReader::defaultFallbackDecoder
+            );
+        }
+        return new ES95TSDBDocValuesFormat(
+            skipIndexIntervalSize,
+            minDocsPerOrdinal,
+            optimizedMerge,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            numericBlockShift,
+            writePrefixPartitions,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            false
+        );
+    }
 
     @Override
     protected Codec getCodec() {
@@ -251,7 +282,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
                     ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
                     ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                     NumericCodecFactory.DEFAULT,
-                    ES95NumericFieldReader::defaultFallbackDecoder
+                    ES95NumericFieldReader::defaultFallbackDecoder,
+                    false
                 );
                 try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
                     for (int i = 0; i < numDocs; i++) {
@@ -340,7 +372,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             NumericCodecFactory.DEFAULT,
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");
-            }
+            },
+            false
         );
 
         final int numDocs = ESTestCase.randomIntBetween(128, 4096);

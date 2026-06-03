@@ -14,17 +14,20 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.codec.tsdb.AbstractTSDBDocValuesProducer;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.DocOffsetsCodec;
 import org.elasticsearch.index.codec.tsdb.NumericBlockCodec;
-import org.elasticsearch.index.codec.tsdb.OrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.PrefixedPartitionsWriter;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserver;
 import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
+import org.elasticsearch.index.codec.tsdb.SortedOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.SortedSetOrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
-import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.TSDBSortedOrdinalBlockCodec;
+import org.elasticsearch.index.codec.tsdb.TSDBSortedSetOrdinalBlockCodec;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
@@ -33,7 +36,10 @@ import java.io.IOException;
 
 /**
  * ES95 TSDB doc values format. Uses pipeline-based encoding for numeric fields via
- * {@link ES95NumericCodec} and reuses {@link TSDBOrdinalBlockCodec} for ordinals.
+ * {@link ES95NumericCodec} and per-field-type baselines ({@link TSDBSortedOrdinalBlockCodec},
+ * {@link TSDBSortedSetOrdinalBlockCodec}) for ordinals, with adaptive selection via
+ * ES95 specializations ({@link ES95SortedOrdinalBlockCodec},
+ * {@link ES95SortedSetOrdinalBlockCodec}) when the feature flag is enabled.
  * Non-numeric field types are handled identically to ES819 by the shared abstract
  * base classes. Each numeric field writes a self-describing
  * {@link org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor} so decoders
@@ -43,6 +49,14 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
 
     public static final int NUMERIC_BLOCK_SHIFT = 7;
     public static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
+
+    /**
+     * Feature flag gating adaptive per-block ordinal encoding. Auto-enabled
+     * in snapshot builds; in release builds set
+     * {@code -Des.adaptive_ordinal_blocks_feature_flag_enabled=true}.
+     */
+    public static final FeatureFlag ADAPTIVE_ORDINAL_BLOCKS_FEATURE_FLAG = new FeatureFlag("adaptive_ordinal_blocks");
+
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES95TSDB";
     static final String DATA_CODEC = "ES95TSDBDocValuesData";
@@ -72,7 +86,6 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
     static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = StaticPipelineConfigResolver.INSTANCE;
-    static final OrdinalBlockCodec ORDINAL_CODEC = new TSDBOrdinalBlockCodec();
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(
         TERMS_DICT_BLOCK_LZ4_MASK,
@@ -85,6 +98,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     final TSDBDocValuesFormatConfig formatConfig;
     final NumericCodecFactory numericCodecFactory;
     final FallbackDecoderFactory fallbackDecoderFactory;
+    private final SortedOrdinalBlockCodec sortedOrdinalCodec;
+    private final SortedSetOrdinalBlockCodec sortedSetOrdinalCodec;
 
     /**
      * Creates a new ES95 format with default configuration.
@@ -103,7 +118,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
-            ES95NumericFieldReader::defaultFallbackDecoder
+            ES95NumericFieldReader::defaultFallbackDecoder,
+            false
         );
     }
 
@@ -118,9 +134,42 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         int blockBytesThreshold,
         int blockCountThreshold,
         final NumericCodecFactory numericCodecFactory,
-        final FallbackDecoderFactory fallbackDecoderFactory
+        final FallbackDecoderFactory fallbackDecoderFactory,
+        boolean adaptiveOrdinalBlocks
     ) {
-        super(CODEC_NAME);
+        this(
+            CODEC_NAME,
+            skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
+            enableOptimizedMerge,
+            binaryDVCompressionMode,
+            enablePerBlockCompression,
+            numericBlockShift,
+            writePrefixPartitions,
+            blockBytesThreshold,
+            blockCountThreshold,
+            numericCodecFactory,
+            fallbackDecoderFactory,
+            adaptiveOrdinalBlocks
+        );
+    }
+
+    protected ES95TSDBDocValuesFormat(
+        final String codecName,
+        int skipIndexIntervalSize,
+        int minDocsPerOrdinalForRangeEncoding,
+        boolean enableOptimizedMerge,
+        final BinaryDVCompressionMode binaryDVCompressionMode,
+        boolean enablePerBlockCompression,
+        int numericBlockShift,
+        boolean writePrefixPartitions,
+        int blockBytesThreshold,
+        int blockCountThreshold,
+        final NumericCodecFactory numericCodecFactory,
+        final FallbackDecoderFactory fallbackDecoderFactory,
+        boolean adaptiveOrdinalBlocks
+    ) {
+        super(codecName);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
@@ -128,6 +177,13 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.numericCodecFactory = numericCodecFactory;
         this.fallbackDecoderFactory = fallbackDecoderFactory;
+        if (adaptiveOrdinalBlocks) {
+            this.sortedOrdinalCodec = new ES95SortedOrdinalBlockCodec();
+            this.sortedSetOrdinalCodec = new ES95SortedSetOrdinalBlockCodec();
+        } else {
+            this.sortedOrdinalCodec = new TSDBSortedOrdinalBlockCodec();
+            this.sortedSetOrdinalCodec = new TSDBSortedSetOrdinalBlockCodec();
+        }
         this.formatConfig = new TSDBDocValuesFormatConfig(
             TSDBDocValuesFormatConfig.VERSION_CURRENT,
             TERMS_DICT_CONFIG,
@@ -172,7 +228,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
                     : SortedFieldObserver.NOOP
                 : SortedFieldObserverFactory.NOOP,
             numericBlockCodec,
-            ORDINAL_CODEC
+            sortedOrdinalCodec,
+            sortedSetOrdinalCodec
         );
     }
 
@@ -194,7 +251,8 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
             formatConfig,
             DocOffsetsCodec.BITPACKING.getDecoder(),
             numericBlockCodec,
-            ORDINAL_CODEC
+            sortedOrdinalCodec,
+            sortedSetOrdinalCodec
         );
     }
 }

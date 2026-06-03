@@ -152,9 +152,9 @@ public class CrossProjectIndexResolutionValidator {
                 }
                 // qualified linked project expression
                 for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
+                    var splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                    var projectAlias = splitResource.clusterAlias();
+                    var resource = splitResource.indexExpression();
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
@@ -199,9 +199,9 @@ public class CrossProjectIndexResolutionValidator {
                     Map<String, List<String>>> populateRemoteSecurityExceptionAndIndices = null;
                 // checking if flat expression matched remotely
                 for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
+                    var splitResource = RemoteClusterAware.splitIndexName(remoteExpression);
+                    var projectAlias = splitResource.clusterAlias();
+                    var resource = splitResource.indexExpression();
 
                     ElasticsearchException remoteException = checkSingleRemoteExpression(
                         localResolvedExpressions,
@@ -385,13 +385,6 @@ public class CrossProjectIndexResolutionValidator {
         return localExpressions.expressions()
             .stream()
             .anyMatch(e -> e.remoteExpressions().stream().anyMatch(r -> r.startsWith(aliasPrefix) || r.startsWith(indexPrefix)));
-    }
-
-    public static String[] splitQualifiedResource(String resource) {
-        var splitResource = RemoteClusterAware.splitIndexName(resource);
-        assert splitResource.indexExpression().indexOf(':') == -1
-            : "Expected (project:indexExpression) qualified resource but found [" + resource + "]";
-        return new String[] { splitResource.clusterAlias(), splitResource.indexExpression() };
     }
 
     // TODO optimize with a precomputed Map<String, ResolvedIndexExpression.LocalExpressions> instead

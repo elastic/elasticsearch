@@ -211,8 +211,8 @@ public class IvfAutoCalibration {
 
         if (mergedVectorCount > RECALIBRATE_GROWTH_RATIO * largestSegmentDocs) {
             logger.debug(
-                "Merge calibration: growth ratio [{}] exceeds threshold [{}], " +
-                    "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
+                "Merge calibration: growth ratio [{}] exceeds threshold [{}], "
+                    + "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
                 (double) mergedVectorCount / largestSegmentDocs,
                 RECALIBRATE_GROWTH_RATIO,
                 mergeCtx.inputSegments(),
@@ -226,8 +226,8 @@ public class IvfAutoCalibration {
             long maxEncDocs = encodingDocCounts.values().stream().mapToLong(Long::longValue).max().orElse(0);
             if (maxEncDocs < ENCODING_AGREEMENT_THRESHOLD * totalDocs) {
                 logger.debug(
-                    "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), " +
-                        "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
+                    "Merge calibration: encoding disagreement (max encoding covers [{}]% of docs), "
+                        + "re-calibrating [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
                     (100.0 * maxEncDocs / totalDocs),
                     mergeCtx.inputSegments(),
                     mergeCtx.mergeKind(),
@@ -246,8 +246,8 @@ public class IvfAutoCalibration {
         boolean doPreconditionResult = preconditionTrueDocs > preconditionFalseDocs;
 
         logger.info(
-            "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] " +
-                "input segments [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
+            "Merge calibration: reusing encoding [{}] (oversample={}, precondition={}) from [{}] "
+                + "input segments [inputSegments={} mergeKind={} mergeMaxNumSegments={}]",
             bestEncoding,
             avgOversample,
             doPreconditionResult,
@@ -375,8 +375,8 @@ public class IvfAutoCalibration {
     private void logSelectedConfig(SweepOutcome outcome) {
         String recallPct = String.format(Locale.ROOT, "%.2f", outcome.selectedExpectedRecall() * 100.0);
         logger.info(
-            "Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates" +
-                " (expected recall {}%)",
+            "Selected: encoding [{}] docs per cluster {} preconditioning {} {} query bits {} document bits rerank {} candidates"
+                + " (expected recall {}%)",
             outcome.config().quantEncoding(),
             vectorsPerCluster,
             outcome.config().usePrecondition(),

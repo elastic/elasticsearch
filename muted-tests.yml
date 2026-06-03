@@ -351,6 +351,9 @@ tests:
 - class: org.elasticsearch.search.vectors.AdaptiveHnswQueueSaturationCollectorTests
   method: testEarlyExitRelation
   issue: https://github.com/elastic/elasticsearch/issues/150470
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/150569
 
 # Examples:
 #

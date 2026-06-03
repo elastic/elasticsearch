@@ -29,9 +29,11 @@ import java.util.List;
  * {@code _id} as {@code <location>:<rowPosition>} per row and exposes the masked physical position
  * directly as {@code _file.record_ref} (see {@code ExternalRowIdentity} / {@code VirtualColumnIterator}).
  * <p>
- * Every file reader materializes {@code _rowPosition}: columnar formats (Parquet / Parquet-RS / ORC)
- * emit a file-global row index from their footer/stripe metadata; NDJSON emits a file-global byte
- * offset via {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#splitStartByte()}
+ * Every file reader materializes {@code _rowPosition}: Parquet (Java) and ORC emit a file-global
+ * row index from footer/stripe metadata (Parquet-Java encodes an extractor id into the high bits
+ * for the deferred-extraction path, which the composition path masks off); Parquet-RS splices an
+ * all-null block so {@code _id} renders null per the disclosed carve-out; NDJSON emits a file-global
+ * byte offset via {@link org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext#splitStartByte()}
  * plus bytes consumed; CSV emits a per-iterator record counter (single-split correct; multi-split
  * byte-offset is a fast-follow). Reader-sourced and intrinsic to the record's position in the file
  * on every non-CSV format, so the value is identical regardless of split layout.

@@ -357,12 +357,23 @@ public class CacheFileReader {
      * @return {@code true} if a buffer was available and the action was invoked
      */
     public final boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
-        return cacheFile.withByteBufferSlice(offset, length, action);
+        if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
+            return cacheFile.withByteBufferSlice(offset, length, action);
+        }
+        final long regionStart = (offset / regionSize) * regionSize;
+        final int advice = adviceForRange(ByteRange.of(regionStart, regionStart + regionSize));
+        return cacheFile.withByteBufferSlice(offset, length, action, advice);
     }
 
     public final boolean withByteBufferSlices(long[] offsets, int length, int count, CheckedConsumer<ByteBuffer[], IOException> action)
         throws IOException {
-        return cacheFile.withByteBufferSlices(offsets, length, count, action);
+        if (desiredMAdvice == SharedBytes.MADV_NORMAL) {
+            return cacheFile.withByteBufferSlices(offsets, length, count, action);
+        }
+        // For top-level files the entire range is exclusive, so a single advice applies.
+        // For compound sub-files, individual regions could differ, but the bulk path is
+        // only used for vector data which is always in a top-level .vec file.
+        return cacheFile.withByteBufferSlices(offsets, length, count, action, desiredMAdvice);
     }
 
     /**

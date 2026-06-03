@@ -1489,7 +1489,7 @@ public abstract class FieldMapper extends Mapper {
 
         public static FeatureFlag EXTENDED_DOC_VALUES_PARAMS_FF = new FeatureFlag("extended_doc_values_options");
 
-        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+        public record Values(boolean enabled, Cardinality cardinality, boolean multiValue, boolean skippers) {
             public enum Cardinality {
                 LOW,
                 HIGH;
@@ -1500,37 +1500,71 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
-            public static Values DISABLED = new Values(false, Cardinality.LOW, true);
+            /**
+             * Backwards-compatible constructor that defaults {@code skippers} to {@code false}. Existing call sites that predate the
+             * introduction of doc value skippers continue to compile.
+             */
+            public Values(boolean enabled, Cardinality cardinality, boolean multiValue) {
+                this(enabled, cardinality, multiValue, false);
+            }
+
+            public Values withSkippers(boolean skippers) {
+                return new Values(enabled, cardinality, multiValue, skippers);
+            }
+
+            public static Values DISABLED = new Values(false, Cardinality.LOW, true, false);
         }
 
         public final Optional<Parameter<Values.Cardinality>> cardinalityParameter;
         public final Parameter<Boolean> multiValueParameter;
+        public final Parameter<Boolean> skippersParameter;
 
         /**
          * Factory for field types that do not expose a user-configurable {@code cardinality} sub-parameter (numerics, dates, booleans, IP,
          * etc.).
          */
         public static DocValuesParameter of(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer, false);
+            return new DocValuesParameter(() -> defaultValue, initializer, false);
         }
 
         /**
          * Factory for field types that expose a user-configurable {@code cardinality} sub-parameter (keyword family and text family).
          */
         public static DocValuesParameter ofWithCardinality(Values defaultValue, Function<FieldMapper, Values> initializer) {
-            return new DocValuesParameter(defaultValue, initializer, true);
+            return new DocValuesParameter(() -> defaultValue, initializer, true);
         }
 
-        private DocValuesParameter(Values defaultValue, Function<FieldMapper, Values> initializer, boolean supportsCardinality) {
-            super(PARAMETER_NAME, false, () -> defaultValue, null, initializer, null, Values::toString);
+        /**
+         * Variant of {@link #of(Values, Function)} that takes a dynamic supplier for the default value. This is useful when the default
+         * depends on context not yet available at field-initializer time (e.g. whether the field participates in {@code index.sort.field},
+         * which determines the default for {@code skippers}).
+         */
+        public static DocValuesParameter of(Supplier<Values> defaultValueSupplier, Function<FieldMapper, Values> initializer) {
+            return new DocValuesParameter(defaultValueSupplier, initializer, false);
+        }
+
+        public static DocValuesParameter ofWithCardinality(
+            Supplier<Values> defaultValueSupplier,
+            Function<FieldMapper, Values> initializer
+        ) {
+            return new DocValuesParameter(defaultValueSupplier, initializer, true);
+        }
+
+        private DocValuesParameter(
+            Supplier<Values> defaultValueSupplier,
+            Function<FieldMapper, Values> initializer,
+            boolean supportsCardinality
+        ) {
+            super(PARAMETER_NAME, false, defaultValueSupplier, null, initializer, null, Values::toString);
 
             if (supportsCardinality) {
+                Supplier<Values.Cardinality> cardinalityDefault = () -> defaultValueSupplier.get().cardinality;
                 cardinalityParameter = Optional.of(
                     Parameter.enumParam(
                         "cardinality",
                         false,
                         m -> initializer.apply(m).cardinality,
-                        defaultValue.cardinality,
+                        cardinalityDefault,
                         Values.Cardinality.class
                     )
                 );
@@ -1538,7 +1572,26 @@ public abstract class FieldMapper extends Mapper {
                 cardinalityParameter = Optional.empty();
             }
 
-            multiValueParameter = Parameter.boolParam("multi_value", false, m -> initializer.apply(m).multiValue, defaultValue.multiValue);
+            multiValueParameter = Parameter.boolParam(
+                "multi_value",
+                false,
+                m -> initializer.apply(m).multiValue,
+                () -> defaultValueSupplier.get().multiValue
+            );
+            skippersParameter = Parameter.boolParam(
+                "skippers",
+                false,
+                m -> initializer.apply(m).skippers,
+                () -> defaultValueSupplier.get().skippers
+            ).addValidator(v -> {
+                if (Boolean.TRUE.equals(v)
+                    && cardinalityParameter.isPresent()
+                    && cardinalityParameter.get().getValue() == Values.Cardinality.HIGH) {
+                    throw new IllegalArgumentException(
+                        "[doc_values.skippers] cannot be enabled when [doc_values.cardinality] is [high]"
+                    );
+                }
+            });
         }
 
         /**
@@ -1552,6 +1605,8 @@ public abstract class FieldMapper extends Mapper {
          *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality</li>
          *   <li>{@code "doc_values": { "multi_value": true }} - allow multiple values per document (default)</li>
          *   <li>{@code "doc_values": { "multi_value": false }} - reject any document that has more than one value for the field</li>
+         *   <li>{@code "doc_values": { "skippers": true }} - store doc value skippers for this field (incompatible with
+         *       {@code cardinality: high})</li>
          * </ul>
          * <p>
          * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying
@@ -1564,17 +1619,28 @@ public abstract class FieldMapper extends Mapper {
                 if (valueMap.containsKey(multiValueParameter.name)) {
                     multiValueParameter.parse(field, context, valueMap.get(multiValueParameter.name));
                 }
+                if (valueMap.containsKey(skippersParameter.name)) {
+                    skippersParameter.parse(field, context, valueMap.get(skippersParameter.name));
+                }
 
                 setValue(
                     new Values(
                         true,
                         cardinalityParameter.map(Parameter::getValue).orElse(getDefaultValue().cardinality()),
-                        multiValueParameter.getValue()
+                        multiValueParameter.getValue(),
+                        skippersParameter.getValue()
                     )
                 );
             } else {
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(new Values(true, getDefaultValue().cardinality(), getDefaultValue().multiValue()));
+                    setValue(
+                        new Values(
+                            true,
+                            getDefaultValue().cardinality(),
+                            getDefaultValue().multiValue(),
+                            getDefaultValue().skippers()
+                        )
+                    );
                 } else {
                     setValue(Values.DISABLED);
                 }
@@ -1586,6 +1652,7 @@ public abstract class FieldMapper extends Mapper {
             super.setValue(value);
             cardinalityParameter.ifPresent(p -> p.setValue(value.cardinality));
             multiValueParameter.setValue(value.multiValue);
+            skippersParameter.setValue(value.skippers);
         }
 
         protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
@@ -1598,7 +1665,11 @@ public abstract class FieldMapper extends Mapper {
                 } else {
                     boolean cardinalityConfigured = cardinalityParameter.map(Parameter::isConfigured).orElse(false);
                     boolean multiValueConfigured = multiValueParameter.isConfigured();
-                    if (includeDefaults == false && cardinalityConfigured == false && multiValueConfigured == false) {
+                    boolean skippersConfigured = skippersParameter.isConfigured();
+                    if (includeDefaults == false
+                        && cardinalityConfigured == false
+                        && multiValueConfigured == false
+                        && skippersConfigured == false) {
                         // no sub-parameters were explicitly set; use the boolean shorthand to match the original source
                         builder.field(name, true);
                     } else {
@@ -1614,6 +1685,9 @@ public abstract class FieldMapper extends Mapper {
                         });
                         if (includeDefaults || multiValueConfigured) {
                             builder.field(multiValueParameter.name, value.multiValue);
+                        }
+                        if (includeDefaults || skippersConfigured) {
+                            builder.field(skippersParameter.name, value.skippers);
                         }
                         builder.endObject();
                     }

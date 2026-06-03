@@ -74,4 +74,96 @@ public class DocValuesParameterTests extends MapperServiceTestCase {
         KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertThat(mapper.docValuesParameters().enabled(), equalTo(false));
     }
+
+    // -----------------------------------------------------------------------
+    // skippers sub-parameter
+    // -----------------------------------------------------------------------
+
+    public void testSkippersDefaultsToFalse() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().skippers(), equalTo(false));
+    }
+
+    public void testSkippersExplicitlyEnabledOnLowCardinality() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("skippers", true).endObject())
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(
+            mapper.docValuesParameters(),
+            equalTo(new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW, true, true))
+        );
+    }
+
+    public void testSkippersExplicitlyDisabled() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("skippers", false).endObject())
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().skippers(), equalTo(false));
+    }
+
+    public void testSkippersRejectedWhenCardinalityHigh() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        var e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                fieldMapping(
+                    b -> b.field("type", "keyword")
+                        .startObject("doc_values")
+                        .field("cardinality", "high")
+                        .field("skippers", true)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("[doc_values.skippers] cannot be enabled when [doc_values.cardinality] is [high]")
+        );
+    }
+
+    public void testSkippersAcceptedWhenCardinalityLow() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "keyword")
+                    .startObject("doc_values")
+                    .field("cardinality", "low")
+                    .field("skippers", true)
+                    .endObject()
+            )
+        );
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().skippers(), equalTo(true));
+        assertThat(mapper.docValuesParameters().cardinality(), equalTo(FieldMapper.DocValuesParameter.Values.Cardinality.LOW));
+    }
+
+    public void testSkippersOnNumericField() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "long").startObject("doc_values").field("skippers", true).endObject())
+        );
+        NumberFieldMapper mapper = (NumberFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        assertThat(mapper.docValuesParameters().skippers(), equalTo(true));
+    }
+
+    public void testSkippersIsNonUpdateable() throws Exception {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("skippers", true).endObject())
+        );
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(
+                mapperService,
+                fieldMapping(b -> b.field("type", "keyword").startObject("doc_values").field("skippers", false).endObject())
+            )
+        );
+        assertThat(e.getMessage(), containsString("skippers"));
+    }
 }

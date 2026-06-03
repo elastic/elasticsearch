@@ -163,26 +163,31 @@ public class IncreaseTests extends AbstractAggregationTestCase {
         if (nonNullDataRows.size() < 2 || temporality == RateTests.TemporalityParameter.INVALID) {
             return Matchers.nullValue();
         }
-        double increase;
+        double increase = computeExpectedIncrease(nonNullDataRows, temporality);
+        return Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
+    }
+
+    /**
+     * Computes the expected increase for the given values and temporality.
+     * Values must be in reverse chronological order (newest first), matching the order fed to the aggregator.
+     */
+    public static double computeExpectedIncrease(List<Object> nonNullValues, RateTests.TemporalityParameter temporality) {
         if (temporality == RateTests.TemporalityParameter.DELTA) {
-            // last array entry corresponds to first timestamp, as we have reverse chronological order
-            double firstDelta = ((Number) nonNullDataRows.getLast()).doubleValue();
-            increase = nonNullDataRows.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum() - firstDelta;
+            double firstDelta = ((Number) nonNullValues.getLast()).doubleValue();
+            return nonNullValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum() - firstDelta;
         } else {
-            // cumulative
             double resets = 0.0;
-            double last = ((Number) nonNullDataRows.get(0)).doubleValue();
+            double last = ((Number) nonNullValues.get(0)).doubleValue();
             double current = last;
-            for (int i = 1; i < nonNullDataRows.size(); i++) {
-                double prev = ((Number) nonNullDataRows.get(i)).doubleValue();
+            for (int i = 1; i < nonNullValues.size(); i++) {
+                double prev = ((Number) nonNullValues.get(i)).doubleValue();
                 if (prev > current) {
                     resets += prev;
                 }
                 current = prev;
             }
-            increase = resets + (last - current);
+            return resets + (last - current);
         }
-        return Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

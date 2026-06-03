@@ -1328,6 +1328,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
 
         /**
+         * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME,
+
+        /**
          * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
          * (from a subquery in FROM) or a {@code Fork}.
          */
@@ -2942,6 +2947,13 @@ public class EsqlCapabilities {
          * fail when a SORT precedes these commands.
          */
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
+
+        /**
+         * Support for {@code unmapped_fields="load"} mode with {@code LOOKUP JOIN}.
+         * Previously the combination was rejected at query validation time.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/142026">Issue #142026</a>
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
 
         /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.

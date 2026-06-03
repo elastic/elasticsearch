@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
-import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -22,10 +22,12 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Merges unmapped fields into the output of the ES relation. This marking is necessary for the block loaders to force loading from _source
- * if the field is unmapped.
- *
- * N.B. This is only used for INSIST keyword, so when INSIST is sunset, we can get rid of this rule!
+ * Pushes {@link PotentiallyUnmappedKeywordEsField} attributes down into {@link EsRelation} outputs so block
+ * loaders know to fetch from {@code _source}. Only those not yet declared in any {@link EsRelation} output
+ * are propagated — the gate is structural, not command-specific, so any future feature that introduces
+ * them above a relation is handled automatically. Today that is only {@code INSIST}.
+ * <p>
+ * N.B. When INSIST is sunset, this rule can be removed.
  */
 public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
     @Override
@@ -33,32 +35,30 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
         if (logicalPlan instanceof EsRelation) {
             return logicalPlan;
         }
-        var unmappedFieldsBuilder = AttributeSet.builder();
-        logicalPlan.forEachExpressionDown(FieldAttribute.class, fa -> {
-            if (fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                unmappedFieldsBuilder.add(fa);
-            }
-        });
-        var unmappedFields = unmappedFieldsBuilder.build();
-        return unmappedFields.isEmpty() ? logicalPlan : logicalPlan.transformUp(EsRelation.class, er -> mergeMissing(er, unmappedFields));
+        var fields = collectAttributesToPropagate(logicalPlan);
+        return fields.isEmpty()
+            ? logicalPlan
+            : logicalPlan.transformUp(
+                EsRelation.class,
+                er -> er.indexMode() == IndexMode.LOOKUP ? er : er.withAdditionalAttributes(fields)
+            );
     }
 
-    private static EsRelation mergeMissing(EsRelation er, AttributeSet unmappedFields) {
-        Set<String> existingPuks = new HashSet<>();
-        for (Attribute attr : er.output()) {
-            if (attr instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                existingPuks.add(fa.fieldName().string());
+    private static List<Attribute> collectAttributesToPropagate(LogicalPlan plan) {
+        Set<String> alreadyPropagated = new HashSet<>();
+        plan.forEachDown(EsRelation.class, er -> {
+            for (Attribute a : er.output()) {
+                if (a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
+                    alreadyPropagated.add(fa.fieldName().string());
+                }
             }
-        }
-        // Partially-mapped keyword fields are already in the EsRelation output as
-        // PUKs (via IndexResolver.wrapPartiallyUnmappedField); this rule only adds
-        // PUKs introduced by INSIST on a field that is not in the index.
-        List<Attribute> missing = new ArrayList<>();
-        for (Attribute attr : unmappedFields) {
-            if (attr instanceof FieldAttribute fa && existingPuks.contains(fa.fieldName().string()) == false) {
-                missing.add(attr);
+        });
+        var builder = AttributeSet.builder();
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.field() instanceof PotentiallyUnmappedKeywordEsField && alreadyPropagated.contains(fa.fieldName().string()) == false) {
+                builder.add(fa);
             }
-        }
-        return missing.isEmpty() ? er : er.withAttributes(NamedExpressions.mergeOutputAttributes(missing, er.output()));
+        });
+        return new ArrayList<>(builder.build());
     }
 }

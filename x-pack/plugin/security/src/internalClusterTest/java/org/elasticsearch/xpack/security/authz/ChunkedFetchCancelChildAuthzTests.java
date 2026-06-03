@@ -36,7 +36,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -93,8 +92,6 @@ public class ChunkedFetchCancelChildAuthzTests extends SecurityIntegTestCase {
     public void testCancelChildNotDeniedForUserOnFetchFailure() throws Exception {
         final Client userClient = client(createIndexAwayFromCoordinatingNode());
 
-        // Fail the fetch on the data node so it surfaces as a transport exception and triggers the cross-node cancel_child.
-        FailingFetchInterceptorPlugin.failFetch.set(true);
         try (var mockLog = MockLog.capture(TRACER_LOGGER_NAME, AuthorizationService.class.getName())) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
@@ -122,8 +119,6 @@ public class ChunkedFetchCancelChildAuthzTests extends SecurityIntegTestCase {
 
             // Asserts the successful cancel_child response was seen and no denial was logged.
             mockLog.awaitAllExpectationsMatched();
-        } finally {
-            FailingFetchInterceptorPlugin.failFetch.set(false);
         }
     }
 
@@ -162,8 +157,6 @@ public class ChunkedFetchCancelChildAuthzTests extends SecurityIntegTestCase {
      */
     public static class FailingFetchInterceptorPlugin extends Plugin implements NetworkPlugin {
 
-        static final AtomicBoolean failFetch = new AtomicBoolean(false);
-
         @Override
         public List<TransportInterceptor> getTransportInterceptors(
             NamedWriteableRegistry namedWriteableRegistry,
@@ -181,8 +174,7 @@ public class ChunkedFetchCancelChildAuthzTests extends SecurityIntegTestCase {
                         return actualHandler;
                     }
                     return (request, channel, task) -> {
-                        if (failFetch.get()
-                            && request instanceof ShardFetchSearchRequest fetchRequest
+                        if (request instanceof ShardFetchSearchRequest fetchRequest
                             && Arrays.asList(fetchRequest.indices()).contains(INDEX)) {
                             channel.sendResponse(new IllegalStateException("simulated fetch failure"));
                         } else {

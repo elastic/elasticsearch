@@ -89,6 +89,7 @@ histogram_quantile_malformed_le_warns_and_ignores_bucket
 required_capability: promql_command_v0
 required_capability: promql_histogram_quantile
 PROMQL index=promql_classic_histogram step=5m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:00:00.000Z" result=(round(histogram_quantile(0.9, sum by (job, le) (request_duration_seconds_bucket{job="malformed"})), 0.001));
+warningRegex:.*evaluation of \[histogram_quantile\(0.9, sum by \(job, le\) \(request_duration_seconds_bucket\{job=\\\"malformed\\\"\}\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
 warningRegex:.*NumberFormatException: bucket label \[le\] has a malformed value of \[bogus\]
 
 result:double | step:datetime            | job:keyword

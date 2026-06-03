@@ -414,18 +414,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         String indexNode = startMasterAndIndexNode(cacheSettings);
 
         final String indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build());
+        createIndex(indexName, indexSettings(1, 0).build());
 
-        int segments = randomIntBetween(4, 8);
+        int segments = randomIntBetween(2, (int) MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER - 1);
         for (int i = 0; i < segments; ++i) {
             indexDocs(indexName, randomIntBetween(100, 1000));
             flush(indexName);
         }
-
-        // reactivate merges (not dynamically updatable; requires close/open)
-        assertAcked(indicesAdmin().prepareClose(indexName).get());
-        updateIndexSettings(Settings.builder().putNull(MergePolicyConfig.INDEX_MERGE_ENABLED), indexName);
-        assertAcked(indicesAdmin().prepareOpen(indexName).get());
 
         long generation = client().admin().indices().prepareStats(indexName).setFlush(true).get().getShards()[0].getCommitStats()
             .getGeneration();

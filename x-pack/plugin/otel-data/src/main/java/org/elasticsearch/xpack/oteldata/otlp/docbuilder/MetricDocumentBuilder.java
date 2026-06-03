@@ -33,6 +33,9 @@ import java.util.concurrent.TimeUnit;
  */
 public class MetricDocumentBuilder extends OTelDocumentBuilder {
 
+    public static final String UNIT_FIELD = "unit";
+    public static final String TEMPORALITY_FIELD = "temporality";
+
     private final BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
     private final MappingHints defaultMappingHints;
     private final ExponentialHistogramConverter.BucketBuffer scratch = new ExponentialHistogramConverter.BucketBuffer();
@@ -63,11 +66,11 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
         buildScope(builder, dataPointGroup.scope(), dataPointGroup.scopeSchemaUrl());
         buildAttributes(builder, dataPointGroup.dataPointAttributes(), 0);
         if (Strings.hasLength(dataPointGroup.unit())) {
-            builder.field("unit", dataPointGroup.unit());
+            builder.field(UNIT_FIELD, dataPointGroup.unit());
         }
         String temporality = temporalityToString(dataPointGroup.temporality());
         if (temporality != null && IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-            builder.field("temporality", temporality);
+            builder.field(TEMPORALITY_FIELD, temporality);
         }
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
         builder.field("_metric_names_hash", metricNamesHash);
@@ -85,7 +88,7 @@ public class MetricDocumentBuilder extends OTelDocumentBuilder {
                 dynamicTemplates.put(metricFieldPath, dynamicTemplate);
                 if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
                     // Store the unit of the metric in the dynamic template parameters
-                    dynamicTemplateParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                    dynamicTemplateParams.put(metricFieldPath, Map.of(UNIT_FIELD, dataPointGroup.unit()));
                 }
             }
             if (mappingHints.docCount()) {

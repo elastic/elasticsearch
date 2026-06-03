@@ -36,11 +36,14 @@ public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
     @Override
     public void add(DataPoint dataPoint, TsidBuilder tsidBuilder) {
         tsidBuilder.add(dataPoint.getAttributes(), AttributeListTsidFunnel.get(byteStringAccessor, "attributes."));
-        tsidBuilder.addStringDimension("unit", dataPoint.getUnit());
+        tsidBuilder.addStringDimension(MetricDocumentBuilder.UNIT_FIELD, dataPoint.getUnit());
         if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
             AggregationTemporality temporality = dataPoint.getTemporality();
             if (temporality != null) {
-                tsidBuilder.addStringDimension("temporality", MetricDocumentBuilder.temporalityToString(temporality));
+                tsidBuilder.addStringDimension(
+                    MetricDocumentBuilder.TEMPORALITY_FIELD,
+                    MetricDocumentBuilder.temporalityToString(temporality)
+                );
             }
         }
     }

@@ -80,6 +80,7 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
 
     // ---- Centroid update operations ----
 
+    /** Copy the first {@code dim} elements of {@code vector} into {@code centroid}. */
     void initCentroid(V centroid, V vector, int dim);
 
     /**

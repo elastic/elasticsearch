@@ -12,8 +12,6 @@ package org.elasticsearch.index.codec.vectors.cluster;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -145,44 +143,10 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
     // ---- Data generators ----
 
     protected static KMeansFloatVectorValues generateFloatDataWithStdDev(int nSamples, int nDims, int nClusters, float stdDev) {
-        List<float[]> vectors = new ArrayList<>(nSamples);
-        float[][] centroids = new float[nClusters][nDims];
-        // Generate random centroids
-        for (int i = 0; i < nClusters; i++) {
-            for (int j = 0; j < nDims; j++) {
-                centroids[i][j] = random().nextFloat();
-            }
-        }
-        // Generate data points around centroids
-        for (int i = 0; i < nSamples; i++) {
-            int cluster = random().nextInt(nClusters);
-            float[] vector = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                vector[j] = centroids[cluster][j] + (float) random().nextGaussian() * stdDev;
-            }
-            vectors.add(vector);
-        }
-        return KMeansFloatVectorValues.build(vectors, null, nDims);
+        return KMeansTestData.generateFloatDataWithStdDev(nSamples, nDims, nClusters, stdDev);
     }
 
     protected static KMeansByteVectorValues generateByteDataStatic(int nSamples, int nDims, int nClusters) {
-        List<byte[]> vectors = new ArrayList<>(nSamples);
-        byte[][] centroids = new byte[nClusters][nDims];
-        // Generate random centroids
-        for (int i = 0; i < nClusters; i++) {
-            for (int j = 0; j < nDims; j++) {
-                centroids[i][j] = (byte) randomIntBetween(-128, 127);
-            }
-        }
-        // Generate data points around centroids
-        for (int i = 0; i < nSamples; i++) {
-            int cluster = random().nextInt(nClusters);
-            byte[] vector = new byte[nDims];
-            for (int j = 0; j < nDims; j++) {
-                vector[j] = (byte) Math.clamp(centroids[cluster][j] + randomIntBetween(-10, 10), -128, 127);
-            }
-            vectors.add(vector);
-        }
-        return KMeansByteVectorValues.build(vectors, null, nDims);
+        return KMeansTestData.generateByteData(nSamples, nDims, nClusters);
     }
 }

@@ -109,24 +109,6 @@ public final class SyntheticColumns {
         return BY_NAME.get(name);
     }
 
-    /** Whether {@code name} is a reader-synthesized internal channel. */
-    public static boolean isSynthetic(String name) {
-        return BY_NAME.containsKey(name);
-    }
-
-    /** Whether {@code projectedColumns} contains any reader-synthesized channel. */
-    public static boolean containsAnySynthetic(List<String> projectedColumns) {
-        if (projectedColumns == null) {
-            return false;
-        }
-        for (String name : projectedColumns) {
-            if (BY_NAME.containsKey(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} in {@code projectedColumns}, or
      * {@code -1} when absent or the list is {@code null}.

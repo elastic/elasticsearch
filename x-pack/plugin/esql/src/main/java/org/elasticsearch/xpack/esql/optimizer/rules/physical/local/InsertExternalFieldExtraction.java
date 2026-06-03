@@ -12,11 +12,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.ExternalMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.FormatReaderRegistry;
+import org.elasticsearch.xpack.esql.datasources.SyntheticColumns;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -190,15 +189,7 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
             return topN;
         }
 
-        MetadataAttribute rowPositionAttribute = new MetadataAttribute(
-            externalSource.source(),
-            ROW_POSITION_NAME,
-            DataType.LONG,
-            Nullability.FALSE,
-            null,
-            true,
-            false
-        );
+        MetadataAttribute rowPositionAttribute = SyntheticColumns.newRowPositionMetadataAttribute(externalSource.source());
 
         List<Attribute> narrowedAttributes = new ArrayList<>(eagerColumns.size() + 1);
         narrowedAttributes.addAll(eagerColumns);

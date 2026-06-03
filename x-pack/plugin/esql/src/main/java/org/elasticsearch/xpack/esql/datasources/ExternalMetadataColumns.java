@@ -79,25 +79,6 @@ public final class ExternalMetadataColumns {
     private ExternalMetadataColumns() {}
 
     /**
-     * Whether {@code name} is a standard ES metadata column the analyzer should bind on
-     * external datasets. Delegates to {@link MetadataAttribute#isSupported(String)} so the
-     * answer always matches the registry the analyzer uses for ES-backed sources.
-     */
-    public static boolean isStandardMetadataColumn(String name) {
-        return MetadataAttribute.isSupported(name);
-    }
-
-    /**
-     * The {@link DataType} the analyzer must bind for {@code name}, or {@code null} if the
-     * name is not a standard metadata column. Sourced from
-     * {@link MetadataAttribute#ATTRIBUTES_MAP} so the type the analyzer assigns matches
-     * what ES-backed sources produce.
-     */
-    public static DataType dataType(String name) {
-        return MetadataAttribute.dataType(name);
-    }
-
-    /**
      * Build the per-file constant values for the standard metadata names listed in
      * {@link #PER_FILE_CONSTANT_NAMES}. The map is suitable for merging into a partition-value map
      * consumed by {@link VirtualColumnIterator}. Values are:

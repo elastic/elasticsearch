@@ -63,16 +63,6 @@ public final class FileMetadataColumns {
     }
 
     /**
-     * Whether {@code name} is a {@code _file.*} column whose value is sourced per-record from the
-     * reader's row-position channel rather than from the per-file constant map ({@link #extractValues}).
-     * Callers that fill {@code _file.*} columns as constants must intercept these and source them
-     * from the row-position channel instead.
-     */
-    public static boolean isReaderSourcedColumn(String name) {
-        return RECORD_REF.equals(name);
-    }
-
-    /**
      * Object-typed entry point. Pass {@code lastModified == null} for SQL {@code NULL};
      * any non-null {@link Instant} (including {@link Instant#EPOCH}) is rendered as the
      * corresponding epoch-millis timestamp. Callers that hold a primitive epoch-millis with

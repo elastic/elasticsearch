@@ -32,6 +32,7 @@ import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import java.time.Instant;
@@ -52,8 +53,10 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 
 @TestLogging(reason = "improved visibility", value = "org.elasticsearch.telemetry.apm.internal.tracing:TRACE")
 public class APMTracerTests extends ESTestCase {
@@ -337,25 +340,31 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer buildTracer(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop());
+        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), false, 0, false);
         tracer.doStart();
         return tracer;
     }
 
     private APMTracer buildTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator());
+        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator(), false, 0, false);
         tracer.doStart();
         return tracer;
     }
 
     private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth) {
-        APMTracer tracer = new SpyAPMTracer(settings, maxTraceDepth, OpenTelemetry.noop());
+        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), true, maxTraceDepth, false);
+        tracer.doStart();
+        return tracer;
+    }
+
+    private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth, boolean recordExceptionStacks) {
+        APMTracer tracer = new SpyAPMTracer(settings, OpenTelemetry.noop(), true, maxTraceDepth, recordExceptionStacks);
         tracer.doStart();
         return tracer;
     }
 
     private APMTracer buildSdkPathTracerWithW3CPropagator(Settings settings) {
-        APMTracer tracer = new SpyAPMTracer(settings, 0, openTelemetryWithW3CPropagator());
+        APMTracer tracer = new SpyAPMTracer(settings, openTelemetryWithW3CPropagator(), true, 0, false);
         tracer.doStart();
         return tracer;
     }
@@ -445,7 +454,7 @@ public class APMTracerTests extends ESTestCase {
         assertThat(entrySpan.getSpanContext().getSpanId(), is(remoteParentSpanId));
     }
 
-    public void test_addError_callsRecordException() {
+    public void test_addError_onAgentPath_callsRecordException() {
         Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
         APMTracer tracer = buildTracer(settings);
         tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
@@ -457,21 +466,62 @@ public class APMTracerTests extends ESTestCase {
         Mockito.verify(recordedSpan).recordException(failure);
     }
 
+    public void test_addError_onSdkPath_withStacksDisabled_emitsTypeAndMessageOnly() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, false);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        tracer.addError(TRACEABLE1, new IllegalStateException("boom"));
+
+        ArgumentCaptor<Attributes> attrs = ArgumentCaptor.forClass(Attributes.class);
+        Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
+        Mockito.verify(recordedSpan, never()).recordException(Mockito.any());
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getCanonicalName()));
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), is("boom"));
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.stacktrace")), nullValue());
+    }
+
+    public void test_addError_onSdkPath_withStacksEnabled_delegatesToRecordException() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, true);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Exception failure = new IllegalStateException("boom");
+        tracer.addError(TRACEABLE1, failure);
+
+        Mockito.verify(recordedSpan).recordException(failure);
+        Mockito.verify(recordedSpan, never()).addEvent(anyString(), Mockito.any(Attributes.class));
+    }
+
+    public void test_addError_onSdkPath_withNullMessage_omitsMessageAttribute() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0, false);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        tracer.addError(TRACEABLE1, new IllegalStateException());
+
+        ArgumentCaptor<Attributes> attrs = ArgumentCaptor.forClass(Attributes.class);
+        Mockito.verify(recordedSpan).addEvent(eq("exception"), attrs.capture());
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.type")), is(IllegalStateException.class.getCanonicalName()));
+        assertThat(attrs.getValue().get(AttributeKey.stringKey("exception.message")), nullValue());
+    }
+
     static class SpyAPMTracer extends APMTracer {
 
         Map<String, Instant> spanStartTimeMap;
         private final OpenTelemetry openTelemetry;
 
-        SpyAPMTracer(Settings settings, OpenTelemetry openTelemetry) {
-            this(settings, openTelemetry, false, 0);
-        }
-
-        SpyAPMTracer(Settings settings, int maxTraceDepth, OpenTelemetry openTelemetry) {
-            this(settings, openTelemetry, true, maxTraceDepth);
-        }
-
-        private SpyAPMTracer(Settings settings, OpenTelemetry openTelemetry, boolean useOtelSdkTracesExport, int maxTraceDepth) {
-            super(settings, () -> openTelemetry, useOtelSdkTracesExport, maxTraceDepth);
+        SpyAPMTracer(
+            Settings settings,
+            OpenTelemetry openTelemetry,
+            boolean useOtelSdkTracesExport,
+            int maxTraceDepth,
+            boolean recordExceptionStacks
+        ) {
+            super(settings, () -> openTelemetry, useOtelSdkTracesExport, maxTraceDepth, recordExceptionStacks);
             this.openTelemetry = openTelemetry;
             this.spanStartTimeMap = new HashMap<>();
         }

@@ -147,6 +147,13 @@ public final class OtelSdkSettings {
         NodeScope
     );
 
+    public static final Setting<Boolean> TELEMETRY_OTEL_TRACES_RECORD_EXCEPTION_STACKS = Setting.boolSetting(
+        "telemetry.otel.traces.record_exception_stacks",
+        false,
+        OperatorDynamic,
+        NodeScope
+    );
+
     /** Best-effort upper bound on time spent flushing buffered metrics or spans to the exporter. */
     public static final Setting<TimeValue> TELEMETRY_OTEL_FLUSH_TIMEOUT = Setting.timeSetting(
         "telemetry.otel.flush_timeout",

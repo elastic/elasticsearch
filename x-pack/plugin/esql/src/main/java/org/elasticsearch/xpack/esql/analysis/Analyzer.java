@@ -2810,38 +2810,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // If not, we apply checkUnresolved to the field attributes of the original plan, resulting in unsupported attributes
             // This removes attributes such as converted types if they are aliased, but retains them otherwise, while also guaranteeing that
             // unsupported / unresolved fields can be explicitly retained
-            return cleanPlan.transformUp(
-                LogicalPlan.class,
-                p -> p.transformExpressionsOnly(FieldAttribute.class, UnionTypesCleanup::cleanTypeConflicts)
-            );
-        }
-
-        /**
-         * Return an {@link UnsupportedAttribute} so the verifier can flag illegal use of fields with type conflicts.
-         * <p>
-         * If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute with a
-         * single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped indices).
-         * This is a temporary solution until https://github.com/elastic/elasticsearch/issues/141995 is implemented.
-         */
-        private static Attribute cleanTypeConflicts(FieldAttribute fa) {
-            EsField field = fa.field();
-            if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
-                DataType type = tcf.types().iterator().next();
-                var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
-                // TODO: add test where not passing on the parent name fails the test
-                // TODO: add TS tests and tests with different time series field types
-                return new FieldAttribute(
-                    fa.source(),
-                    fa.parentName(),
-                    fa.qualifier(),
-                    fa.name(),
-                    restoredField,
-                    fa.nullable(),
-                    fa.id(),
-                    fa.synthetic()
-                );
-            }
-            return fa.flagTypeConflicts();
+            return cleanPlan.transformUp(LogicalPlan.class, p -> p.transformExpressionsOnly(FieldAttribute.class, fa -> {
+                // Return an UnsupportedAttribute so the verifier can flag illegal use of fields with type conflicts.
+                // If the field is mapped to a single type in some indices but unmapped in others: Instead return a regular field attribute
+                // with a single type so that values are loaded from the indices where it is mapped (and null is returned from unmapped
+                // indices).
+                EsField field = fa.field();
+                if (field instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
+                    DataType type = tcf.types().iterator().next();
+                    var restoredField = new EsField(tcf.getName(), type, tcf.getProperties(), false, tcf.getTimeSeriesFieldType());
+                    // TODO: add test where not passing on the parent name fails the test
+                    // TODO: add TS tests and tests with different time series field types
+                    return new FieldAttribute(
+                        fa.source(),
+                        fa.parentName(),
+                        fa.qualifier(),
+                        fa.name(),
+                        restoredField,
+                        fa.nullable(),
+                        fa.id(),
+                        fa.synthetic()
+                    );
+                }
+                return fa.flagTypeConflicts();
+            }));
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
@@ -2915,8 +2907,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * When {@code SET unmapped_fields="load"}, this analyzer rule auto-casts any field in {@code EsRelation} nodes that meets all the
-     * criteria below, by re-writing it as {@code MultiTypeEsField}.
+     * When {@code SET unmapped_fields="load"}, this analyzer rule auto-casts any field in {@link EsRelation} nodes that meets all the
+     * criteria below, by re-writing it as {@link UnionTypeEsField}.
      * <ol>
      *     <li>Field is a PUNK (partially unmapped non-KEYWORD)</li>
      *     <li>Field's type is consistent where mapped. It can't be mapped as two different non-KEYWORD types.</li>
@@ -2940,7 +2932,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     if (fa.field() instanceof TypeConflictedField tcf && tcf.isPotentiallyUnmapped() && tcf.types().size() == 1) {
                         DataType mappedType = tcf.types().iterator().next();
 
-                        // We need a "KEYWORD to mapped type" converted
                         var convertFactory = EsqlDataTypeConverter.converterFunctionFactory(mappedType);
                         if (convertFactory == null) {
                             // Skip implicit casting: no such converter function exists

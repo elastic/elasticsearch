@@ -199,8 +199,8 @@ public class CsvTestsDataLoader {
         new TestDataset("k8s_unmapped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
             .withTypeMapping(removeFields("region", "event", "network.bytes_in", "network.cost", "network.eth0.tx"))
             .withDynamic("false"),
-        new TestDataset("k8s_double_bytes_in", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
-            .withTypeMapping(Map.of("network.bytes_in", "double")),
+        new TestDataset("k8s_retyped", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json")
+            .withTypeMapping(Map.of("network.bytes_in", "double", "network.cost", "long")),
         new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json"),
         new TestDataset("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv", "k8s-downsampled-settings.json"),
         new TestDataset("k8s_stored_source", "k8s-mappings.json", "k8s.csv").withSetting("k8s-stored-source-settings.json"),

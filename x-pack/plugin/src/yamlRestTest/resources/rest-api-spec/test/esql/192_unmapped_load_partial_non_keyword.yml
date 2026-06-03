@@ -6,7 +6,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ optional_fields_unmapped_load_auto_cast_two_legged_punks ]
+          capabilities: [ optional_fields_fix_load_partially_mapped ]
       reason: 'requires SET unmapped_fields="load" and current error message for partially unmapped non-keyword fields'
   #
   # The table below represents the field mappings for the three indices created in this test.

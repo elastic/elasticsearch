@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.startsWith;
  * A format-specific reader regression in any of those paths would otherwise pass with only the
  * CSV coverage in {@link FromDatasetIT}.
  *
- * <p>This base owns the five {@code @Test} bodies; each concrete subclass binds them to one format
+ * <p>This base owns the {@code @Test} bodies; each concrete subclass binds them to one format
  * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that
  * lays down the same canonical 3-row fixture (in file order {@code emp_no} 1,2,3) so the assertions
  * hold uniformly across formats.
@@ -371,7 +371,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         // returns a value or SQL NULL (never an error), and the value/null disposition is pinned.
         // _id and _source are composed per-row; _index carries the dataset name; _version the file
         // mtime; the remaining five have no external semantic and come back as NULL columns.
-        // _data_tier is snapshot-only — see testDataTierIsNullOnExternalRowsSnapshotOnly.
+        // _tier is snapshot-only — see testTierIsNullOnExternalRowsSnapshotOnly.
         String query = "FROM employees METADATA _id, _source, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
             + "| KEEP emp_no, _id, _source, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
@@ -401,14 +401,14 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
     }
 
     /**
-     * {@code _data_tier} only exists in snapshot builds (see {@code MetadataAttribute.ATTRIBUTES_MAP}).
+     * {@code _tier} only exists in snapshot builds (see {@code MetadataAttribute.ATTRIBUTES_MAP}).
      * When present in the metadata map it must bind for external datasets and surface as SQL NULL —
      * external rows have no tier — never an error. Gated on snapshot detection so non-snapshot CI
      * runs do not parse-fail on the unknown name.
      */
-    public void testDataTierIsNullOnExternalRowsSnapshotOnly() throws Exception {
+    public void testTierIsNullOnExternalRowsSnapshotOnly() throws Exception {
         assumeTrue(
-            "_data_tier is registered only in snapshot builds",
+            "_tier is registered only in snapshot builds",
             org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.dataType("_tier") != null
         );
 

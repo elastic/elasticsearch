@@ -153,9 +153,9 @@ public class InsertExternalFieldExtraction extends PhysicalOptimizerRules.Parame
         // compose time. Deferring those columns would render `{}`. Pin every data attribute as
         // eager in that case; the synthesizer runs on the producer thread before the TopN gate.
         // Side effect: with `_source` projected the deferred set is empty by construction —
-        // {@link VirtualAttribute} catches every metadata attribute via the first branch below
-        // ({@link ExternalMetadataAttribute} implements {@link VirtualAttribute}) and every data
-        // column lands in the eager branch. {@link #DEFERRED_COLUMN_MIN} then bails out, so TopN
+        // the {@link VirtualAttribute} arm catches every metadata attribute ({@link
+        // ExternalMetadataAttribute} implements {@link VirtualAttribute}) and the data-column pin
+        // arm catches everything else. {@link #DEFERRED_COLUMN_MIN} then bails out, so TopN
         // late-materialisation is disabled for `_source` queries (correctness preserves over the
         // I/O optimisation).
         boolean sourceProjected = false;

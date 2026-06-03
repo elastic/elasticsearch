@@ -354,11 +354,12 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
-     * {@code _data_tier} is snapshot-only in the standard metadata registry. The binding rule must
-     * mirror that: in non-snapshot builds, the name is unknown and skipped (the verifier later
-     * surfaces "Unknown column" if the user references it downstream).
+     * {@code _tier} (canonical name {@code DataTierFieldMapper.NAME}) is snapshot-only in the
+     * standard metadata registry. The binding rule must mirror that: in non-snapshot builds, the
+     * name is unknown and skipped (the verifier later surfaces "Unknown column" if the user
+     * references it downstream).
      */
-    public void testStandardMetadataDataTierSnapshotOnly() {
+    public void testStandardMetadataTierSnapshotOnly() {
         assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
 
         DataType registered = MetadataAttribute.dataType("_tier");
@@ -368,9 +369,9 @@ public class AnalyzerExternalTests extends ESTestCase {
 
         boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_tier"));
         if (snapshotOnly) {
-            assertFalse("_data_tier must not bind outside snapshot builds", bound);
+            assertFalse("_tier must not bind outside snapshot builds", bound);
         } else {
-            assertTrue("_data_tier must bind in snapshot builds", bound);
+            assertTrue("_tier must bind in snapshot builds", bound);
         }
     }
 

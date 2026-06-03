@@ -1394,6 +1394,29 @@ value:double           | sv:integer | _approximation_confidence_interval(value):
 ;
 
 
+Subqueries with non-approximable stats
+required_capability: approximation_v7
+required_capability: approximation_fork
+required_capability: approximation_fix_non_approximable_fork_branches
+required_capability: subquery_in_from_command
+request_stored: skip
+
+SET approximation={"rows":10000}\;
+FROM (FROM colors | LIMIT 1 BY color | STATS bad1 = COUNT(*)),
+     (FROM colors | STATS good = COUNT(*)),
+     (FROM colors | STATS bad2 = MAX(color))
+| SORT bad1 DESC, bad2 DESC
+;
+
+documents_found: 118..130
+
+bad1:long | good:long | bad2:string | _approximation_confidence_interval(good):long | _approximation_certified(good):boolean
+null      | 59        | null        | [59,59]                                       | true
+null      | null      | yellow      | null                                          | null
+59        | null      | null        | null                                          | null
+;
+
+
 Named subqueries before stats
 required_capability: approximation_v7
 required_capability: approximation_fork

@@ -52,7 +52,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
 
@@ -88,7 +88,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
 
@@ -119,7 +119,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
 
@@ -142,7 +142,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<List<Object>> rows = List.of(List.of(List.of(1.5, 2.0), "{\"host\":\"my-host\"}", List.of(1735689600000L, 1735689660000L)));
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
 
@@ -157,7 +157,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
 
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
             assertThat(path.evaluate("data.result"), empty());
@@ -169,7 +169,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<List<Object>> rows = List.of(List.of(1.0, 1735689600000L));
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)) {
             ObjectPath path = toObjectPath(builder);
             // 2025-01-01T00:00:00.000Z = 1735689600 epoch seconds
             assertThat(path.evaluate("data.result.0.values.0"), equalTo(List.of(1735689600.0, "1.0")));
@@ -196,7 +196,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "vector", QueryMode.INSTANT)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessVector(path);
 
@@ -222,7 +222,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<List<Object>> rows = List.of(List.of(2.5, "{\"labels\":{\"__name__\":\"up\",\"job\":\"prometheus\"}}", 1735689600000L));
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "vector", QueryMode.INSTANT)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessVector(path);
 
@@ -248,7 +248,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "vector", QueryMode.INSTANT)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessVector(path);
 
@@ -262,7 +262,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
 
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "vector", QueryMode.INSTANT)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessVector(path);
             assertThat(path.evaluate("data.result"), empty());
@@ -274,10 +274,35 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<List<Object>> rows = List.of(List.of(1.0, 1735689600000L));
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "vector", QueryMode.INSTANT)) {
             ObjectPath path = toObjectPath(builder);
             // 2025-01-01T00:00:00.000Z = 1735689600 epoch seconds
             assertThat(path.evaluate("data.result.0.value"), equalTo(List.of(1735689600.0, "1.0")));
+        }
+    }
+
+    public void testConvertInstantScalarQuery() throws IOException {
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
+        List<List<Object>> rows = List.of(List.of(3.0, 1735689600000L));
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "scalar", QueryMode.INSTANT)) {
+            ObjectPath path = toObjectPath(builder);
+            assertThat(path.evaluate("status"), equalTo("success"));
+            assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+            assertThat(path.evaluate("data.result"), equalTo(List.of(1735689600.0, "3.0")));
+        }
+    }
+
+    public void testConvertInstantScalarQueryKeepsLastCollapsedSample() throws IOException {
+        List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"), new TestColumnInfo("step", "long"));
+        List<List<Object>> rows = List.of(List.of(List.of(1.0, 2.0, 3.0), List.of(1735689600000L, 1735689660000L, 1735689720000L)));
+
+        EsqlResponse response = new TestEsqlResponse(columns, rows);
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "scalar", QueryMode.INSTANT)) {
+            ObjectPath path = toObjectPath(builder);
+            assertThat(path.evaluate("data.resultType"), equalTo("scalar"));
+            assertThat(path.evaluate("data.result"), equalTo(List.of(1735689720.0, "3.0")));
         }
     }
 
@@ -300,7 +325,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, 2)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE, 2)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
             assertThat(path.evaluate("data.result"), hasSize(2));
@@ -322,7 +347,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.INSTANT, 2)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "vector", QueryMode.INSTANT, 2)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessVector(path);
             assertThat(path.evaluate("data.result"), hasSize(2));
@@ -340,7 +365,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         List<List<Object>> rows = List.of(List.of(1.0, "a", 1735689600000L), List.of(2.0, "b", 1735689600000L));
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, 2)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE, 2)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
             assertThat(path.evaluate("data.result"), hasSize(2));
@@ -363,7 +388,12 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
         try (
-            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, Integer.MAX_VALUE)
+            XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(
+                response,
+                "matrix",
+                QueryMode.RANGE,
+                Integer.MAX_VALUE
+            )
         ) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
@@ -386,7 +416,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         );
 
         EsqlResponse response = new TestEsqlResponse(columns, rows);
-        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE, 1)) {
+        try (XContentBuilder builder = PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE, 1)) {
             ObjectPath path = toObjectPath(builder);
             assertSuccessMatrix(path);
             assertThat(path.evaluate("data.result"), hasSize(1));
@@ -432,14 +462,20 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
     public void testMissingValueColumnThrows() {
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("step", "date"));
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
-        expectThrows(IllegalStateException.class, () -> PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE));
+        expectThrows(
+            IllegalStateException.class,
+            () -> PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)
+        );
     }
 
     public void testMissingStepColumnThrows() {
         // Only value column — step is missing (would need to be last)
         List<TestColumnInfo> columns = List.of(new TestColumnInfo("value", "double"));
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
-        expectThrows(IllegalStateException.class, () -> PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE));
+        expectThrows(
+            IllegalStateException.class,
+            () -> PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)
+        );
     }
 
     public void testWrongLastColumnNameThrows() {
@@ -448,7 +484,7 @@ public class PrometheusQueryResponseListenerTests extends ESTestCase {
         EsqlResponse response = new TestEsqlResponse(columns, List.of());
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> PrometheusQueryResponseListener.convertToPrometheusJson(response, QueryMode.RANGE)
+            () -> PrometheusQueryResponseListener.convertToPrometheusJson(response, "matrix", QueryMode.RANGE)
         );
         assertThat(e.getMessage(), containsString("missing required 'step' column at last index"));
     }

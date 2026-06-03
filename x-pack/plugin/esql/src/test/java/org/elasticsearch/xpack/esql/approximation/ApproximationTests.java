@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountApproximate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -25,7 +26,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 0.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -47,7 +52,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -69,7 +78,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -92,7 +105,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^12, and a filtered count of 10^9.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -131,7 +148,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^18, and a filtered count of 100.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no < 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -184,7 +205,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and a filtered count of 10.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE gender == \"X\" | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -208,7 +233,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 1_000, and an irrelevant mv_expanded count
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -232,7 +261,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // This test simulates a source count of 10^9, and an mv_expanded/filtered count of 10^12.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | MV_EXPAND emp_no | WHERE emp_no > 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -263,7 +296,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // which is above the threshold, so no sampling should be applied.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.
@@ -287,7 +324,11 @@ public class ApproximationTests extends ApproximationTestCase {
         // so no sampling should be applied.
 
         LogicalPlan originalPlan = getLogicalPlan("FROM test | WHERE emp_no > 1 | STATS SUM(emp_no)");
-        LogicalPlan mainPlan = ApproximationPlan.get(originalPlan, ApproximationSettings.DEFAULT);
+        LogicalPlan mainPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
         ApproximationDriver approximation = ApproximationDriver.create(mainPlan, ApproximationSettings.DEFAULT);
 
         // The first subplan should be the source count.

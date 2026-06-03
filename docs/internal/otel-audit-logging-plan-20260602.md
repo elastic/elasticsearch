@@ -4,6 +4,30 @@ The PoC ([otel-audit-logging-poc.md](otel-audit-logging-poc.md)) validated that 
 
 For the *why* behind any item, follow its `[§x.y]` link into the PoC doc.
 
+## Division of responsibilities
+
+**Patrick (Core/Infra — this plan):** The OTel delivery pipeline — the bridge between what `LoggingAuditTrail` emits into log4j and what arrives at the gateway as an OTLP record. This includes the SDK, gRPC transport, the appender (and therefore the on-wire field shape), mTLS, and retry/buffer tuning. The `serverless-default-settings.yml` config change to strip cluster/node fields. Filing the `suppress`-coverage bug and initiating the `withThreadContext`-in-`build()` alignment conversation with Ankit. Kicking off the Project API audit-config coordination with Julio. Rebase cleanup once Ankit's PRs land.
+
+**Ankit Sethi (Security):** Audit semantics — what events are emitted, what fields they carry internally, which get suppressed or enriched, how operator actions are redacted. Concretely: the `AuditLogCustomizer` extension point and its wiring through `LoggingAuditTrail`; the serverless-side implementation (`ServerlessAuditLogCustomizer`); the `log4j2.serverless.properties` field-rename schema (which the delivery pipeline adopts as its spec); Cloud API key audit logging (CPS/UIAM follow-up). Dynamic OTel delivery toggle (R12) — suggested owner since that processor is the seam that evolves to per-project delivery in multi-project.
+
+**afharo (Alejandro Fernández, Kibana):** TLS partial-chain workaround for the gateway cert (Patrick needs this before implementing mTLS).
+
+**Julio Camarero (Control-Plane / `elasticsearch-controller`):** Project API shape for customer-configurable audit settings; cert distribution path for the gateway client cert.
+
+**Gateway team:** mTLS identity contract, retry/buffer targets, real-gateway integration test.
+
+**UIAM team (Slobodan Adamović):** Cloud API key audit field shape (`api_key.{id,name}` for UIAM-authenticated events).
+
+**CPS team:** Empirical verification that the node-setting source populates `project.id` on linked-cluster events; A-vs-B routing call with the gateway team.
+
+## Branch code status
+
+The PoC branch is the implementation basis for the in-scope items, not a throwaway prototype.
+
+- **Kept and built on** — the OTel delivery layer in `modules/apm`: `OtelSdkExportLogsSupplier`, `OtelSdkSettings`, the `APM`/`APMTelemetryProvider` wiring, `manage_threads` entitlement, `attemptFlushLogs` plumbing, and the gRPC integration-test harness (`OtelAuditLogsIT`, `RecordingApmServer`). No overlap with Ankit's PRs. Complementary to PR 6718's `ServerlessAuditLoggingIT`: that test covers the customizer through the file appender; ours proves OTLP-on-the-wire. Items 1, 4, 5, and 13 extend this code directly.
+- **Temporary shim, excised by items 7–8** — the header-based `project.id` plumbing: two lines in `LoggingAuditTrail` (the `setThreadContextField(… X_ELASTIC_PROJECT_ID_HTTP_HEADER …)` write in `withThreadContext`), one pattern line in core `log4j2.properties`, and the `projectId()` assertion helper and its ~30 call sites in `LoggingAuditTrailTests`. Kept so the branch stays demonstrable without depending on the unmerged PRs; superseded by `ServerlessAuditLogCustomizer.enrich()` once PR 6718 lands. PR 149210 touches `LoggingAuditTrail` substantially (+113/−32), so a merge conflict is expected: take Ankit's version and drop our two lines.
+- **Build nothing new on the shim** — the OTel appender emits whatever is in the audit `StringMapMessage` and is agnostic to how `project.id` got there. When `enrich()` replaces the header-write, the appender is unchanged, so nothing built in the meantime needs to be redone.
+
 **Settled architecture decisions (recorded here for clarity):**
 - **Transport**: OTLP/gRPC. Julio Camarero confirmed HTTP caused uneven K8s load distribution due to connection reuse. Implemented; see [§3.5](otel-audit-logging-poc.md#sec-3-5).
 - **Audit `project.id` source**: via `AuditLogCustomizer.enrich()`, registered through the `SecurityExtension.getAuditLogCustomizer(SecurityComponents, SystemIndices)` hook (PR 149210). `enrich()` is the first statement in `LogEntryBuilder.build()`, before `logger.info()`. The serverless wiring (`ServerlessAuditLogCustomizer`, PR 6718) sources `project.id` from `() -> PROJECT_ID.get(components.settings())` — the node's `serverless.project_id` cluster setting, tagged `@FixForMultiProject`. For project-per-cluster, the node setting is authoritative; multi-project implications are out of scope.
@@ -50,7 +74,7 @@ Items 1–4 can be started in parallel.
 
 Items 7–8 become in-scope if Ankit's PRs 149210 + 6718 land.
 
-7. **`project.id` reconciliation** ([§3.3](otel-audit-logging-poc.md#sec-3-3), [§5.4](otel-audit-logging-poc.md#sec-5-4)). Once PR 6718 lands, delete the PoC's `withThreadContext` `project.id` write — `ServerlessAuditLogCustomizer.enrich` sources it from the node setting and writes it in `build()`, so the `withThreadContext` path produces a duplicate. One-line deletion.
+7. **`project.id` reconciliation** ([§3.3](otel-audit-logging-poc.md#sec-3-3), [§5.4](otel-audit-logging-poc.md#sec-5-4)). Once PR 6718 lands, delete the PoC's `withThreadContext` `project.id` write — `ServerlessAuditLogCustomizer.enrich` sources it from the node setting and writes it in `build()`, so the `withThreadContext` path produces a duplicate. One-line deletion. Also check that `OtelAuditLogsIT` still has a meaningful `project.id` assertion; this may require wiring a test `AuditLogCustomizer` that populates the field.
 
 8. **`suppress` + `withThreadContext` structural fix** ([§4.3](otel-audit-logging-poc.md#sec-4-3)). Once PR 149210 lands, add `suppress` to the HTTP-variant emit methods listed in item 3, and fold `withThreadContext` into `LogEntryBuilder.build()`. The `enrich`-in-`build()` part is already done by PR 149210; what remains is closing the `suppress` gaps and making `withThreadContext` structural.
 

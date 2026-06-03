@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
@@ -125,6 +126,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Limiter.ONCE,
             new RewritePivot(),
             new ReplaceRegexMatch(),
+            // make sure it runs before PruneLiteralsInGroupBy and before ReplaceAggregatesWithLiterals
+            new ReplaceGroupByConstantWithLimit1(),
             new ReplaceAggregatesWithLiterals()
         );
 
@@ -260,6 +263,47 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values, zoneId);
+        }
+    }
+
+    /**
+     * When there are ONLY constants in the GROUP BY (not even implicit groupings), the query has to return at most one result
+     * that does not depend on the actual data, so we can set LIMIT 1 and remove the groupings.
+     *
+     * This rule has to run before PruneLiteralsInGroupBy (that removes foldable GROUP BY elements)
+     * and before ReplaceAggregatesWithLiterals (that removes aggregates, making checks on implicit grouping impossible).
+     */
+    static class ReplaceGroupByConstantWithLimit1 extends OptimizerRule<UnaryPlan> {
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            Aggregate aggregate = null;
+            if (plan instanceof Limit && plan.child()instanceof Aggregate agg && allFoldable(agg.groupings())) {
+                aggregate = agg;
+            } else if (plan instanceof Aggregate agg && allFoldable(agg.groupings())) {
+                aggregate = agg;
+            }
+            if (aggregate != null) {
+                if (Expressions.anyMatch(aggregate.aggregates(), Functions::isAggregate)) {
+                    // leave it as it is, the aggregates do the job already with implicit grouping
+                    return plan;
+                }
+                Project project = new Project(aggregate.source(), aggregate.child(), aggregate.aggregates());
+                return new Limit(plan.source(), new Literal(plan.source(), 1, DataTypes.INTEGER), project);
+            }
+            return plan;
+        }
+
+        private boolean allFoldable(List<Expression> groupings) {
+            if (groupings.isEmpty()) {
+                return false;
+            }
+            for (Expression g : groupings) {
+                if (g.foldable() == false) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

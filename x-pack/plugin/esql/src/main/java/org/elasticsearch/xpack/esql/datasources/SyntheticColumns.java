@@ -135,21 +135,13 @@ public final class SyntheticColumns {
 
     /**
      * Reader-side attribute shape for the slot of {@code kind}: a {@link ReferenceAttribute}
-     * whose type and nullability come from the {@link Kind} record. Used by format readers when
-     * they synthesize the projected attribute for a slot that has no source column behind it.
+     * whose type and nullability come from the {@link Kind} record. Used by format readers
+     * when they synthesize the projected attribute for a slot that has no source column behind
+     * it (e.g. the {@code _rowPosition} channel in {@code CsvFormatReader}'s switch on
+     * {@link Kind}).
      */
     public static Attribute newAttribute(Kind kind) {
         return new ReferenceAttribute(Source.EMPTY, null, kind.columnName(), kind.dataType(), kind.nullability(), null, false);
-    }
-
-    /**
-     * Optimizer-side attribute shape for the slot of {@code kind}: a {@link MetadataAttribute}
-     * whose type and nullability come from the {@link Kind} record, marked synthetic. Paired
-     * with {@link #newAttribute(Kind)} so type and nullability stay in lock-step between the
-     * optimizer injection site and the reader synthesis site.
-     */
-    public static MetadataAttribute newMetadataAttribute(Kind kind, Source source) {
-        return new MetadataAttribute(source, kind.columnName(), kind.dataType(), kind.nullability(), null, true, false);
     }
 
     /** Shorthand for {@code newAttribute(Kind.ROW_POSITION)}; kept for the kind-specific call sites. */
@@ -157,8 +149,14 @@ public final class SyntheticColumns {
         return newAttribute(Kind.ROW_POSITION);
     }
 
-    /** Shorthand for {@code newMetadataAttribute(Kind.ROW_POSITION, source)}; kept for the kind-specific call sites. */
+    /**
+     * Optimizer-side attribute shape for the {@link Kind#ROW_POSITION} slot: a
+     * {@link MetadataAttribute} typed and nullability-marked from the {@link Kind} record,
+     * marked synthetic. Paired with {@link #newRowPositionAttribute()} so type and nullability
+     * stay in lock-step between the optimizer injection site and the reader synthesis site.
+     */
     public static MetadataAttribute newRowPositionMetadataAttribute(Source source) {
-        return newMetadataAttribute(Kind.ROW_POSITION, source);
+        Kind kind = Kind.ROW_POSITION;
+        return new MetadataAttribute(source, kind.columnName(), kind.dataType(), kind.nullability(), null, true, false);
     }
 }

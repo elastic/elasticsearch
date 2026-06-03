@@ -75,9 +75,10 @@ public final class SynthesizeExternalSource {
                     // BlockUtils.toJavaObject returns null for null rows, a scalar for single-value
                     // rows, and ArrayList<Object> for multi-value rows. Omitting null fields from
                     // _source matches the precedent set by SourceLoader for natively-indexed
-                    // _source. BytesRef values pass through; XContentBuilder handles them as
-                    // UTF-8 strings when the map gets JSON-rendered.
-                    Object value = BlockUtils.toJavaObject(block, row);
+                    // _source. XContentBuilder's default BytesRef rendering is base64; for the
+                    // keyword/string family we want the UTF-8 text, so unwrap BytesRef values
+                    // (single and multi-value) into Java Strings before adding to the map.
+                    Object value = unwrapBytesRefs(BlockUtils.toJavaObject(block, row));
                     if (value == null) {
                         continue;
                     }
@@ -88,5 +89,19 @@ public final class SynthesizeExternalSource {
             }
             return builder.build();
         }
+    }
+
+    private static Object unwrapBytesRefs(Object value) {
+        if (value instanceof BytesRef ref) {
+            return ref.utf8ToString();
+        }
+        if (value instanceof java.util.List<?> list) {
+            java.util.List<Object> out = new java.util.ArrayList<>(list.size());
+            for (Object element : list) {
+                out.add(element instanceof BytesRef ref ? ref.utf8ToString() : element);
+            }
+            return out;
+        }
+        return value;
     }
 }

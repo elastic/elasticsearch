@@ -313,31 +313,62 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         }
     }
 
-    public void testStandardMetadataNeverFails() throws Exception {
-        // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
-        // never an error. _index carries the dataset name; _version the file mtime; the rest have no
-        // external value and come back as NULL columns. None may be dropped and none may crash.
-        // _data_tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; omit it so the query is
-        // valid in non-snapshot builds.
-        String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+    public void testAllStandardMetadataColumnsPinned() throws Exception {
+        // Standing contract: every non-snapshot standard metadata name is accepted in one query,
+        // returns a value or SQL NULL (never an error), and the value/null disposition is pinned.
+        // _id and _source are composed per-row; _index carries the dataset name; _version the file
+        // mtime; the remaining five have no external semantic and come back as NULL columns.
+        // _data_tier is snapshot-only — see testDataTierIsNullOnExternalRowsSnapshotOnly.
+        String query = "FROM employees METADATA _id, _source, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
             + "| SORT emp_no "
-            + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| KEEP emp_no, _id, _source, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
             + "| LIMIT 10";
 
         try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
             List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
-            assertThat(names, equalTo(List.of("emp_no", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score")));
+            assertThat(
+                names,
+                equalTo(List.of("emp_no", "_id", "_source", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score"))
+            );
 
             List<List<Object>> rows = getValuesList(response);
             assertThat(rows, hasSize(3));
             for (List<Object> row : rows) {
-                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
-                assertThat("_version is non-null", row.get(2), notNullValue());
-                assertThat("_ignored is null on external rows", row.get(3), nullValue());
-                assertThat("_index_mode is null on external rows", row.get(4), nullValue());
-                assertThat("_tsid is null on external rows", row.get(5), nullValue());
-                assertThat("_size is null on external rows", row.get(6), nullValue());
-                assertThat("_score is null on external rows", row.get(7), nullValue());
+                assertThat("_id is composed per-row, non-null", row.get(1), notNullValue());
+                assertThat("_source deserializes to a Map", asMap(row.get(2)), notNullValue());
+                assertThat("_index is the dataset name", row.get(3).toString(), equalTo("employees"));
+                assertThat("_version is non-null", row.get(4), notNullValue());
+                assertThat("_ignored is null on external rows", row.get(5), nullValue());
+                assertThat("_index_mode is null on external rows", row.get(6), nullValue());
+                assertThat("_tsid is null on external rows", row.get(7), nullValue());
+                assertThat("_size is null on external rows", row.get(8), nullValue());
+                assertThat("_score is null on external rows", row.get(9), nullValue());
+            }
+        }
+    }
+
+    /**
+     * {@code _data_tier} only exists in snapshot builds (see {@code MetadataAttribute.ATTRIBUTES_MAP}).
+     * When present in the metadata map it must bind for external datasets and surface as SQL NULL —
+     * external rows have no tier — never an error. Gated on snapshot detection so non-snapshot CI
+     * runs do not parse-fail on the unknown name.
+     */
+    public void testDataTierIsNullOnExternalRowsSnapshotOnly() throws Exception {
+        assumeTrue(
+            "_data_tier is registered only in snapshot builds",
+            org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.dataType("_tier") != null
+        );
+
+        String query = "FROM employees METADATA _tier | SORT emp_no | KEEP emp_no, _tier | LIMIT 10";
+
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, equalTo(List.of("emp_no", "_tier")));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_tier is null on external rows", row.get(1), nullValue());
             }
         }
     }

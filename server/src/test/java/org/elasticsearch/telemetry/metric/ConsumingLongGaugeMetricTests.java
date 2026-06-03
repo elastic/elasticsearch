@@ -19,7 +19,7 @@ import java.util.OptionalLong;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ConsumingLongGaugeMetricTest extends ESTestCase {
+public class ConsumingLongGaugeMetricTests extends ESTestCase {
 
     private static final String GAUGE_NAME = "test.gauge";
 

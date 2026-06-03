@@ -147,7 +147,7 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
     }
 
     private static PipelineConfig baselinePipeline(int blockSize) {
-        return PipelineConfig.forDoubles(blockSize).bitPack();
+        return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
     }
 
     private static long encodeBlockSize(PipelineConfig config, long[] values) throws IOException {
@@ -175,22 +175,20 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
     private static long[] integerLikeDoublesBlock(int size) {
         final long[] values = new long[size];
         for (int i = 0; i < size; i++) {
-            values[i] = NumericUtils.doubleToSortableLong((double) (1000 + i));
+            values[i] = NumericUtils.doubleToSortableLong((double) (60 + (i % 41) - 20));
         }
         return values;
     }
 
     private static long[] currencyLikeBlock(int size) {
-        // Prices clustered around $100 with two decimal places of meaningful variation.
         final long[] values = new long[size];
         for (int i = 0; i < size; i++) {
-            values[i] = NumericUtils.doubleToSortableLong((double) (10_000 + i) / 100.0);
+            values[i] = NumericUtils.doubleToSortableLong((double) (10_000 + (i % 41) - 20) / 100.0);
         }
         return values;
     }
 
     private static long[] sensorLikeBlock(int size) {
-        // Temperature-style metric: 22.5 baseline drifting by tenths of a degree.
         final long[] values = new long[size];
         for (int i = 0; i < size; i++) {
             values[i] = NumericUtils.doubleToSortableLong((double) (2250 + (i % 21) - 10) / 100.0);

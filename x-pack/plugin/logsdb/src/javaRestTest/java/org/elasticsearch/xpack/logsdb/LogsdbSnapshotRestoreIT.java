@@ -170,18 +170,26 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreStoredSource() throws Exception {
+        // TODO: remove this once columanr source is supported in columnar mode.
+        assumeFalse("stored-source is not supported in columnar mode", columnarEnabled);
         snapshotAndRestore("stored", "object", false);
     }
 
     public void testSnapshotRestoreStoredSourceWithSourceOnlyRepository() throws Exception {
+        // TODO: remove this once columanr source is supported in columnar mode.
+        assumeFalse("stored-source is not supported in columnar mode", columnarEnabled);
         snapshotAndRestore("stored", "object", true);
     }
 
     public void testSnapshotRestoreStoredSourceNested() throws Exception {
+        // TODO: remove this once columanr source is supported in columnar mode.
+        assumeFalse("stored-source is not supported in columnar mode", columnarEnabled);
         snapshotAndRestore("stored", columnarEnabled ? "flattened" : "nested", false);
     }
 
     public void testSnapshotRestoreStoredSourceNestedWithSourceOnlyRepository() throws Exception {
+        // TODO: remove this once columanr source is supported in columnar mode.
+        assumeFalse("stored-source is not supported in columnar mode", columnarEnabled);
         snapshotAndRestore("stored", columnarEnabled ? "flattened" : "nested", true);
     }
 

@@ -167,6 +167,14 @@
 ---
 "Runtime field cannot shadow index sort field":
 
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}/_mapping
+          capabilities: [ reject_runtime_field_shadowing_sort_field ]
+      reason: "Rejection of runtime fields shadowing sort fields required"
+
   - do:
       indices.create:
         index: test_sort_shadow

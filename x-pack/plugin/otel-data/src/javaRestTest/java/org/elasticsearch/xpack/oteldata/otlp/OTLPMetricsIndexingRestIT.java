@@ -589,6 +589,58 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(searchResponse.evaluate("hits.hits.0.fields._tsid"), equalTo(searchResponse.evaluate("hits.hits.1.fields._tsid")));
     }
 
+    public void testTsidForBulkIsSameDeltaCounter() throws Exception {
+        assumeTrue("requires temporality feature flag", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
+        long now = Clock.getDefault().now();
+
+        export(List.of(createCounter(TEST_RESOURCE, Attributes.of(stringKey("string"), "foo"), "metric", 42, "By", now, DELTA, MONOTONIC)));
+        BufferedMurmur3Hasher hasher = new BufferedMurmur3Hasher(0);
+        hasher.addString("metric");
+        String metricNamesHash = Long.toHexString(hasher.digestHash().hashCode());
+        Request bulkRequest = new Request("POST", "metrics-generic.otel-default/_bulk?refresh");
+        bulkRequest.setJsonEntity(
+            "{\"create\":{}}\n"
+                + """
+                    {
+                        "@timestamp": $time,
+                        "start_timestamp": $time,
+                        "data_stream": {
+                            "type": "metrics",
+                            "dataset": "generic.otel",
+                            "namespace": "default"
+                        },
+                        "_metric_names_hash": "$metric_names_hash",
+                        "temporality": "delta",
+                        "metrics": {
+                            "metric": 42
+                        },
+                        "attributes": {
+                            "string": "foo"
+                        },
+                        "resource": {
+                            "attributes": {
+                                "service.name": "elasticsearch"
+                            }
+                        },
+                        "scope": {
+                            "name": "io.opentelemetry.example.metrics"
+                        },
+                        "unit": "By"
+                    }
+                    """.replace("\n", "")
+                    .replace("$time", Long.toString(TimeUnit.NANOSECONDS.toMillis(now) + 1))
+                    .replace("$metric_names_hash", metricNamesHash)
+                + "\n"
+        );
+        assertThat(ObjectPath.createFromResponse(client().performRequest(bulkRequest)).evaluate("errors"), equalTo(false));
+
+        ObjectPath searchResponse = ObjectPath.createFromResponse(
+            client().performRequest(new Request("GET", "metrics-generic.otel-default/_search?docvalue_fields=_tsid"))
+        );
+        assertThat(searchResponse.evaluate("hits.total.value"), equalTo(2));
+        assertThat(searchResponse.evaluate("hits.hits.0.fields._tsid"), equalTo(searchResponse.evaluate("hits.hits.1.fields._tsid")));
+    }
+
     private static Map<String, Object> getMapping(String target) throws IOException {
         Map<String, Object> mappings = ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_mapping")))
             .evaluate("");

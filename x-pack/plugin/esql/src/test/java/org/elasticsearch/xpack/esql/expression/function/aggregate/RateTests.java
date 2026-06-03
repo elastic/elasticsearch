@@ -189,7 +189,7 @@ public class RateTests extends AbstractAggregationTestCase {
             return Matchers.nullValue();
         }
         List<Object> values = nonNullDataRows.stream().map(Tuple::v2).toList();
-        double increase = IncreaseTests.computeExpectedIncrease(values, temporality);
+        double increase = RateTestUtils.computeExpectedIncrease(values, temporality);
         long maxTs = nonNullDataRows.getFirst().v1();
         long minTs = nonNullDataRows.getLast().v1();
         double timeRangeSeconds = (maxTs - minTs) / 1000.0;

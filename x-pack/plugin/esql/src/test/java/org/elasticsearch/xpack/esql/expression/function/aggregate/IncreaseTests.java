@@ -163,31 +163,8 @@ public class IncreaseTests extends AbstractAggregationTestCase {
         if (nonNullDataRows.size() < 2 || temporality == RateTests.TemporalityParameter.INVALID) {
             return Matchers.nullValue();
         }
-        double increase = computeExpectedIncrease(nonNullDataRows, temporality);
+        double increase = RateTestUtils.computeExpectedIncrease(nonNullDataRows, temporality);
         return Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.1));
-    }
-
-    /**
-     * Computes the expected increase for the given values and temporality.
-     * Values must be in reverse chronological order (newest first), matching the order fed to the aggregator.
-     */
-    public static double computeExpectedIncrease(List<Object> nonNullValues, RateTests.TemporalityParameter temporality) {
-        if (temporality == RateTests.TemporalityParameter.DELTA) {
-            double firstDelta = ((Number) nonNullValues.getLast()).doubleValue();
-            return nonNullValues.stream().mapToDouble(v -> ((Number) v).doubleValue()).sum() - firstDelta;
-        } else {
-            double resets = 0.0;
-            double last = ((Number) nonNullValues.get(0)).doubleValue();
-            double current = last;
-            for (int i = 1; i < nonNullValues.size(); i++) {
-                double prev = ((Number) nonNullValues.get(i)).doubleValue();
-                if (prev > current) {
-                    resets += prev;
-                }
-                current = prev;
-            }
-            return resets + (last - current);
-        }
     }
 
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {

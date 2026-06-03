@@ -22,24 +22,34 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -126,6 +136,108 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Mirror of {@code ParallelParsingCoordinatorTests#testParallelReadPropagatesPerSegmentPartialsToSink}
+     * for the streaming coordinator: the per-chunk parser tasks run on worker threads, so without an
+     * explicit sink parameter the reader's close hook publishes into a {@link ThreadLocal} that's
+     * never bound there and every per-chunk contribution is dropped. The 9-arg {@code parallelRead}
+     * overload threads a consumer-owned sink; this test asserts the worker bind actually wires the
+     * publish into it.
+     */
+    public void testParallelReadPropagatesPerChunkPartialsToSink() throws Exception {
+        // Content needs to span > 2 chunk-buffers so the segmentator dispatches more than one chunk;
+        // chunkSize == reader.minimumSegmentSize() (= 512 here), so ~5000 bytes gives ~10 chunks.
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-capture-test";
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                null,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+        assertThat(
+            "Streaming parallel parsing must propagate per-chunk partials to the bound sink. Saw "
+                + contributions.size()
+                + " total contributions, "
+                + partialCount
+                + " partials. Contributions: "
+                + contributions,
+            partialCount,
+            Matchers.greaterThanOrEqualTo(2L)
+        );
+    }
+
+    /**
+     * Contract mirror of {@link ParallelParsingCoordinator}: clean close must publish a
+     * {@link ExternalStats#FINALIZE_CHUNKS_KEY} marker under the real file path so coordinator-side
+     * reconciliation commits the sum of per-chunk partials.
+     */
+    public void testCleanClosePublishesFinalizeMarkerToSink() throws Exception {
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-finalize-test";
+        Instant mtime = Instant.parse("2020-01-01T00:00:00Z");
+        StorageObject file = new TestFileStorageObject(path, mtime);
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                file,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+        boolean finalized = contributions.stream().anyMatch(m -> Boolean.TRUE.equals(m.get(ExternalStats.FINALIZE_CHUNKS_KEY)));
+        assertThat(partialCount, Matchers.greaterThanOrEqualTo(2L));
+        assertTrue("clean close must publish a finalize marker under the file path", finalized);
     }
 
     public void testParserErrorPropagates() throws Exception {
@@ -707,13 +819,15 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             var iterator = new StreamingParallelParsingCoordinator.StreamingParallelIterator(
                 reader,
                 new ByteArrayInputStream(bytes),
+                null,
                 List.of("line"),
                 50,
                 4,
                 executor,
                 ErrorPolicy.STRICT,
                 null,
-                maxRecordBytes
+                maxRecordBytes,
+                null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -886,6 +1000,84 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    private static RecordSplitter neverBoundarySplitter(int maxRecordBytes) {
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) {
+                return -1;
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) {
+                return -1;
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return maxRecordBytes;
+            }
+        };
+    }
+
+    private static RecordSplitter quoteAwareSplitter(int maxRecordBytes) {
+        return new RecordSplitter() {
+            @Override
+            public long findNextRecordBoundary(InputStream stream) throws IOException {
+                long consumed = 0;
+                int first = stream.read();
+                if (first == -1) {
+                    return -1;
+                }
+                consumed++;
+                if (consumed > maxRecordBytes) {
+                    return RECORD_TOO_LARGE;
+                }
+                if (first == '\n') {
+                    return consumed;
+                }
+                boolean inQuotes = first == '"';
+                int b;
+                while ((b = stream.read()) != -1) {
+                    consumed++;
+                    if (consumed > maxRecordBytes) {
+                        return RECORD_TOO_LARGE;
+                    }
+                    if (inQuotes) {
+                        if (b == '"') {
+                            inQuotes = false;
+                        }
+                    } else if (b == '\n') {
+                        return consumed;
+                    }
+                }
+                return -1;
+            }
+
+            @Override
+            public int findLastRecordBoundary(byte[] buf, int offset, int length) throws IOException {
+                int lastBoundary = -1;
+                int cumulative = 0;
+                while (cumulative < length) {
+                    long consumed = findNextRecordBoundary(new ByteArrayInputStream(buf, offset + cumulative, length - cumulative));
+                    if (consumed == RECORD_TOO_LARGE) {
+                        return lastBoundary >= 0 ? lastBoundary : (int) RECORD_TOO_LARGE;
+                    }
+                    if (consumed < 0) {
+                        return lastBoundary;
+                    }
+                    cumulative += Math.toIntExact(consumed);
+                    lastBoundary = offset + cumulative - 1;
+                }
+                return lastBoundary;
+            }
+
+            @Override
+            public int maxRecordBytes() {
+                return maxRecordBytes;
+            }
+        };
+    }
+
     /**
      * A minimal format reader that treats each line as a record, producing one keyword block per page.
      * <p>
@@ -931,16 +1123,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1055,13 +1239,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) {
-            return -1;
-        }
-
-        @Override
-        public int findLastRecordBoundary(byte[] buf, int length) {
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return neverBoundarySplitter(maxRecordBytes);
         }
 
         @Override
@@ -1115,6 +1294,113 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
+     * Wraps {@link LineFormatReader} so each chunk's iterator publishes a per-chunk
+     * {@code _stats.*} contribution via {@link ExternalStatsCapture#record} on natural EOF — same
+     * close-hook pattern as the production CSV / NDJSON chunk paths. Used by
+     * {@link #testParallelReadPropagatesPerChunkPartialsToSink} to observe whether streaming
+     * parallel-parsing worker threads can reach a bound sink. Publishes under a fixed
+     * {@code path} (not the per-chunk synthetic path the coordinator constructs) so the test can
+     * key into the sink by a known string.
+     */
+    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StatsPublishingLineReader(long minSegment, String path) {
+            this(new LineFormatReader(minSegment), path);
+        }
+
+        private StatsPublishingLineReader(LineFormatReader delegate, String path) {
+            this.delegate = delegate;
+            this.path = path;
+        }
+
+        @Override
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            // Streaming coordinator swaps `reader` for the result; keep the publishing wrapper so
+            // post-inference chunk reads still record under `path`.
+            LineFormatReader bound = (LineFormatReader) delegate.withSchema(schema);
+            return new StatsPublishingLineReader(bound, path);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return wrapPublishing(delegate.read(object, context), context);
+        }
+
+        CloseableIterator<Page> wrapPublishing(CloseableIterator<Page> inner, FormatReadContext context) {
+            boolean chunkMode = context.recordAligned();
+            return new CloseableIterator<>() {
+                long rowsEmitted = 0;
+                boolean naturallyExhausted = false;
+
+                @Override
+                public boolean hasNext() {
+                    if (inner.hasNext()) {
+                        return true;
+                    }
+                    naturallyExhausted = true;
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    Page p = inner.next();
+                    rowsEmitted += p.getPositionCount();
+                    return p;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        if (naturallyExhausted) {
+                            Map<String, Object> stats = new HashMap<>();
+                            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsEmitted);
+                            if (chunkMode) {
+                                stats.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                            }
+                            ExternalStatsCapture.record(path, stats);
+                        }
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stats-publishing-streaming-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+    }
+
+    /**
      * A format reader that fails after reading a configured number of lines.
      */
     private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
@@ -1128,16 +1414,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return TestRecordSplitters.newlineSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1205,7 +1483,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
      * <p>
      * The format is trivial: each record is one "field" terminated by {@code \n}. If the field
      * starts with {@code "}, the record ends at the closing {@code "} followed by {@code \n}
-     * (embedded {@code \n} are literal). {@link #findNextRecordBoundary} mirrors this quoting
+     * (embedded {@code \n} are literal). {@link #recordSplitter} mirrors this quoting
      * convention so the streaming coordinator splits chunks at real record boundaries.
      * <p>
      * <b>Limitation:</b> escaped quotes ({@code ""}) are not handled; {@code "} is treated as a
@@ -1227,27 +1505,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            long consumed = 0;
-            int first = stream.read();
-            if (first == -1) return -1;
-            consumed++;
-            if (first == '\n') {
-                return consumed;
-            }
-            boolean inQuotes = (first == '"');
-            int b;
-            while ((b = stream.read()) != -1) {
-                consumed++;
-                if (inQuotes) {
-                    if (b == '"') {
-                        inQuotes = false;
-                    }
-                } else if (b == '\n') {
-                    return consumed;
-                }
-            }
-            return -1;
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return quoteAwareSplitter(maxRecordBytes);
         }
 
         @Override
@@ -1342,5 +1601,46 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /** Path + mtime only — bytes come from the decompressed stream, not this object. */
+    private static final class TestFileStorageObject implements StorageObject {
+        private final StoragePath path;
+        private final Instant mtime;
+
+        TestFileStorageObject(String path, Instant mtime) {
+            this.path = StoragePath.of(path);
+            this.mtime = mtime;
+        }
+
+        @Override
+        public InputStream newStream() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Instant lastModified() {
+            return mtime;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return path;
+        }
     }
 }

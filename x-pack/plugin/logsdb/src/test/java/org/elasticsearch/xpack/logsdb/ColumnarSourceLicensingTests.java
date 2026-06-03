@@ -72,6 +72,8 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
 
     @Before
     public void setup() {
+        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
         enterpriseLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         enterpriseLicenseService.setLicenseState(sharedLicenseState);
         enterpriseLicenseService.setLicenseService(sharedLicenseService);
@@ -120,7 +122,6 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
     }
 
     public void testLogsdbColumnarFallsBackToColumnarStoredWithoutEnterpriseLicense() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings result = provideColumnarSettings(IndexMode.LOGSDB_COLUMNAR, basicLicenseService);
         // Use raw string comparison: INDEX_MAPPER_SOURCE_MODE_SETTING.get() cross-validates against index.mode,
         // which is not present in the additional settings returned by the provider.
@@ -128,13 +129,11 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
     }
 
     public void testColumnarFallsBackToColumnarStoredWithoutEnterpriseLicense() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings result = provideColumnarSettings(IndexMode.COLUMNAR, basicLicenseService);
         assertEquals(SourceFieldMapper.Mode.COLUMNAR_STORED.name(), result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()));
     }
 
     public void testLogsdbColumnarDoesNotFallBackWithEnterpriseLicense() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings result = provideColumnarSettings(IndexMode.LOGSDB_COLUMNAR, enterpriseLicenseService);
         assertFalse(
             "enterprise license should allow synthetic source; source mode setting must not be injected",
@@ -143,7 +142,6 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
     }
 
     public void testColumnarDoesNotFallBackWithEnterpriseLicense() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         Settings result = provideColumnarSettings(IndexMode.COLUMNAR, enterpriseLicenseService);
         assertFalse(
             "enterprise license should allow synthetic source; source mode setting must not be injected",
@@ -152,7 +150,6 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
     }
 
     public void testLogsdbColumnarFallsBackToColumnarStoredWithOperatorFallbackFlag() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         enterpriseLicenseService.setSyntheticSourceFallback(true);
         try {
             Settings result = provideColumnarSettings(IndexMode.LOGSDB_COLUMNAR, enterpriseLicenseService);
@@ -166,7 +163,6 @@ public class ColumnarSourceLicensingTests extends ESTestCase {
     }
 
     public void testColumnarFallsBackToColumnarStoredWithOperatorFallbackFlag() throws IOException {
-        assumeTrue("columnar index modes feature flag must be enabled", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         enterpriseLicenseService.setSyntheticSourceFallback(true);
         try {
             Settings result = provideColumnarSettings(IndexMode.COLUMNAR, enterpriseLicenseService);

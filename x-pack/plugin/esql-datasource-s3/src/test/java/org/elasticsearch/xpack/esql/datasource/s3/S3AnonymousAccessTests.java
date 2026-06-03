@@ -168,7 +168,7 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * auth=ambient should return an AwsCredentialsProviderChain (env → system props → web-identity → IMDS),
+     * auth=ambient should return an AwsCredentialsProviderChain (env → system props → IMDS),
      * not AnonymousCredentialsProvider or StaticCredentialsProvider.
      */
     public void testAmbientCredentialsProviderType() {

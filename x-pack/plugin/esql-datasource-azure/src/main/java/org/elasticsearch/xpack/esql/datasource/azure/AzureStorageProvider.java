@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import com.azure.identity.DefaultAzureCredentialBuilder;
+import com.azure.identity.ChainedTokenCredentialBuilder;
+import com.azure.identity.EnvironmentCredentialBuilder;
+import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
@@ -63,10 +65,11 @@ import java.util.NoSuchElementException;
  * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
- * Authentication must be provided explicitly via connection string, account+key, SAS token, or
- * {@code auth=none} for public containers. The node's ambient credentials (DefaultAzureCredential) are
- * never used: a data source must carry its own credentials, since the node may run in a different cloud
- * than the container it targets.
+ * Authentication via connection string, account+key, SAS token, {@code auth=none} for public
+ * containers, or {@code auth=ambient} for env-var / managed-identity credentials. The ambient chain
+ * is limited to {@code EnvironmentCredential} and {@code ManagedIdentityCredential}; broader sources
+ * in {@code DefaultAzureCredential} (token-cache files, CLI, PowerShell) are excluded because file
+ * reads and process spawning are blocked by entitlements.
  */
 public final class AzureStorageProvider implements StorageProvider {
 
@@ -146,7 +149,14 @@ public final class AzureStorageProvider implements StorageProvider {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
         } else if (config != null && config.isAmbient()) {
-            // DefaultAzureCredential: checks env vars, workload identity, managed identity, and CLI auth in order.
+            // Explicit chain: EnvironmentCredential (env vars) → ManagedIdentityCredential (IMDS).
+            // DefaultAzureCredential is excluded: it includes WorkloadIdentityCredential (reads a
+            // token file), SharedTokenCacheCredential (reads a cache file), IntelliJCredential
+            // (reads IDE config files), AzureCliCredential, AzurePowerShellCredential, and
+            // AzureDeveloperCliCredential (all spawn processes) — all blocked by entitlements.
+            var ambientCredential = new ChainedTokenCredentialBuilder().addLast(new EnvironmentCredentialBuilder().build())
+                .addLast(new ManagedIdentityCredentialBuilder().build())
+                .build();
             String endpoint = config.endpoint() != null && config.endpoint().isEmpty() == false
                 ? config.endpoint()
                 : (accountFromPath != null ? "https://" + accountFromPath + ".blob.core.windows.net" : null);
@@ -159,7 +169,7 @@ public final class AzureStorageProvider implements StorageProvider {
                         + "or WITH (endpoint = '...')"
                 );
             }
-            builder.endpoint(endpoint).credential(new DefaultAzureCredentialBuilder().build());
+            builder.endpoint(endpoint).credential(ambientCredential);
         } else {
             throw new IllegalArgumentException(
                 "Azure data source requires credentials: provide WITH (connection_string = '...'), "

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.ComputeEngineCredentials;
 import com.google.auth.oauth2.ExternalAccountCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.IdentityPoolCredentials;
@@ -50,8 +51,11 @@ import java.util.NoSuchElementException;
  *       {@code service_account_impersonation_url}</li>
  *   <li>{@code auth=none} for anonymous access to public buckets</li>
  * </ul>
- * The node's ambient credentials (Application Default Credentials) are never used: a data source must
- * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
+ * {@code auth=ambient} uses the GCE/GKE metadata server ({@link ComputeEngineCredentials}).
+ * File-based ADC sources ({@code GOOGLE_APPLICATION_CREDENTIALS}, the well-known gcloud credential
+ * file) are excluded because file reads are blocked by entitlements. GKE Workload Identity
+ * Federation is handled separately via {@code auth=keyless}. Requires the
+ * {@code esql.datasource.ambient_credentials.enabled} cluster setting.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -145,9 +149,7 @@ public final class GcsStorageProvider implements StorageProvider {
      *   <li>keyless workload-identity federation — {@link IdentityPoolCredentials}</li>
      * </ul>
      * When more than one is supplied, service account credentials take precedence, then access_token, then
-     * keyless federation. The node's ambient credential chain (Application Default Credentials) is deliberately
-     * never consulted: the node may run in a different cloud than the bucket it targets, so a data source must
-     * carry its own credentials.
+     * keyless federation. When {@code auth=ambient} is set, Application Default Credentials are used instead.
      */
     static Credentials credentials(GcsConfiguration config) throws IOException {
         if (config != null && Strings.hasText(config.serviceAccountCredentials())) {
@@ -167,9 +169,13 @@ public final class GcsStorageProvider implements StorageProvider {
             return buildIdentityPoolCredentials(config);
         }
         if (config != null && config.isAmbient()) {
-            // Application Default Credentials: checks GOOGLE_APPLICATION_CREDENTIALS env var,
-            // then the GCE metadata server — no profile-file involved.
-            return GoogleCredentials.getApplicationDefault();
+            // Use the GCE/GKE metadata server directly. GoogleCredentials.getApplicationDefault()
+            // is excluded: it reads GOOGLE_APPLICATION_CREDENTIALS (a file) and the well-known
+            // ~/.config/gcloud/application_default_credentials.json file, both of which are
+            // blocked by the entitlement system. ComputeEngineCredentials contacts only the
+            // metadata server over the network (outbound_network entitlement, already granted).
+            // GKE Workload Identity Federation is handled separately via auth=keyless.
+            return ComputeEngineCredentials.create();
         }
         throw new IllegalArgumentException(
             "GCS data source requires credentials: provide WITH (credentials = '...'), "

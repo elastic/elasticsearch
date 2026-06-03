@@ -17,7 +17,6 @@ import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsPro
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
@@ -143,8 +142,12 @@ public final class S3StorageProvider implements StorageProvider {
      * <ul>
      *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
      *   <li>{@code auth=ambient} — node's instance credential chain: env vars, system properties,
-     *       EKS IRSA web-identity token ({@code AWS_WEB_IDENTITY_TOKEN_FILE} / {@code AWS_ROLE_ARN}),
-     *       EC2/ECS instance profile. Profile-file loading is excluded (blocked by entitlements).</li>
+     *       EC2/ECS instance profile (IMDS). Profile-file loading is excluded (blocked by
+     *       entitlements). EKS IRSA ({@code WebIdentityTokenFileCredentialsProvider}) is also
+     *       excluded: it reads a token file from disk, which is blocked by entitlements and cannot
+     *       be granted a fixed path because the file location is injected at runtime via
+     *       {@code AWS_WEB_IDENTITY_TOKEN_FILE}. Use explicit {@code access_key}/{@code secret_key}
+     *       credentials on EKS instead.</li>
      *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
      *   <li>access_key + secret_key — static credentials</li>
      * </ul>
@@ -154,16 +157,13 @@ public final class S3StorageProvider implements StorageProvider {
             return AnonymousCredentialsProvider.create();
         }
         if (config != null && config.isAmbient()) {
-            // Explicit chain that excludes ProfileCredentialsProvider — profile-file reading is
-            // blocked by the entitlement system. WebIdentityTokenFileCredentialsProvider covers
-            // EKS IRSA (reads AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN injected by the pod
-            // identity webhook and exchanges them with STS). InstanceProfileCredentialsProvider
-            // covers EC2 instance profiles and ECS task roles via IMDS.
+            // Explicit chain that excludes ProfileCredentialsProvider (file read, blocked by
+            // entitlements) and WebIdentityTokenFileCredentialsProvider (also a file read at a
+            // runtime-variable path — see Javadoc above).
             return AwsCredentialsProviderChain.builder()
                 .credentialsProviders(
                     EnvironmentVariableCredentialsProvider.create(),
                     SystemPropertyCredentialsProvider.create(),
-                    WebIdentityTokenFileCredentialsProvider.create(),
                     InstanceProfileCredentialsProvider.create()
                 )
                 .build();

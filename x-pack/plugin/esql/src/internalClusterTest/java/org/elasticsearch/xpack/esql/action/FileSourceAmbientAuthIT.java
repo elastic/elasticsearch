@@ -251,6 +251,7 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
         registerAmbientDatasource();
         registerDataset();
 
+        lastAuthorizationHeader.set(null);
         System.setProperty("aws.accessKeyId", "wrong-key-that-fixture-rejects");
         try {
             expectThrows(Exception.class, () -> {
@@ -261,6 +262,15 @@ public class FileSourceAmbientAuthIT extends AbstractEsqlIntegTestCase {
         } finally {
             System.setProperty("aws.accessKeyId", AMBIENT_ACCESS_KEY);
         }
+        // Prove the request reached the fixture (header captured) and carried the wrong key —
+        // ruling out a setup failure as the cause of the exception above.
+        String authHeader = lastAuthorizationHeader.get();
+        assertThat("S3 request must have reached the fixture", authHeader, notNullValue());
+        assertThat(
+            "Authorization header must contain the wrong key, not the ambient one",
+            authHeader,
+            containsString("wrong-key-that-fixture-rejects")
+        );
     }
 
     /**

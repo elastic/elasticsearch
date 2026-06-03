@@ -119,6 +119,45 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
         }
     }
 
+    public void testMonotonicAscendingIntegerDoublesNoCatastrophicRegression() throws IOException {
+        for (int blockSize : BLOCK_SIZES) {
+            final long[] values = monotonicAscendingIntegerDoublesBlock(blockSize);
+            assertBoundedRegression("monotonic ascending integer doubles", blockSize, values);
+        }
+    }
+
+    public void testMonotonicAscendingCurrencyNoCatastrophicRegression() throws IOException {
+        for (int blockSize : BLOCK_SIZES) {
+            final long[] values = monotonicAscendingCurrencyBlock(blockSize);
+            assertBoundedRegression("monotonic ascending currency", blockSize, values);
+        }
+    }
+
+    public void testMonotonicDescendingIntegerDoublesNoCatastrophicRegression() throws IOException {
+        for (int blockSize : BLOCK_SIZES) {
+            final long[] values = monotonicDescendingIntegerDoublesBlock(blockSize);
+            assertBoundedRegression("monotonic descending integer doubles", blockSize, values);
+        }
+    }
+
+    public void testSignCrossingOscillatingBlock() throws IOException {
+        for (int blockSize : BLOCK_SIZES) {
+            final long[] values = signCrossingOscillatingBlock(blockSize);
+            final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
+            final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
+            assertTrue(
+                "ALP must beat baseline for sign-crossing 2dp data at blockSize="
+                    + blockSize
+                    + " (alp="
+                    + alpSize
+                    + ", baseline="
+                    + baselineSize
+                    + ")",
+                alpSize < baselineSize
+            );
+        }
+    }
+
     public void testAggregateAcrossPatterns() throws IOException {
         for (int blockSize : BLOCK_SIZES) {
             final long[][] blocks = {
@@ -170,6 +209,59 @@ public class AlpDoubleStorageComparisonTests extends ESTestCase {
             }
         }
         return bufferOut.size();
+    }
+
+    private static final int MAX_MONOTONIC_REGRESSION_FACTOR = 20;
+
+    private void assertBoundedRegression(String label, int blockSize, long[] values) throws IOException {
+        final long alpSize = encodeBlockSize(alpPipeline(blockSize), values);
+        final long baselineSize = encodeBlockSize(baselinePipeline(blockSize), values);
+        assertTrue(
+            "ALP must stay within "
+                + MAX_MONOTONIC_REGRESSION_FACTOR
+                + "x of baseline on "
+                + label
+                + " at blockSize="
+                + blockSize
+                + " (alp="
+                + alpSize
+                + ", baseline="
+                + baselineSize
+                + ")",
+            alpSize <= baselineSize * MAX_MONOTONIC_REGRESSION_FACTOR
+        );
+    }
+
+    private static long[] monotonicAscendingIntegerDoublesBlock(int size) {
+        final long[] values = new long[size];
+        for (int i = 0; i < size; i++) {
+            values[i] = NumericUtils.doubleToSortableLong((double) (1000 + i));
+        }
+        return values;
+    }
+
+    private static long[] monotonicDescendingIntegerDoublesBlock(int size) {
+        final long[] values = new long[size];
+        for (int i = 0; i < size; i++) {
+            values[i] = NumericUtils.doubleToSortableLong((double) (1000 + size - i));
+        }
+        return values;
+    }
+
+    private static long[] monotonicAscendingCurrencyBlock(int size) {
+        final long[] values = new long[size];
+        for (int i = 0; i < size; i++) {
+            values[i] = NumericUtils.doubleToSortableLong((double) (10_000 + i) / 100.0);
+        }
+        return values;
+    }
+
+    private static long[] signCrossingOscillatingBlock(int size) {
+        final long[] values = new long[size];
+        for (int i = 0; i < size; i++) {
+            values[i] = NumericUtils.doubleToSortableLong((double) ((i % 41) - 20) / 100.0);
+        }
+        return values;
     }
 
     private static long[] integerLikeDoublesBlock(int size) {

@@ -1,0 +1,6 @@
+area: TSDB
+issues:
+ - 150389
+pr: 150433
+summary: Fix prefix escape for synthetic id
+type: bug

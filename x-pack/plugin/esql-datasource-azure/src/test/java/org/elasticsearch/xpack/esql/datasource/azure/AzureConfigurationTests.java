@@ -116,6 +116,13 @@ public class AzureConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
+    public void testHasCredentialsWithWhitespaceSasTokenIsAbsent() {
+        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens),
+        // so it does not count as credentials.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", null, "   ", null);
+        assertFalse(config.hasCredentials());
+    }
+
     public void testEqualsAndHashCodeSameValues() {
         AzureConfiguration config1 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
@@ -129,6 +136,18 @@ public class AzureConfigurationTests extends ESTestCase {
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs2", "acc", "key", "sas", "ep");
 
         assertNotEquals(config1, config2);
+    }
+
+    public void testNotEqualsWithDifferentSasToken() {
+        AzureConfiguration config1 = AzureConfiguration.fromFields(null, "acc", null, "sas1", "ep");
+        AzureConfiguration config2 = AzureConfiguration.fromFields(null, "acc", null, "sas2", "ep");
+        assertNotEquals(config1, config2);
+    }
+
+    public void testSasTokenAbsentByDefault() {
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", "key", null, null);
+        assertNotNull(config);
+        assertNull(config.sasToken());
     }
 
     public void testAuthNone() {
@@ -189,6 +208,20 @@ public class AzureConfigurationTests extends ESTestCase {
         assertEquals("mykey", config.key());
         assertEquals("https://ep", config.endpoint());
         assertThat(result.consumedKeys(), containsInAnyOrder("account", "key", "endpoint"));
+    }
+
+    public void testFromQueryConfigWithSasToken() {
+        Map<String, Object> raw = new HashMap<>();
+        raw.put("account", "myaccount");
+        raw.put("sas_token", "?sv=2020-01-01");
+        raw.put("header_row", false);
+
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
+        assertNotNull(config);
+        assertEquals("?sv=2020-01-01", config.sasToken());
+        assertTrue(config.hasCredentials());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "sas_token"));
     }
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {

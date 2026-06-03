@@ -102,6 +102,19 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
     private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
     private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
+    private static final String DEFAULT_UPDATE_REQUEST_BODY = """
+        {
+            "task_type": "text_embedding",
+            "service_settings": {
+                "service_account_json": "some_new_service_account",
+                "max_batch_size": 16
+            },
+            "task_settings": {
+                "input_type": "ingest",
+                "auto_truncate": true
+            }
+        }
+        """;
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -133,7 +146,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     public void testMasterOperation_ResourceNotFoundExceptionThrown_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToFailWithException(new ResourceNotFoundException("Model not found"));
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
@@ -144,7 +157,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var simulatedException = new RuntimeException("Model not found");
         mockGetModelWithSecretsToFailWithException(simulatedException);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
@@ -154,7 +167,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     public void testMasterOperation_NullReturned_ThrowsElasticsearchStatusException() {
         mockGetModelWithSecretsToReturnUnparsedModel(null, INFERENCE_ENTITY_ID_VALUE);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
@@ -168,7 +181,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
 
         mockServiceRegistryToReturnService(null);
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format("Service [%s] not found", SERVICE_NAME_VALUE)));
@@ -182,7 +195,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
         mockServiceRegistryToReturnService(service);
 
-        var listener = callMasterOperationWithActionFutureForDefaultEndpoint();
+        var listener = callMasterOperationWithRequestBody(DEFAULT_INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
@@ -202,7 +215,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         // return false for license check, so the action fails before any other processing
         mockLicenseStateIsAllowed(false);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("current license is non-compliant for [inference]"));
@@ -234,7 +247,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                 any()
             );
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
@@ -255,7 +268,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
         when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
@@ -282,7 +295,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
@@ -304,7 +317,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         mockUpdateModelTransactionToReturnBoolean(false, model);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model"));
@@ -327,7 +340,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         mockModelRegistryGetModelToReturnUnparsedModel(null);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model, updated model not found"));
@@ -355,7 +368,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
 
         var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
@@ -390,7 +403,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
 
-        var listener = callMasterOperationWithRequestBody("""
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, """
             {
                 "service_settings": {
                     "unknown_setting": "unknown_value"
@@ -422,7 +435,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         mockParsePersistedConfigWithSecretsToReturnModel(createModel());
 
-        var listener = callMasterOperationWithRequestBody(requestBody);
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, requestBody);
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
@@ -458,7 +471,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
 
-        var listener = callMasterOperationWithRequestBody("""
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, """
             {
                 "task_settings": {
                     "unknown_setting": "unknown_value"
@@ -480,7 +493,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockLicenseStateIsAllowed(true);
         mockParsePersistedConfigWithSecretsToReturnModel(createModel());
 
-        var listener = callMasterOperationWithRequestBody("""
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, """
             {
                 "chunking_settings": {
                     "strategy": "sentence",
@@ -514,7 +527,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
         when(service.parsePersistedConfig(unparsedModel)).thenReturn(model);
 
-        var listener = callMasterOperationWithActionFuture();
+        var listener = callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, DEFAULT_UPDATE_REQUEST_BODY);
         var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
         verifyModelRegistryUpdateInvoked();
@@ -633,34 +646,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             listener.onResponse(result);
             return Void.TYPE;
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
-    }
-
-    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        return callMasterOperationWithInferenceId(INFERENCE_ENTITY_ID_VALUE);
-    }
-
-    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFutureForDefaultEndpoint() {
-        return callMasterOperationWithInferenceId(DEFAULT_INFERENCE_ENTITY_ID_VALUE);
-    }
-
-    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithInferenceId(String inferenceEntityId) {
-        return callMasterOperationWithRequestBody(inferenceEntityId, """
-            {
-                "task_type": "text_embedding",
-                "service_settings": {
-                    "service_account_json": "some_new_service_account",
-                    "max_batch_size": 16
-                },
-                "task_settings": {
-                    "input_type": "ingest",
-                    "auto_truncate": true
-                }
-            }
-            """);
-    }
-
-    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(String requestBody) {
-        return callMasterOperationWithRequestBody(INFERENCE_ENTITY_ID_VALUE, requestBody);
     }
 
     private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(

@@ -1778,7 +1778,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | sort language_code, birth_date
@@ -1795,7 +1795,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1813,7 +1813,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1829,7 +1829,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1847,7 +1847,7 @@ required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 required_capability: make_number_of_channels_consistent_with_layout
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | keep birth_date, language_code
@@ -1868,7 +1868,7 @@ required_capability: join_lookup_v12
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
 
-from *
+from *,-keyword_languages_lookup
 | enrich languages_policy on cluster
 | rename languages.byte as language_code
 | lookup join languages_lookup on language_code

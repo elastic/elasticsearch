@@ -89,6 +89,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgrade
             bulkIndex(dataStreamName, 4, 1024, timeRef.get(), LogsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
+            // verify index mode stats are serializable across mixed-version nodes
+            assertOK(client().performRequest(new Request("GET", "/_xpack/usage")));
         });
         {
             var forceMergeRequest = new Request("POST", "/" + dataStreamName + "/_forcemerge");

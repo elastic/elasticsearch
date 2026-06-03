@@ -248,10 +248,6 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         return metadataFields;
     }
 
-    public ExternalRelation withMetadataFields(List<? extends NamedExpression> newMetadataFields) {
-        return new ExternalRelation(source(), sourcePath, metadata, output, fileList, schemaMap, datasetName, newMetadataFields);
-    }
-
     public String sourceType() {
         return metadata.sourceType();
     }

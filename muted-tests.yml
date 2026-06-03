@@ -752,3 +752,6 @@ tests:
 - class: org.elasticsearch.indices.memory.breaker.HierarchyCircuitBreakerTelemetryIT
   method: testCircuitBreakerTripCountMetric
   issue: https://github.com/elastic/elasticsearch/issues/150700
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWritesWillSucceedIfBelowThreshold
+  issue: https://github.com/elastic/elasticsearch/issues/150701

@@ -216,7 +216,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private final IndexAnalyzers indexAnalyzers;
     private final MappingParser mappingParser;
-    private final DocumentParser documentParser;
+    private final XContentParserConfiguration parserConfiguration;
+    private volatile DocumentParser documentParser;
     private final IndexVersion indexVersionCreated;
     private final IndexMode indexMode;
     private final MapperRegistry mapperRegistry;
@@ -297,9 +298,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             mapperRegistry.getNamespaceValidator(),
             projectMetadataSupplier
         );
-        this.documentParser = indexMode != null && indexMode.isStrictColumnar()
-            ? new FlatDocumentParser(parserConfiguration, this.mappingParserContextSupplier.get())
-            : new DefaultDocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
+        this.parserConfiguration = parserConfiguration;
+        this.documentParser = new DefaultDocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -410,6 +410,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             synchronized (this) {
                 previousMapper = this.mapper;
                 Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
+                if (indexMode.isStrictColumnar() && documentParser instanceof DefaultDocumentParser) {
+                    this.documentParser = selectDocumentParser(incomingMapping);
+                }
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
@@ -673,6 +676,32 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
+    }
+
+    private DocumentParser selectDocumentParser(Mapping mapping) {
+        if (indexMode.isStrictColumnar() && isFlatParserCompatible(mapping)) {
+            return new FlatDocumentParser(parserConfiguration, mappingParserContextSupplier.get());
+        }
+        return new DefaultDocumentParser(parserConfiguration, mappingParserContextSupplier.get());
+    }
+
+    private static boolean isFlatParserCompatible(Mapping mapping) {
+        if (mapping.getRoot().runtimeFields().isEmpty() == false) {
+            return false;
+        }
+        return isFlatParserCompatible(mapping.getRoot());
+    }
+
+    private static boolean isFlatParserCompatible(ObjectMapper mapper) {
+        for (Mapper child : mapper) {
+            if (child instanceof FieldMapper fm) {
+                if (fm.copyTo().copyToFields().isEmpty() == false) return false;
+                if (fm.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) return false;
+            } else if (child instanceof ObjectMapper om) {
+                if (isFlatParserCompatible(om) == false) return false;
+            }
+        }
+        return true;
     }
 
     public Mapping parseMapping(String mappingType, MergeReason reason, CompressedXContent mappingSource) {

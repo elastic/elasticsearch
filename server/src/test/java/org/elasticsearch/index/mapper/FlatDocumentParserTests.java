@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -252,5 +253,58 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> {}));
         assertNotNull(doc);
+    }
+
+    // -----------------------------------------------------------------------
+    // Parser selection in MapperService
+    // -----------------------------------------------------------------------
+
+    public void testFlatParserSelectedForCompatibleColumnarMapping() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        MapperService mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject("field").field("type", "keyword").endObject())
+        );
+        assertThat(mapperService.documentParser(), instanceOf(FlatDocumentParser.class));
+    }
+
+    public void testDefaultParserSelectedForNonColumnarIndex() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
+    }
+
+    public void testDefaultParserSelectedWhenMappingHasRuntimeFields() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        MapperService mapperService = createMapperService(
+            columnarSettings(),
+            topMapping(b -> {
+                b.startObject("runtime");
+                b.startObject("day_of_week").field("type", "keyword").endObject();
+                b.endObject();
+            })
+        );
+        assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
+    }
+
+    public void testDefaultParserSelectedWhenMappingHasCopyTo() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        MapperService mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> {
+                b.startObject("source").field("type", "keyword").array("copy_to", "dest").endObject();
+                b.startObject("dest").field("type", "keyword").endObject();
+            })
+        );
+        assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
+    }
+
+    public void testDefaultParserSelectedWhenMappingHasFallbackSyntheticSourceField() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        // binary fields have no doc values by default, so they use fallback synthetic source
+        MapperService mapperService = createMapperService(
+            columnarSettings(),
+            mapping(b -> b.startObject("data").field("type", "binary").endObject())
+        );
+        assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
     }
 }

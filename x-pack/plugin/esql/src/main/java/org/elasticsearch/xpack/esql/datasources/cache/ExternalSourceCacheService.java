@@ -152,18 +152,21 @@ public class ExternalSourceCacheService implements Closeable {
 
     /**
      * Combines a file's stats-bearing contributions into a single merged map, or {@code null} when
-     * there is nothing to commit. A whole-file read is authoritative and deduplicated: each such
+     * there is nothing to commit. A whole-file read is authoritative and never summed: each such
      * contribution already reports the file's full row count (text readers apply no scan-time filter,
-     * and a whole-file read is the first+last split with no parallel slicing), so duplicate complete
-     * reads are identical and we take the first — never sum. Only partial chunks, which partition the
-     * file, are summed via {@code mergeStatistics}; that rebuilds the map from scratch retaining only
-     * the {@code _stats.*} keys, so MTIME_MILLIS_KEY (to match the SchemaCacheEntry) and
-     * CONFIG_FINGERPRINT_KEY (to disambiguate {@code WITH}-option variants) are re-attached from a
-     * chunk — all chunks of a file share one pinned mtime and fingerprint.
+     * and a whole-file read is the first+last split with no parallel slicing). Duplicate whole-file
+     * contributions can legitimately differ on column-stats coverage, however — a schema-probe pass
+     * may track a narrower set of columns than the data scan — so we union those keys via
+     * {@link #mergeWholeFileContributions} rather than dropping the broader-coverage entry. Only
+     * partial chunks, which partition the file, are summed via {@code mergeStatistics}; that
+     * rebuilds the map from scratch retaining only the {@code _stats.*} keys, so MTIME_MILLIS_KEY
+     * (to match the SchemaCacheEntry) and CONFIG_FINGERPRINT_KEY (to disambiguate
+     * {@code WITH}-option variants) are re-attached from a chunk — all chunks of a file share one
+     * pinned mtime and fingerprint.
      */
     private static Map<String, Object> mergeContributions(List<Map<String, Object>> wholeFile, List<Map<String, Object>> partials) {
         if (wholeFile.isEmpty() == false) {
-            return wholeFile.get(0);
+            return mergeWholeFileContributions(wholeFile);
         }
         if (partials.isEmpty()) {
             return null;
@@ -183,6 +186,52 @@ public class ExternalSourceCacheService implements Closeable {
             }
         }
         return mergedForFile;
+    }
+
+    /**
+     * Folds duplicate whole-file contributions for the same file into one map. Row count, mtime,
+     * and config fingerprint must agree across entries (asserted) since each contribution already
+     * covers the entire file under the same pinned config. Column-stats keys, however, may differ
+     * between callers — a schema-probe pass typically projects fewer columns than the data scan —
+     * so {@code _stats.columns.*} entries are unioned: for any key present in only one contribution
+     * the unique value is taken; for keys present in multiple contributions the values must agree
+     * (asserted) since they measure the same file under the same config.
+     */
+    private static Map<String, Object> mergeWholeFileContributions(List<Map<String, Object>> wholeFile) {
+        if (wholeFile.size() == 1) {
+            return wholeFile.get(0);
+        }
+        Map<String, Object> base = wholeFile.get(0);
+        Map<String, Object> merged = new HashMap<>(base);
+        for (int i = 1; i < wholeFile.size(); i++) {
+            Map<String, Object> next = wholeFile.get(i);
+            assert agreesWithBase(base, next)
+                : "whole-file contributions for the same file must agree on row count, mtime, and config fingerprint: "
+                    + base
+                    + " vs "
+                    + next;
+            for (Map.Entry<String, Object> e : next.entrySet()) {
+                if (e.getKey().startsWith(SourceStatisticsSerializer.STATS_COL_PREFIX)) {
+                    Object prev = merged.putIfAbsent(e.getKey(), e.getValue());
+                    assert prev == null || Objects.equals(prev, e.getValue())
+                        : "whole-file contributions disagree on column stat [" + e.getKey() + "]: " + prev + " vs " + e.getValue();
+                }
+            }
+        }
+        return merged;
+    }
+
+    private static boolean agreesWithBase(Map<String, Object> a, Map<String, Object> b) {
+        return sameNumericOrEqual(a.get(SourceStatisticsSerializer.STATS_ROW_COUNT), b.get(SourceStatisticsSerializer.STATS_ROW_COUNT))
+            && sameNumericOrEqual(a.get(ExternalStats.MTIME_MILLIS_KEY), b.get(ExternalStats.MTIME_MILLIS_KEY))
+            && Objects.equals(a.get(ExternalStats.CONFIG_FINGERPRINT_KEY), b.get(ExternalStats.CONFIG_FINGERPRINT_KEY));
+    }
+
+    private static boolean sameNumericOrEqual(Object a, Object b) {
+        if (a instanceof Number na && b instanceof Number nb) {
+            return na.longValue() == nb.longValue();
+        }
+        return Objects.equals(a, b);
     }
 
     /**

@@ -55,8 +55,12 @@ sealed interface SourceStatsContribution {
         if (Boolean.TRUE.equals(raw.get(ExternalStats.CHUNK_HAD_ERRORS_KEY))) {
             return new Poison();
         }
-        boolean hasStats = raw.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT);
-        if (Boolean.TRUE.equals(raw.get(ExternalStats.FINALIZE_CHUNKS_KEY)) && hasStats == false) {
+        if (Boolean.TRUE.equals(raw.get(ExternalStats.FINALIZE_CHUNKS_KEY))) {
+            // Defends the "Finalize carries no stats" contract: today's publishers never attach
+            // a row count to the finalize marker, but nothing on the wire enforces it. If a future
+            // publisher accidentally does, the silent fall-through used to mis-classify it as a
+            // WholeFile/PartialChunk and either double-count or short-circuit the partial sum.
+            assert raw.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false : "Finalize marker must not carry stats: " + raw;
             return new Finalize();
         }
         Map<String, Object> stripped = new HashMap<>(raw);

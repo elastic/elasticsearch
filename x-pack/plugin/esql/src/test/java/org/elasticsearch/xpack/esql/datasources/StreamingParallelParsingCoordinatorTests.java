@@ -1317,8 +1317,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         }
 
         @Override
-        public long findNextRecordBoundary(InputStream stream) throws IOException {
-            return delegate.findNextRecordBoundary(stream);
+        public RecordSplitter recordSplitter(int maxRecordBytes) {
+            return delegate.recordSplitter(maxRecordBytes);
         }
 
         @Override

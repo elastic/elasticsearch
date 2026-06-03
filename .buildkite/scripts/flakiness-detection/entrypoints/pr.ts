@@ -2,13 +2,13 @@ import { execSync } from "child_process";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-import { classifyChangedFiles } from "../detectors/changed-files";
-import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes";
-import { buildCommands, dedupeTests } from "../commands";
-import { uploadBuildkitePipeline } from "../runners/buildkite";
-import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain";
+import { classifyChangedFiles } from "../detectors/changed-files.ts";
+import { findUnmutedTests, type UnmuteDetectionResult } from "../detectors/unmutes.ts";
+import { buildCommands, dedupeTests } from "../commands.ts";
+import { uploadBuildkitePipeline } from "../runners/buildkite.ts";
+import { DEFAULT_AGENT_CONFIG, DEFAULT_BATCHING_CONFIG } from "../domain.ts";
 
-const PROJECT_ROOT = resolve(`${import.meta.dir}/../../../..`);
+const PROJECT_ROOT = resolve(`${import.meta.dirname}/../../../..`);
 
 type CommandRunner = (
   command: string,

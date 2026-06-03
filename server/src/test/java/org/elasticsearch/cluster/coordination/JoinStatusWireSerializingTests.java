@@ -8,6 +8,7 @@
  */
 
 package org.elasticsearch.cluster.coordination;
+
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;

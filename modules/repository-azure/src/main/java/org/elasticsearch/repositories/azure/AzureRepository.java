@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -115,12 +117,24 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             TimeValue.timeValueSeconds(1),
             Property.NodeScope
         );
+
+        /**
+         * Access tier applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
+         */
+        static final Setting<String> DATA_ACCESS_TIER_SETTING = Setting.simpleString("data_access_tier");
+
+        /**
+         * Access tier applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_METADATA}.
+         */
+        static final Setting<String> METADATA_ACCESS_TIER_SETTING = Setting.simpleString("metadata_access_tier");
     }
 
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
     private final RepositoriesMetrics repositoriesMetrics;
+    private final String dataAccessTier;
+    private final String metadataAccessTier;
 
     public AzureRepository(
         @Nullable final ProjectId projectId,
@@ -147,6 +161,10 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
         this.repositoriesMetrics = repositoriesMetrics;
+        this.dataAccessTier = Repository.DATA_ACCESS_TIER_SETTING.get(metadata.settings());
+        this.metadataAccessTier = Repository.METADATA_ACCESS_TIER_SETTING.get(metadata.settings());
+        validateAccessTierIfSpecified(metadata.name(), Repository.DATA_ACCESS_TIER_SETTING.getKey(), this.dataAccessTier);
+        validateAccessTierIfSpecified(metadata.name(), Repository.METADATA_ACCESS_TIER_SETTING.getKey(), this.metadataAccessTier);
 
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
@@ -155,6 +173,21 @@ public class AzureRepository extends MeteredBlobStoreRepository {
             this.readonly = Repository.READONLY_SETTING.get(metadata.settings());
         } else {
             this.readonly = locationMode.isSecondary();
+        }
+    }
+
+    /**
+     * Validates explicit {@link Repository#DATA_ACCESS_TIER_SETTING} / {@link Repository#METADATA_ACCESS_TIER_SETTING} values during
+     * repository construction so misconfiguration surfaces when the repository is registered rather than on first blob store access.
+     */
+    private static void validateAccessTierIfSpecified(String repositoryName, String settingKey, String value) {
+        if (Strings.hasText(value) == false) {
+            return;
+        }
+        try {
+            AzureBlobStore.initAccessTier(value);
+        } catch (BlobStoreException e) {
+            throw new RepositoryException(repositoryName, settingKey + ": " + e.getMessage(), e);
         }
     }
 
@@ -188,7 +221,15 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(getProjectId(), metadata, storageService, bigArrays, repositoriesMetrics);
+        final AzureBlobStore blobStore = new AzureBlobStore(
+            getProjectId(),
+            metadata,
+            storageService,
+            bigArrays,
+            repositoriesMetrics,
+            dataAccessTier,
+            metadataAccessTier
+        );
 
         logger.debug(
             () -> format(

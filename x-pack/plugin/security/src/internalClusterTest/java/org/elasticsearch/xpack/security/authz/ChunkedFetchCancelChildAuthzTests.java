@@ -30,19 +30,11 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -51,20 +43,20 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 
 /**
  * Verifies that the {@code internal:admin/tasks/cancel_child} action triggered by a failed shard child request during a search run
- * under a non-operator REST API key is sent as the system user, and so authorized, rather than denied against the API key.
+ * under a non-operator user is sent as the system user, and so authorized, rather than denied against that user.
  *
  * <p>The trigger is the chunked fetch coordination path ({@code search.fetch_phase_chunked_enabled}): {@code
  * TransportFetchPhaseCoordinationAction} stashes the thread context and propagates only request headers before sending each shard
  * fetch, so the authentication header survives but the {@code _originating_action_name} transient does not. When the fetch fails,
  * {@code TaskCancellationService#cancelChildRemote} sends {@code cancel_child} in that context. With authentication present but no
- * originating action, the action would be authorized against the API key and denied as ungrantable ("not an index or cluster
+ * originating action, the action would be authorized against the calling user and denied as ungrantable ("not an index or cluster
  * action"); {@code cancelChildRemote} avoids this by stashing to a user-less context so it runs as the system user.
  *
  * <p>The coordinating node holds no shards, so every fetch - and every {@code cancel_child} - is a cross-node action seen by the
  * security layer on the data node, where a transport interceptor fails the incoming fetch to surface a transport exception.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 0, supportsDedicatedMasters = false)
-public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
+public class ChunkedFetchCancelChildAuthzTests extends SecurityIntegTestCase {
 
     private static final String INDEX = "test";
 
@@ -82,20 +74,14 @@ public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
             // Chunked fetch (enabled in serverless) propagates headers only, dropping the originating-action transient that
             // normally protects cancel_child.
             .put(SearchService.FETCH_PHASE_CHUNKED_ENABLED.getKey(), true)
             .build();
     }
 
-    @Before
-    public void waitForSecurityIndexWritable() {
-        createSecurityIndexWithWaitForActiveShards();
-    }
-
     /**
-     * When the fetch fails under a read-only API key, the resulting cross-node {@code cancel_child} must be authorized as the system
+     * When the fetch fails under a non-operator user, the resulting cross-node {@code cancel_child} must be authorized as the system
      * user. The transport-tracer "sent response" log is only emitted for a successful (authorized) response - a denial logs "sent
      * error response" - so asserting it proves the cancellation completed end-to-end and keeps the denial check below non-vacuous.
      */
@@ -104,8 +90,8 @@ public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
         value = "org.elasticsearch.xpack.security.authz.AuthorizationService:WARN,"
             + "org.elasticsearch.transport.TransportService.tracer:TRACE"
     )
-    public void testCancelChildNotDeniedForApiKeyOnFetchFailure() throws Exception {
-        final Client apiKeyClient = clientWithReadOnlyApiKey(createIndexAwayFromCoordinatingNode());
+    public void testCancelChildNotDeniedForUserOnFetchFailure() throws Exception {
+        final Client userClient = client(createIndexAwayFromCoordinatingNode());
 
         // Fail the fetch on the data node so it surfaces as a transport exception and triggers the cross-node cancel_child.
         FailingFetchInterceptorPlugin.failFetch.set(true);
@@ -120,7 +106,7 @@ public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
             );
             mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
-                    "cancel_child denied for api key",
+                    "cancel_child denied for user",
                     AuthorizationService.class.getName(),
                     Level.WARN,
                     "denying access for * as action ["
@@ -129,7 +115,7 @@ public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
                 )
             );
 
-            final ActionFuture<SearchResponse> searchFuture = apiKeyClient.prepareSearch(INDEX)
+            final ActionFuture<SearchResponse> searchFuture = userClient.prepareSearch(INDEX)
                 .setAllowPartialSearchResults(false)
                 .execute();
 
@@ -147,7 +133,7 @@ public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
      * Creates the test index with all shards off the coordinating node, so every shard fetch - and every cancel_child - crosses the
      * network to the data node where the security layer sees it.
      *
-     * @return the coordinating node name for the API-key client to target
+     * @return the coordinating node name for the user client to target
      */
     private String createIndexAwayFromCoordinatingNode() {
         final String coordinatingNode = internalCluster().getNodeNames()[0];
@@ -160,22 +146,6 @@ public class TaskCancellationAuthzIT extends SecurityIntegTestCase {
         ensureGreen(INDEX);
         indexTestData();
         return coordinatingNode;
-    }
-
-    private Client clientWithReadOnlyApiKey(String nodeName) {
-        final RoleDescriptor readOnly = new RoleDescriptor(
-            "read-only",
-            null,
-            new RoleDescriptor.IndicesPrivileges[] { RoleDescriptor.IndicesPrivileges.builder().indices(INDEX).privileges("read").build() },
-            null
-        );
-        final CreateApiKeyResponse apiKey = new CreateApiKeyRequestBuilder(client()).setName("benchmark")
-            .setRoleDescriptors(List.of(readOnly))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        final String credentials = apiKey.getId() + ":" + apiKey.getKey();
-        final String header = "ApiKey " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-        return client(nodeName).filterWithHeader(Map.of("Authorization", header));
     }
 
     private void indexTestData() {

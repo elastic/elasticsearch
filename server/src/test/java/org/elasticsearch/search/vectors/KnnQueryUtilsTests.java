@@ -475,7 +475,7 @@ public class KnnQueryUtilsTests extends ESTestCase {
         }
     }
 
-    public void testCreateFilterWeightMatchNoDocsCollapsesToNull() throws IOException {
+    public void testCreateFilterWeightMatchNoDocsCollapsesToMatchNoDocs() throws IOException {
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
             Document doc = new Document();
             doc.add(new StringField("tag", "a", Field.Store.NO));
@@ -484,8 +484,11 @@ public class KnnQueryUtilsTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
                 // A MatchNoDocsQuery as one of the FILTER clauses collapses the whole boolean
-                // query to MatchNoDocsQuery on rewrite, which createFilterWeight maps to null.
-                assertNull(KnnQueryUtils.createFilterWeight(searcher, MatchNoDocsQuery.INSTANCE, "tag"));
+                // query to MatchNoDocsQuery on rewrite, which createFilterWeight signals via MATCH_NO_DOCS.
+                assertSame(
+                    KnnQueryUtils.FilterWeight.MATCH_NO_DOCS,
+                    KnnQueryUtils.createFilterWeight(searcher, MatchNoDocsQuery.INSTANCE, "tag")
+                );
             }
         }
     }
@@ -500,8 +503,9 @@ public class KnnQueryUtilsTests extends ESTestCase {
             writer.commit();
             try (IndexReader reader = DirectoryReader.open(dir)) {
                 IndexSearcher searcher = newSearcher(reader);
-                Weight weight = KnnQueryUtils.createFilterWeight(searcher, new TermQuery(new Term("tag", "a")), "tag");
-                assertNotNull(weight);
+                KnnQueryUtils.FilterWeight result = KnnQueryUtils.createFilterWeight(searcher, new TermQuery(new Term("tag", "a")), "tag");
+                assertNotNull(result);
+                assertNotNull(result.weight());
             }
         }
     }

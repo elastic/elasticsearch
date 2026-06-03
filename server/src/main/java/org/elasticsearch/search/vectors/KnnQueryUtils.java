@@ -27,6 +27,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,6 +38,10 @@ import java.util.List;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public final class KnnQueryUtils {
+
+    public record FilterWeight(@Nullable Weight weight) {
+        static final FilterWeight MATCH_NO_DOCS = new FilterWeight(null);
+    }
 
     public static float computeSelectivity(Weight filterWeight, List<LeafReaderContext> leaves, int totalVectors) throws IOException {
         long filterCost = 0;
@@ -66,7 +71,7 @@ public final class KnnQueryUtils {
         return new BooleanQuery.Builder().add(baseFilter, BooleanClause.Occur.FILTER).add(exclude, BooleanClause.Occur.FILTER).build();
     }
 
-    public static Weight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
+    public static FilterWeight createFilterWeight(IndexSearcher searcher, Query filter, String field) throws IOException {
         if (filter == null) {
             return null;
         }
@@ -74,10 +79,10 @@ public final class KnnQueryUtils {
             .add(new FieldExistsQuery(field), BooleanClause.Occur.FILTER)
             .build();
         Query rewritten = searcher.rewrite(booleanQuery);
-        if (rewritten.getClass() == MatchNoDocsQuery.class) {
-            return null;
+        if (rewritten == MatchNoDocsQuery.INSTANCE) {
+            return FilterWeight.MATCH_NO_DOCS;
         }
-        return searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        return new FilterWeight(searcher.createWeight(rewritten, ScoreMode.COMPLETE_NO_SCORES, 1f));
     }
 
     /**

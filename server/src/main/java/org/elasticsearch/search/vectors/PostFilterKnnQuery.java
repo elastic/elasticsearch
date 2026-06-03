@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
@@ -85,7 +86,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
-        var filterWeight = createFilterWeight(searcher, filter, field);
+        var filterResult = createFilterWeight(searcher, filter, field);
+        if (filterResult == KnnQueryUtils.FilterWeight.MATCH_NO_DOCS) {
+            return MatchNoDocsQuery.INSTANCE;
+        }
+        Weight filterWeight = filterResult == null ? null : filterResult.weight();
         // need to check if this is actually a valid candidate for post filtering
         PostFilterRewriteMeta rewriteMeta = maybeCreatePostFilterQuery(searcher, filterWeight);
         if (rewriteMeta != null) {
@@ -242,11 +247,11 @@ public class PostFilterKnnQuery extends Query implements QueryProfilerProvider {
     private record PostFilterRewriteMeta(Query postFilterQuery, float selectivity) {}
 
     private PostFilterRewriteMeta maybeCreatePostFilterQuery(IndexSearcher searcher, Weight filterWeight) throws IOException {
-        var leaves = searcher.getIndexReader().leaves();
-        int totalVectors = innerQuery.countTotalVectors(leaves);
         if (filterWeight == null) {
             return null;
         }
+        var leaves = searcher.getIndexReader().leaves();
+        int totalVectors = innerQuery.countTotalVectors(leaves);
         float selectivity = computeSelectivity(filterWeight, leaves, totalVectors);
         if (selectivity >= postFilterSelectivityThreshold) {
             return new PostFilterRewriteMeta(innerQuery.createPostFilterDelegate(selectivity), selectivity);

@@ -20,6 +20,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
@@ -367,6 +368,35 @@ public class PostFilterKnnQueryTests extends ESTestCase {
                 assertEquals(1, meta.postFilterDelegateCalls());
                 assertEquals(0.7f, meta.postFilterDelegateSelectivity(), 0.001f);
                 // Early-exit fires before retry/fallback can run.
+                assertEquals(0, meta.retryCalls());
+                assertEquals(0, meta.fallbackCalls());
+            }
+        }
+    }
+
+    public void testMatchNoDocsFilterShortCircuits() throws IOException {
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            for (int i = 0; i < 4; i++) {
+                Document doc = new Document();
+                doc.add(new KnnFloatVectorField("vector", new float[] { (float) i }));
+                doc.add(new KeywordField("tag", "pass", Field.Store.NO));
+                writer.addDocument(doc);
+            }
+            writer.forceMerge(1);
+            writer.commit();
+
+            try (IndexReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = newSearcher(reader);
+                int k = 4;
+                Query filter = MatchNoDocsQuery.INSTANCE;
+                AssertingKnnQuery asserting = new AssertingKnnQuery("vector", new float[] { 0f }, k, 10, filter, 1.5f);
+                PostFilterKnnQuery pfq = new PostFilterKnnQuery(asserting, filter, k, "vector", null, 0f);
+
+                Query rewritten = pfq.rewrite(searcher);
+                assertSame(MatchNoDocsQuery.INSTANCE, rewritten);
+
+                AssertingKnnQuery.PostFilterMeta meta = asserting.postFilterMeta();
+                assertEquals(0, meta.postFilterDelegateCalls());
                 assertEquals(0, meta.retryCalls());
                 assertEquals(0, meta.fallbackCalls());
             }

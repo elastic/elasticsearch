@@ -30,7 +30,7 @@ public class FloatLloydKMeansLocalTests extends AbstractLloydKMeansLocalTestCase
 
     @Override
     protected ClusteringVectorValues<float[]> generateData(int nSamples, int nDims, int nClusters) {
-        return generateFloatData(nSamples, nDims, nClusters);
+        return KMeansTestData.generateFloatData(nSamples, nDims, nClusters);
     }
 
     @Override

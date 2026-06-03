@@ -21,7 +21,7 @@ public class ByteLloydKMeansLocalTests extends AbstractLloydKMeansLocalTestCase<
 
     @Override
     protected ClusteringVectorValues<byte[]> generateData(int nSamples, int nDims, int nClusters) {
-        return generateByteData(nSamples, nDims, nClusters);
+        return KMeansTestData.generateByteData(nSamples, nDims, nClusters);
     }
 
     @Override

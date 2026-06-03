@@ -24,7 +24,7 @@ public class ByteBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTes
 
     @Override
     protected ClusteringVectorValues<byte[]> generateData(int nSamples, int nDims, int nClusters) {
-        return generateByteDataStatic(nSamples, nDims, nClusters);
+        return KMeansTestData.generateByteData(nSamples, nDims, nClusters);
     }
 
     @Override

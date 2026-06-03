@@ -26,7 +26,7 @@ public class ByteHierarchicalKMeansTests extends AbstractHierarchicalKMeansTestC
 
     @Override
     protected ClusteringVectorValues<byte[]> generateData(int nSamples, int nDims, int nClusters) {
-        return generateByteData(nSamples, nDims, nClusters);
+        return KMeansTestData.generateByteData(nSamples, nDims, nClusters);
     }
 
     @Override

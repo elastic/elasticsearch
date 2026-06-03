@@ -128,13 +128,4 @@ public abstract class AbstractLloydKMeansLocalTestCase<V> extends ESTestCase {
         assertCentroidsAreZero(centroids);
     }
 
-    // ---- Data generators ----
-
-    protected static KMeansFloatVectorValues generateFloatData(int nSamples, int nDims, int nClusters) {
-        return KMeansTestData.generateFloatData(nSamples, nDims, nClusters);
-    }
-
-    protected static KMeansByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
-        return KMeansTestData.generateByteData(nSamples, nDims, nClusters);
-    }
 }

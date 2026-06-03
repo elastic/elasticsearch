@@ -141,13 +141,4 @@ public abstract class AbstractBalancedKMeansLocalTestCase<V> extends ESTestCase 
         assertNotNull(kMeansIntermediate.soarAssignments());
     }
 
-    // ---- Data generators ----
-
-    protected static KMeansFloatVectorValues generateFloatDataWithStdDev(int nSamples, int nDims, int nClusters, float stdDev) {
-        return KMeansTestData.generateFloatDataWithStdDev(nSamples, nDims, nClusters, stdDev);
-    }
-
-    protected static KMeansByteVectorValues generateByteDataStatic(int nSamples, int nDims, int nClusters) {
-        return KMeansTestData.generateByteData(nSamples, nDims, nClusters);
-    }
 }

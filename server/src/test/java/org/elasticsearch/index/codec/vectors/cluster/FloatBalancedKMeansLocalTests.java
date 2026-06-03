@@ -32,7 +32,7 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
 
     @Override
     protected ClusteringVectorValues<float[]> generateData(int nSamples, int nDims, int nClusters) {
-        return generateFloatDataWithStdDev(nSamples, nDims, nClusters, 0.5f);
+        return KMeansTestData.generateFloatDataWithStdDev(nSamples, nDims, nClusters, 0.5f);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         int nTrials = 10;
 
         for (int trials = 0; trials < nTrials; trials++) {
-            KMeansFloatVectorValues vectors = (KMeansFloatVectorValues) generateFloatDataWithStdDev(nVectors, dims, nClusters, 0.5f);
+            KMeansFloatVectorValues vectors = (KMeansFloatVectorValues) KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, nClusters, 0.5f);
 
             for (int j = 0; j < methods.size(); j++) {
                 float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
@@ -123,7 +123,7 @@ public class FloatBalancedKMeansLocalTests extends AbstractBalancedKMeansLocalTe
         final float soarLambda = -1;
         final int numThreads = randomIntBetween(2, 8);
 
-        KMeansFloatVectorValues vectors = (KMeansFloatVectorValues) generateFloatDataWithStdDev(nVectors, dims, 1, 0.2f);
+        KMeansFloatVectorValues vectors = (KMeansFloatVectorValues) KMeansTestData.generateFloatDataWithStdDev(nVectors, dims, 1, 0.2f);
 
         try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
             TaskExecutor taskExecutor = new TaskExecutor(executorService);

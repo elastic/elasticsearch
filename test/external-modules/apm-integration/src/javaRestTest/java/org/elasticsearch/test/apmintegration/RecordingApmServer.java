@@ -53,7 +53,6 @@ public class RecordingApmServer extends ExternalResource {
     private final AtomicReference<ReceivedTelemetry.ReceivedResource> resource = new AtomicReference<>();
 
     private HttpServer server;
-    /** OTLP/gRPC server for audit-log export. */
     private Server grpcServer;
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
@@ -196,11 +195,6 @@ public class RecordingApmServer extends ExternalResource {
         return host + ":" + getPort();
     }
 
-    /** @return the port the gRPC server is listening on. */
-    public int getGrpcPort() {
-        return grpcServer.getPort();
-    }
-
     /**
      * Returns the gRPC endpoint URL the OTLP/gRPC exporter expects: {@code http://host:port}
      * (no path component, unlike the HTTP endpoint which includes {@code /v1/logs}).
@@ -210,7 +204,7 @@ public class RecordingApmServer extends ExternalResource {
         if (host.contains(":")) {
             host = "[" + host + "]";
         }
-        return "http://" + host + ":" + getGrpcPort();
+        return "http://" + host + ":" + grpcServer.getPort();
     }
 
     /**

@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
@@ -26,7 +27,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     private final APMTracer apmTracer;
     private final APMMeterService apmMeterService;
     private final long flushTimeoutMillis;
-    private volatile OtelSdkExportLogsSupplier logsSupplier;
+    private final SetOnce<OtelSdkExportLogsSupplier> logsSupplier = new SetOnce<>();
 
     public APMTelemetryProvider(Settings settings, Path diskBufferPath) {
         apmMeterService = new APMMeterService(settings, diskBufferPath);
@@ -59,6 +60,10 @@ public class APMTelemetryProvider implements TelemetryProvider {
     public void attemptFlush() {
         CompletableResultCode metrics = apmMeterService.attemptFlushMetrics();
         CompletableResultCode traces = apmTracer.attemptFlushTraces();
+        OtelSdkExportLogsSupplier logs = logsSupplier.get();
+        if (logs != null) {
+            logs.forceFlush();
+        }
         CompletableResultCode.ofAll(List.of(metrics, traces)).join(flushTimeoutMillis, TimeUnit.MILLISECONDS);
     }
 
@@ -68,14 +73,6 @@ public class APMTelemetryProvider implements TelemetryProvider {
      * {@code getTelemetryProvider()} and the supplier in the later {@code createComponents()} call.
      */
     public void setLogsSupplier(OtelSdkExportLogsSupplier supplier) {
-        this.logsSupplier = supplier;
-    }
-
-    @Override
-    public void attemptFlushLogs() {
-        OtelSdkExportLogsSupplier supplier = logsSupplier;
-        if (supplier != null) {
-            supplier.forceFlush();
-        }
+        this.logsSupplier.set(supplier);
     }
 }

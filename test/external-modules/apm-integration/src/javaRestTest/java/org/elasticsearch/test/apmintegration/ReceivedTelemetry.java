@@ -106,14 +106,9 @@ public sealed interface ReceivedTelemetry {
      * {@code attributes} is a flat map of OTLP log record attributes; the keys include the
      * {@code log4j.map_message.} prefix until the custom appender in PR 2 strips it.
      */
-    record ReceivedLog(
-        long timeUnixNano,
-        int severityNumber,
-        String severityText,
-        String body,
-        Map<String, Object> attributes,
-        Optional<String> traceId
-    ) implements ReceivedTelemetry {
+    record ReceivedLog(long timeUnixNano, int severityNumber, String severityText, String body, Map<String, Object> attributes, Optional<String> traceId)
+        implements
+            ReceivedTelemetry {
         public ReceivedLog {
             requireNonNull(attributes);
             attributes = Map.copyOf(attributes);

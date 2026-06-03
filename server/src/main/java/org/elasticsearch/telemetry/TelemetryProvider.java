@@ -28,17 +28,10 @@ public interface TelemetryProvider {
     MeterRegistry getMeterRegistry();
 
     /**
-     * Attempts to export all buffered telemetry (metrics and traces). Implementations should flush
-     * both signals concurrently where possible and bound the wait to an appropriate timeout.
+     * Forces any buffered telemetry (metrics, traces, and log records) to be exported immediately.
+     * Implementations should flush all signals and bound the wait to an appropriate timeout.
      */
     void attemptFlush();
-
-    /**
-     * Flushes buffered audit log records through the OTel SDK {@code BatchLogRecordProcessor}.
-     * Needed both for test assertions (to avoid racing the processor's schedule) and for
-     * graceful shutdown.
-     */
-    void attemptFlushLogs();
 
     TelemetryProvider NOOP = new NoopTelemetryProvider();
 
@@ -56,8 +49,5 @@ public interface TelemetryProvider {
 
         @Override
         public void attemptFlush() {}
-
-        @Override
-        public void attemptFlushLogs() {}
     }
 }

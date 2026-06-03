@@ -34,6 +34,15 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
     }
 
     public ES819Version3TSDBDocValuesFormat(boolean largeNumericBlock, boolean largeBinaryBlock, boolean writePrefixPartition) {
+        this(largeNumericBlock, largeBinaryBlock, writePrefixPartition, false);
+    }
+
+    public ES819Version3TSDBDocValuesFormat(
+        boolean largeNumericBlock,
+        boolean largeBinaryBlock,
+        boolean writePrefixPartition,
+        boolean skipTsidLz4Encoding
+    ) {
         super(
             CODEC_NAME,
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -45,7 +54,8 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             DocOffsetsCodec.BITPACKING,
             largeBinaryBlock ? BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             largeBinaryBlock ? BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT : ES819TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
-            writePrefixPartition
+            writePrefixPartition,
+            skipTsidLz4Encoding
         );
     }
 
@@ -69,7 +79,8 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             DocOffsetsCodec.BITPACKING,
             BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
             BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
-            writePrefixPartition
+            writePrefixPartition,
+            false
         );
     }
 }

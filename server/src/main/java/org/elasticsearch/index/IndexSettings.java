@@ -644,6 +644,21 @@ public final class IndexSettings {
     public static final FeatureFlag ES95_CODEC_FEATURE_FLAG = new FeatureFlag("es95_codec");
 
     /**
+     * Feature flag gating the optimization that skips LZ4 on the {@code _tsid} terms dictionary.
+     * The {@code _tsid} suffix bytes after prefix compression are uniformly random, so LZ4 wastes
+     * CPU on both sides and adds framing bytes without finding matches.
+     *
+     * <p>On ES819 the optimization is gated on this flag AND on
+     * {@link IndexVersions#TSDB_SKIP_TSID_LZ4_ENCODING}, so only indexes created at or after that
+     * version may opt in. ES95 always opts in (the optimization is part of its design).
+     * Per-segment dispatch reads the existing doc-values format version stamped in the
+     * data/meta/skip headers: LZ4 below {@code VERSION_TERMS_DICT_RAW_FLAG}, raw at or above it.
+     * No per-field meta byte is written, and mixed-version segments inside one index read
+     * correctly because the reader picks the decoder per segment.
+     */
+    public static final FeatureFlag SKIP_TSID_LZ4_ENCODING_FEATURE_FLAG = new FeatureFlag("skip_tsid_lz4_encoding");
+
+    /**
      * Defines the name of the field storing the metric temporality.
      * The corresponding field must be a keyword field (or keyword-like, e.g. constant_keyword).
      * It should only store two values: either {@code delta} or {@code cumulative}.

@@ -44,7 +44,6 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.Assertions;
@@ -90,6 +89,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     private final DocOffsetsCodec.Decoder docOffsetsDecoder;
     private final NumericBlockCodec numericCodec;
     private final OrdinalBlockCodec ordinalCodec;
+    private final TermsDictBlockCodec termsDictCodec;
+    private final TermsDictReadContext termsDictReadContext;
     private NumericReadContext readContext;
 
     @SuppressWarnings("this-escape")
@@ -180,6 +181,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
             success = true;
             this.version = version;
+            this.termsDictCodec = new TSDBTermsDictBlockCodec();
+            this.termsDictReadContext = new TermsDictReadContext(version >= TSDBDocValuesFormatConfig.VERSION_TERMS_DICT_RAW_FLAG);
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(this.data);
@@ -195,7 +198,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                     tempIn,
                     skipCodec,
                     TSDBDocValuesFormatConfig.VERSION_START,
-                    TSDBDocValuesFormatConfig.VERSION_SEPARATE_SKIPLIST,
+                    TSDBDocValuesFormatConfig.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix
                 );
@@ -217,6 +220,8 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         this.docOffsetsDecoder = original.docOffsetsDecoder;
         this.numericCodec = original.numericCodec;
         this.ordinalCodec = original.ordinalCodec;
+        this.termsDictCodec = original.termsDictCodec;
+        this.termsDictReadContext = original.termsDictReadContext;
         this.readContext = original.readContext;
         this.numerics = original.numerics;
         this.binaries = original.binaries;
@@ -1120,16 +1125,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     @Override
     public SortedDocValues getSorted(FieldInfo field) throws IOException {
         SortedEntry entry = sorted.get(field.number);
-        return getSorted(entry, field.number == primarySortFieldNumber);
+        return getSorted(field, entry, field.number == primarySortFieldNumber);
     }
 
-    private SortedDocValues getSorted(SortedEntry entry, boolean valuesSorted) throws IOException {
+    private SortedDocValues getSorted(FieldInfo field, SortedEntry entry, boolean valuesSorted) throws IOException {
         if (entry.ordsEntry.docsWithFieldOffset == -2) {
             return DocValues.emptySorted();
         }
 
         final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize, null);
-        return new BaseSortedDocValues(entry) {
+        return new BaseSortedDocValues(termsDictCodec.createReader(termsDictReadContext, field), entry) {
 
             @Override
             public int ordValue() throws IOException {
@@ -1244,10 +1249,12 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             PartitionedDocValues {
 
         final SortedEntry entry;
+        final TermsDictFieldReader fieldReader;
         final TermsEnum termsEnum;
 
-        BaseSortedDocValues(SortedEntry entry) throws IOException {
+        BaseSortedDocValues(TermsDictFieldReader fieldReader, SortedEntry entry) throws IOException {
             this.entry = entry;
+            this.fieldReader = fieldReader;
             this.termsEnum = termsEnum();
         }
 
@@ -1273,7 +1280,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public TermsEnum termsEnum() throws IOException {
-            return new TermsDict(entry.termsDictEntry, data, merging, formatConfig.termsBlockLz4Shift());
+            return new TermsDict(entry.termsDictEntry, data, merging, formatConfig.termsBlockLz4Shift(), fieldReader.decoder());
         }
 
         @Override
@@ -1427,13 +1434,21 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final IndexInput data;
         final boolean merging;
         final int termsDictBlockLz4Shift;
+        final TermsDictFieldReader fieldReader;
         final TermsEnum termsEnum;
 
-        BaseSortedSetDocValues(SortedSetEntry entry, IndexInput data, boolean merging, int termsDictBlockLz4Shift) throws IOException {
+        BaseSortedSetDocValues(
+            TermsDictFieldReader fieldReader,
+            SortedSetEntry entry,
+            IndexInput data,
+            boolean merging,
+            int termsDictBlockLz4Shift
+        ) throws IOException {
             this.entry = entry;
             this.data = data;
             this.merging = merging;
             this.termsDictBlockLz4Shift = termsDictBlockLz4Shift;
+            this.fieldReader = fieldReader;
             this.termsEnum = termsEnum();
         }
 
@@ -1459,7 +1474,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public TermsEnum termsEnum() throws IOException {
-            return new TermsDict(entry.termsDictEntry, data, merging, termsDictBlockLz4Shift);
+            return new TermsDict(entry.termsDictEntry, data, merging, termsDictBlockLz4Shift, fieldReader.decoder());
         }
     }
 
@@ -1474,6 +1489,7 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         final RandomAccessInput indexBytes;
         final BytesRef term;
         final int termsDictBlockLz4Shift;
+        final TermsDictFieldReader.Decoder blockDecoder;
         long ord = -1;
 
         BytesRef blockBuffer = null;
@@ -1481,9 +1497,16 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         long currentCompressedBlockStart = -1;
         long currentCompressedBlockEnd = -1;
 
-        TermsDict(TermsDictEntry entry, IndexInput data, boolean merging, int termsDictBlockLz4Shift) throws IOException {
+        TermsDict(
+            TermsDictEntry entry,
+            IndexInput data,
+            boolean merging,
+            int termsDictBlockLz4Shift,
+            TermsDictFieldReader.Decoder blockDecoder
+        ) throws IOException {
             this.entry = entry;
             this.termsDictBlockLz4Shift = termsDictBlockLz4Shift;
+            this.blockDecoder = blockDecoder;
             RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
             blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
             bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
@@ -1646,9 +1669,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
             if (offset < entry.termsDataLength - 1) {
                 if (currentCompressedBlockStart != offset) {
                     blockBuffer.offset = term.length;
-                    blockBuffer.length = bytes.readVInt();
+                    blockBuffer.length = blockDecoder.readHeader(bytes);
                     System.arraycopy(term.bytes, 0, blockBuffer.bytes, 0, blockBuffer.offset);
-                    LZ4.decompress(bytes, blockBuffer.length, blockBuffer.bytes, blockBuffer.offset);
+                    blockDecoder.readBody(bytes, blockBuffer.length, blockBuffer.bytes, blockBuffer.offset);
                     currentCompressedBlockStart = offset;
                     currentCompressedBlockEnd = bytes.getFilePointer();
                 } else {
@@ -1700,12 +1723,18 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
     public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
         SortedSetEntry entry = sortedSets.get(field.number);
         if (entry.singleValueEntry != null) {
-            return DocValues.singleton(getSorted(entry.singleValueEntry, field.number == primarySortFieldNumber));
+            return DocValues.singleton(getSorted(field, entry.singleValueEntry, field.number == primarySortFieldNumber));
         }
 
         SortedNumericEntry ordsEntry = entry.ordsEntry;
         final SortedNumericDocValues ords = getSortedNumeric(ordsEntry, entry.termsDictEntry.termsDictSize, null);
-        return new BaseSortedSetDocValues(entry, data, merging, formatConfig.termsBlockLz4Shift()) {
+        return new BaseSortedSetDocValues(
+            termsDictCodec.createReader(termsDictReadContext, field),
+            entry,
+            data,
+            merging,
+            formatConfig.termsBlockLz4Shift()
+        ) {
 
             int i = 0;
             int count = 0;

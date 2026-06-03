@@ -15,30 +15,38 @@ import org.elasticsearch.test.ESTestCase;
 public class ES95TSDBDocValuesFormatFactoryTests extends ESTestCase {
 
     public void testGetReturnsSameInstanceForSameParams() {
-        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.get(true, false, true);
-        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.get(true, false, true);
+        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.get(true, false, true, false);
+        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.get(true, false, true, false);
         assertSame(a, b);
     }
 
     public void testGetReturnsDifferentInstancesForDifferentParams() {
-        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.get(true, false, false);
-        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.get(false, false, false);
+        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.get(true, false, false, false);
+        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.get(false, false, false, false);
         assertNotSame(a, b);
     }
 
-    public void testGetCoversAllEightCombinations() {
+    public void testGetCoversAllSixteenCombinations() {
         for (int n = 0; n < 2; n++) {
             for (int b = 0; b < 2; b++) {
                 for (int p = 0; p < 2; p++) {
-                    assertNotNull(ES95TSDBDocValuesFormatFactory.get(n == 1, b == 1, p == 1));
+                    for (int s = 0; s < 2; s++) {
+                        assertNotNull(ES95TSDBDocValuesFormatFactory.get(n == 1, b == 1, p == 1, s == 1));
+                    }
                 }
             }
         }
     }
 
     public void testCreateReturnsFreshInstanceOnEveryCall() {
-        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.create(true, false, true);
-        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.create(true, false, true);
+        final DocValuesFormat a = ES95TSDBDocValuesFormatFactory.create(true, false, true, false);
+        final DocValuesFormat b = ES95TSDBDocValuesFormatFactory.create(true, false, true, false);
         assertNotSame(a, b);
+    }
+
+    public void testGetReturnsDistinctInstancesAcrossSkipLz4FlagToggle() {
+        final DocValuesFormat noSkip = ES95TSDBDocValuesFormatFactory.get(false, false, false, false);
+        final DocValuesFormat skip = ES95TSDBDocValuesFormatFactory.get(false, false, false, true);
+        assertNotSame(noSkip, skip);
     }
 }

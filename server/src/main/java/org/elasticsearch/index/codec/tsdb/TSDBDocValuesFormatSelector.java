@@ -41,13 +41,16 @@ public final class TSDBDocValuesFormatSelector {
             && indexCreatedVersion.onOrAfter(IndexVersions.WRITE_TSID_PREFIX_PARTITION);
 
         if (useES95(indexSettings)) {
-            return ES95TSDBDocValuesFormatFactory.get(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
+            return ES95TSDBDocValuesFormatFactory.get(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions, true);
         }
+        final boolean skipTsidLz4Encoding = IndexSettings.SKIP_TSID_LZ4_ENCODING_FEATURE_FLAG.isEnabled()
+            && indexCreatedVersion.onOrAfter(IndexVersions.TSDB_SKIP_TSID_LZ4_ENCODING);
         return ES819TSDBDocValuesFormatFactory.createDocValuesFormat(
             indexCreatedVersion,
             useLargeNumericBlockSize,
             useLargeBinaryBlockSize,
-            writePartitions
+            writePartitions,
+            skipTsidLz4Encoding
         );
     }
 

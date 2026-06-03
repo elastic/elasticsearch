@@ -28,6 +28,7 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
                 random().nextBoolean(),
                 TSDBDocValuesTestUtil.randomNumericBlockSize(),
                 writePrefixPartitions,
+                false,
                 ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
                 ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
                 NumericCodecFactory.DEFAULT,

@@ -252,6 +252,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             docOffsetsCodec,
             blockBytesThreshold,
             blockCountThreshold,
+            false,
             false
         );
     }
@@ -267,7 +268,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         DocOffsetsCodec docOffsetsCodec,
         int blockBytesThreshold,
         int blockCountThreshold,
-        boolean writePrefixPartitions
+        boolean writePrefixPartitions,
+        boolean skipTsidLz4Encoding
     ) {
         super(codecName);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
@@ -292,7 +294,8 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
                 binaryDVCompressionMode
             ),
             DIRECT_MONOTONIC_BLOCK_SHIFT,
-            writePrefixPartitions
+            writePrefixPartitions,
+            skipTsidLz4Encoding
         );
     }
 

@@ -41,7 +41,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.saml.SamlLogoutRequest;
@@ -240,7 +239,13 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));
+        samlRealm = SamlRealm.create(
+            realmConfig,
+            threadPool,
+            mock(SSLService.class),
+            mockResourceWatcherService(),
+            mock(UserRoleMapper.class)
+        );
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
     }
 

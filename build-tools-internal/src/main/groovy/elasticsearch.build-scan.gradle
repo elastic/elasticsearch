@@ -139,11 +139,13 @@ develocity {
       }
 
       buildFinished { result ->
+        def wasPreempted = false
+        def failedBeforePreemption = false
+
         // Check whether the GradleRunner detected GCP preemption by reading
         // the marker file it writes before cancelling the build.
         if (watchingForPreemption) {
           def preemptionMarker = new File(projectDir, 'build/.preemption-marker.json')
-          def wasPreempted = false
           def preemptionTime = null
           if (preemptionMarker.exists()) {
             try {
@@ -158,7 +160,6 @@ develocity {
             }
           }
 
-          def failedBeforePreemption = false
           if (wasPreempted) {
             tag 'PREEMPTED'
             if (preemptionTime != null) {

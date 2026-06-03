@@ -1015,7 +1015,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         CheckedSupplier<T, Exception> executable,
         ActionListener<T> listener
     ) {
-        executor.execute(ActionRunnable.wrap(listener, l -> l.onResponse(executable.get())));
+        executor.execute(ActionRunnable.supplyAndDecRef(listener, executable));
     }
 
     /**

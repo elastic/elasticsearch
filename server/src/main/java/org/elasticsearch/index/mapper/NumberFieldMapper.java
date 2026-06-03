@@ -2309,8 +2309,9 @@ public class NumberFieldMapper extends FieldMapper {
             if (blContext.blockLoaderFunctionConfig() != null) {
                 throw new UnsupportedOperationException("function fusing only supported for doc values");
             }
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
-            if (isSyntheticSource && blContext.parentField(name()) == null) {
+            if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce, blContext);
             }
 

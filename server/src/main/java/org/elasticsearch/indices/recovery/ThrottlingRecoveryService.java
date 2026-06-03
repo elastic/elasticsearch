@@ -32,7 +32,7 @@ import java.util.function.Consumer;
  * <p>
  * Max number of concurrent recovery slots are controlled by setting {@link #INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING}
  * which can be dynamically updated. If limit is increased, pending tasks will be dispatched up to the new limit.
- * If limit decreases, no tasks will be canceled, and we will let running tasks finish.
+ * If limit decreases, no tasks will be cancelled, and we will let running tasks finish.
  */
 public final class ThrottlingRecoveryService {
     /**

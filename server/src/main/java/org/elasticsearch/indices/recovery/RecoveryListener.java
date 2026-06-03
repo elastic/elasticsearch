@@ -39,10 +39,10 @@ public interface RecoveryListener {
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
 
     /**
-     * Called when recovery is canceled.
+     * Called when recovery is cancelled.
      * E.g. recovering shard has been closed.
      */
-    default void onRecoveryCanceled() {}
+    default void onRecoveryCancelled() {}
 
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
@@ -69,9 +69,9 @@ public interface RecoveryListener {
             }
 
             @Override
-            public void onRecoveryCanceled() {
+            public void onRecoveryCancelled() {
                 try {
-                    listener.onRecoveryCanceled();
+                    listener.onRecoveryCancelled();
                 } finally {
                     runAfter.run();
                 }
@@ -101,8 +101,8 @@ public interface RecoveryListener {
         }
 
         @Override
-        public void onRecoveryCanceled() {
-            delegate.onRecoveryCanceled();
+        public void onRecoveryCancelled() {
+            delegate.onRecoveryCancelled();
         }
     }
 }

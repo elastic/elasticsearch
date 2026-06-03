@@ -3821,7 +3821,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (r) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
             } else {
-                recoveryListener.onRecoveryCanceled();
+                recoveryListener.onRecoveryCancelled();
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
     }

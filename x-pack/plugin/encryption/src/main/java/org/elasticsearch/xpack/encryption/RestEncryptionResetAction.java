@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.encryption;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
@@ -16,6 +17,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -25,6 +27,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(Scope.INTERNAL)
 public class RestEncryptionResetAction extends BaseRestHandler {
+
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestEncryptionResetAction(Predicate<NodeFeature> clusterSupportsFeature) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+    }
 
     @Override
     public List<Route> routes() {
@@ -38,6 +46,9 @@ public class RestEncryptionResetAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (clusterSupportsFeature.test(ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE) == false) {
+            throw new IllegalArgumentException("endpoint not supported on all nodes in the cluster");
+        }
         boolean acceptDataLoss = request.paramAsBoolean("accept_data_loss", false);
         var req = new EncryptionResetRequest(RestUtils.getMasterNodeTimeout(request), RestUtils.getAckTimeout(request), acceptDataLoss);
         return channel -> client.execute(TransportEncryptionResetAction.TYPE, req, new RestToXContentListener<>(channel));

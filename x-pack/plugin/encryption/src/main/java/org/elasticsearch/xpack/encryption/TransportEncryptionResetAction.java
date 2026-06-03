@@ -95,7 +95,7 @@ public class TransportEncryptionResetAction extends TransportMasterNodeAction<En
 
     @Override
     protected ClusterBlockException checkBlock(EncryptionResetRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     static ClusterState executeReset(ClusterState currentState, EncryptionResetTask task) {

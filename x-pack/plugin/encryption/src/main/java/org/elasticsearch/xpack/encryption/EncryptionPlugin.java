@@ -157,7 +157,7 @@ public class EncryptionPlugin extends Plugin implements ActionPlugin, Extensible
         if (ProjectEncryptionKeyService.PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
             return List.of();
         }
-        return List.of(new RestEncryptionResetAction());
+        return List.of(new RestEncryptionResetAction(clusterSupportsFeature));
     }
 
     @Override

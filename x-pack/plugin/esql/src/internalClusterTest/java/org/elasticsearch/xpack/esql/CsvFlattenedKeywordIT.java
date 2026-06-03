@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
@@ -179,12 +180,30 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     private static final ConcurrentMap<String, AtomicInteger> SILENCED_COUNTS_BY_REASON = new ConcurrentHashMap<>();
 
     /**
-     * Runs after {@link CsvIT#setupCluster()} (which JUnit guarantees runs first because it is
-     * declared on the superclass) and replaces the identity strategy with one that rewrites
-     * keyword fields to flattened, wraps source values, and rewrites the query.
+     * Installs the keyword&rarr;flattened rewrite strategy, after first skipping the whole variant
+     * on release builds.
+     * <p>
+     * This runs after {@link CsvIT#setupCluster()} (JUnit guarantees the superclass
+     * {@code @BeforeClass} runs first) and replaces the identity strategy with one that rewrites
+     * keyword fields to {@code flattened}, wraps source values, and wraps every query reference in
+     * {@code field_extract(<field>, "<sub-key>")}.
+     * <p>
+     * Both the {@code flattened} datatype ({@link DataType#FLATTENED}) and the {@code field_extract}
+     * function are under construction and therefore active only in snapshot builds. In a release
+     * build {@code DataType.fromEs("flattened")} resolves to {@code UNSUPPORTED} &mdash; so every
+     * converted field would fail analysis with {@code Cannot use field [...] with unsupported type
+     * [flattened]} &mdash; and {@code field_extract} is not registered at all, leaving nothing for
+     * this variant to exercise. The {@code assumeTrue} gate therefore skips the class as a unit.
+     * It deliberately tests the same {@code supportedLocally()} predicate the analyzer itself uses
+     * to reject the type, so the gate cannot drift from the condition it guards against.
      */
     @BeforeClass
     public static void installKeywordToFlattenedStrategy() {
+        assumeTrue(
+            "keyword→flattened variant requires the flattened datatype and field_extract(), "
+                + "which are under construction (snapshot-only) and unavailable in release builds",
+            DataType.FLATTENED.supportedVersion().supportedLocally()
+        );
         indexLoadStrategy = new KeywordToFlattenedStrategy();
     }
 

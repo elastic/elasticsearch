@@ -4752,10 +4752,11 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Project[[x{r}#7, y{r}#10]]
-     *   \_Project[[network.total_bytes_in{r}#79 AS x#7, network.eth0.tx{r}#77 AS y#10]]
-     *     \_Project[[network.total_bytes_in{r}#79, network.eth0.tx{r}#77]]
-     *       \_UnionAll[[@timestamp{r}#61, client.ip{r}#62, cluster{r}#63, event{r}#64, event_city{r}#65, event_city_boundary{r}#66,
+     * \_OrderBy[[Order[x{r}#7,ASC,LAST]]]
+     *   \_Project[[x{r}#7, y{r}#10]]
+     *     \_Project[[network.total_bytes_in{r}#79 AS x#7, network.eth0.tx{r}#77 AS y#10]]
+     *       \_Project[[network.total_bytes_in{r}#79, network.eth0.tx{r}#77]]
+     *         \_UnionAll[[@timestamp{r}#61, client.ip{r}#62, cluster{r}#63, event{r}#64, event_city{r}#65, event_city_boundary{r}#66,
      *                   event_location{r}#67, event_log{r}#68, event_shape{r}#69, events_received{r}#70, network.bytes_in{r}#71,
      *                   network.cost{r}#72, network.eth0.currently_connected_clients{r}#73, network.eth0.firmware_version{r}#74,
      *                   network.eth0.last_up{r}#75, network.eth0.rx{r}#76, network.eth0.tx{r}#77, network.eth0.up{r}#78,
@@ -4795,10 +4796,17 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             | KEEP network.total_bytes_in, network.eth0.tx
             | RENAME network.total_bytes_in AS x, network.eth0.tx AS y
             | KEEP *
+            | SORT x
             """);
 
         Limit limit = as(plan, Limit.class);
-        Project project = as(limit.child(), Project.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        ReferenceAttribute xOrder = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("x", xOrder.name());
+        assertEquals(LONG, xOrder.dataType());
+        Project project = as(orderBy.child(), Project.class);
         List<? extends NamedExpression> projections = project.projections();
         assertEquals(2, projections.size());
         ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
@@ -4834,7 +4842,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Project[[y{r}#9]]
+     * \_OrderBy[[Order[y{r}#9,ASC,LAST]]]
+     *  \_Project[[y{r}#9]]
      *   \_Project[[network.total_bytes_in{r}#78 AS y#9]]
      *     \_Project[[network.total_bytes_in{r}#78]]
      *       \_UnionAll[[@timestamp{r}#60, client.ip{r}#61, cluster{r}#62, event{r}#63, event_city{r}#64, event_city_boundary{r}#65,
@@ -4877,10 +4886,17 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             | KEEP network.total_bytes_in
             | RENAME network.total_bytes_in AS x, x as y
             | KEEP y
+            | SORT y
             """);
 
         Limit limit = as(plan, Limit.class);
-        Project project = as(limit.child(), Project.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        ReferenceAttribute yOrder = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("y", yOrder.name());
+        assertEquals(LONG, yOrder.dataType());
+        Project project = as(orderBy.child(), Project.class);
         List<? extends NamedExpression> projections = project.projections();
         assertEquals(1, projections.size());
         ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
@@ -4904,7 +4920,8 @@ public class AnalyzerSubqueryTests extends ESTestCase {
 
     /*
      * Limit[1000[INTEGER],false,false]
-     * \_Project[[y{r}#9]]
+     * \_OrderBy[[Order[y{r}#9,ASC,LAST]]]
+     *  \_Project[[y{r}#9]]
      *   \_Project[[x{r}#6 AS y#9]]
      *     \_Project[[network.total_bytes_in{r}#78 AS x#6]]
      *       \_Project[[network.total_bytes_in{r}#78]]
@@ -4949,10 +4966,17 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             | RENAME network.total_bytes_in AS x
             | RENAME x as y
             | KEEP *
+            | SORT y
             """);
 
         Limit limit = as(plan, Limit.class);
-        Project project = as(limit.child(), Project.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        ReferenceAttribute yOrder = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("y", yOrder.name());
+        assertEquals(LONG, yOrder.dataType());
+        Project project = as(orderBy.child(), Project.class);
         List<? extends NamedExpression> projections = project.projections();
         assertEquals(1, projections.size());
         ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
@@ -4976,6 +5000,190 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
         assertEquals("network.total_bytes_in", total_bytes_in.name());
         assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[x{r}#7,ASC,LAST]]]
+     *   \_Project[[x{r}#7, y{r}#10]]
+     *     \_Project[[network.total_bytes_in{r}#79 AS x#7, network.eth0.tx{r}#77 AS y#10]]
+     *       \_Project[[network.total_bytes_in{r}#79, network.eth0.tx{r}#77]]
+     *         \_UnionAll[...]
+     *           |_...
+     *           \_...
+     *
+     * Same as {@link #testSubqueryRenameKeepOnMissingCounterFields()} but with {@code SET unmapped_fields="nullify"}
+     */
+    public void testSubqueryRenameKeepOnMissingCounterFieldsWithNullifyAndSort() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().statement("""
+            SET unmapped_fields="nullify";
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in, network.eth0.tx
+            | RENAME network.total_bytes_in AS x, network.eth0.tx AS y
+            | KEEP *
+            | SORT x
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        ReferenceAttribute xOrder = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("x", xOrder.name());
+        assertEquals(LONG, xOrder.dataType());
+        Project project = as(orderBy.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        ReferenceAttribute y = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(LONG, x.dataType());
+        assertEquals("y", y.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        Alias yAlias = as(projections.get(1), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        ReferenceAttribute network_eth0_tx = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("network.eth0.tx", network_eth0_tx.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, network_eth0_tx.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+        assertTrue(
+            unionAll.output().stream().anyMatch(a -> "network.eth0.tx".equals(a.name()) && AGGREGATE_METRIC_DOUBLE.equals(a.dataType()))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[y{r}#9,ASC,LAST]]]
+     *   \_Project[[y{r}#9]]
+     *     \_Project[[network.total_bytes_in{r}#78 AS y#9]]
+     *       \_Project[[network.total_bytes_in{r}#78]]
+     *         \_UnionAll[...]
+     *
+     * Same as {@link #testSubqueryRenameChainKeepStarOnMissingCounterField()} but with {@code SET unmapped_fields="nullify"}
+     */
+    public void testSubqueryRenameChainKeepStarOnMissingCounterFieldWithNullifyAndSort() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().statement("""
+            SET unmapped_fields="nullify";
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x, x as y
+            | KEEP y
+            | SORT y
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        ReferenceAttribute yOrder = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("y", yOrder.name());
+        assertEquals(LONG, yOrder.dataType());
+        Project project = as(orderBy.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_OrderBy[[Order[y{r}#?,ASC,LAST]]]
+     *   \_Project[[<remaining fields>, x{r}#? AS y#?]]
+     *     \_Project[[<remaining fields>, network.total_bytes_in{r}#? AS x#?]]
+     *       \_Project[[<remaining fields after DROP>]]
+     *         \_UnionAll[...]
+     *
+     * DROP variant of {@link #testSubqueryDoubleRenameKeepStarOnMissingCounterFieldWithNullifyAndSort()}.
+     */
+    public void testSubqueryDoubleRenameDropStarOnMissingCounterFieldWithNullifyAndSort() {
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().statement("""
+            SET unmapped_fields="nullify";
+            FROM k8s, (FROM languages)
+            | DROP @timestamp, language_*
+            | RENAME network.total_bytes_in AS x
+            | RENAME x as y
+            | KEEP *
+            | SORT y
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+        List<Order> order = orderBy.order();
+        assertEquals(1, order.size());
+        ReferenceAttribute yOrder = as(order.get(0).child(), ReferenceAttribute.class);
+        assertEquals("y", yOrder.name());
+        assertEquals(LONG, yOrder.dataType());
+        Project project = as(orderBy.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        ReferenceAttribute y = as(
+            projections.stream().filter(p -> "y".equals(p.name())).findFirst().orElseThrow(),
+            ReferenceAttribute.class
+        );
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        Alias yAlias = as(projections.stream().filter(p -> "y".equals(p.name())).findFirst().orElseThrow(), Alias.class);
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        Alias xAlias = as(projections.stream().filter(p -> "x".equals(p.name())).findFirst().orElseThrow(), Alias.class);
+        assertEquals(LONG, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        ReferenceAttribute totalBytesIn = as(
+            projections.stream().filter(p -> "network.total_bytes_in".equals(p.name())).findFirst().orElseThrow(),
+            ReferenceAttribute.class
+        );
+        assertEquals(LONG, totalBytesIn.dataType());
+        assertTrue("@timestamp should have been dropped", projections.stream().noneMatch(p -> "@timestamp".equals(p.name())));
+        assertTrue("language_code should have been dropped", projections.stream().noneMatch(p -> "language_code".equals(p.name())));
+        assertTrue("language_name should have been dropped", projections.stream().noneMatch(p -> "language_name".equals(p.name())));
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
     }

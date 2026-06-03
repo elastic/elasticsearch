@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.DatasetMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -309,7 +310,7 @@ public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlInteg
         // _file.modified plumbing through FileMetadataColumns + the StoragePath stat). Read the
         // mtime back from the fixture path and pin the response value, so a regression in the
         // mtime → _version threading is caught.
-        long fixtureMtimeMillis = Files.getLastModifiedTime(Path.of(URI.create(fixtureUri))).toMillis();
+        long fixtureMtimeMillis = Files.getLastModifiedTime(PathUtils.get(URI.create(fixtureUri))).toMillis();
 
         try (
             var response = run(

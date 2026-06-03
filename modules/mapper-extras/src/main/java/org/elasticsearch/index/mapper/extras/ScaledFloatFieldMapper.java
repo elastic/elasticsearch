@@ -413,9 +413,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new DoublesBlockLoader(name(), l -> l / scalingFactor, readInArrayOrder);
             }
-            // In columnar_stored mode the whole _source is pre-computed as a single blob, so the
-            // FallbackSyntheticSourceBlockLoader (a per-field synthetic-source optimization) does not
-            // apply. Read from _source via BlockSourceReader instead.
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.mappingLookup().isSourceColumnarStored() == false && blContext.parentField(name()) == null) {
                 return new FallbackSyntheticSourceBlockLoader(

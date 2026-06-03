@@ -559,9 +559,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
 
             // doc_values are disabled, fallback to ignored_source, except for multi fields since then don't have fallback synthetic source.
-            // In columnar_stored mode the whole _source is pre-computed as a single blob, so the
-            // FallbackSyntheticSourceBlockLoader (a per-field synthetic-source optimization) does not
-            // apply. Read from _source via BlockSourceReader instead.
+            // columnar_stored pre-builds _source as a single blob; skip the per-field fallback loader.
             if (isSyntheticSource
                 && hasDocValues() == false
                 && blContext.mappingLookup().isSourceColumnarStored() == false

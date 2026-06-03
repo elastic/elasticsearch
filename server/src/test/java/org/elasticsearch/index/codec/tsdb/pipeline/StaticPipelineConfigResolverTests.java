@@ -137,6 +137,82 @@ public class StaticPipelineConfigResolverTests extends ESTestCase {
         assertEquals("delta>offset>gcd>bitPack", config.describeStages());
     }
 
+    public void testResolvesAlpDoublePipelineForDoubleGauge() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final FieldContext context = new FieldContext(
+            randomBlockSize(),
+            randomNonTimestampFieldName(),
+            PipelineDescriptor.DataType.DOUBLE,
+            MetricRole.GAUGE
+        );
+
+        final PipelineConfig config = resolver.resolve(context);
+
+        assertEquals("alpDouble>offset>gcd>bitPack", config.describeStages());
+        assertEquals(PipelineDescriptor.DataType.DOUBLE, config.dataType());
+        assertEquals(3, config.transforms().size());
+        assertNotNull(config.payload());
+    }
+
+    public void testResolvesBaselinePipelineForDoubleWithoutMetricType() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final FieldContext context = new FieldContext(
+            randomBlockSize(),
+            randomNonTimestampFieldName(),
+            PipelineDescriptor.DataType.DOUBLE,
+            null
+        );
+
+        final PipelineConfig config = resolver.resolve(context);
+
+        assertEquals("delta>offset>gcd>bitPack", config.describeStages());
+    }
+
+    public void testCachedBlockSizesReturnSameInstanceForDoubleGauge() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final int blockSize = randomFrom(128, 512);
+
+        final PipelineConfig first = resolver.resolve(
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+        );
+        final PipelineConfig second = resolver.resolve(
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+        );
+        assertSame(first, second);
+    }
+
+    public void testDoubleGaugePipelineDiffersFromBaselineAndSplitDelta() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final int blockSize = randomBlockSize();
+        final String fieldName = randomNonTimestampFieldName();
+
+        final PipelineConfig alpDouble = resolver.resolve(
+            new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+        );
+        final PipelineConfig baseline = resolver.resolve(
+            new FieldContext(blockSize, fieldName, PipelineDescriptor.DataType.LONG, MetricRole.GAUGE)
+        );
+        final PipelineConfig splitDelta = resolver.resolve(new FieldContext(blockSize, TIMESTAMP_FIELD_NAME, null, null));
+
+        assertNotEquals(alpDouble, baseline);
+        assertNotEquals(alpDouble, splitDelta);
+        assertEquals("alpDouble>offset>gcd>bitPack", alpDouble.describeStages());
+        assertEquals("delta>offset>gcd>bitPack", baseline.describeStages());
+        assertEquals("splitDelta>delta>offset>gcd>bitPack", splitDelta.describeStages());
+    }
+
+    public void testUncachedBlockSizeStillResolvesForDoubleGauge() {
+        final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
+        final int blockSize = 1 << randomIntBetween(4, 6);
+
+        final PipelineConfig config = resolver.resolve(
+            new FieldContext(blockSize, randomNonTimestampFieldName(), PipelineDescriptor.DataType.DOUBLE, MetricRole.GAUGE)
+        );
+
+        assertEquals(blockSize, config.blockSize());
+        assertEquals("alpDouble>offset>gcd>bitPack", config.describeStages());
+    }
+
     public void testResolvesBaselinePipelineForLongWithoutMetricType() {
         final StaticPipelineConfigResolver resolver = StaticPipelineConfigResolver.INSTANCE;
         final FieldContext context = new FieldContext(

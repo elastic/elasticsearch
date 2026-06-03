@@ -10,6 +10,7 @@
 package org.elasticsearch.painless.api;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.painless.PainlessScript;
 
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
@@ -108,6 +109,35 @@ public class Augmentation {
     /** Iterates through an Iterable, passing each item to the given consumer. */
     public static <T> Object each(Iterable<T> receiver, Consumer<T> consumer) {
         receiver.forEach(consumer);
+        return receiver;
+    }
+
+    /**
+     * Cancellation-aware overload of {@link #each(Iterable, Consumer)} resolved by the lookup
+     * builder in script contexts whose base class supports cancellation.  Calls
+     * {@link PainlessScript#_pollCancellation()} once per element so the script's shared poll
+     * counter advances and the search timeout can interrupt a long iteration even when the consumer
+     * body is trivial or non-Painless.  When {@code _getCancellationCheck()} returns null (script
+     * context didn't wire a cancel runnable) the fast path delegates straight to
+     * {@link Iterable#forEach} with zero per-iteration overhead.
+     * <p>
+     * The script receiver is placed <em>before</em> the augmentation's receiver so that
+     * {@link org.elasticsearch.painless.FunctionRef#withSyntheticScriptCapture} (which prepends
+     * the script class at factoryMethodType position 0) maps directly to a method reference's
+     * leading capture without any position arithmetic.
+     */
+    public static <T> Object each(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
+        if (script._getCancellationCheck() == null) {
+            receiver.forEach(consumer);
+            return receiver;
+        }
+        // Poll the script's shared persistent counter once per element rather than keeping our own,
+        // so this iteration's polling decrements the same $cancelPoll that the consumer body and the
+        // rest of the script decrement — keeping the cadence amortised and respecting downstream work.
+        for (T t : receiver) {
+            consumer.accept(t);
+            script._pollCancellation();
+        }
         return receiver;
     }
 

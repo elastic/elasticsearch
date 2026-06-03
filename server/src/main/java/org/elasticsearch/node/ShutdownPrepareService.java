@@ -69,6 +69,13 @@ public class ShutdownPrepareService {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How long we'll wait for the non-relocatable reindexing tasks to fail before
+     * we proceed with shutdown. This should not be very long because we've already timed out
+     * waiting for the tasks to relocate.
+     */
+    private static final TimeValue REINDEXING_FAILURE_TIMEOUT = TimeValue.timeValueSeconds(3);
+
     private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
 
     private final TimeValue maxTimeout;
@@ -226,8 +233,28 @@ public class ShutdownPrepareService {
             taskManager,
             ShutdownPrepareService::maybeRequestRelocationForBulkByPaginatedSearch,
             tasks -> {
+                // Fail any reindex tasks that could not be relocated, wait for a limited time for
+                // them to return a failure result before proceeding with shutdown.
                 final var nodeClosedException = new NodeClosedException(transportService.getLocalNode());
-                tasks.forEach(t -> ((BulkByPaginatedSearchTask) t).wakeUpAndFail(nodeClosedException));
+                final var tasksFailedFuture = new PlainActionFuture<Void>();
+                try (RefCountingListener refCountingListener = new RefCountingListener(tasksFailedFuture)) {
+                    tasks.forEach(
+                        t -> ((BulkByPaginatedSearchTask) t).wakeUpAndFail(
+                            nodeClosedException,
+                            refCountingListener.acquire().map(result -> null)
+                        )
+                    );
+                }
+                try {
+                    tasksFailedFuture.get(REINDEXING_FAILURE_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                } catch (TimeoutException t) {
+                    logger.warn("timed out while failing relocated reindex tasks");
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.warn("interrupted while failing relocated reindex tasks", e);
+                } catch (ExecutionException e) {
+                    logger.warn("unexpected exception while failing relocated reindex tasks", e);
+                }
             }
         );
     }

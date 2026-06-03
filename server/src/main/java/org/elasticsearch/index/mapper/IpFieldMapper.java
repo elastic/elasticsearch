@@ -29,6 +29,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -82,19 +83,22 @@ public class IpFieldMapper extends FieldMapper {
         return (IpFieldMapper) in;
     }
 
-    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
-        true,
-        DocValuesParameter.Values.Cardinality.LOW,
-        true
-    );
+    private static DocValuesParameter.Values defaultDocValuesParameters(IndexMode indexMode) {
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+        }
+
+        if (indexMode.isStrictColumnar()) {
+            return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.HIGH, true);
+        }
+
+        return new DocValuesParameter.Values(true, DocValuesParameter.Values.Cardinality.LOW, true);
+    }
 
     public static final class Builder extends FieldMapper.DimensionBuilder {
 
         private final Parameter<Boolean> indexed;
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.ofWithCardinality(
-            DEFAULT_DOC_VALUES_PARAMS,
-            m -> toType(m).docValuesParameters()
-        );
+        private final DocValuesParameter docValuesParameters;
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Boolean> ignoreMalformed;
@@ -124,6 +128,12 @@ public class IpFieldMapper extends FieldMapper {
                 IGNORE_MALFORMED_SETTING.get(indexSettings.getSettings())
             );
             this.script.precludesParameters(nullValue, ignoreMalformed);
+
+            this.docValuesParameters = DocValuesParameter.ofWithCardinality(
+                defaultDocValuesParameters(indexSettings.getMode()),
+                m -> toType(m).docValuesParameters()
+            );
+
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension, () -> docValuesParameters.get().enabled());
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, indexSettings, dimension);
             addScriptValidation(script, indexed, () -> docValuesParameters.getValue().enabled());
@@ -222,6 +232,11 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
+            enforceIndexSortDocValuesCompatibility(
+                context.buildFullName(leafName()),
+                indexSettings.getIndexSortConfig(),
+                docValuesParameters
+            );
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);
             }

@@ -65,8 +65,8 @@ public class PromqlHistogramQuantileTests extends AbstractPromqlPlanOptimizerTes
         List<PrometheusHistogramQuantile> quantiles = collectQuantiles(translated);
 
         assertThat(quantiles, hasSize(1));
-        assertThat(quantiles.getFirst().upperBound().dataType(), equalTo(DataType.DOUBLE));
-        // The upper bound is a synthetic internal column derived from the `le` bucket label.
+        assertThat(quantiles.getFirst().upperBound().dataType(), equalTo(DataType.KEYWORD));
+        // The upper bound is a synthetic internal column carrying the raw `le` bucket label.
         assertThat(quantiles.getFirst().upperBound().collect(Attribute.class).getFirst().name(), containsString("le"));
         assertThat(as(quantiles.getFirst().quantile().fold(FoldContext.small()), Double.class), equalTo(0.9));
         // The bucket count is always coerced to double, since the aggregator only consumes double counts.

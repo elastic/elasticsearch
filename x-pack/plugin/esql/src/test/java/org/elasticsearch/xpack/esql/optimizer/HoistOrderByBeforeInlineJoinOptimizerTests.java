@@ -111,14 +111,13 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
      *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
      */
     public void testInlineStatsAfterSort() {
-        var query =
-            """
-                FROM employees
-                | SORT emp_no DESC
-                | INLINE STATS avg = AVG(salary) BY emp_no
-                | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINE STATS
-                                      // (which masks the issue the test tests)
-                """;
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | INLINE STATS avg = AVG(salary) BY emp_no
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINE STATS
+                                  // (which masks the issue the test tests)
+            """;
         if (releaseBuildForInlineStats(query)) {
             return;
         }
@@ -172,18 +171,17 @@ public class HoistOrderByBeforeInlineJoinOptimizerTests extends AbstractLogicalP
      *              languages{f}#20, lName{r}#11, long_noidx{f}#27, salary{f}#22, msg{r}#4, salaryK{r}#8]]
      */
     public void testInlineStatsAfterSortAndSortAgnostic() {
-        var query =
-            """
-                FROM employees
-                | SORT emp_no DESC
-                | SAMPLE .1
-                | DISSECT first_name "%{msg}"
-                | EVAL salaryK = salary / 1000
-                | RENAME last_name AS lName
-                | INLINE STATS avg = AVG(salary) BY emp_no
-                | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINE STATS
-                                      // (which masks the issue the test tests)
-                """;
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | SAMPLE .1
+            | DISSECT first_name "%{msg}"
+            | EVAL salaryK = salary / 1000
+            | RENAME last_name AS lName
+            | INLINE STATS avg = AVG(salary) BY emp_no
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINE STATS
+                                  // (which masks the issue the test tests)
+            """;
         if (releaseBuildForInlineStats(query)) {
             return;
         }

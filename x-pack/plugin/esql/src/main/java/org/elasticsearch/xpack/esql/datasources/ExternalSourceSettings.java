@@ -83,7 +83,29 @@ public final class ExternalSourceSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Enables {@code auth=ambient} for EXTERNAL cloud reads, which resolves credentials from the node's
+     * default credential chain (IAM instance profile on AWS, Application Default Credentials on GCP,
+     * DefaultAzureCredential on Azure) rather than requiring explicit credentials in the query or datasource.
+     * <p>
+     * Disabled by default. Must be explicitly enabled by an operator on self-hosted, single-cloud,
+     * single-tenant deployments where the node's ambient identity is the intended credential.
+     * Never enable in serverless or multi-tenant deployments: ambient credentials bypass tenant isolation.
+     */
+    public static final Setting<Boolean> AMBIENT_CREDENTIALS_ENABLED = Setting.boolSetting(
+        "esql.datasource.ambient_credentials.enabled",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.OperatorDynamic
+    );
+
     public static List<Setting<?>> settings() {
-        return List.of(MAX_CONCURRENT_REQUESTS, THROTTLE_MAX_RETRY_DURATION, MAX_DISCOVERED_FILES, MAX_GLOB_EXPANSION);
+        return List.of(
+            MAX_CONCURRENT_REQUESTS,
+            THROTTLE_MAX_RETRY_DURATION,
+            MAX_DISCOVERED_FILES,
+            MAX_GLOB_EXPANSION,
+            AMBIENT_CREDENTIALS_ENABLED
+        );
     }
 }

@@ -11,8 +11,13 @@ import io.netty.channel.ChannelOption;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.SystemPropertyCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
@@ -137,15 +142,31 @@ public final class S3StorageProvider implements StorageProvider {
      * Builds the AWS credentials provider for the given configuration:
      * <ul>
      *   <li>{@code auth=none} — anonymous (unsigned) requests</li>
+     *   <li>{@code auth=ambient} — node's instance credential chain: env vars, system properties,
+     *       EKS IRSA web-identity token ({@code AWS_WEB_IDENTITY_TOKEN_FILE} / {@code AWS_ROLE_ARN}),
+     *       EC2/ECS instance profile. Profile-file loading is excluded (blocked by entitlements).</li>
      *   <li>access_key + secret_key + session_token — STS temporary credentials</li>
      *   <li>access_key + secret_key — static credentials</li>
      * </ul>
-     * The node's ambient credential chain is deliberately never consulted: the node may run in a
-     * different cloud than the bucket it targets, so a data source must carry its own credentials.
      */
     static AwsCredentialsProvider credentialsProvider(S3Configuration config) {
         if (config != null && config.isAnonymous()) {
             return AnonymousCredentialsProvider.create();
+        }
+        if (config != null && config.isAmbient()) {
+            // Explicit chain that excludes ProfileCredentialsProvider — profile-file reading is
+            // blocked by the entitlement system. WebIdentityTokenFileCredentialsProvider covers
+            // EKS IRSA (reads AWS_WEB_IDENTITY_TOKEN_FILE + AWS_ROLE_ARN injected by the pod
+            // identity webhook and exchanges them with STS). InstanceProfileCredentialsProvider
+            // covers EC2 instance profiles and ECS task roles via IMDS.
+            return AwsCredentialsProviderChain.builder()
+                .credentialsProviders(
+                    EnvironmentVariableCredentialsProvider.create(),
+                    SystemPropertyCredentialsProvider.create(),
+                    WebIdentityTokenFileCredentialsProvider.create(),
+                    InstanceProfileCredentialsProvider.create()
+                )
+                .build();
         }
         if (config != null && config.hasCredentials()) {
             if (Strings.hasText(config.sessionToken())) {
@@ -159,11 +180,11 @@ public final class S3StorageProvider implements StorageProvider {
             // A session token alone cannot authenticate without its access key and secret key.
             throw new IllegalArgumentException("S3 session_token requires access_key and secret_key");
         }
-        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
         throw new IllegalArgumentException(
             "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                 + "optionally WITH (session_token = '...') for STS temporary credentials, "
-                + "or WITH (auth = 'none') for public buckets"
+                + "WITH (auth = 'none') for public buckets, "
+                + "or WITH (auth = 'ambient') to use the node's instance role (requires cluster setting)"
         );
     }
 

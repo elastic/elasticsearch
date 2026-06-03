@@ -166,11 +166,16 @@ public final class GcsStorageProvider implements StorageProvider {
         if (config != null && config.hasKeylessAuth()) {
             return buildIdentityPoolCredentials(config);
         }
-        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+        if (config != null && config.isAmbient()) {
+            // Application Default Credentials: checks GOOGLE_APPLICATION_CREDENTIALS env var,
+            // then the GCE metadata server — no profile-file involved.
+            return GoogleCredentials.getApplicationDefault();
+        }
         throw new IllegalArgumentException(
             "GCS data source requires credentials: provide WITH (credentials = '...'), "
                 + "WITH (access_token = '...') for short-lived OAuth credentials, "
-                + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
+                + "configure keyless authentication settings, WITH (auth = 'none') for public buckets, "
+                + "or WITH (auth = 'ambient') to use Application Default Credentials (requires cluster setting)"
         );
     }
 

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.time.Instant;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -164,5 +165,27 @@ public class S3AnonymousAccessTests extends ESTestCase {
      */
     public void testConfigurationAnonymousModeConflictsWithCredentials() {
         expectThrows(org.elasticsearch.common.ValidationException.class, () -> S3Configuration.fromFields("ak", "sk", null, null, "none"));
+    }
+
+    /**
+     * auth=ambient should return an AwsCredentialsProviderChain (env → system props → web-identity → IMDS),
+     * not AnonymousCredentialsProvider or StaticCredentialsProvider.
+     */
+    public void testAmbientCredentialsProviderType() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "ambient");
+        assertNotNull(config);
+        assertTrue(config.isAmbient());
+        var provider = S3StorageProvider.credentialsProvider(config);
+        assertThat(provider, instanceOf(software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain.class));
+    }
+
+    /**
+     * auth=ambient is mutually exclusive with explicit credentials.
+     */
+    public void testAmbientModeConflictsWithCredentials() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> S3Configuration.fromFields("ak", "sk", null, null, "ambient")
+        );
     }
 }

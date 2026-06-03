@@ -54,6 +54,15 @@ public class ExternalSourceSettingsTests extends ESTestCase {
 
     public void testSettingsListNotEmpty() {
         assertFalse(ExternalSourceSettings.settings().isEmpty());
-        assertEquals(4, ExternalSourceSettings.settings().size());
+        assertEquals(5, ExternalSourceSettings.settings().size());
+    }
+
+    public void testAmbientCredentialsDefaultFalse() {
+        assertFalse(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(Settings.EMPTY));
+    }
+
+    public void testAmbientCredentialsCanBeEnabled() {
+        Settings settings = Settings.builder().put("esql.datasource.ambient_credentials.enabled", true).build();
+        assertTrue(ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings));
     }
 }

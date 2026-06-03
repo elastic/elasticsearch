@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
+import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
@@ -144,12 +145,27 @@ public final class AzureStorageProvider implements StorageProvider {
             } else {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
+        } else if (config != null && config.isAmbient()) {
+            // DefaultAzureCredential: checks env vars, workload identity, managed identity, and CLI auth in order.
+            String endpoint = config.endpoint() != null && config.endpoint().isEmpty() == false
+                ? config.endpoint()
+                : (accountFromPath != null ? "https://" + accountFromPath + ".blob.core.windows.net" : null);
+            if (endpoint == null && config.account() != null) {
+                endpoint = "https://" + config.account() + ".blob.core.windows.net";
+            }
+            if (endpoint == null) {
+                throw new IllegalStateException(
+                    "auth=ambient requires an account from the path (wasbs://account.blob.core.windows.net/...) "
+                        + "or WITH (endpoint = '...')"
+                );
+            }
+            builder.endpoint(endpoint).credential(new DefaultAzureCredentialBuilder().build());
         } else {
-            // No ambient fallback: the node may run in a different cloud than the container it targets.
             throw new IllegalArgumentException(
                 "Azure data source requires credentials: provide WITH (connection_string = '...'), "
                     + "WITH (account = '...', key = '...'), WITH (account = '...', sas_token = '...'), "
-                    + "or WITH (auth = 'none') for public containers"
+                    + "WITH (auth = 'none') for public containers, "
+                    + "or WITH (auth = 'ambient') to use the managed/workload identity (requires cluster setting)"
             );
         }
 

@@ -62,6 +62,53 @@ public class S3ConfigurationTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unsupported auth value"));
     }
 
+    public void testAuthAmbient() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, "us-east-1", "ambient");
+        assertNotNull(config);
+        assertTrue(config.isAmbient());
+        assertFalse(config.isAnonymous());
+        assertFalse(config.hasCredentials());
+    }
+
+    public void testAuthAmbientCaseInsensitive() {
+        S3Configuration config = S3Configuration.fromFields(null, null, null, null, "AMBIENT");
+        assertNotNull(config);
+        assertTrue(config.isAmbient());
+        assertEquals("ambient", config.auth());
+    }
+
+    public void testAuthAmbientAllowsRegionAndEndpoint() {
+        S3Configuration config = S3Configuration.fromFields(null, null, "http://localhost:9000", "eu-west-1", "ambient");
+        assertNotNull(config);
+        assertTrue(config.isAmbient());
+        assertEquals("http://localhost:9000", config.endpoint());
+        assertEquals("eu-west-1", config.region());
+    }
+
+    public void testAuthAmbientConflictsWithAccessKey() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromFields("ak", null, null, null, "ambient")
+        );
+        assertThat(e.getMessage(), containsString("auth=ambient cannot be combined with explicit credentials"));
+    }
+
+    public void testAuthAmbientConflictsWithSecretKey() {
+        ValidationException e = expectThrows(
+            ValidationException.class,
+            () -> S3Configuration.fromFields(null, "sk", null, null, "ambient")
+        );
+        assertThat(e.getMessage(), containsString("auth=ambient cannot be combined with explicit credentials"));
+    }
+
+    public void testAuthAmbientConflictsWithSessionToken() {
+        var raw = new java.util.HashMap<String, Object>();
+        raw.put("auth", "ambient");
+        raw.put("session_token", "tok");
+        ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromMap(raw));
+        assertThat(e.getMessage(), containsString("auth=ambient cannot be combined with explicit credentials"));
+    }
+
     public void testAuthNoneConflictsWithAccessKey() {
         ValidationException e = expectThrows(ValidationException.class, () -> S3Configuration.fromFields("ak", null, null, null, "none"));
         assertThat(e.getMessage(), containsString("auth=none cannot be combined with explicit credentials"));

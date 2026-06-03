@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
@@ -110,6 +112,34 @@ public class S3DataSourceValidatorTests extends AbstractDataSourceValidatorTests
         expectThrows(
             org.elasticsearch.common.ValidationException.class,
             () -> validator.validateDatasource(Map.of("auth", "none", "access_key", "AKIA123", "secret_key", "secret"))
+        );
+    }
+
+    public void testValidateDatasourceRejectsAmbientWhenDisabled() {
+        // default validator has ambient disabled
+        var e = expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDatasource(Map.of("auth", "ambient", "region", "us-east-1"))
+        );
+        assertThat(e.getMessage(), containsString("esql.datasource.ambient_credentials.enabled"));
+    }
+
+    public void testValidateDatasourceAcceptsAmbientWhenEnabled() {
+        var ambientValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withAmbientEnabled(
+            () -> true
+        );
+        var result = ambientValidator.validateDatasource(Map.of("auth", "ambient", "region", "us-east-1"));
+        assertEquals("ambient", result.get("auth").nonSecretValue());
+        assertFalse(result.get("auth").secret());
+    }
+
+    public void testValidateDatasourceAmbientConflictWithCredentials() {
+        var ambientValidator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n")).withAmbientEnabled(
+            () -> true
+        );
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> ambientValidator.validateDatasource(Map.of("auth", "ambient", "access_key", "AKIA123", "secret_key", "secret"))
         );
     }
 

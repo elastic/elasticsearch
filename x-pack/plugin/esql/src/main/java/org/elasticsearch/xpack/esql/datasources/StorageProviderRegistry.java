@@ -158,6 +158,17 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
 
+        // Gate auth=ambient on the cluster setting before constructing the provider.
+        // This covers the inline-WITH path where no PUT-datasource validation runs.
+        Object authValue = storageConfig.get("auth");
+        if ("ambient".equalsIgnoreCase(authValue instanceof String s ? s : null)
+            && ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(this.settings) == false) {
+            throw new IllegalArgumentException(
+                "auth=ambient requires the [esql.datasource.ambient_credentials.enabled] cluster setting to be enabled; "
+                    + "it is disabled by default — enable it only on single-cloud single-tenant deployments"
+            );
+        }
+
         // Cache providers by (scheme, storageConfig) so queries with the same configuration map
         // reuse the same cloud client and connection pool instead of constructing a new one.
         // The cache key uses the stripped config so framework-only keys (e.g. format) don't

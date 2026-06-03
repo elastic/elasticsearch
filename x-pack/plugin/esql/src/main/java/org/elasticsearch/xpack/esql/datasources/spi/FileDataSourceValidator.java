@@ -18,6 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.rejectUnknownFields;
 import static org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidationUtils.validateEnum;
@@ -51,13 +52,14 @@ public class FileDataSourceValidator implements DataSourceValidator {
     @Nullable
     private final FormatConfigKeyResolver formatConfigKeyResolver;
     private final Set<String> compressionExtensions;
+    private final Supplier<Boolean> ambientEnabled;
 
     public FileDataSourceValidator(
         String type,
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes
     ) {
-        this(type, configFactory, supportedSchemes, null, Set.of());
+        this(type, configFactory, supportedSchemes, null, Set.of(), () -> false);
     }
 
     private FileDataSourceValidator(
@@ -65,13 +67,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
         Function<Map<String, Object>, DataSourceConfiguration> configFactory,
         Set<String> supportedSchemes,
         @Nullable FormatConfigKeyResolver formatConfigKeyResolver,
-        Set<String> compressionExtensions
+        Set<String> compressionExtensions,
+        Supplier<Boolean> ambientEnabled
     ) {
         this.type = type;
         this.configFactory = configFactory;
         this.supportedSchemes = supportedSchemes;
         this.formatConfigKeyResolver = formatConfigKeyResolver;
         this.compressionExtensions = compressionExtensions;
+        this.ambientEnabled = ambientEnabled;
     }
 
     /**
@@ -84,7 +88,15 @@ public class FileDataSourceValidator implements DataSourceValidator {
      * runtime resolution in {@code FormatReaderRegistry}/{@code DecompressionCodecRegistry}.
      */
     public FileDataSourceValidator withFormatConfigKeyResolver(FormatConfigKeyResolver resolver, Set<String> compressionExtensions) {
-        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions);
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, resolver, compressionExtensions, ambientEnabled);
+    }
+
+    /**
+     * Returns a new validator that gates {@code auth=ambient} on the supplied boolean.
+     * Pass a live supplier so the check reflects the current cluster setting value at validation time.
+     */
+    public FileDataSourceValidator withAmbientEnabled(Supplier<Boolean> supplier) {
+        return new FileDataSourceValidator(type, configFactory, supportedSchemes, formatConfigKeyResolver, compressionExtensions, supplier);
     }
 
     @Override
@@ -98,6 +110,12 @@ public class FileDataSourceValidator implements DataSourceValidator {
             return Map.of();
         }
         DataSourceConfiguration config = configFactory.apply(datasourceSettings);
+        if (config instanceof FileDataSourceConfiguration fc && fc.isAmbient() && ambientEnabled.get() == false) {
+            throw new ValidationException().addValidationError(
+                "auth=ambient requires the [esql.datasource.ambient_credentials.enabled] cluster setting to be enabled; "
+                    + "it is disabled by default — enable it only on single-cloud single-tenant deployments"
+            );
+        }
         return config != null ? config.toStoredSettings() : Map.of();
     }
 

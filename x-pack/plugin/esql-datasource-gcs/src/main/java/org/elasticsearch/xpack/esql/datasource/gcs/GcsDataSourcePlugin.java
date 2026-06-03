@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;
@@ -47,7 +48,10 @@ public class GcsDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
     @Override
     public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
-        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes());
+        boolean ambientEnabled = ExternalSourceSettings.AMBIENT_CREDENTIALS_ENABLED.get(settings);
+        DataSourceValidator v = new FileDataSourceValidator("gcs", GcsConfiguration::fromMap, supportedSchemes()).withAmbientEnabled(
+            () -> ambientEnabled
+        );
         return Map.of(v.type(), v);
     }
 }

@@ -36,32 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-/**
- * Tests for the {@link TimeSeriesWithout} grouping function.
- * <p>
- *     This class plays a double role:
- * </p>
- * <ul>
- *     <li>
- *         It drives the function reference documentation generation, which is why it extends
- *         {@link AbstractScalarFunctionTestCase} and exposes a {@link #parameters() signature supplier}. The function
- *         name is {@code without}, which doesn't derive from the test class name, hence the explicit
- *         {@link FunctionName} annotation.
- *     </li>
- *     <li>
- *         It verifies {@code WITHOUT}'s grouping-specific behavior (type resolution, the set of excluded dimension
- *         names, the {@code _timeseries} output column, data type, and nullability) via the {@code testXxx} methods
- *         below.
- *     </li>
- * </ul>
- * <p>
- *     {@code WITHOUT} is a {@link GroupingFunction.NonEvaluatableGroupingFunction non-evaluatable} grouping function:
- *     it groups like an aggregation rather than producing a per-row value, so the evaluation suppliers are marked
- *     {@link TestCaseSupplier.TestCase#withoutEvaluator()} and {@link #testFold()} is overridden to a no-op. The
- *     function only resolves against time-series dimension {@link FieldAttribute}s, which the generic scalar test
- *     framework does not build; the behavior of that resolution is instead asserted directly below.
- * </p>
- */
 @FunctionName("without")
 public class TimeSeriesWithoutTests extends AbstractScalarFunctionTestCase {
     public TimeSeriesWithoutTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

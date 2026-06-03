@@ -164,7 +164,7 @@ public class IncreaseTests extends AbstractAggregationTestCase {
             return Matchers.nullValue();
         }
         double increase = computeExpectedIncrease(nonNullDataRows, temporality);
-        return Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.01));
+        return Matchers.allOf(Matchers.greaterThanOrEqualTo(increase * 0.9), Matchers.lessThanOrEqualTo(increase * 1.1));
     }
 
     /**

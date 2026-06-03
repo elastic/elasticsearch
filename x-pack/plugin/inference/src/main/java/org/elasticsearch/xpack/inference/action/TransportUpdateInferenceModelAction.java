@@ -217,7 +217,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
     private static void validateEndpointIsNotDefault(String inferenceEntityId) {
         if (inferenceEntityId.startsWith(".")) {
-            throw ExceptionsHelper.badRequestException("Default endpoint [{}] is not eligible for an update", inferenceEntityId);
+            throw ExceptionsHelper.badRequestException("Default endpoint [{}] cannot be updated", inferenceEntityId);
         }
     }
 

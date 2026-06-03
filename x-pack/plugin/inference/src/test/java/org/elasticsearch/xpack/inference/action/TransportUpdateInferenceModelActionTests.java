@@ -187,7 +187,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
             exception.getMessage(),
-            is(Strings.format("Default endpoint [%s] is not eligible for an update", DEFAULT_INFERENCE_ENTITY_ID_VALUE))
+            is(Strings.format("Default endpoint [%s] cannot be updated", DEFAULT_INFERENCE_ENTITY_ID_VALUE))
         );
         verifyNoModelRegistryMutations();
     }

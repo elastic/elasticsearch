@@ -740,3 +740,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.shutdown.SigtermAzureRestartIT
   method: testRestart
   issue: https://github.com/elastic/elasticsearch/issues/150691
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteCanBeRejectedAtPrimaryLevel
+  issue: https://github.com/elastic/elasticsearch/issues/150693

@@ -25,6 +25,9 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContext;
+import org.elasticsearch.index.codec.tsdb.pipeline.MetricRole;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -73,6 +76,31 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 },
                 "gauge": {
                     "type": "long"
+                }
+            }
+        }
+        """;
+
+    private static final String OTEL_COUNTER_LONG_MAPPING = """
+        {
+            "_data_stream_timestamp": {
+                "enabled": true
+            },
+            "properties": {
+                "@timestamp": {
+                    "type": "date"
+                },
+                "field": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                },
+                "packets": {
+                    "type": "long",
+                    "time_series_metric": "counter"
+                },
+                "temperature": {
+                    "type": "long",
+                    "time_series_metric": "gauge"
                 }
             }
         }
@@ -507,5 +535,58 @@ public class PerFieldMapperCodecTests extends ESTestCase {
 
     private static boolean syntheticId(boolean timeSeries) {
         return timeSeries && randomBoolean();
+    }
+
+    public void testResolveFieldContextForOTelLongCounter() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("packets", 512);
+        assertEquals("packets", context.fieldName());
+        assertEquals(512, context.blockSize());
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertEquals(MetricRole.COUNTER, context.metricRole());
+    }
+
+    public void testResolveFieldContextForOTelLongGauge() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("temperature", 512);
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertEquals(MetricRole.GAUGE, context.metricRole());
+    }
+
+    public void testResolveFieldContextForTimestampDateField() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("@timestamp", 512);
+        assertEquals(PipelineDescriptor.DataType.LONG, context.dataType());
+        assertNull(context.metricRole());
+    }
+
+    public void testResolveFieldContextForUnknownFieldLeavesMetadataNull() throws IOException {
+        final PerFieldFormatSupplier supplier = createFormatSupplier(IndexMode.TIME_SERIES, OTEL_COUNTER_LONG_MAPPING);
+        final FieldContext context = supplier.resolveFieldContext("absent_field", 512);
+        assertNull(context.dataType());
+        assertNull(context.metricRole());
+    }
+
+    public void testCounterFieldGetsES95FormatThroughSupplier() throws IOException {
+        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_COUNTER_LONG_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat format = supplier.getDocValuesFormatForField("packets");
+        assertThat(format, instanceOf(ES95TSDBDocValuesFormat.class));
+    }
+
+    public void testGetDocValuesFormatForFieldReturnsSameInstanceAcrossCalls() throws IOException {
+        assumeTrue("es95_codec feature flag must be enabled", IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled());
+        final PerFieldFormatSupplier supplier = createFormatSupplierWithVersion(
+            IndexMode.TIME_SERIES,
+            OTEL_COUNTER_LONG_MAPPING,
+            IndexVersion.current()
+        );
+        final DocValuesFormat a = supplier.getDocValuesFormatForField("packets");
+        final DocValuesFormat b = supplier.getDocValuesFormatForField("temperature");
+        assertSame(a, b);
     }
 }

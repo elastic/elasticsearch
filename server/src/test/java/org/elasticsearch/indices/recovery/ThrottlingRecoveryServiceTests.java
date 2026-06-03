@@ -80,6 +80,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 fail(e);
             }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("recovery cancelled");
+            }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
             executionThread.set(Thread.currentThread());
@@ -112,6 +117,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 fail(e);
             }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("recovery cancelled");
+            }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -143,6 +153,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 fail(e);
+            }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("recovery cancelled");
             }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
@@ -184,6 +199,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             @Override
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 fail(e);
+            }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("recovery cancelled");
             }
         };
 
@@ -228,7 +248,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final CountDownLatch firstBatchStarted = new CountDownLatch(2);
         final CountDownLatch secondBatchStarted = new CountDownLatch(4);
         final CountDownLatch unblockAll = new CountDownLatch(1);
-        final RecoveryListener noopUserListener = noopRecoveryListener();
+        final RecoveryListener noopUserListener = RecoveryListener.NOOP;
 
         for (int i = 0; i < 4; i++) {
             service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> {
@@ -256,7 +276,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final CountDownLatch runningEntered = new CountDownLatch(3);
         final List<CountDownLatch> unblockEachFirstBatch = List.of(new CountDownLatch(1), new CountDownLatch(1), new CountDownLatch(1));
         final AtomicBoolean[] pendingStarted = new AtomicBoolean[] { new AtomicBoolean(), new AtomicBoolean(), new AtomicBoolean() };
-        final RecoveryListener noopUserListener = noopRecoveryListener();
+        final RecoveryListener noopUserListener = RecoveryListener.NOOP;
         final CyclicBarrier pendingBarrier = new CyclicBarrier(2);
 
         for (int i = 0; i < 3; i++) {
@@ -332,6 +352,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                     fail(e);
                 }
+
+                @Override
+                public void onRecoveryCancelled() {
+                    fail("recovery cancelled");
+                }
             };
             service.enqueue(
                 userListener,
@@ -366,6 +391,11 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 exceptionReceived.set(e);
                 done.countDown();
             }
+
+            @Override
+            public void onRecoveryCancelled() {
+                fail("recovery cancelled");
+            }
         };
         service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> { throw new RuntimeException("Leeeeroooooy"); });
         safeAwait(done);
@@ -396,20 +426,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final RefCounted taskLatch = AbstractRefCounted.of(allFinished::countDown);
         final int maxNumberOfTasks = 1000;
 
-        final RecoveryListener noopUserListener = new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {}
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-        };
-
         final int producerThreads = between(1, 6);
         final List<Thread> threads = new ArrayList<>(producerThreads);
         for (int t = 0; t < producerThreads; t++) {
@@ -431,7 +447,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             taskLatch.incRef();
                             totalTasksEnqueued.incrementAndGet();
                             service.enqueue(
-                                noopUserListener,
+                                RecoveryListener.NOOP,
                                 fakeRecoveryState(),
                                 schedulingListener -> runStressInboundRecoveryTask(
                                     schedulingListener,
@@ -449,7 +465,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             taskLatch.incRef();
                             totalTasksEnqueued.incrementAndGet();
                             service.enqueue(
-                                noopUserListener,
+                                RecoveryListener.NOOP,
                                 fakeRecoveryState(),
                                 schedulingListener -> runStressInboundRecoveryTask(
                                     schedulingListener,
@@ -522,22 +538,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
-    }
-
-    private static RecoveryListener noopRecoveryListener() {
-        return new RecoveryListener() {
-            @Override
-            public void onRecoveryDone(
-                RecoveryState state,
-                ShardLongFieldRange timestampMillisFieldRange,
-                ShardLongFieldRange eventIngestedMillisFieldRange
-            ) {}
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                fail(e);
-            }
-        };
     }
 
     private RecoveryState fakeRecoveryState() {

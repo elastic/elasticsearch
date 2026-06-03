@@ -369,6 +369,11 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 future.onFailure(e);
             }
+
+            @Override
+            public void onRecoveryCancelled() {
+                future.onResponse(null);
+            }
         });
         recoveryTarget.markAsDone();
 

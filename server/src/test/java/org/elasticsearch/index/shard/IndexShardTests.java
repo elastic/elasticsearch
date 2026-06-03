@@ -5840,6 +5840,11 @@ public class IndexShardTests extends IndexShardTestCase {
             public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                 assert false : "Unexpected failure";
             }
+
+            @Override
+            public void onRecoveryCancelled() {
+                assert false : "Unexpected cancel";
+            }
         };
         recoverReplica(replicaShard, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
             @Override

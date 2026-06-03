@@ -1191,6 +1191,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             handleRecoveryFailure(shardRouting, sendShardFailure, e);
         }
+
+        @Override
+        public void onRecoveryCancelled() {
+            // todo: Why do we not need to notify master about cancellation?
+        }
     }
 
     // package-private for testing

@@ -22,6 +22,9 @@ public interface RecoveryListener {
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
+
+        @Override
+        public void onRecoveryCancelled() {}
     };
 
     /**
@@ -42,7 +45,7 @@ public interface RecoveryListener {
      * Called when recovery is cancelled.
      * E.g. recovering shard has been closed.
      */
-    default void onRecoveryCancelled() {}
+    void onRecoveryCancelled();
 
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
@@ -77,32 +80,5 @@ public interface RecoveryListener {
                 }
             }
         };
-    }
-
-    class DelegatingRecoveryListener implements RecoveryListener {
-        private final RecoveryListener delegate;
-
-        public DelegatingRecoveryListener(RecoveryListener delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public void onRecoveryDone(
-            RecoveryState state,
-            ShardLongFieldRange timestampMillisFieldRange,
-            ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-            delegate.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
-        }
-
-        @Override
-        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-            delegate.onRecoveryFailure(e, sendShardFailure);
-        }
-
-        @Override
-        public void onRecoveryCancelled() {
-            delegate.onRecoveryCancelled();
-        }
     }
 }

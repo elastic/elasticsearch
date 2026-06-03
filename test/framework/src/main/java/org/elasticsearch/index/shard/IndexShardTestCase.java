@@ -146,13 +146,17 @@ public abstract class IndexShardTestCase extends ESTestCase {
             RecoveryState state,
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
-        ) {
-
-        }
+        ) {}
 
         @Override
         public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
             throw new AssertionError(e);
+        }
+
+        @Override
+        public void onRecoveryCancelled() {
+            // Cancellation is a normal reaction to changes in allocation
+            // or node shutdown. Don't fail here.
         }
     };
 

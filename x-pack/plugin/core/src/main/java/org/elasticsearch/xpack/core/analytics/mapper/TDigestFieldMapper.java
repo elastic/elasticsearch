@@ -299,7 +299,7 @@ public class TDigestFieldMapper extends FieldMapper {
                                     }
 
                                     @Override
-                                    public DocIdSetIterator docIdSetIterator() {
+                                    public DocIdSetIterator docIdIterator() {
                                         return values;
                                     }
                                 };
@@ -333,6 +333,11 @@ public class TDigestFieldMapper extends FieldMapper {
                                     public Object nextValue() throws IOException {
                                         value.reset(values.binaryValue());
                                         return value;
+                                    }
+
+                                    @Override
+                                    public DocIdSetIterator docIdIterator() {
+                                        return values;
                                     }
                                 };
                             } catch (IOException e) {

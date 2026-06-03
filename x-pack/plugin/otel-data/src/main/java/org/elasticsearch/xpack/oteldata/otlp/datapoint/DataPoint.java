@@ -168,8 +168,13 @@ public interface DataPoint {
         @Override
         public String getDynamicTemplate(MappingHints mappingHints) {
             String type;
-            if (metric.hasSum() && metric.getSum().getIsMonotonic() && isCounterTemporalitySupported()) {
-                type = "counter_";
+            if (metric.hasSum() && metric.getSum().getIsMonotonic()) {
+                if (metric.getSum().getAggregationTemporality() == AGGREGATION_TEMPORALITY_DELTA
+                    && IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled() == false) {
+                    type = "gauge_";
+                } else {
+                    type = "counter_";
+                }
             } else {
                 // TODO add support for up/down counters - for now we represent them as gauges
                 type = "gauge_";
@@ -181,13 +186,6 @@ public interface DataPoint {
             } else {
                 return null;
             }
-        }
-
-        private boolean isCounterTemporalitySupported() {
-            if (IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled()) {
-                return true;
-            }
-            return metric.getSum().getAggregationTemporality() == AGGREGATION_TEMPORALITY_CUMULATIVE;
         }
 
         @Override

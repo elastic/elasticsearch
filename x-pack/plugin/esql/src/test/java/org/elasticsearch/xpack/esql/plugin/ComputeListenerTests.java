@@ -95,7 +95,8 @@ public class ComputeListenerTests extends ESTestCase {
                     randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1024),
                     randomPlanTimeProfile()
                 )
-            )
+            ),
+            java.util.Map.of()
         );
     }
 

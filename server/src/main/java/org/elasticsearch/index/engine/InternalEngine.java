@@ -1390,7 +1390,7 @@ public class InternalEngine extends Engine {
                     }
 
                     assert assertNoDuplicateUidsInSubBatch(operations, idx, subBatchCount);
-                    processSubBatch(operations, idx, subBatchCount, allResults, batch);
+                    processSubBatch(operations, idx, subBatchCount, batch, allResults);
                 } catch (RuntimeException | IOException e) {
                     failOnTragicEvent(idx, subBatchCount, operations, e);
                     throw e;
@@ -1438,7 +1438,7 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, IndexResult[] allResults, EirfBatch batch)
+    private void processSubBatch(List<Index> operations, int subBatchIdx, int subBatchSize, EirfBatch batch, IndexResult[] allResults)
         throws IOException {
         final boolean fromTranslog = operations.getFirst().origin().isFromTranslog();
         assert assertNoMixedRecoveryOperations(operations);

@@ -135,7 +135,6 @@ class DfsQueryPhase extends SearchPhase {
     }
 
     private void onFinish(AggregatedDfs dfs) {
-        context.accumulateDirectoryMetrics(queryResult.getDirectoryMetrics());
         context.getSearchResponseMetrics()
             .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
         context.executeNextPhase(NAME, () -> nextPhase(dfs));

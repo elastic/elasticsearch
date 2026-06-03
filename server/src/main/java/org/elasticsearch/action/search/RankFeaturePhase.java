@@ -183,7 +183,6 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        context.accumulateDirectoryMetrics(rankPhaseResults.getDirectoryMetrics());
         ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
             context::execute,
             new ActionListener<>() {

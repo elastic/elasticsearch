@@ -49,7 +49,6 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
     @Override
     public void consumeResult(SearchPhaseResult result, Runnable next) {
         assert results.contains(result.getShardIndex()) == false : "shardIndex: " + result.getShardIndex() + " is already set";
-        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         results.add(result.getShardIndex());
         progressListener.notifyQueryResult(result.getShardIndex(), result.queryResult());
         // We have an empty result, track that we saw it for this shard and continue;

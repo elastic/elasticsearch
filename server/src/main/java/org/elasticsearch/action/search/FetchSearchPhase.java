@@ -139,7 +139,6 @@ class FetchSearchPhase extends SearchPhase {
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
             () -> {
                 try (fetchResults) {
-                    context.accumulateDirectoryMetrics(fetchResults.getDirectoryMetrics());
                     moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
                 }
             },

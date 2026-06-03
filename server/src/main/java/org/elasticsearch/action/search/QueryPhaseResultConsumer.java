@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -104,12 +103,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     /**
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results as shard results are consumed.
-     * <p>
-     * Per-shard {@link DirectoryMetrics} are accumulated into this collection as each result is consumed
-     * On the coordinating node: there the per-shard {@link DirectoryMetrics} go back inside each query
-     * search result and are summed by the coordinator-side consumer. Data-node-side consumers never
-     * observe non-empty metrics here, so nothing is double counted.
-     * </p>
      */
     public QueryPhaseResultConsumer(
         SearchRequest request,

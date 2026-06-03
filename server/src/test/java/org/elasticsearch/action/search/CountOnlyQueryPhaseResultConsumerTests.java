@@ -14,8 +14,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.DirectoryMetrics;
-import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -89,31 +87,6 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
         }
     }
 
-    public void testDirectoryMetricsAccumulatedAcrossShards() throws Exception {
-        int numShards = 6;
-        try (CountOnlyQueryPhaseResultConsumer consumer = new CountOnlyQueryPhaseResultConsumer(SearchProgressListener.NOOP, numShards)) {
-            AtomicInteger nextCounter = new AtomicInteger(0);
-            long expectedBytesRead = 0;
-            for (int i = 0; i < numShards; i++) {
-                long shardBytes = (i + 1) * 100L;
-                expectedBytesRead += shardBytes;
-                SearchShardTarget target = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
-                QuerySearchResult result = new QuerySearchResult();
-                TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
-                result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
-                result.setSearchShardTarget(target);
-                result.setShardIndex(i);
-                result.setDirectoryMetrics(storeMetrics(shardBytes));
-                consumer.consumeResult(result, nextCounter::incrementAndGet);
-            }
-            assertEquals(numShards, nextCounter.get());
-
-            DirectoryMetrics observed = consumer.getDirectoryMetrics();
-            assertFalse(observed.isEmpty());
-            assertEquals(expectedBytesRead, observed.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
-        }
-    }
-
     public void testEmptyResults() throws Exception {
         try (
             CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(
@@ -126,12 +99,6 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertTrue(reducePhase.isEmptyResult());
         }
-    }
-
-    private static DirectoryMetrics storeMetrics(long bytesRead) {
-        DirectoryMetrics.Builder b = new DirectoryMetrics.Builder();
-        b.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
-        return b.build();
     }
 
     private static class ThrowingSearchProgressListener extends SearchProgressListener {

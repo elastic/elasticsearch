@@ -525,17 +525,28 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures != null) {
             shardFailures.set(result.getShardIndex(), null);
         }
+        // accumulate the per-shard metrics into the single merged reference before consuming the result
+        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         results.consumeResult(result, () -> {
             successfulOps.incrementAndGet();
             finishOneShard();
         });
     }
 
+    /**
+     * Merges the {@link DirectoryMetrics} carried by a single shard result into the search-wide total. This is the only
+     * place metrics are accumulated on the coordinating node.
+     */
     void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
         if (metrics.isEmpty()) {
             return;
         }
         mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+    }
+
+    // package private for testing
+    DirectoryMetrics getMergedDirectoryMetrics() {
+        return mergedDirectoryMetrics.get();
     }
 
     /**
@@ -619,7 +630,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-        accumulateDirectoryMetrics(results.getDirectoryMetrics());
         createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();

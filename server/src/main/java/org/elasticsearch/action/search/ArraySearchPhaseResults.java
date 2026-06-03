@@ -43,7 +43,6 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     @Override
     void consumeResult(Result result, Runnable next) {
         assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
-        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         results.set(result.getShardIndex(), result);
         result.incRef();
         next.run();

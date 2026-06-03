@@ -204,7 +204,8 @@ public class VectorScorerOSQBenchmark {
 
     private static int queryPackedLength(int dims, QuantConfig quantConfig) {
         return switch (quantConfig) {
-            case D1Q1, D4Q4_STRIPED, D2Q4_STRIPED -> docPackedLength(dims, quantConfig);
+            case D1Q1, D4Q4_STRIPED -> docPackedLength(dims, quantConfig);
+            case D2Q4_STRIPED -> docPackedLength(dims, quantConfig) * 2;
             default -> ES940DiskBBQVectorsFormat.QuantEncoding.fromBits(quantConfig.indexBits()).getQueryPackedLength(dims);
         };
     }

@@ -115,6 +115,9 @@ okhttp3:
   - manage_threads
   - outbound_network
 
+okio:
+  - manage_threads
+
 io.opentelemetry.instrumentation.runtime_telemetry:
   - manage_threads
 

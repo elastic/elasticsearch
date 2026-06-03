@@ -687,11 +687,16 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        Strings.format(
-            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
-            UNKNOWN_SETTING_KEY,
-            UNKNOWN_SETTING_VALUE,
-            SERVICE_NAME_VALUE
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
         );
     }
 
@@ -718,11 +723,16 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
-        Strings.format(
-            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
-            UNKNOWN_SETTING_KEY,
-            UNKNOWN_SETTING_VALUE,
-            SERVICE_NAME_VALUE
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
         );
     }
 

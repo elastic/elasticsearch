@@ -648,10 +648,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperation(
-        String inferenceEntityId,
-        String requestBody
-    ) {
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperation(String inferenceEntityId, String requestBody) {
         var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(

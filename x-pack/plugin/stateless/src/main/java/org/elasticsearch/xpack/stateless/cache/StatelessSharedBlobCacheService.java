@@ -11,7 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.DefaultEvictionPolicy;
+import org.elasticsearch.blobcache.shared.EvictionPolicy;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -53,9 +56,10 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
+        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, createEvictionPolicy(settings, clusterService));
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
     }
@@ -66,12 +70,28 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         Settings settings,
         ThreadPool threadPool,
         BlobCacheMetrics blobCacheMetrics,
+        ClusterService clusterService,
         LongSupplier relativeTimeInNanosSupplier,
         PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder
     ) {
-        super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
+        super(
+            environment,
+            settings,
+            threadPool,
+            IO_EXECUTOR,
+            blobCacheMetrics,
+            relativeTimeInNanosSupplier,
+            createEvictionPolicy(settings, clusterService)
+        );
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+    }
+
+    static EvictionPolicy<FileCacheKey> createEvictionPolicy(Settings settings, ClusterService clusterService) {
+        if (STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.get(settings)) {
+            return new StatelessEvictionPolicy(clusterService);
+        }
+        return new DefaultEvictionPolicy<>();
     }
 
     /**

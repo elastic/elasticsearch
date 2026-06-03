@@ -12,6 +12,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.eirf.EirfBatch;
 import org.elasticsearch.eirf.EirfRowBuilder;
 import org.elasticsearch.index.IndexMode;
@@ -429,6 +430,21 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
             return randomDouble();
         }
         return randomDoubleBetween(0L, Long.MAX_VALUE, true);
+    }
+
+    public void testColumnarArrayOrderRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.name()).build();
+        DocumentMapper mapper = createMapperService(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "unsigned_long").endObject())
+        ).documentMapper();
+        // Stay in the signed-long range so JSON emits a plain number and Java's Long.toString matches the synthetic-source format.
+        long v1 = randomNonNegativeLong();
+        long v2 = randomNonNegativeLong();
+        long v3 = randomNonNegativeLong();
+        String src = syntheticSource(mapper, b -> b.array("field", v2, v1, v3, v2));
+        assertThat(src, containsString("\"field\":[" + v2 + "," + v1 + "," + v3 + "," + v2 + "]"));
     }
 
     class NumberSyntheticSourceSupport implements SyntheticSourceSupport {

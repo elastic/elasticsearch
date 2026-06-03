@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,6 +54,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        assumeTrue("batch indexing requires snapshot builds", Build.current().isSnapshot());
         primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
         translogDir = createTempDir();
         translog = create(translogDir);
@@ -62,7 +64,9 @@ public class TranslogIndexBatchTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
-            translog.close();
+            if (translog != null) {
+                translog.close();
+            }
         } finally {
             super.tearDown();
         }

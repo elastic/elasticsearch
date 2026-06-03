@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 public class KeyRotationExecutorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
+    private static final String PASSWORD_ID = "v1";
     private final ThreadPool threadPool = mockThreadPool();
     private final KeyRotationCoordinator.KeyRotationExecutor executor = new KeyRotationCoordinator.KeyRotationExecutor(
         DefaultProjectResolver.INSTANCE,
@@ -39,7 +40,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
     }
 
     private static byte[] randomKey() {
-        byte[] keyBytes = new byte[32];
+        byte[] keyBytes = new byte[PasswordBasedEncryption.PEK_LENGTH_BYTES];
         random().nextBytes(keyBytes);
         return keyBytes;
     }
@@ -62,40 +63,121 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     public void testInstallInitialKeyOnEmptyState() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(), state);
+        String newKeyId = ProjectEncryptionKeyMetadata.generateKeyId();
+        long generatedAt = System.currentTimeMillis();
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.InstallKeyTask(newKeyId, randomKey(), PASSWORD_ID, generatedAt),
+            state
+        );
 
         ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertNotNull(metadata);
         assertEquals(1, metadata.getKeys().size());
-        String activeKeyId = metadata.getActiveKeyId();
-        assertNotNull(activeKeyId);
-        assertTrue("generatedAt should be set on initial install", metadata.getGeneratedAt(activeKeyId) > 0);
+        assertEquals(newKeyId, metadata.getActiveKeyId());
+        assertEquals(PASSWORD_ID, metadata.getPasswordId());
+        assertEquals(generatedAt, metadata.getGeneratedAt(newKeyId));
     }
 
     public void testInstallInitialKeyIsNoopWhenKeyExists() {
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(42L)), "k1");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(42L)), "k1", PASSWORD_ID);
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.InstallKeyTask(ProjectEncryptionKeyMetadata.generateKeyId(), randomKey(), PASSWORD_ID, 0L),
+            state
+        );
         assertSame(state, result.v1());
     }
 
     public void testBeginRotationAddsKeyAndAdvancesActive() {
         long activeBornAt = System.currentTimeMillis() - 60_000L;
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(activeBornAt)), "k1");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(activeBornAt)), "k1", PASSWORD_ID);
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(), state);
+        String newKeyId = ProjectEncryptionKeyMetadata.generateKeyId();
+        long newGeneratedAt = activeBornAt + 1000L;
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask(newKeyId, randomKey(), PASSWORD_ID, newGeneratedAt),
+            state
+        );
 
         ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
         assertEquals(2, metadata.getKeys().size());
-        assertNotEquals("k1", metadata.getActiveKeyId());
+        assertEquals(newKeyId, metadata.getActiveKeyId());
+        assertEquals(PASSWORD_ID, metadata.getPasswordId());
         assertTrue("k1 should remain in the map", metadata.getKeys().containsKey("k1"));
         assertEquals(activeBornAt, metadata.getGeneratedAt("k1"));
-        assertTrue("new active key has fresh generatedAt", metadata.getGeneratedAt(metadata.getActiveKeyId()) > activeBornAt);
+        assertEquals(newGeneratedAt, metadata.getGeneratedAt(newKeyId));
     }
 
     public void testBeginRotationIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask(ProjectEncryptionKeyMetadata.generateKeyId(), randomKey(), PASSWORD_ID, 0L),
+            state
+        );
+        assertSame(state, result.v1());
+    }
+
+    public void testBeginRotationDropsWhenPasswordIdDrifted() {
+        // Existing metadata under PASSWORD_ID, but the task pre-wrapped under a different id (a password rotation slipped in between
+        // the pre-wrap fork and the master-thread apply). Executor must drop and let the next tick re-attempt.
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1", PASSWORD_ID);
+        ClusterState state = stateWith(existing);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask(ProjectEncryptionKeyMetadata.generateKeyId(), randomKey(), "other-password", 100L),
+            state
+        );
+        assertSame(state, result.v1());
+    }
+
+    public void testRotatePasswordSwapsAllEntriesAndPasswordId() {
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L), "k2", entry(100L)),
+            "k2",
+            PASSWORD_ID,
+            Map.of("some_handler", "k1")
+        );
+        ClusterState state = stateWith(existing);
+
+        Map<String, KeyEntry> rewrapped = Map.of("k1", new KeyEntry(randomKey(), 0L), "k2", new KeyEntry(randomKey(), 100L));
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RotatePasswordTask(rewrapped, "v2", PASSWORD_ID),
+            state
+        );
+
+        ProjectEncryptionKeyMetadata updated = metadataOf(result.v1());
+        assertEquals("v2", updated.getPasswordId());
+        assertEquals("k2", updated.getActiveKeyId());
+        assertEquals(Set.of("k1", "k2"), updated.getKeys().keySet());
+        assertArrayEquals(rewrapped.get("k1").bytes(), updated.getKeys().get("k1").bytes());
+        assertArrayEquals(rewrapped.get("k2").bytes(), updated.getKeys().get("k2").bytes());
+        assertEquals("handlerKeyIds preserved across password rotation", Map.of("some_handler", "k1"), updated.getHandlerKeyIds());
+    }
+
+    public void testRotatePasswordDropsWhenAlreadyOnNewPassword() {
+        // Idempotent: a duplicate task arriving after the rotation has already applied is a no-op.
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(0L)), "k1", "v2");
+        ClusterState state = stateWith(existing);
+
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RotatePasswordTask(Map.of("k1", new KeyEntry(randomKey(), 0L)), "v2", PASSWORD_ID),
+            state
+        );
+        assertSame(state, result.v1());
+    }
+
+    public void testRotatePasswordDropsOnKeySetChange() {
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(
+            Map.of("k1", entry(0L), "k2", entry(100L)),
+            "k2",
+            PASSWORD_ID
+        );
+        ClusterState state = stateWith(existing);
+
+        // Rewrapped map only has one entry — key set changed between pre-rewrap and apply (a rotation slipped in).
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RotatePasswordTask(Map.of("k1", new KeyEntry(randomKey(), 0L)), "v2", PASSWORD_ID),
+            state
+        );
         assertSame(state, result.v1());
     }
 
@@ -105,7 +187,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         entries.put("old", entry(100L));
         entries.put("active", entry(500L));
         entries.put("recent", entry(400L));
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(entries, "active");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(entries, "active", PASSWORD_ID);
         ClusterState state = stateWith(existing);
 
         Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(450L), state);
@@ -120,7 +202,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
         Map<String, KeyEntry> entries = new HashMap<>();
         entries.put("active", entry(100L));
         entries.put("old", entry(50L));
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(entries, "active");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(entries, "active", PASSWORD_ID);
         ClusterState state = stateWith(existing);
 
         long cutoff = 200L;
@@ -132,7 +214,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
     }
 
     public void testRetireKeysIsNoopWhenNothingToRetire() {
-        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("active", entry(1000L)), "active");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("active", entry(1000L)), "active", PASSWORD_ID);
         ClusterState state = stateWith(existing);
 
         Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(500L), state);

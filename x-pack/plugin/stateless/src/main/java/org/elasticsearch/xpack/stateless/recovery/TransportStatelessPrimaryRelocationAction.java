@@ -588,7 +588,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     }
 
     private Engine ensureIndexTierAllowedEngine(Engine engine, IndexShardState indexShardState, ShardRouting shardRouting) {
-        if (engine instanceof IndexEngine indexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
+        if (engine instanceof IndexEngine || engine instanceof HollowIndexEngine || engine instanceof NoOpEngine) {
             return engine;
         } else if (engine == null) {
             throw new AlreadyClosedException("source shard closed before recovery started: " + shardRouting);

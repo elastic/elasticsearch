@@ -205,20 +205,34 @@ public abstract class TransportWriteAction<
             assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
             throw failure;
         } else {
-            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
+            location = locationToSync(currentLocation, operationResult.getTranslogLocation(), false);
         }
         return location;
     }
 
-    public static Location locationToSync(Location current, Location next) {
+    public static Location locationToSync(Location current, Location next, boolean isBatch) {
         /* here we are moving forward in the translog with each operation. Under the hood this might
          * cross translog files which is ok since from the user perspective the translog is like a
          * tape where only the highest location needs to be fsynced in order to sync all previous
          * locations even though they are not in the same file. When the translog rolls over files
          * the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
+        assert assertLocation(current, next, isBatch);
         return next;
+    }
+
+    private static boolean assertLocation(Location current, Location next, boolean isBatch) {
+        if (next == null) {
+            throw new AssertionError("next operation can't be null");
+        }
+        if (current != null) {
+            int cmp = current.compareTo(next);
+            if (isBatch ? cmp > 0 : cmp >= 0) {
+                throw new AssertionError(
+                    isBatch ? "all batch operations must be the same or increasing" : "translog locations are not increasing"
+                );
+            }
+        }
+        return true;
     }
 
     @Override

@@ -12,6 +12,7 @@ package org.elasticsearch.telemetry.apm.internal.tracing;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanContext;
@@ -60,6 +61,14 @@ public class APMTracerTests extends ESTestCase {
     private static final Traceable TRACEABLE1 = new TestTraceable("id1");
     private static final Traceable TRACEABLE2 = new TestTraceable("id2");
     private static final Traceable TRACEABLE3 = new TestTraceable("id3");
+
+    /**
+     * The two-arg constructor accepting a {@code Supplier<MeterProvider>} should construct without
+     * throwing regardless of the supplier's return value.
+     */
+    public void testConstructorWithMeterProviderSupplierDoesNotThrow() {
+        assertNotNull(new APMTracer(Settings.EMPTY, MeterProvider::noop));
+    }
 
     /**
      * Check that the tracer doesn't create spans when tracing is disabled.

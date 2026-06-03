@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.DataSource;
-import org.elasticsearch.cluster.metadata.DataSourceMetadata;
 import org.elasticsearch.cluster.metadata.DataSourceReference;
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
 import org.elasticsearch.cluster.metadata.Dataset;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -23,10 +20,14 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSource;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -320,13 +321,9 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(out.config().get("format"), equalTo((Object) "parquet"));
     }
 
-    public void testSecretSettingsArrivedAsSecureStringNotPlaintext() {
-        // Secret values arrive in the carrier as SecureString rather than plaintext String — a
-        // hygiene boundary at this layer, not an end-to-end guarantee. DataSourceSetting wraps the
-        // underlying String in a SecureString on every secretValue() call; consumers may close()
-        // after use to bound the carrier-side lifetime. Plugins still call .toString() at the point
-        // of use, which materializes a plaintext copy that the SDK consumes — full secret-handling
-        // protection is out of scope for this layer and is tracked under separate encryption work.
+    public void testSecretSettingsForwardedAsPlaintextString() {
+        // Plaintext-stored secrets (the no-encryption-service producer path) pass through mergeSettings
+        // as their original String. The connector receives the String directly — no decrypt needed.
         DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting("AKIAEXAMPLE_SECRET_VALUE", true)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
@@ -335,9 +332,26 @@ public class DatasetRewriterTests extends ESTestCase {
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = datasourceParamValue(out, "access_key");
-        assertThat(accessKey, instanceOf(org.elasticsearch.common.settings.SecureString.class));
-        // .toString() at the consumer surfaces the plaintext.
-        assertThat(accessKey.toString(), equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+        assertThat(accessKey, instanceOf(String.class));
+        assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
+    }
+
+    public void testSecretSettingsForwardedAsEncryptedDataCarrier() {
+        // Encrypted secrets (the master-side encryption step produced an EncryptedData carrier) pass
+        // through mergeSettings by reference. The decryption step at the connector boundary
+        // (DataSourceCredentials.decryptInPlace) recognizes the carrier by type and materialises
+        // plaintext just before the SDK call.
+        EncryptedData carrier = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
+        DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting(carrier, true)));
+        Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
+        ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
+
+        LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
+
+        UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
+        Object accessKey = datasourceParamValue(out, "access_key");
+        assertThat("encrypted secret stays an EncryptedData carrier on the live config map", accessKey, instanceOf(EncryptedData.class));
+        assertSame("carrier is forwarded by reference", carrier, accessKey);
     }
 
     public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {

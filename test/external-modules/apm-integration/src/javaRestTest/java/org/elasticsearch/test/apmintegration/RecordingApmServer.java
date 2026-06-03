@@ -121,7 +121,7 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         switch (path) {
-                            case "/v1/metrics" -> received.addAll(OtlpMetricsParser.parse(requestBody));
+                            case "/v1/metrics" -> OtlpMetricsParser.parse(requestBody).forEach(this::route);
                             case "/v1/traces" -> OtlpTracesParser.parse(requestBody).forEach(this::route);
                             case "/intake/v2/events" -> {
                                 List<String> lines = readJsonMessages(requestBody);
@@ -132,15 +132,6 @@ public class RecordingApmServer extends ExternalResource {
                             default -> logger.debug("ignoring request to unhandled path [{}]", path);
                         }
                     }
-                } catch (Throwable t) {
-                    // The lifetime of HttpServer makes message handling "brittle": we need to start handling and recording received
-                    // messages before the test starts running. We should also stop handling them before the test ends (and the test
-                    // cluster is torn down), or we may run into IOException as the communication channel is interrupted.
-                    // Coordinating the lifecycle of the mock HttpServer and of the test ES cluster is difficult and error-prone, so
-                    // we just handle Throwable and don't care (log, but don't care): if we have an error in communicating to/from
-                    // the mock server while the test is running, the test would fail anyway as the expected messages will not arrive, and
-                    // if we have an error outside the test scope (before or after) that is OK.
-                    logger.warn("failed to parse request", t);
                 }
             }
             exchange.sendResponseHeaders(responseCode, 0);
@@ -200,6 +191,7 @@ public class RecordingApmServer extends ExternalResource {
     public void reset() {
         consumer = null;
         received.clear();
+        clearResponseCode();
     }
 
     /**

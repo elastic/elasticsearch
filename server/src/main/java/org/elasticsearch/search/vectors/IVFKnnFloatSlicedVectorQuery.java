@@ -44,6 +44,7 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
      * @param visitRatio the ratio of vectors to score for the IVF search strategy
      * @param sliceField the field used for slicing the index
      * @param sliceId the slice to be search
+     * @param overSampleFactor the oversample multiplier applied to the original k
      */
     public IVFKnnFloatSlicedVectorQuery(
         String field,
@@ -54,9 +55,10 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         float visitRatio,
         boolean doPrecondition,
         String sliceField,
-        BytesRef sliceId
+        BytesRef sliceId,
+        float overSampleFactor
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition);
+        super(field, query, k, numCands, filter, visitRatio, doPrecondition, overSampleFactor);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 
@@ -33,8 +34,8 @@ public class AnalyzerContext {
     private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
-    private final Map<IndexPattern, IndexResolution> optionalLinkedResolution;  // CPS-specific resolution for remote indexes matching local
-                                                                                // views
+    private final Map<LinkedIndexPattern, IndexResolution> linkedResolution; // CPS-specific resolution for remote indexes matching local
+                                                                             // views
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
     private final ExternalSourceResolution externalSourceResolution;
@@ -51,7 +52,7 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
-        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
+        Map<LinkedIndexPattern, IndexResolution> linkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -65,7 +66,7 @@ public class AnalyzerContext {
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
-        this.optionalLinkedResolution = optionalLinkedResolution;
+        this.linkedResolution = linkedResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
         this.externalSourceResolution = externalSourceResolution;
@@ -130,8 +131,8 @@ public class AnalyzerContext {
     /**
      * Contains resolution for optional linked patterns. Such patterns include linked indices (if exist) that shadow local views.
      */
-    public Map<IndexPattern, IndexResolution> optionalLinkedResolution() {
-        return optionalLinkedResolution;
+    public Map<LinkedIndexPattern, IndexResolution> linkedResolution() {
+        return linkedResolution;
     }
 
     public EnrichResolution enrichResolution() {
@@ -210,7 +211,7 @@ public class AnalyzerContext {
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),
-            result.optionalLinkedResolution(),
+            result.linkedResolution(),
             result.enrichResolution(),
             result.inferenceResolution(),
             result.externalSourceResolution(),

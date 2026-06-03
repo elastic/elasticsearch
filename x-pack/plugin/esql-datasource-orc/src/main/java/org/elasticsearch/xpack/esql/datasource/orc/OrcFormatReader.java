@@ -69,6 +69,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -1764,7 +1765,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 try {
                     delegate.close();
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException("Failed to close ORC reader", e);
                 }
             } else {
                 remaining -= rows;

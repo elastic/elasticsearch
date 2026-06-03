@@ -86,13 +86,10 @@ public class OpenAiOAuth2IT extends InferenceBaseRestTest {
     }
 
     @AfterClass
-    public static void stopServers() throws Exception {
+    public static void stopServers() {
         idp.shutdown();
         openai.close();
     }
-
-    // Cluster @ClassRule, getTestRestCluster(), and restClientSettings() are inherited
-    // from InferenceBaseRestTest.
 
     @After
     public void clearMockRequests() {

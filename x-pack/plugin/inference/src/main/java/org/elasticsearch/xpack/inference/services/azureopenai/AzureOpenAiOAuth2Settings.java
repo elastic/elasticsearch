@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -29,7 +30,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.addMissingFieldsValidationException;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.getOAuth2Configurations;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
@@ -43,11 +46,11 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
 
     public static final String TENANT_ID_FIELD = "tenant_id";
 
-    public static final String REQUIRED_FIELDS = String.join(", ", OAuth2Settings.REQUIRED_FIELDS, TENANT_ID_FIELD);
-
-    public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
+    public static final Set<String> REQUIRED_FIELDS = Sets.addToCopy(OAuth2Settings.REQUIRED_FIELDS, TENANT_ID_FIELD);
+    public static final String REQUIRED_FIELDS_DESCRIPTION = OAuth2Settings.requiredFieldsDescription(REQUIRED_FIELDS);
 
     private static final String TENANT_ID_CONFIG_DESCRIPTION = "The directory tenant that you want to request permission from.";
+    private static final String SERVICE_DESCRIPTION = "Azure OpenAI";
 
     private final OAuth2Settings oAuth2Settings;
     private final String tenantId;
@@ -85,25 +88,15 @@ public class AzureOpenAiOAuth2Settings implements ToXContentFragment, Writeable 
                 return false;
             }
 
-            addMissingFieldsValidationException(TENANT_ID_FIELD, validationException);
+            addMissingFieldsValidationException(SERVICE_DESCRIPTION, Set.of(TENANT_ID_FIELD), validationException);
 
             return false;
         } else if (oauth2Settings.isUndefined()) {
-            addMissingFieldsValidationException(OAuth2Settings.REQUIRED_FIELDS, validationException);
+            addMissingFieldsValidationException(SERVICE_DESCRIPTION, OAuth2Settings.REQUIRED_FIELDS, validationException);
             return false;
         }
 
         return oauth2Settings.isSuccess();
-    }
-
-    private static void addMissingFieldsValidationException(String missingFields, ValidationException validationException) {
-        validationException.addValidationError(
-            Strings.format(
-                "[%s] all Azure OpenAI OAuth2 fields must be provided together; missing: [%s]",
-                ModelConfigurations.SERVICE_SETTINGS,
-                missingFields
-            )
-        );
     }
 
     public AzureOpenAiOAuth2Settings(OAuth2Settings oAuth2Settings, String tenantId) {

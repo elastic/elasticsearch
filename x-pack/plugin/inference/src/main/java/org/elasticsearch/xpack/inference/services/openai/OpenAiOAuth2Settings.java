@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -25,8 +26,11 @@ import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.OAUTH2_SETTINGS_NOT_CONFIGURED_ERROR;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.addMissingFieldsValidationException;
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Settings.requiredFieldsDescription;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
@@ -44,9 +48,10 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
 
     public static final TransportVersion OPENAI_OAUTH2_SETTINGS = TransportVersion.fromName("openai_oauth2_settings");
 
-    public static final String REQUIRED_FIELDS = String.join(", ", OAuth2Settings.REQUIRED_FIELDS, TOKEN_URL);
+    public static final Set<String> REQUIRED_FIELDS = Sets.addToCopy(OAuth2Settings.REQUIRED_FIELDS, TOKEN_URL);
+    public static final String REQUIRED_FIELDS_DESCRIPTION = requiredFieldsDescription(REQUIRED_FIELDS);
 
-    public static final String REQUIRED_FIELDS_DESCRIPTION = Strings.format("OAuth2 requires the fields [%s], to be set.", REQUIRED_FIELDS);
+    private static final String SERVICE_DESCRIPTION = "OpenAI";
 
     private final OAuth2Settings oAuth2Settings;
     private final URI tokenUrl;
@@ -72,22 +77,10 @@ public class OpenAiOAuth2Settings implements ToXContentFragment, Writeable {
             if (oauth2Settings.isUndefined()) {
                 return false;
             }
-            validationException.addValidationError(
-                Strings.format(
-                    "[%s] all OpenAI OAuth2 fields must be provided together; missing: [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    TOKEN_URL
-                )
-            );
+            addMissingFieldsValidationException(SERVICE_DESCRIPTION, Set.of(TOKEN_URL), validationException);
             return false;
         } else if (oauth2Settings.isUndefined()) {
-            validationException.addValidationError(
-                Strings.format(
-                    "[%s] all OpenAI OAuth2 fields must be provided together; missing: [%s]",
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    OAuth2Settings.REQUIRED_FIELDS
-                )
-            );
+            addMissingFieldsValidationException(SERVICE_DESCRIPTION, OAuth2Settings.REQUIRED_FIELDS, validationException);
             return false;
         }
         return oauth2Settings.isSuccess();

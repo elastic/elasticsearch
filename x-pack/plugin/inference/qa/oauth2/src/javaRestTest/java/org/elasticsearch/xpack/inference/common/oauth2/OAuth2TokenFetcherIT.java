@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.mockOAuth2ClusterSettings;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.endsWith;
@@ -98,7 +99,15 @@ public class OAuth2TokenFetcherIT extends ESTestCase {
 
     public void testFetch_ReturnsTokenExpiringInThirtyMinutes() {
         idp.enqueueCallback(tokenCallback());
-        var fetcher = new OAuth2TokenFetcher(INFERENCE_ID, tokenEndpoint, CLIENT_ID, CLIENT_SECRET, SCOPES, threadPool);
+        var fetcher = new OAuth2TokenFetcher(
+            INFERENCE_ID,
+            tokenEndpoint,
+            CLIENT_ID,
+            CLIENT_SECRET,
+            SCOPES,
+            threadPool,
+            mockOAuth2ClusterSettings()
+        );
 
         var before = Instant.now();
         var future = new TestPlainActionFuture<CachedToken>();
@@ -114,7 +123,15 @@ public class OAuth2TokenFetcherIT extends ESTestCase {
 
     public void testFetch_SendsClientCredentialsRequestToIdp() {
         idp.enqueueCallback(tokenCallback());
-        var fetcher = new OAuth2TokenFetcher(INFERENCE_ID, tokenEndpoint, CLIENT_ID, CLIENT_SECRET, SCOPES, threadPool);
+        var fetcher = new OAuth2TokenFetcher(
+            INFERENCE_ID,
+            tokenEndpoint,
+            CLIENT_ID,
+            CLIENT_SECRET,
+            SCOPES,
+            threadPool,
+            mockOAuth2ClusterSettings()
+        );
 
         var future = new TestPlainActionFuture<CachedToken>();
         fetcher.fetch(future);

@@ -34,6 +34,10 @@ public abstract class BinaryDVBlockLoaderTestCase extends BlockLoaderTestCase {
         public boolean syntheticSource() {
             return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
         }
+
+        public boolean isColumnarStored() {
+            return sourceMode == SourceFieldMapper.Mode.COLUMNAR_STORED;
+        }
     }
 
     protected final Params params;

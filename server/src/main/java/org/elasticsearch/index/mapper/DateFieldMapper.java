@@ -1211,10 +1211,13 @@ public final class DateFieldMapper extends FieldMapper {
      * @param fullFieldName  The full name of the field being checked, expected to be {@code @timestamp}.
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
      */
+    // TODO: for columnar the default should be based on the soon the built skipper mapping attribute.
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
         return indexSettings.useDocValuesSkipper()
             && hasDocValues
-            && (indexSettings.getMode() == IndexMode.TIME_SERIES || indexSettings.getMode() == IndexMode.LOGSDB)
+            && (indexSettings.getMode() == IndexMode.TIME_SERIES
+                || indexSettings.getMode() == IndexMode.LOGSDB
+                || indexSettings.getMode() == IndexMode.LOGSDB_COLUMNAR)
             && indexSettings.getIndexSortConfig() != null
             && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);

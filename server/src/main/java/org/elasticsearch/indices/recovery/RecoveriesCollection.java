@@ -19,7 +19,6 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -254,30 +253,16 @@ public class RecoveriesCollection {
      */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
-        List<RecoveryTarget> matchedRecoveries = new ArrayList<>();
+        List<Long> matchedRecoveries = new ArrayList<>();
         synchronized (onGoingRecoveries) {
-            for (Iterator<RecoveryTarget> it = onGoingRecoveries.values().iterator(); it.hasNext();) {
-                RecoveryTarget status = it.next();
+            for (RecoveryTarget status : onGoingRecoveries.values()) {
                 if (status.shardId().equals(shardId)) {
-                    matchedRecoveries.add(status);
-                    it.remove();
+                    matchedRecoveries.add(status.recoveryId());
                 }
             }
         }
-        for (RecoveryTarget removed : matchedRecoveries) {
-            logger.trace(
-                "{} canceled recovery from {}, id [{}] (reason [{}])",
-                removed.shardId(),
-                removed.sourceNode(),
-                removed.recoveryId(),
-                reason
-            );
-            removed.indexShard().recoveryStats().decCurrentAsTarget();
-            removed.cancel(reason);
-            cancelled = true;
-        }
-        if (cancelled) {
-            notifyRecoverySchedulingListeners();
+        for (long removedRecoveryId : matchedRecoveries) {
+            cancelled |= cancelRecovery(removedRecoveryId, reason);
         }
         return cancelled;
     }

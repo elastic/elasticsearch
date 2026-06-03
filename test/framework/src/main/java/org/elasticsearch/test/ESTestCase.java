@@ -238,7 +238,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assume.assumeFalse;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -3035,6 +3034,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         var e = expectThrows(expectedType, reason, runnable);
         assertThat(reason, e.getMessage(), messageMatcher);
         return e;
+    }
+
+    /**
+     * Same as {@link #runInParallel(Runnable...)} but also attempts to start all tasks at the same time by blocking execution on a
+     * barrier until all threads are started and ready to execute their task.
+     */
+    public static void startInParallel(Runnable... tasks) {
+        final CyclicBarrier barrier = new CyclicBarrier(tasks.length);
+        runInParallel(tasks.length, i -> {
+            safeAwait(barrier);
+            tasks[i].run();
+        });
     }
 
     /**

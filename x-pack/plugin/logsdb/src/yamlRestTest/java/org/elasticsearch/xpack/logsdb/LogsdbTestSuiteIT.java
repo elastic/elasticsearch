@@ -58,6 +58,7 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("cluster.logsdb_columnar.enabled", () -> Boolean.toString(columnarEnabled))
             .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
+            .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
             .feature(FeatureFlag.IGNORED_SOURCE_AS_DOC_VALUES_FF);
         boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {

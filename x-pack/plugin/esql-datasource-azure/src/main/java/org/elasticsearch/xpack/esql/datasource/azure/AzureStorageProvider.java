@@ -19,6 +19,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.common.StorageSharedKeyCredential;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -122,19 +123,19 @@ public final class AzureStorageProvider implements StorageProvider {
                 );
             }
         } else if (config != null && config.hasCredentials()) {
-            if (config.connectionString() != null && config.connectionString().isEmpty() == false) {
+            if (Strings.hasText(config.connectionString())) {
                 builder.connectionString(config.connectionString());
                 if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
                     builder.endpoint(config.endpoint());
                 }
-            } else if (config.account() != null && config.key() != null) {
+            } else if (Strings.hasText(config.account()) && Strings.hasText(config.key())) {
                 StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
                 String endpoint = config.endpoint();
                 if (endpoint == null || endpoint.isEmpty()) {
                     endpoint = "https://" + config.account() + ".blob.core.windows.net";
                 }
                 builder.endpoint(endpoint).credential(credential);
-            } else if (config.sasToken() != null && config.sasToken().isEmpty() == false && config.account() != null) {
+            } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
                 String endpoint = config.endpoint();
                 if (endpoint == null || endpoint.isEmpty()) {
                     endpoint = "https://" + config.account() + ".blob.core.windows.net";

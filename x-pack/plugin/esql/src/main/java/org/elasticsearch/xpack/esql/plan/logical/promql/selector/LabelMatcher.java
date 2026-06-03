@@ -191,12 +191,20 @@ public class LabelMatcher implements NodeStringRenderable {
     }
 
     /**
-     * Routes the label name and the match value through the mapper (the match operator is structural
-     * and stays). Under {@link NodeStringMapper#IDENTITY} this equals {@link #toString()}; under an
-     * anonymizing mapper both the label name and the (potentially sensitive) match value tokenize.
+     * Routes the label name and every match value through the mapper (the match operator is
+     * structural and stays). Reproduces {@code toString()}'s {@code name op [v1, v2]} shape so that
+     * under {@link NodeStringMapper#IDENTITY} this equals {@link #toString()}; under an anonymizing
+     * mapper the label name and the (potentially sensitive) values tokenize.
      */
     @Override
     public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(mapper.column(name)).append(matcher.value).append(mapper.column(value));
+        sb.append(mapper.column(name)).append(matcher.value).append('[');
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            sb.append(mapper.column(values.get(i)));
+        }
+        sb.append(']');
     }
 }

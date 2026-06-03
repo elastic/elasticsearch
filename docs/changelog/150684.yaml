@@ -1,0 +1,6 @@
+---
+type: enhancement
+description: Hoist memory segment slicing out of hot loops in Native22ESVectorUtilSupport maxSimDotProduct to optimize CPU pipelines.
+breaking_change: false
+
+

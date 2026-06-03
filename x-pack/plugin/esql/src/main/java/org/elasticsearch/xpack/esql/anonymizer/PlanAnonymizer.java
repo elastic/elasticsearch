@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.anonymizer;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -60,7 +61,7 @@ public final class PlanAnonymizer {
      * carries no useful schema).
      */
     public AnonymizedPlans anonymize(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
-        var format = org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat.FULL;
+        var format = Node.NodeStringFormat.FULL;
         String parsedText = parsed == null ? "" : parsed.toString(format, mapper);
         String analyzedText = analyzed == null ? "" : analyzed.toString(format, mapper);
         String optimizedText = optimized == null ? "" : optimized.toString(format, mapper);

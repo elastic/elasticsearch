@@ -39,16 +39,15 @@ import javax.crypto.spec.SecretKeySpec;
  *       gets a fresh token in the next query.</li>
  * </ul>
  * A fresh context is constructed per query submission via {@link #forSubmission(String)}; reusing
- * one across submissions would leak literal identity across queries.
+ * one across submissions would leak literal identity across queries. Used entirely within a single
+ * thread, so its plain {@link HashMap} state needs no synchronization.
  */
 public final class AnonymizationContext {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**
-     * Widened from 8 to 12 hex chars — a 48-bit token, ~16M birthday-collision bound vs ~65k at
-     * 32 bits (8 chars). Per-cluster-stable correlation breaks down silently when two distinct
-     * field names hash to the same {@code col_xxxxxxxx} on a wide schema, so the extra four chars
-     * buy real safety at no rendering-cost penalty.
+     * Length of each hashed identifier. We use 12 because it takes ~16M entries before we're 50/50
+     * to hit a collision (two field names hashing to the same {@code col_xxxxxxxx}).
      */
     private static final int TOKEN_HEX_LEN = 12;
 
@@ -73,8 +72,7 @@ public final class AnonymizationContext {
             if (value == null) {
                 return "null";
             }
-            // HashMap only: the mapping function reads literalIds.size() to assign the next id.
-            // A ConcurrentHashMap would reject this re-entrant access (recursive update).
+            // size() gives the next sequential id (0, 1, 2, ...) as each new literal is interned.
             int id = literalIds.computeIfAbsent(LiteralKey.of(value, type), k -> literalIds.size());
             if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
                 return "L" + id;

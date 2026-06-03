@@ -119,6 +119,6 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(name());
+        sb.append(mapper.column(name()));
     }
 }

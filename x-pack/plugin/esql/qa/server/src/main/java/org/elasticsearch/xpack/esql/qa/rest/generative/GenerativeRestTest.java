@@ -106,7 +106,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             "Multiple index patterns should be disabled with unmapped fields",
             // https://github.com/elastic/elasticsearch/issues/146036
             "argument of \\[.*\\] must be \\[unsupported\\], found value",
-            "LOOKUP JOIN is not supported with unmapped_fields=\\\"load\\\"",
             // https://github.com/elastic/elasticsearch/issues/146074
             "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported\\]",
             "FORK is not supported with unmapped_fields=\\\"load\\\""

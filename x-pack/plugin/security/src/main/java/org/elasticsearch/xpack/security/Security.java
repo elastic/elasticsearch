@@ -234,6 +234,8 @@ import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.action.workload.TransportRunWorkloadIssuerTestAction;
+import org.elasticsearch.xpack.security.action.workload.WorkloadIssuerTestAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCloneApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
@@ -359,6 +361,7 @@ import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.security.rest.action.RestRunWorkloadIssuerTestAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestBulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestClearApiKeyCacheAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestCloneApiKeyAction;
@@ -1837,6 +1840,7 @@ public class Security extends Plugin
             new ActionHandler(ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION, TransportReloadRemoteClusterCredentialsAction.class),
             new ActionHandler(UpdateIndexMigrationVersionAction.INSTANCE, UpdateIndexMigrationVersionAction.TransportAction.class),
             new ActionHandler(GetSecurityStatsAction.INSTANCE, TransportSecurityStatsAction.class),
+            new ActionHandler(WorkloadIssuerTestAction.INSTANCE, TransportRunWorkloadIssuerTestAction.class),
             usageAction,
             infoAction
         ).filter(Objects::nonNull).toList();
@@ -1931,7 +1935,8 @@ public class Security extends Plugin
             new RestDisableProfileAction(settings, getLicenseState()),
             new RestGetSecuritySettingsAction(settings, getLicenseState()),
             new RestUpdateSecuritySettingsAction(settings, getLicenseState()),
-            new RestSecurityStatsAction(settings, getLicenseState(), clusterSupportsFeature)
+            new RestSecurityStatsAction(settings, getLicenseState(), clusterSupportsFeature),
+            new RestRunWorkloadIssuerTestAction()
         ).filter(Objects::nonNull).toList();
     }
 

@@ -80,8 +80,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetScriptLa
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportGetStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.cluster.tasks.TransportPendingClusterTasksAction;
-import org.elasticsearch.action.admin.cluster.workload.TransportRunWorkloadIssuerTestAction;
-import org.elasticsearch.action.admin.cluster.workload.WorkloadIssuerTestAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -307,7 +305,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsActio
 import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestResetFeatureStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
-import org.elasticsearch.rest.action.admin.cluster.RestRunWorkloadIssuerTestAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshottableFeaturesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestUpdateDesiredNodesAction;
@@ -777,8 +774,6 @@ public class ActionModule extends AbstractModule {
         actions.register(DeletePipelineTransportAction.TYPE, DeletePipelineTransportAction.class);
         actions.register(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
 
-        actions.register(WorkloadIssuerTestAction.INSTANCE, TransportRunWorkloadIssuerTestAction.class);
-
         actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
 
         // Persistent tasks:
@@ -880,7 +875,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter, projectResolver));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
-        registerHandler.accept(new RestRunWorkloadIssuerTestAction());
         registerHandler.accept(new RestPutRepositoryAction());
         registerHandler.accept(new RestGetRepositoriesAction(settingsFilter));
         registerHandler.accept(new RestDeleteRepositoryAction());

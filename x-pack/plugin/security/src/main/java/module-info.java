@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.security.logging.SecurityActionLoggingFieldsProvi
 
 module org.elasticsearch.security {
     requires java.naming;
+    requires java.net.http;
     requires java.security.jgss;
     requires java.xml;
 

@@ -194,6 +194,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
     }
 
     public void testColumnarOverrideSyntheticSourceSetting() throws IOException {
+        assumeTrue("columnar index mude must be supported by this cluster", isColumnarIndexModeSupported());
         final String index = "test-index";
         createIndex(
             index,
@@ -214,6 +215,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
     }
 
     public void testLogsdbColumnarOverrideSyntheticSourceSetting() throws IOException {
+        assumeTrue("columnar index mode must be supported by the cluster", isColumnarIndexModeSupported());
         final String index = "test-index";
         createIndex(
             index,

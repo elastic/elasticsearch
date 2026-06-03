@@ -27,9 +27,10 @@ import java.util.Set;
  * {@link MetadataAttribute#ATTRIBUTES_MAP} so the binding here and in the analyzer
  * always agree (including snapshot-only entries such as {@code _tier}).
  * <p>
- * Sibling to {@link FileMetadataColumns} ({@code _file.*}), kept separate because the standard
- * names here are request-driven (via {@code METADATA}) while {@code _file.*} are
- * always-materialized by {@link VirtualColumnIterator}.
+ * Sibling to {@link FileMetadataColumns} ({@code _file.*}). Both families are request-driven
+ * (the user names them in {@code METADATA}) and materialized by {@link VirtualColumnIterator}
+ * on the producer thread; the split exists because {@code _file.*} comes from per-file stat
+ * while the standard names route through {@link MetadataAttribute#ATTRIBUTES_MAP}.
  * <p>
  * Two materialisation lanes exist: see {@link #PER_FILE_CONSTANT_NAMES} for the canonical
  * per-file-constant set; the remaining standard names ({@code _id} via

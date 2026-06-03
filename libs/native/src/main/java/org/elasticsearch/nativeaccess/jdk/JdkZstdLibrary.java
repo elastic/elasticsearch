@@ -91,6 +91,8 @@ class JdkZstdLibrary implements ZstdLibrary {
     private static final VarHandle PTR_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("ptr"));
     private static final VarHandle SIZE_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("size"));
     private static final VarHandle POS_VH = BUFFER_LAYOUT.varHandle(PathElement.groupElement("pos"));
+    // The FFM API changed the coordinate shape for struct-field VarHandles across supported JDKs.
+    private static final boolean BUFFER_FIELD_HAS_OFFSET_COORDINATE = PTR_VH.coordinateTypes().size() == 2;
 
     @Override
     public long compressBound(int srcLen) {
@@ -98,6 +100,30 @@ class JdkZstdLibrary implements ZstdLibrary {
             return (long) compressBound$mh.invokeExact((long) srcLen);
         } catch (Throwable t) {
             throw new AssertionError(t);
+        }
+    }
+
+    private static void setBufferField(VarHandle handle, MemorySegment segment, MemorySegment value) {
+        if (BUFFER_FIELD_HAS_OFFSET_COORDINATE) {
+            handle.set(segment, 0L, value);
+        } else {
+            handle.set(segment, value);
+        }
+    }
+
+    private static void setBufferField(VarHandle handle, MemorySegment segment, long value) {
+        if (BUFFER_FIELD_HAS_OFFSET_COORDINATE) {
+            handle.set(segment, 0L, value);
+        } else {
+            handle.set(segment, value);
+        }
+    }
+
+    private static long getLongBufferField(VarHandle handle, MemorySegment segment) {
+        if (BUFFER_FIELD_HAS_OFFSET_COORDINATE) {
+            return (long) handle.get(segment, 0L);
+        } else {
+            return (long) handle.get(segment);
         }
     }
 
@@ -297,8 +323,8 @@ class JdkZstdLibrary implements ZstdLibrary {
                 // Stamp the pointer fields once — they never change across calls, only size and pos
                 // are mutated per-call (size depends on how many input bytes the caller has staged
                 // and how much output room they want this round).
-                PTR_VH.set(inStruct, 0L, inBuf);
-                PTR_VH.set(outStruct, 0L, outBuf);
+                setBufferField(PTR_VH, inStruct, inBuf);
+                setBufferField(PTR_VH, outStruct, outBuf);
             } catch (Throwable t) {
                 // If any of the allocations throws (e.g. OOM mid-arena), drop the libzstd handle
                 // we just got back from ZSTD_createDStream so we don't leak the ~256 KB native
@@ -331,10 +357,10 @@ class JdkZstdLibrary implements ZstdLibrary {
             if (srcAvail > 0) {
                 MemorySegment.copy(src, srcPos, inBuf, JAVA_BYTE, 0L, srcAvail);
             }
-            SIZE_VH.set(inStruct, 0L, (long) srcAvail);
-            POS_VH.set(inStruct, 0L, 0L);
-            SIZE_VH.set(outStruct, 0L, (long) outRoom);
-            POS_VH.set(outStruct, 0L, 0L);
+            setBufferField(SIZE_VH, inStruct, (long) srcAvail);
+            setBufferField(POS_VH, inStruct, 0L);
+            setBufferField(SIZE_VH, outStruct, (long) outRoom);
+            setBufferField(POS_VH, outStruct, 0L);
 
             long hint;
             try {
@@ -343,8 +369,8 @@ class JdkZstdLibrary implements ZstdLibrary {
                 throw new AssertionError(t);
             }
 
-            int srcConsumed = (int) (long) POS_VH.get(inStruct, 0L);
-            int dstProduced = (int) (long) POS_VH.get(outStruct, 0L);
+            int srcConsumed = (int) getLongBufferField(POS_VH, inStruct);
+            int dstProduced = (int) getLongBufferField(POS_VH, outStruct);
             // libzstd guarantees pos ≤ size on return — the size fields we stamped above are the
             // upper bounds here, both already int-typed and bounded by the staging buffer sizes.
             assert srcConsumed >= 0 && srcConsumed <= srcAvail : "srcConsumed " + srcConsumed + " out of [0, " + srcAvail + "]";

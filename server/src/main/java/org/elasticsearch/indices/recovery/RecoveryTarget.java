@@ -294,7 +294,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
-            // ensures stats dec is synchronous so it happens before notifyRecoverySchedulingListeners in the caller function
+            // decrement synchronously so stats are up to date when notifyRecoverySchedulingListeners() is called in markRecoveryAsDone.
             indexShard.recoveryStats().decCurrentAsTarget();
             indexShard.postRecovery("peer recovery done", ActionListener.runBefore(new ActionListener<>() {
                 @Override

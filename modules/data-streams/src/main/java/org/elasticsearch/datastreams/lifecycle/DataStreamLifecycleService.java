@@ -797,7 +797,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 }
             } else {
                 if (round.equals(lastRound)) {
-                    // no maintenance needed for previously started downsampling actions and we are on the last matching round
+                    // no maintenance needed for previously started downsampling actions and we are on the last matching round, so it's time
+                    // to kick off downsampling if possible
                     if (canTriggerNewDownsampling) {
                         downsampleIndexOnce(round, downsamplingMethod, project.id(), backingIndex, downsampleIndexName);
                     }

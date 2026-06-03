@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
+import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class DownsamplingOperationsMonitor {
 
@@ -29,11 +29,14 @@ public class DownsamplingOperationsMonitor {
         if (persistentTasks == null) {
             return Set.of();
         }
-        return persistentTasks.findTasks(DownsampleShardTaskParams.NAME, task -> true)
-            .stream()
-            .map(task -> (DownsampleShardTaskParams) task.getParams())
-            .filter(params -> params != null && params.shardId() != null)
-            .map(params -> params.shardId().getIndex())
-            .collect(Collectors.toUnmodifiableSet());
+        Set<Index> indicesInProgress = new HashSet<>();
+        for (var task : persistentTasks.findTasks(DownsampleShardTaskParams.NAME, task -> true)) {
+            if (task.getParams() instanceof DownsampleShardTaskParams params) {
+                if (params.shardId() != null) {
+                    indicesInProgress.add(params.shardId().getIndex());
+                }
+            }
+        }
+        return indicesInProgress;
     }
 }

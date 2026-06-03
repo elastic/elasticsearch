@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Set;
 
 public final class LabelSetSpec {
+    private static final String PROMETHEUS_LABELS_PREFIX = "labels.";
+
     /** Labels known to be visible so far. */
     private final List<Attribute> declaredLabels;
 
@@ -180,10 +182,16 @@ public final class LabelSetSpec {
      * FieldAttribute uses fieldName(); everything else falls back to name().
      */
     static String fieldName(Attribute attr) {
+        String name;
         if (attr instanceof FieldAttribute fieldAttr) {
-            return fieldAttr.fieldName().string();
+            name = fieldAttr.fieldName().string();
+        } else {
+            name = attr.name();
         }
-        return attr.name();
+        if (name.startsWith(PROMETHEUS_LABELS_PREFIX)) {
+            return name.substring(PROMETHEUS_LABELS_PREFIX.length());
+        }
+        return name;
     }
 
     /**

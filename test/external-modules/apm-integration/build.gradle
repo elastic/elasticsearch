@@ -25,9 +25,12 @@ tasks.named('javaRestTest').configure {
   it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
+def otelVersion = '1.62.0'
+
 dependencies {
   clusterModules project(':modules:apm')
   implementation project(':libs:logging')
   javaRestTestImplementation "io.opentelemetry.proto:opentelemetry-proto:1.7.0-alpha"
+  javaRestTestImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
   testImplementation sourceSets.javaRestTest.output
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Highlight;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -117,7 +118,8 @@ public enum FeatureMetric {
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance),
     TS_INFO(TsInfo.class::isInstance),
     USER_AGENT(UserAgent.class::isInstance),
-    DEDUP(Dedup.class::isInstance);
+    DEDUP(Dedup.class::isInstance),
+    HIGHLIGHT(Highlight.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

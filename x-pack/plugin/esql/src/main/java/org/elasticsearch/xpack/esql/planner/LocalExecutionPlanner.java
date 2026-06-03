@@ -161,6 +161,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.HighlightExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitByExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -359,6 +360,8 @@ public class LocalExecutionPlanner {
             return planMvExpand(mvExpand, context);
         } else if (node instanceof TimeSeriesCollapseExec tsCollapse) {
             return planTimeSeriesCollapse(tsCollapse, context);
+        } else if (node instanceof HighlightExec) {
+            throw new UnsupportedOperationException("HIGHLIGHT is not implemented yet");
         } else if (node instanceof RerankExec rerank) {
             return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {

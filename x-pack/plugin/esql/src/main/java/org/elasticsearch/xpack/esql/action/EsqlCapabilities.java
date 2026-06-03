@@ -2913,6 +2913,12 @@ public class EsqlCapabilities {
          */
         COALESCE_DATE_RANGE(Build.current().isSnapshot()),
 
+        /**
+         * Support for the {@code HIGHLIGHT} command. Part A: parsing and plan-shape only; execution
+         * throws "not implemented yet". Snapshot-only.
+         */
+        HIGHLIGHT_V0(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -256,16 +256,15 @@ abstract class BalancedASKMeansLocal<V> extends KMeansLocal<V> {
         assign(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods);
 
         int[] centroidCounts = new int[centroids.length];
-        int[][] centroidAccumulators = (ops instanceof CentroidOps.ByteOps) ? new int[centroids.length][vectors.dimension()] : null;
+        CentroidOps.AccumulatorState<V> accumulatorState = ops.newAccumulatorState(centroids, centroids.length, vectors.dimension());
         CentroidAssignment.updateCentroids(
             vectors,
-            ops,
             centroids,
             i -> i,
             centroidChangedSlices,
             centroidCounts,
             assignments,
-            centroidAccumulators
+            accumulatorState
         );
     }
 

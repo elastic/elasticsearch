@@ -82,19 +82,18 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
             centroidChangedSlices[i] = new FixedBitSet(centroids.length);
         }
         int[] centroidCounts = new int[centroids.length];
-        int[][] centroidAccumulators = (ops instanceof CentroidOps.ByteOps) ? new int[k][vectors.dimension()] : null;
+        CentroidOps.AccumulatorState<V> accumulatorState = ops.newAccumulatorState(centroids, k, vectors.dimension());
         for (int i = 0; i < maxIterations; i++) {
             // This is potentially sampled, so we need to translate ordinals
             if (stepLloyd(sampledVectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborhoods)) {
                 CentroidAssignment.updateCentroids(
                     sampledVectors,
-                    ops,
                     centroids,
                     ordTranslator,
                     centroidChangedSlices,
                     centroidCounts,
                     assignments,
-                    centroidAccumulators
+                    accumulatorState
                 );
             } else {
                 break;
@@ -106,13 +105,12 @@ abstract class LloydKMeansLocal<V> extends KMeansLocal<V> {
             if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
                 CentroidAssignment.updateCentroids(
                     sampledVectors,
-                    ops,
                     centroids,
                     ordTranslator,
                     centroidChangedSlices,
                     centroidCounts,
                     assignments,
-                    centroidAccumulators
+                    accumulatorState
                 );
             }
         }

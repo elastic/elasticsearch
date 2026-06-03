@@ -122,60 +122,21 @@ public final class CentroidAssignment {
     /**
      * Recompute centroid positions as the mean of their assigned vectors.
      * <p>
-     * For float centroids, this accumulates directly into the centroid arrays.
-     * For byte centroids, this uses int[] accumulators and rounds back to byte.
+     * The {@code accumulatorState} encapsulates type-specific accumulation logic:
+     * for float centroids it accumulates in place; for byte centroids it uses int-precision
+     * accumulators internally and rounds back on divide.
      *
-     * @param centroidAccumulators pre-allocated {@code int[k][dim]} array for byte centroid accumulation,
-     *                         or {@code null} for float centroids. Reusing this across iterations avoids
-     *                         repeated allocation in the inner loop.
+     * @param accumulatorState reusable state from {@link CentroidOps#newAccumulatorState}.
+     *                         Callers should allocate once and reuse across iterations.
      */
-    @SuppressWarnings("unchecked")
     static <V> void updateCentroids(
         ClusteringVectorValues<V> vectors,
-        CentroidOps<V> ops,
         V[] centroids,
         IntToIntFunction ordTranslator,
         FixedBitSet[] centroidChangedSlices,
         int[] centroidCounts,
         int[] assignments,
-        int[][] centroidAccumulators
-    ) throws IOException {
-        // since CentroidOps only permits these two this seems reasonable to clean up the call sites for updateCentroids like this
-        if (ops instanceof CentroidOps.ByteOps byteOps) {
-            updateCentroidsGeneric(
-                (ClusteringVectorValues<byte[]>) vectors,
-                byteOps,
-                (byte[][]) centroids,
-                ordTranslator,
-                centroidChangedSlices,
-                centroidCounts,
-                assignments,
-                centroidAccumulators
-            );
-        } else {
-            CentroidOps.FloatOps floatOps = (CentroidOps.FloatOps) ops;
-            updateCentroidsGeneric(
-                (ClusteringVectorValues<float[]>) vectors,
-                floatOps,
-                (float[][]) centroids,
-                ordTranslator,
-                centroidChangedSlices,
-                centroidCounts,
-                assignments,
-                (float[][]) centroids
-            );
-        }
-    }
-
-    private static <V, W> void updateCentroidsGeneric(
-        ClusteringVectorValues<V> vectors,
-        CentroidOps.Accumulator<W, V> ops,
-        V[] centroids,
-        IntToIntFunction ordTranslator,
-        FixedBitSet[] centroidChangedSlices,
-        int[] centroidCounts,
-        int[] assignments,
-        W[] centroidAccumulators
+        CentroidOps.AccumulatorState<V> accumulatorState
     ) throws IOException {
         Arrays.fill(centroidCounts, 0);
         FixedBitSet centroidChanged = centroidChangedSlices[0];
@@ -187,12 +148,11 @@ public final class CentroidAssignment {
         for (int idx = 0; idx < vectors.size(); idx++) {
             final int assignment = assignments[ordTranslator.apply(idx)];
             if (centroidChanged.get(assignment)) {
-                W accumulator = centroidAccumulators[assignment];
                 V vector = vectors.vectorValue(idx);
                 if (centroidCounts[assignment]++ == 0) {
-                    ops.initAccumulator(accumulator, vector, dim);
+                    accumulatorState.init(assignment, vector, dim);
                 } else {
-                    ops.accumulate(accumulator, vector, dim);
+                    accumulatorState.accumulate(assignment, vector, dim);
                 }
             }
         }
@@ -200,10 +160,8 @@ public final class CentroidAssignment {
         for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
             if (centroidChanged.get(clusterIdx)) {
                 float count = (float) centroidCounts[clusterIdx];
-                W accumulator = centroidAccumulators[clusterIdx];
-                V centroid = centroids[clusterIdx];
                 if (count > 0) {
-                    ops.divideAccumulator(centroid, accumulator, count, dim);
+                    accumulatorState.divide(centroids, clusterIdx, count, dim);
                 }
             }
         }

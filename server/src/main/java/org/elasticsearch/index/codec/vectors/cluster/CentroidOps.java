@@ -83,34 +83,35 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     void initCentroid(V centroid, V vector, int dim);
 
     /**
-     * Abstracts accumulation and finalization of centroid updates, parameterized by
-     * accumulator type {@code W} and vector type {@code V}.
+     * Creates a reusable accumulator state for mean-based centroid updates via
+     * {@link CentroidAssignment#updateCentroids}.
      * <p>
-     * {@link FloatOps} implements this as {@code Accumulator<float[], float[]>} where the
-     * accumulator is the centroid itself. {@link ByteOps} implements as {@code Accumulator<int[], byte[]>}
-     * using int-precision accumulators to avoid overflow during summation.
+     * For {@link FloatOps}, accumulation happens directly on the centroid arrays (no extra allocation).
+     * For {@link ByteOps}, allocates {@code int[k][dim]} accumulators to avoid overflow during summation.
+     * <p>
+     * Callers should allocate once and reuse across iterations to avoid repeated allocation.
      *
-     * @param <W> the accumulator array type ({@code float[]} for floats, {@code int[]} for bytes)
-     * @param <V> the vector/centroid array type ({@code float[]} or {@code byte[]})
+     * @param centroids the centroid array
+     * @param k number of centroids
+     * @param dim vector dimension
      */
-    interface Accumulator<W, V> {
-        /**
-         * Accumulate a vector into the accumulator: {@code accumulator[d] += vector[d]},
-         * widening as needed for the byte path.
-         */
-        void accumulate(W accumulator, V vector, int dim);
+    AccumulatorState<V> newAccumulatorState(V[] centroids, int k, int dim);
 
-        /**
-         * Initialize the accumulator from a vector (first assignment for a cluster).
-         * Copies vector values into the accumulator, widening for the byte path.
-         */
-        void initAccumulator(W accumulator, V vector, int dim);
+    /**
+     * Opaque, reusable state for mean-based centroid accumulation.
+     * Encapsulates the accumulator array and type-specific operations (init, accumulate, divide).
+     *
+     * @param <V> the vector/centroid array type
+     */
+    interface AccumulatorState<V> {
+        /** Initialize accumulator for cluster {@code k} from the given vector (first assignment). */
+        void init(int k, V vector, int dim);
 
-        /**
-         * Divide the accumulator by {@code count} and write the result into {@code centroid}.
-         * For float ops, this divides in place. For byte ops, this rounds and clamps to byte range.
-         */
-        void divideAccumulator(V centroid, W accumulator, float count, int dim);
+        /** Accumulate a vector into cluster {@code k}'s accumulator. */
+        void accumulate(int k, V vector, int dim);
+
+        /** Divide accumulator for cluster {@code k} by count and write result into centroids[k]. */
+        void divide(V[] centroids, int k, float count, int dim);
     }
 
     /**
@@ -204,7 +205,7 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
      * {@link CentroidOps} for {@code float[]} vectors and centroids.
      * Delegates to {@link ESVectorUtil} for SIMD-accelerated operations.
      */
-    final class FloatOps implements CentroidOps<float[]>, Accumulator<float[], float[]> {
+    final class FloatOps implements CentroidOps<float[]> {
 
         public static final FloatOps INSTANCE = new FloatOps();
 
@@ -300,20 +301,17 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             System.arraycopy(vector, 0, centroid, 0, dim);
         }
 
-        @Override
-        public void accumulate(float[] centroid, float[] vector, int dim) {
+        private void accumulate(float[] centroid, float[] vector, int dim) {
             for (int d = 0; d < dim; d++) {
                 centroid[d] += vector[d];
             }
         }
 
-        @Override
-        public void initAccumulator(float[] centroid, float[] vector, int dim) {
+        private void initAccumulator(float[] centroid, float[] vector, int dim) {
             initCentroid(centroid, vector, dim);
         }
 
-        @Override
-        public void divideAccumulator(float[] centroid, float[] accumulator, float count, int dim) {
+        private void divideAccumulator(float[] centroid, float[] accumulator, float count, int dim) {
             for (int d = 0; d < dim; d++) {
                 centroid[d] = accumulator[d] / count;
             }
@@ -361,6 +359,33 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
         }
 
         @Override
+        public AccumulatorState<float[]> newAccumulatorState(float[][] centroids, int k, int dim) {
+            // Float centroids accumulate in place — the centroid array IS the accumulator
+            return new AccumulatorState<>() {
+                @Override
+                public void init(int k, float[] vector, int dim) {
+                    System.arraycopy(vector, 0, centroids[k], 0, dim);
+                }
+
+                @Override
+                public void accumulate(int k, float[] vector, int dim) {
+                    float[] centroid = centroids[k];
+                    for (int d = 0; d < dim; d++) {
+                        centroid[d] += vector[d];
+                    }
+                }
+
+                @Override
+                public void divide(float[][] ignored, int k, float count, int dim) {
+                    float[] centroid = centroids[k];
+                    for (int d = 0; d < dim; d++) {
+                        centroid[d] /= count;
+                    }
+                }
+            };
+        }
+
+        @Override
         public MutationContext<float[]> newMutationContext(float[][] centroids, int dim) {
             return new MutationContext<>() {
                 @Override
@@ -384,10 +409,10 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
     /**
      * {@link CentroidOps} for {@code byte[]} vectors and centroids.
      * <p>
-     * Centroid averaging uses {@code int[]} accumulators via the {@link Accumulator} interface.
+     * Centroid averaging uses {@code int[]} accumulators to avoid overflow during summation.
      * SGD updates use float shadow arrays (see {@code BalancedASKMeansLocal}, {@code BalancedOTKMeansLocal}).
      */
-    final class ByteOps implements CentroidOps<byte[]>, Accumulator<int[], byte[]> {
+    final class ByteOps implements CentroidOps<byte[]> {
 
         public static final ByteOps INSTANCE = new ByteOps();
 
@@ -479,22 +504,19 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             System.arraycopy(vector, 0, centroid, 0, dim);
         }
 
-        @Override
-        public void accumulate(int[] centroid, byte[] vector, int dim) {
+        private void accumulate(int[] centroid, byte[] vector, int dim) {
             for (int d = 0; d < dim; d++) {
                 centroid[d] += vector[d];
             }
         }
 
-        @Override
-        public void initAccumulator(int[] centroid, byte[] vector, int dim) {
+        private void initAccumulator(int[] centroid, byte[] vector, int dim) {
             for (int d = 0; d < dim; d++) {
                 centroid[d] = vector[d];
             }
         }
 
-        @Override
-        public void divideAccumulator(byte[] centroid, int[] accumulator, float count, int dim) {
+        private void divideAccumulator(byte[] centroid, int[] accumulator, float count, int dim) {
             for (int d = 0; d < dim; d++) {
                 // Round the average and clamp to byte range
                 centroid[d] = (byte) Math.clamp(Math.round((float) accumulator[d] / count), -128, 127);
@@ -541,6 +563,37 @@ public sealed interface CentroidOps<V> permits CentroidOps.FloatOps, CentroidOps
             byte[] centroid = new byte[dimension];
             divideAccumulator(centroid, acc, vectors.size(), dimension);
             return centroid;
+        }
+
+        @Override
+        public AccumulatorState<byte[]> newAccumulatorState(byte[][] centroids, int k, int dim) {
+            int[][] accumulators = new int[k][dim];
+            return new AccumulatorState<>() {
+                @Override
+                public void init(int k, byte[] vector, int dim) {
+                    int[] acc = accumulators[k];
+                    for (int d = 0; d < dim; d++) {
+                        acc[d] = vector[d];
+                    }
+                }
+
+                @Override
+                public void accumulate(int k, byte[] vector, int dim) {
+                    int[] acc = accumulators[k];
+                    for (int d = 0; d < dim; d++) {
+                        acc[d] += vector[d];
+                    }
+                }
+
+                @Override
+                public void divide(byte[][] centroids, int k, float count, int dim) {
+                    int[] acc = accumulators[k];
+                    byte[] centroid = centroids[k];
+                    for (int d = 0; d < dim; d++) {
+                        centroid[d] = (byte) Math.clamp(Math.round(acc[d] / count), -128, 127);
+                    }
+                }
+            };
         }
 
         @Override

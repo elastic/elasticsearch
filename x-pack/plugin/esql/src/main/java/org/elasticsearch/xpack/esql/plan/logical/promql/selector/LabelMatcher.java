@@ -13,6 +13,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 
 import java.util.List;
 import java.util.Objects;
@@ -30,7 +33,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
  *   {env!~"test|dev"}        -> [LabelMatcher("env", "test|dev", NREG)]
  *   {host=?_hosts}           -> [LabelMatcher("host", ["34.107.161.234", "140.248.133.94"], EQ)]
  */
-public class LabelMatcher {
+public class LabelMatcher implements NodeStringRenderable {
 
     public static final String NAME = "__name__";
 
@@ -185,5 +188,15 @@ public class LabelMatcher {
     @Override
     public String toString() {
         return name + matcher.value + values;
+    }
+
+    /**
+     * Routes the label name and the match value through the mapper (the match operator is structural
+     * and stays). Under {@link NodeStringMapper#IDENTITY} this equals {@link #toString()}; under an
+     * anonymizing mapper both the label name and the (potentially sensitive) match value tokenize.
+     */
+    @Override
+    public void nodeString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper) {
+        sb.append(mapper.column(name)).append(matcher.value).append(mapper.column(value));
     }
 }

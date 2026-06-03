@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
-import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -204,14 +203,5 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
      */
     public boolean isTimeSeriesMode() {
         return indexMode == IndexMode.TIME_SERIES;
-    }
-
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append(nodeName()).append('[').append(mapper.index(indexPattern.indexPattern())).append(']');
     }
 }

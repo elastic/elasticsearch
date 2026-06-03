@@ -356,15 +356,21 @@ public class PromqlCommand extends UnaryPlan
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        sb.append(" start=[").append(start);
-        sb.append("] end=[").append(end);
-        sb.append("] step=[").append(step);
-        sb.append("] buckets=[").append(buckets);
-        sb.append("] scrape_interval=[").append(scrapeInterval);
-        sb.append("] valueColumnName=[").append(valueColumnName);
+        sb.append(" start=[").append(renderLiteral(start, mapper));
+        sb.append("] end=[").append(renderLiteral(end, mapper));
+        sb.append("] step=[").append(renderLiteral(step, mapper));
+        sb.append("] buckets=[").append(renderLiteral(buckets, mapper));
+        sb.append("] scrape_interval=[").append(renderLiteral(scrapeInterval, mapper));
+        sb.append("] valueColumnName=[").append(valueColumnName == null ? "null" : mapper.column(valueColumnName));
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString(format, mapper));
         sb.append("\n<>]]");
+    }
+
+    // Route the literal value through the mapper rather than appending it raw: identity is the raw
+    // value (matching the prior rendering), anonymization an interned token. No identity branch.
+    private static String renderLiteral(Literal lit, NodeStringMapper mapper) {
+        return lit == null ? "null" : mapper.literal(lit.value(), lit.dataType());
     }
 
     @Override

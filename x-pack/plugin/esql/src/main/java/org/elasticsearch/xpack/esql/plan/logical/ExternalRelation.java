@@ -244,7 +244,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType()).append("]");
+        // sourcePath is a user-supplied external location (S3 URI / file / table path) — opaque
+        // free-form content; redact under anonymization. sourceType is a low-cardinality format enum.
+        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType()).append("]");
         NodeUtils.toString(sb, output, format, mapper);
     }
 

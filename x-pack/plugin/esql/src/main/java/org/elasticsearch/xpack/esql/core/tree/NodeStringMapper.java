@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.core.tree;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.versionfield.Version;
 
 /**
  * Identifier-substitution strategy used during {@code Node.nodeString} rendering. Pairs with
@@ -43,6 +45,15 @@ public interface NodeStringMapper {
      */
     String literal(Object value, DataType type);
 
+    /**
+     * Map a free-form / opaque text fragment that carries no parseable identifier structure — a raw
+     * Lucene {@code QueryBuilder} DSL, a sort or stats descriptor, an external source path. Returns
+     * the text verbatim under {@link #IDENTITY}; an anonymizing mapper returns a redaction marker,
+     * since such text can't be safely tokenized without risking a partial leak. Lets a node keep the
+     * field in place with no {@code == IDENTITY} branch — same shape, redacted value.
+     */
+    String opaque(String text);
+
     /** Pass-through. The default for raw rendering. */
     NodeStringMapper IDENTITY = new NodeStringMapper() {
         @Override
@@ -57,10 +68,25 @@ public interface NodeStringMapper {
 
         @Override
         public String literal(Object value, DataType type) {
+            // Canonical raw rendering of a literal value (without the [type] suffix or LIMITED
+            // truncation, which callers apply). Only KEYWORD/TEXT/VERSION are UTF-8-backed BytesRefs;
+            // spatial types (geo_point/geo_shape/cartesian_*) carry WKB binary, so utf8ToString would
+            // garble or throw — they fall through to String.valueOf (a safe hex rendering).
             if (value == null) {
                 return "null";
             }
-            return value instanceof BytesRef br ? br.utf8ToString() : String.valueOf(value);
+            if (type == DataType.KEYWORD || type == DataType.TEXT) {
+                return BytesRefs.toString(value);
+            }
+            if (type == DataType.VERSION && value instanceof BytesRef br) {
+                return new Version(br).toString();
+            }
+            return String.valueOf(value);
+        }
+
+        @Override
+        public String opaque(String text) {
+            return text;
         }
     };
 }

@@ -354,18 +354,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
         NodeUtils.toString(sb, attrs, format, mapper);
         sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
         // Sorts and queryBuilderAndTags both carry raw user content (sort keys, Lucene-pushdown
-        // DSL); under a non-identity mapper we drop them rather than try to walk in.
-        if (mapper != NodeStringMapper.IDENTITY) {
-            sb.append("sort[<dropped>] estimatedRowSize[").append(estimatedRowSize).append("] queryBuilderAndTags[<dropped>]");
-        } else {
-            sb.append("sort[")
-                .append(sorts != null ? sorts.toString() : "")
-                .append("] estimatedRowSize[")
-                .append(estimatedRowSize)
-                .append("] queryBuilderAndTags [")
-                .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-                .append(']');
-        }
+        // DSL); route them through the opaque mapper so they render raw under identity and redact
+        // under an anonymizing mapper, with no identity branch.
+        sb.append("sort[")
+            .append(mapper.opaque(sorts != null ? sorts.toString() : ""))
+            .append("] estimatedRowSize[")
+            .append(estimatedRowSize)
+            .append("] queryBuilderAndTags [")
+            .append(mapper.opaque(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : ""))
+            .append(']');
     }
 
     public enum Direction {

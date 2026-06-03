@@ -112,16 +112,6 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
         return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern) && Objects.equals(actualName, other.actualName);
     }
 
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append(UNRESOLVED_PREFIX);
-        rewriteWildcardPattern(sb, pattern, mapper);
-    }
-
     /**
      * Renders a wildcard-style pattern (SQL {@code LIKE} / shell {@code KEEP *foo*}) preserving
      * the metacharacters {@code *}, {@code ?}, {@code %}, {@code _} verbatim; each literal run

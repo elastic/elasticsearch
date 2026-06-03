@@ -665,9 +665,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
+        // sourcePath (external location) and pushedFilter (opaque local-only filter) are free-form
+        // user content — redact under anonymization. sourceType is a low-cardinality format enum.
+        sb.append(nodeName()).append("[").append(mapper.opaque(sourcePath)).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {
-            sb.append("[filter=").append(pushedFilter).append("]");
+            sb.append("[filter=").append(mapper.opaque(String.valueOf(pushedFilter))).append("]");
         }
         if (pushedLimit != FormatReader.NO_LIMIT) {
             sb.append("[limit=").append(pushedLimit).append("]");

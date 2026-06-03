@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
-import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
-import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -233,33 +231,6 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(this, this::createNewInstance, child(), input, outputFieldNames, outputFieldAttributes);
-    }
-
-    /**
-     * Under a non-identity mapper, {@code outputFieldNames} (a raw {@code List<String>}) would
-     * otherwise render unmapped via the default property walker. The names are walkable identifiers,
-     * so we route each through {@code mapper.column}; the input expression and output attributes
-     * anonymize via their own recursion. Identity rendering delegates to the default walker so the
-     * raw toString shape is preserved exactly.
-     */
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append(nodeName()).append('[');
-        input.nodeString(sb, format, mapper);
-        sb.append(", outputFields=[");
-        for (int i = 0; i < outputFieldNames.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(mapper.column(outputFieldNames.get(i)));
-        }
-        sb.append("], ");
-        NodeUtils.toString(sb, outputFieldAttributes, format, mapper);
-        sb.append(']');
     }
 
     protected abstract int innerHashCode();

@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
-import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -183,33 +182,6 @@ public class Enrich extends UnaryPlan
 
     public Mode mode() {
         return mode;
-    }
-
-    /**
-     * Under the identity mapper the default {@link NodeInfo} property walk already covers the
-     * {@code concreteIndices} map. Under a non-identity mapper we emit our own rendering so the
-     * cluster-alias keys and concrete-index values route through {@code mapper.index}.
-     */
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append(nodeName()).append("[mode=").append(mode);
-        if (concreteIndices != null && concreteIndices.isEmpty() == false) {
-            sb.append(", concreteIndices={");
-            boolean first = true;
-            for (Map.Entry<String, String> e : concreteIndices.entrySet()) {
-                if (first == false) {
-                    sb.append(", ");
-                }
-                first = false;
-                sb.append(mapper.index(e.getKey())).append('=').append(mapper.index(e.getValue()));
-            }
-            sb.append('}');
-        }
-        sb.append(']');
     }
 
     @Override

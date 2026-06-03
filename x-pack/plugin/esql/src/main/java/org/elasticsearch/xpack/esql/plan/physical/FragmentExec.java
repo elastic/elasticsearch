@@ -131,9 +131,9 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
-        // esFilter is a raw QueryBuilder DSL from request.filter() — opaque content. On a rewriting
-        // format we drop it; raw modes print as before.
-        sb.append("[filter=").append(mapper != NodeStringMapper.IDENTITY ? "<dropped>" : String.valueOf(esFilter));
+        // esFilter is a raw QueryBuilder DSL from request.filter() — opaque content; route it through
+        // the opaque mapper so it prints raw under identity and redacts under anonymization.
+        sb.append("[filter=").append(mapper.opaque(String.valueOf(esFilter)));
         sb.append(", estimatedRowSize=").append(estimatedRowSize);
         sb.append(", reducer=[], fragment=[<>\n");
         sb.append(fragment.toString(format, mapper));

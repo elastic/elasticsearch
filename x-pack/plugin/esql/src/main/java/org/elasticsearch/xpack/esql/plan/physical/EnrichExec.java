@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
-import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -201,30 +200,5 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
             case COORDINATOR -> ExecuteLocation.COORDINATOR;
             default -> ExecuteLocation.ANY;
         };
-    }
-
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        // Under a non-identity mapper we route policyName + concreteIndices keys/values through the
-        // index-token map and skip the policyMatchField raw rendering (it surfaces in the
-        // standard property walk for raw modes via its Attribute nodeString).
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append(nodeName()).append("[mode=").append(mode).append(", policy=").append(mapper.index(policyName));
-        if (concreteIndices != null && concreteIndices.isEmpty() == false) {
-            sb.append(", concreteIndices={");
-            boolean first = true;
-            for (Map.Entry<String, String> e : concreteIndices.entrySet()) {
-                if (first == false) {
-                    sb.append(", ");
-                }
-                first = false;
-                sb.append(mapper.index(e.getKey())).append('=').append(mapper.index(e.getValue()));
-            }
-            sb.append('}');
-        }
-        sb.append(']');
     }
 }

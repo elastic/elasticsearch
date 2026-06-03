@@ -73,11 +73,14 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        // The pattern renders itself (wildcard / regex / list), routing its literal content through
+        // the mapper and supplying its own quoting. Identity rendering is byte-identical for single
+        // patterns; multi-pattern lists render every element rather than a flattened first.
         sb.append(name()).append('(');
         field().nodeString(sb, format, mapper);
-        sb.append(", \"");
-        org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern.rewriteWildcardPattern(sb, pattern().pattern(), mapper);
-        sb.append("\", ").append(caseInsensitive()).append(')');
+        sb.append(", ");
+        pattern().nodeString(sb, format, mapper);
+        sb.append(", ").append(caseInsensitive()).append(')');
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {

@@ -81,6 +81,14 @@ public final class AnonymizationContext {
             }
             return String.valueOf(id);
         }
+
+        @Override
+        public String opaque(String text) {
+            // Free-form text (raw query DSL, sort/stats descriptors, external source paths) can embed
+            // identifiers in unpredictable positions; redact the whole fragment rather than risk a
+            // partial leak. The field stays in place so the plan shape is unchanged.
+            return "<redacted>";
+        }
     };
 
     private AnonymizationContext(String clusterUuid) {
@@ -120,7 +128,10 @@ public final class AnonymizationContext {
         static LiteralKey of(Object value, DataType type) {
             Object normalized = value;
             if (value instanceof BytesRef br) {
-                normalized = br.utf8ToString();
+                // A stable, content-equal copy detached from any shared/mutable backing buffer.
+                // BytesRef has content-based equals/hashCode, so this keys correctly for every
+                // BytesRef-backed type — including spatial WKB, where utf8ToString would garble.
+                normalized = BytesRef.deepCopyOf(br);
             } else if (value instanceof List<?> list) {
                 normalized = list.toString();
             }

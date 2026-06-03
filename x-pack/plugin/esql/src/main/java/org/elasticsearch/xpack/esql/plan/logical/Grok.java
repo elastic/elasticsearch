@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRenderable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
@@ -36,7 +37,7 @@ import java.util.stream.Collectors;
 public class Grok extends RegexExtract implements TelemetryAware, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Grok", Grok::readFrom);
 
-    public record Parser(String pattern, org.elasticsearch.grok.Grok grok) {
+    public record Parser(String pattern, org.elasticsearch.grok.Grok grok) implements NodeStringRenderable {
 
         public List<Attribute> extractedFields() {
             return grok.captureConfig()
@@ -71,9 +72,25 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
             return Objects.hash(pattern);
         }
 
+        // Delegates to the mapper-aware render with IDENTITY so the two can never diverge.
         @Override
         public String toString() {
-            return "Parser[pattern=" + pattern + "]";
+            StringBuilder sb = new StringBuilder();
+            nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
+            return sb.toString();
+        }
+
+        /**
+         * Single render path for the parser. Under {@link NodeStringMapper#IDENTITY} this is
+         * byte-identical to the legacy {@code toString()}; under an anonymizing mapper the capture
+         * names route through the mapper while the Grok library identifiers, type suffixes, and
+         * {@code %{...}} structure stay verbatim.
+         */
+        @Override
+        public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+            sb.append("Parser[pattern=");
+            rewriteGrokPattern(sb, pattern, mapper);
+            sb.append("]");
         }
     }
 
@@ -162,17 +179,6 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
 
     public Parser parser() {
         return parser;
-    }
-
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append(nodeName()).append("[pattern=\"");
-        rewriteGrokPattern(sb, parser.pattern(), mapper);
-        sb.append("\"]");
     }
 
     /**

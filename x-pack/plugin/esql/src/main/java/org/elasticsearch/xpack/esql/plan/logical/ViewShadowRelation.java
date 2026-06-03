@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
-import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 
@@ -160,20 +159,5 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
     @Override
     public String toString() {
         return "?shadow[" + optionalLinkedPattern() + "]";
-    }
-
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
-        if (mapper == NodeStringMapper.IDENTITY) {
-            super.nodeString(sb, format, mapper);
-            return;
-        }
-        sb.append("?shadow[").append(mapper.index(viewName));
-        if (exclusions != null && exclusions.isEmpty() == false) {
-            for (String exc : exclusions) {
-                sb.append(',').append(mapper.index(exc));
-            }
-        }
-        sb.append(']');
     }
 }

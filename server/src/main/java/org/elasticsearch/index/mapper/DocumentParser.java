@@ -26,4 +26,5 @@ public interface DocumentParser {
      * @throws DocumentParsingException whenever there's a problem parsing the document
      */
     ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws DocumentParsingException;
+
 }

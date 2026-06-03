@@ -135,25 +135,44 @@ class RootDocumentParserContext extends DocumentParserContext implements AutoClo
     }
 
     /**
+     * Returns a new list of the given documents in shard index order: each child document precedes its parent.
+     * The input list is not modified.
+     */
+    static List<LuceneDocument> shardIndexOrder(List<LuceneDocument> documents) {
+        if (documents.size() <= 1) {
+            return new ArrayList<>(documents);
+        }
+        List<LuceneDocument> result = new ArrayList<>(documents.size());
+        LinkedList<LuceneDocument> parents = new LinkedList<>();
+        for (LuceneDocument doc : documents) {
+            while (parents.peek() != doc.getParent()) {
+                result.add(parents.poll());
+            }
+            parents.add(0, doc);
+        }
+        result.addAll(parents);
+        return result;
+    }
+
+    /**
      * Returns a copy of the provided {@link List} where parent documents appear
      * after their children.
      */
     List<LuceneDocument> reorderParentAndGetDocs() {
         if (documents.size() > 1 && docsReversed == false) {
             docsReversed = true;
-            // We preserve the order of the children while ensuring that parents appear after them.
-            List<LuceneDocument> newDocs = new ArrayList<>(documents.size());
-            LinkedList<LuceneDocument> parents = new LinkedList<>();
-            for (LuceneDocument doc : documents) {
-                while (parents.peek() != doc.getParent()) {
-                    newDocs.add(parents.poll());
-                }
-                parents.add(0, doc);
-            }
-            newDocs.addAll(parents);
+            List<LuceneDocument> reordered = shardIndexOrder(documents);
             documents.clear();
-            documents.addAll(newDocs);
+            documents.addAll(reordered);
         }
         return documents;
+    }
+
+    @Override
+    public List<LuceneDocument> luceneDocumentsInShardIndexOrder() {
+        if (docsReversed) {
+            return new ArrayList<>(documents);
+        }
+        return shardIndexOrder(documents);
     }
 }

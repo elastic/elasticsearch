@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.auth.oauth2.ExternalAccountCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.IdentityPoolCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.storage.Blob;
@@ -16,6 +18,8 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -36,11 +40,15 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Google Cloud Storage.
  * <p>
- * Supports the {@code gs://} URI scheme. Authentication can be provided via:
+ * Supports the {@code gs://} URI scheme. Authentication must be provided explicitly via:
  * <ul>
  *   <li>Explicit service account JSON credentials</li>
- *   <li>Application Default Credentials (ADC) — environment variable, metadata server, etc.</li>
+ *   <li>Workload identity federation via {@code jwt_audience}, {@code sts_audience}, and
+ *       {@code service_account_impersonation_url}</li>
+ *   <li>{@code auth=none} for anonymous access to public buckets</li>
  * </ul>
+ * The node's ambient credentials (Application Default Credentials) are never used: a data source must
+ * carry its own credentials, since the node may run in a different cloud than the bucket it targets.
  * <p>
  * {@link GcsStorageObject} provides optimized I/O via GCS {@link com.google.cloud.ReadChannel}:
  * <ul>
@@ -56,10 +64,11 @@ public final class GcsStorageProvider implements StorageProvider {
 
     public GcsStorageProvider(GcsConfiguration config) {
         this.config = config;
-        // When explicit credentials or anonymous mode are configured, build the client eagerly
-        // so misconfigurations are caught early. When using ADC (config is null), defer client
-        // creation to first use so the plugin can load even when no GCS credentials are configured.
-        if (config != null && (config.hasCredentials() || config.isAnonymous())) {
+        // When explicit credentials, keyless auth, or anonymous mode are configured, build the client
+        // eagerly so misconfigurations are caught early. When no credentials are configured (config is null),
+        // defer client creation to first use so the plugin can load; the missing-credentials error then
+        // surfaces only when a gs:// query is actually executed.
+        if (config != null && (config.hasCredentials() || config.hasKeylessAuth() || config.isAnonymous())) {
             this.storage = buildStorageClient(config);
         }
     }
@@ -113,8 +122,14 @@ public final class GcsStorageProvider implements StorageProvider {
                     credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
                 }
                 builder.setCredentials(credentials);
+            } else if (config != null && config.hasKeylessAuth()) {
+                builder.setCredentials(buildIdentityPoolCredentials(config));
             } else {
-                builder.setCredentials(GoogleCredentials.getApplicationDefault());
+                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+                throw new IllegalArgumentException(
+                    "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
+                        + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
+                );
             }
 
             if (config != null && config.projectId() != null) {
@@ -135,6 +150,29 @@ public final class GcsStorageProvider implements StorageProvider {
                 e
             );
         }
+    }
+
+    private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {
+        WorkloadIdentityIssuerClient issuerClient = WorkloadIdentityRegistry.getSharedIssuerClient();
+        if (issuerClient.isEnabled() == false) {
+            throw new IllegalStateException("GCS keyless authentication requires the workload-identity feature to be enabled on this node");
+        }
+
+        IdentityPoolCredentials.Builder credentialsBuilder = IdentityPoolCredentials.newBuilder()
+            .setAudience(config.stsAudience())
+            .setSubjectTokenType(ExternalAccountCredentials.SubjectTokenTypes.JWT)
+            .setSubjectTokenSupplier(new GcsWorkloadIdentitySubjectTokenSupplier(issuerClient, config.jwtAudience()));
+
+        // Optional: when absent, the federated identity maps directly to a principal without impersonation.
+        if (config.serviceAccountImpersonationUrl() != null) {
+            credentialsBuilder.setServiceAccountImpersonationUrl(config.serviceAccountImpersonationUrl());
+        }
+
+        if (config.tokenUri() != null) {
+            credentialsBuilder.setTokenUrl(config.tokenUri());
+        }
+
+        return credentialsBuilder.build();
     }
 
     @Override
@@ -206,9 +244,10 @@ public final class GcsStorageProvider implements StorageProvider {
     }
 
     private String credentialHint() {
-        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false)) {
+        if (config == null || (config.isAnonymous() == false && config.hasCredentials() == false && config.hasKeylessAuth() == false)) {
             return ". If accessing a public bucket, use WITH (auth = 'none'). "
-                + "Otherwise, provide credentials via WITH (credentials = '...') or set GOOGLE_APPLICATION_CREDENTIALS";
+                + "Otherwise, provide credentials via WITH (credentials = '...'), configure keyless authentication settings, "
+                + "or set GOOGLE_APPLICATION_CREDENTIALS";
         }
         return "";
     }

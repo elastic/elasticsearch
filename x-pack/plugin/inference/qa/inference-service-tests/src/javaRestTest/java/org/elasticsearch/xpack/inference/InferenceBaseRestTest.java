@@ -200,6 +200,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
             """, dimensions);
     }
 
+    static String mockTextEmbeddingServiceModelConfig_NoDimensions() {
+        return Strings.format("""
+            {
+              "task_type": "text_embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64"
+              },
+              "task_settings": {
+              }
+            }
+            """);
+    }
+
     static String mockRerankServiceModelConfig() {
         return """
             {
@@ -232,6 +247,21 @@ public class InferenceBaseRestTest extends ESRestTestCase {
               }
             }
             """, dimensions);
+    }
+
+    static String mockEmbeddingServiceModelConfig_NoDimensions() {
+        return Strings.format("""
+            {
+              "task_type": "embedding",
+              "service": "text_embedding_test_service",
+              "service_settings": {
+                "model": "my_dense_vector_model",
+                "api_key": "abc64"
+              },
+              "task_settings": {
+              }
+            }
+            """);
     }
 
     static void deleteModel(String modelId) throws IOException {

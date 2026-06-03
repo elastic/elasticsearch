@@ -45,6 +45,11 @@ public class MockAzureBlobStore {
         this.leaseExpiryPredicate = Objects.requireNonNull(leaseExpiryPredicate);
     }
 
+    public void setAccessTier(String path, String accessTier) {
+        final AzureBlockBlob blob = getExistingBlob(path);
+        blob.setAccessTier(accessTier);
+    }
+
     public void putBlock(String path, String blockId, BytesReference content, @Nullable String leaseId) {
         blobs.compute(path, (p, existing) -> {
             if (existing != null) {
@@ -58,9 +63,12 @@ public class MockAzureBlobStore {
         });
     }
 
-    public void putBlockList(String path, List<String> blockIds, @Nullable String leaseId) {
+    public void putBlockList(String path, List<String> blockIds, @Nullable String leaseId, @Nullable String accessTier) {
         final AzureBlockBlob blob = getExistingBlob(path);
         blob.putBlockList(blockIds, leaseId);
+        if (accessTier != null) {
+            blob.setAccessTier(accessTier);
+        }
     }
 
     public void putBlob(
@@ -69,25 +77,38 @@ public class MockAzureBlobStore {
         String blobType,
         @Nullable String ifNoneMatch,
         @Nullable String leaseId,
-        @Nullable CopyInfo copyInfo
+        @Nullable CopyInfo copyInfo,
+        @Nullable String accessTier
     ) {
         blobs.compute(path, (p, existingValue) -> {
             if (existingValue != null) {
                 existingValue.setContents(contents, leaseId, ifNoneMatch, copyInfo);
+                if (accessTier != null) {
+                    existingValue.setAccessTier(accessTier);
+                }
                 return existingValue;
             } else {
                 validateBlobType(blobType);
                 final AzureBlockBlob newBlob = new AzureBlockBlob();
                 newBlob.setContents(contents, leaseId, copyInfo);
+                newBlob.setAccessTier(accessTier);
                 return newBlob;
             }
         });
     }
 
-    public CopyInfo copyBlob(String path, String sourcePath, String sourceUrl) {
+    public CopyInfo copyBlob(String path, String sourcePath, String sourceUrl, @Nullable String accessTierOverride) {
         AzureBlockBlob sourceBlob = getBlob(sourcePath, null);
         final var copyInfo = new CopyInfo(UUID.randomUUID().toString(), sourceUrl);
-        putBlob(path, sourceBlob.getContents(), sourceBlob.type(), null, null, copyInfo);
+        putBlob(
+            path,
+            sourceBlob.getContents(),
+            sourceBlob.type(),
+            null,
+            null,
+            copyInfo,
+            accessTierOverride != null ? accessTierOverride : sourceBlob.accessTier()
+        );
         return copyInfo;
     }
 
@@ -173,11 +194,21 @@ public class MockAzureBlobStore {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();
         private volatile CopyInfo copyInfo = null;
+        private volatile String accessTier = null;
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents;
 
         private AzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
+        }
+
+        @Nullable
+        public String accessTier() {
+            return accessTier;
+        }
+
+        public void setAccessTier(@Nullable String accessTier) {
+            this.accessTier = accessTier;
         }
 
         public void putBlock(String blockId, BytesReference content, @Nullable String leaseId) {

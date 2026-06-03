@@ -239,12 +239,16 @@ public class ComputeService {
         return formatReaderRegistry;
     }
 
-    PhysicalPlan discoverSplits(PhysicalPlan plan) {
+    PhysicalPlan discoverSplits(PhysicalPlan plan, Configuration configuration) {
         if (operatorFactoryRegistry == null) {
             return plan;
         }
         try {
-            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(plan, operatorFactoryRegistry.sourceFactories());
+            PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+                plan,
+                operatorFactoryRegistry.sourceFactories(),
+                maxRecordBytes(configuration)
+            );
             return coalesceSplits(discovered);
         } catch (Exception e) {
             LOGGER.warn("split discovery failed for external source", e);
@@ -281,7 +285,7 @@ public class ComputeService {
     }
 
     ExternalDistributionResult applyExternalDistributionStrategy(PhysicalPlan plan, Configuration configuration) {
-        List<ExternalSplit> externalSplits = collectExternalSplits(plan);
+        List<ExternalSplit> externalSplits = collectExternalSplits(plan, configuration);
         if (externalSplits.isEmpty()) {
             return new ExternalDistributionResult(collapseExternalSourceExchanges(plan), null, List.of());
         }
@@ -314,12 +318,12 @@ public class ComputeService {
         }
     }
 
-    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan) {
+    private List<ExternalSplit> collectExternalSplits(PhysicalPlan plan, Configuration configuration) {
         List<ExternalSplit> splits = new ArrayList<>();
         plan.forEachDown(ExternalSourceExec.class, exec -> splits.addAll(exec.splits()));
         if (splits.isEmpty()) {
             if (canSkipSplitDiscovery(plan, formatReaderRegistry) == false) {
-                discoverSplitsFromFragments(plan, splits);
+                discoverSplitsFromFragments(plan, splits, maxRecordBytes(configuration));
                 if (splits.size() > SplitCoalescer.COALESCING_THRESHOLD) {
                     List<ExternalSplit> coalesced = SplitCoalescer.coalesce(splits);
                     if (coalesced != splits) {
@@ -417,19 +421,27 @@ public class ComputeService {
         return result;
     }
 
-    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits) {
+    private void discoverSplitsFromFragments(PhysicalPlan plan, List<ExternalSplit> splits, int maxRecordBytes) {
         if (operatorFactoryRegistry == null) {
             return;
         }
         plan.forEachDown(FragmentExec.class, fragment -> {
             fragment.fragment().forEachDown(ExternalRelation.class, external -> {
                 ExternalSourceExec tempExec = external.toPhysicalExec();
-                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(tempExec, operatorFactoryRegistry.sourceFactories());
+                PhysicalPlan discovered = SplitDiscoveryPhase.resolveExternalSplits(
+                    tempExec,
+                    operatorFactoryRegistry.sourceFactories(),
+                    maxRecordBytes
+                );
                 if (discovered instanceof ExternalSourceExec withSplits) {
                     splits.addAll(withSplits.splits());
                 }
             });
         });
+    }
+
+    private static int maxRecordBytes(Configuration configuration) {
+        return Math.toIntExact(configuration.pragmas().maxRecordSize().getBytes());
     }
 
     static PhysicalPlan collapseExternalSourceExchanges(PhysicalPlan plan) {
@@ -702,7 +714,7 @@ public class ComputeService {
         Map<String, EsqlExecutionInfo.Cluster.Status> initialClusterStatuses,
         PlanTimeProfile planTimeProfile
     ) {
-        final PhysicalPlan splitPlan = discoverSplits(physicalPlan);
+        final PhysicalPlan splitPlan = discoverSplits(physicalPlan, configuration);
         final ExternalDistributionResult distributionResult = applyExternalDistributionStrategy(splitPlan, configuration);
         final PhysicalPlan resolvedPlan = distributionResult.plan();
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(

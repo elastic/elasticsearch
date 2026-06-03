@@ -168,9 +168,6 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
                     return Translatable.YES_BUT_RECHECK_NEGATED;
                 }
             }
-            if (left() instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-                return Translatable.YES;
-            }
         }
         return super.translatable(pushdownPredicates);
     }

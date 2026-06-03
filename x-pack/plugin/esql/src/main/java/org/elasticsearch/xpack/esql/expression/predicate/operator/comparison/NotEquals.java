@@ -229,17 +229,6 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     }
 
     @Override
-    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right() instanceof Literal lit
-            && lit.value() instanceof Collection<?> == false
-            && left() instanceof FieldExtract fe
-            && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
-            return Translatable.YES;
-        }
-        return super.translatable(pushdownPredicates);
-    }
-
-    @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (right() instanceof Literal lit && lit.value() instanceof Collection<?> == false && left() instanceof FieldExtract fe) {
             Optional<String> keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);

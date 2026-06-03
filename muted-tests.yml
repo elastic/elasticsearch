@@ -155,18 +155,6 @@ tests:
 - class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
   method: testMaxQueueLatencyMetricIsPublished
   issue: https://github.com/elastic/elasticsearch/issues/146283
-- class: org.elasticsearch.xpack.sql.qa.multi_node.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.xpack.sql.qa.security.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
-- class: org.elasticsearch.xpack.sql.qa.multi_cluster_with_security.RestSqlIT
-  method: testAsyncTextPaginated
-  issue: https://github.com/elastic/elasticsearch/issues/80089
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=indices.resolve_cluster/20_resolve_system_index/Resolve system index via resolve/cluster}
   issue: https://github.com/elastic/elasticsearch/issues/146312
@@ -695,3 +683,51 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
   method: test {csv-spec:external-basic.aggregateCount [ndjson.zst/LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/150643
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterField}
+  issue: https://github.com/elastic/elasticsearch/issues/150644
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterField}
+  issue: https://github.com/elastic/elasticsearch/issues/150645
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameMissingCounterField}
+  issue: https://github.com/elastic/elasticsearch/issues/150641
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:subquery.subqueryInFromWithRenameChainMissingCounterField}
+  issue: https://github.com/elastic/elasticsearch/issues/150640
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.forkTwoBranches [ndjson.bz/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150651
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.inlineStatsMaxSalary [ndjson.bz2/AZURE]}
+  issue: https://github.com/elastic/elasticsearch/issues/150652
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150653
+- class: org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileAggregatorFunctionTests
+  method: testWarnsAndSkipsUnparseableBound
+  issue: https://github.com/elastic/elasticsearch/issues/150654
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.aggregateCount [ndjson.gz/GCS]}
+  issue: https://github.com/elastic/elasticsearch/issues/150657
+- class: org.elasticsearch.xpack.stateless.recovery.BlockRefreshUponIndexCreationIT
+  method: testRefreshBlockRemovedAfterDelay
+  issue: https://github.com/elastic/elasticsearch/issues/150662
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRecoveryIT
+  method: testPeerRecovery
+  issue: https://github.com/elastic/elasticsearch/issues/150663
+- class: org.elasticsearch.indices.cluster.SkippedClusterStateIT
+  method: testInitializingPrimaryTermBump
+  issue: https://github.com/elastic/elasticsearch/issues/150666
+- class: org.elasticsearch.index.engine.InternalEngineTests
+  method: testShouldPeriodicallyFlushOnSize
+  issue: https://github.com/elastic/elasticsearch/issues/150669
+- class: org.elasticsearch.xpack.esql.qa.ndjson.NdJsonCompressedFormatSpecIT
+  method: test {csv-spec:external-basic.fileMetadataWildcardKeepExcludesVirtualColumns [ndjson.zstd/S3]}
+  issue: https://github.com/elastic/elasticsearch/issues/150670
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerUnmappedGoldenTests
+  method: testTypeConflictTimeseriesDoubleUnmappedWithCast
+  issue: https://github.com/elastic/elasticsearch/issues/150672
+- class: org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilderNestedDocsIT
+  method: testRRFRetrieverPartialSearchErrorsTrue
+  issue: https://github.com/elastic/elasticsearch/issues/150673

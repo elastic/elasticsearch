@@ -1,0 +1,5 @@
+area: Suggesters
+issues: []
+pr: 150608
+summary: "Fix(suggest): return 400 instead of 500 for cross-index suggest mismatch"
+type: enhancement

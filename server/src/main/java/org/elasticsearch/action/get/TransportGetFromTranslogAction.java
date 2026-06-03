@@ -73,7 +73,8 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                         getRequest.versionType(),
                         getRequest.fetchSourceContext(),
                         getRequest.isForceSyntheticSource(),
-                        getRequest.getSplitShardCountSummary()
+                        getRequest.getSplitShardCountSummary(),
+                        getRequest.refresh()
                     );
                 long segmentGeneration = -1;
                 if (result == null) {

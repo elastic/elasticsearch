@@ -81,7 +81,7 @@ def orcFixtureOutputDir = file("${buildDir}/orc-fixtures/iceberg-fixtures")
 def orcFixtureDir = file("${orcFixtureOutputDir}/standalone")
 
 // Add CSV base names here to generate ORC fixtures; source: esql:qa:testFixtures/src/main/resources/data/{name}.csv
-def csvToOrcFixtures = ['employees', 'web_logs', 'books', 'nested_events']
+def csvToOrcFixtures = ['employees', 'web_logs', 'books', 'nested_events', 'employees_no_mv']
 
 def generateOrcTasks = []
 csvToOrcFixtures.each { baseName ->
@@ -97,6 +97,7 @@ csvToOrcFixtures.each { baseName ->
     inputs.file(csvFile)
     outputs.file(orcFile)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   generateOrcTasks.add(tasks.named(taskName))
 }
@@ -115,6 +116,7 @@ tasks.register('generateMultifileSplitOrc_employees', JavaExec) {
   inputs.file(multifileSplitCsv)
   outputs.dir(multifileSplitDir)
   systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+  systemProperty 'slf4j.internal.verbosity', 'WARN'
 }
 generateOrcTasks.add(tasks.named('generateMultifileSplitOrc_employees'))
 

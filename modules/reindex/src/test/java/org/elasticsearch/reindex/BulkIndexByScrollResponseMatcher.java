@@ -9,7 +9,7 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
@@ -21,7 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @SuppressWarnings("HiddenField")
-public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScrollResponse> {
+public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByPaginatedSearchResponse> {
 
     private Matcher<Long> createdMatcher = equalTo(0L);
     private Matcher<Long> updatedMatcher = equalTo(0L);
@@ -136,7 +136,7 @@ public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScro
     }
 
     @Override
-    protected boolean matchesSafely(BulkByScrollResponse item) {
+    protected boolean matchesSafely(BulkByPaginatedSearchResponse item) {
         return updatedMatcher.matches(item.getUpdated())
             && createdMatcher.matches(item.getCreated())
             && deletedMatcher.matches(item.getDeleted())

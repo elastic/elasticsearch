@@ -15,8 +15,9 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.RerankRequest;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItem;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceRequestItemIterator;
 
@@ -24,6 +25,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
+
+import static org.elasticsearch.inference.InferenceString.fromStringList;
 
 /**
  * Iterator that converts a block of text strings into batched inference request items for reranking.
@@ -200,19 +203,13 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      * @param inputs The list of document texts to rerank.
      * @return An inference request, or null if there are no inputs.
      */
-    private InferenceAction.Request inferenceRequest(List<String> inputs) {
+    private RerankAction.Request inferenceRequest(List<String> inputs) {
         if (inputs.isEmpty()) {
             return null;
         }
 
-        // Create a defensive copy since the inputBuffer is reused for subsequent batches
-        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.RERANK)
-            .setInput(List.copyOf(inputs))
-            .setQuery(queryText);
-        if (timeout != null) {
-            builder.setInferenceTimeout(timeout);
-        }
-        return builder.build();
+        var rerankRequest = new RerankRequest(fromStringList(inputs), InferenceString.ofText(queryText), null, null, null);
+        return new RerankAction.Request(inferenceId, rerankRequest, timeout);
     }
 
     @Override

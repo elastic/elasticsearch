@@ -14,7 +14,7 @@ For the *why* behind any item, follow its `[§x.y]` link into the PoC doc.
 
 **Gateway team:** mTLS identity contract, retry/buffer targets, real-gateway integration test.
 
-**UIAM team (Slobodan Adamović):** Cloud API key audit field shape (`api_key.{id,name}` for UIAM-authenticated events).
+**UIAM team (Slobodan Adamović):** Cloud API key audit field shape (`apikey.{id,name}` for UIAM-authenticated events).
 
 **CPS team:** Empirical verification that the node-setting source populates `project.id` on linked-cluster events; A-vs-B routing call with the gateway team.
 
@@ -59,7 +59,7 @@ Delete the `withThreadContext` `project.id` write. PR 149210 will conflict on `L
 The PoC branch is the implementation basis for the in-scope items, not a throwaway prototype.
 
 - **Kept and built on** — the OTel delivery layer in `modules/apm`: `OtelSdkExportLogsSupplier`, `OtelSdkSettings`, the `APM`/`APMTelemetryProvider` wiring, `manage_threads` entitlement, `attemptFlushLogs` plumbing, and the gRPC integration-test harness (`OtelAuditLogsIT`, `RecordingApmServer`). No overlap with Ankit's PRs. Complementary to PR 6718's `ServerlessAuditLoggingIT`: that test covers the customizer through the file appender; ours proves OTLP-on-the-wire. Items 1, 4, 5, and 13 extend this code directly.
-- **Temporary shim, excised by items 7–8** — the header-based `project.id` plumbing: two lines in `LoggingAuditTrail` (the `setThreadContextField(… X_ELASTIC_PROJECT_ID_HTTP_HEADER …)` write in `withThreadContext`), one pattern line in core `log4j2.properties`, and the `projectId()` assertion helper and its ~30 call sites in `LoggingAuditTrailTests`. Kept so the branch stays demonstrable without depending on the unmerged PRs; superseded by `ServerlessAuditLogCustomizer.enrich()` once PR 6718 lands. PR 149210 touches `LoggingAuditTrail` substantially (+113/−32), so a merge conflict is expected: take Ankit's version and drop our two lines.
+- **Temporary shim, excised by item 7** — the header-based `project.id` plumbing: two lines in `LoggingAuditTrail` (the `setThreadContextField(… X_ELASTIC_PROJECT_ID_HTTP_HEADER …)` write in `withThreadContext`), one pattern line in core `log4j2.properties`, and the `projectId()` assertion helper and its ~30 call sites in `LoggingAuditTrailTests`. Kept so the branch stays demonstrable without depending on the unmerged PRs; superseded by `ServerlessAuditLogCustomizer.enrich()` once PR 6718 lands. PR 149210 touches `LoggingAuditTrail` substantially (+113/−32), so a merge conflict is expected: take Ankit's version and drop our two lines.
 - **Build nothing new on the shim** — the OTel appender emits whatever is in the audit `StringMapMessage` and is agnostic to how `project.id` got there. When `enrich()` replaces the header-write, the appender is unchanged, so nothing built in the meantime needs to be redone.
 
 **Settled architecture decisions (recorded here for clarity):**
@@ -73,7 +73,7 @@ The PoC branch is the implementation basis for the in-scope items, not a throwaw
 
 **Open decisions:**
 - **Stateful vs serverless gating**. `OtelSdkExportLogsSupplier.install()` activates on any cluster where `telemetry.otel.logs.enabled=true`; there is no runtime check against serverless mode. Options: (a) rely on the setting being configured only in serverless deployments — simpler, and allows stateful operators with their own gateway to opt in; (b) add an explicit serverless-mode guard in `install()` — more defensive, locks out stateful use. Decide before the code hardens.
-- **Cloud API key audit shape** ([§4.13](otel-audit-logging-poc.md#sec-4-13)). What populates `api_key.id` / `api_key.name` for `CLOUD_API_KEY`-typed events, given the source values live in UIAM metadata rather than the regular API key store? Alignment conversation with UIAM team (Slobodan Adamović).
+- **Cloud API key audit shape** ([§4.13](otel-audit-logging-poc.md#sec-4-13)). What populates `apikey.id` / `apikey.name` for `CLOUD_API_KEY`-typed events, given the source values live in UIAM metadata rather than the regular API key store? Alignment conversation with UIAM team (Slobodan Adamović).
 
 **Implementation requirements from those decisions:**
 
@@ -106,11 +106,11 @@ Items 1–4 can be started in parallel.
 
 ## Conditional on external PRs landing
 
-Items 7–8 become in-scope if Ankit's PRs 149210 + 6718 land.
+Item 7 is Patrick's follow-on once PR 6718 lands. Item 8 is Ankit's follow-on once PR 149210 lands, prompted by Patrick's review comments on that PR.
 
 7. **`project.id` reconciliation** ([§3.3](otel-audit-logging-poc.md#sec-3-3), [§5.4](otel-audit-logging-poc.md#sec-5-4)). Once PR 6718 lands, delete the PoC's `withThreadContext` `project.id` write — `ServerlessAuditLogCustomizer.enrich` sources it from the node setting and writes it in `build()`, so the `withThreadContext` path produces a duplicate. One-line deletion. Also check that `OtelAuditLogsIT` still has a meaningful `project.id` assertion; this may require wiring a test `AuditLogCustomizer` that populates the field.
 
-8. **`suppress` + `withThreadContext` structural fix** ([§4.3](otel-audit-logging-poc.md#sec-4-3)). Once PR 149210 lands, add `suppress` to the HTTP-variant emit methods listed in item 3, and fold `withThreadContext` into `LogEntryBuilder.build()`. The `enrich`-in-`build()` part is already done by PR 149210; what remains is closing the `suppress` gaps and making `withThreadContext` structural.
+8. **`suppress` + `withThreadContext` structural fix** ([§4.3](otel-audit-logging-poc.md#sec-4-3)). *Ankit's work.* Once PR 149210 lands, add `suppress` to the five pre-auth/network-layer emit methods identified in item 3, and fold `withThreadContext` into `LogEntryBuilder.build()` (since `threadContext` is already in scope from the outer class, `build()` can call it directly — same pattern as `enrich`). Patrick raised both points as review comments on PR 149210.
 
 ---
 
@@ -130,7 +130,7 @@ Items 7–8 become in-scope if Ankit's PRs 149210 + 6718 land.
 
 ## External gates
 
-- **[PR 149210](https://github.com/elastic/elasticsearch/pull/149210)** (Ankit, `elastic/elasticsearch`, in review) — adds `AuditLogCustomizer` (with `enrich`/`suppress`), `AuditEntry`, `AuditEventContext` to `:x-pack:plugin:core`; wires `suppress` at most emit call sites (HTTP-variant gaps documented in item 3); folds `enrich` into `LogEntryBuilder.build()`; exposes `SecurityExtension.getAuditLogCustomizer(SecurityComponents, SystemIndices)` as the registration hook. *Gates items 7 and 8.*
-- **[PR 6718](https://github.com/elastic/elasticsearch-serverless/pull/6718)** (Ankit, `elastic/elasticsearch-serverless`, in review; linked to 149210) — `ServerlessAuditLogCustomizer`: suppress by realm/system-indices, operator action redaction to `"elastic.maintenance"`, `project.id` enrichment from the node's `serverless.project_id` setting (tagged `@FixForMultiProject`); rewrites `log4j2.serverless.properties` to establish the `elasticsearch.audit.*` field-name scheme used as the OTel-path spec in item 1; includes `ServerlessAuditLoggingIT`. *Gates item 7.*
+- **[PR 149210](https://github.com/elastic/elasticsearch/pull/149210)** (Ankit, `elastic/elasticsearch`, in review) — adds `AuditLogCustomizer` (with `enrich`/`suppress`), `AuditEntry`, `AuditEventContext` to `:x-pack:plugin:core`; wires `suppress` at most emit call sites (HTTP-variant gaps documented in item 3); folds `enrich` into `LogEntryBuilder.build()`; exposes `SecurityExtension.getAuditLogCustomizer(SecurityComponents, SystemIndices)` as the registration hook. *Gates item 8.*
+- **[PR 6718](https://github.com/elastic/elasticsearch-serverless/pull/6718)** (Ankit, `elastic/elasticsearch-serverless`, in review; linked to 149210) — `ServerlessAuditLogCustomizer`: suppress by realm/system-indices, operator action redaction to `"elastic.maintenance"`, `project.id` enrichment from the node's `serverless.project_id` setting (tagged `@FixForMultiProject`); rewrites `log4j2.serverless.properties` to establish the `elasticsearch.audit.*` field-name scheme used as the OTel-path spec in item 1; includes `ServerlessAuditLoggingIT`. *Gates PR 2 and item 7.*
 - **CPS/UIAM follow-up branch** (Ankit's fork, not yet a PR) — enables Cloud API key audit logging; planned after 149210 + 6718 merge. *Gates item 10.*
 - **`elasticsearch-controller` audit config delivery** (Control-Plane / Julio Camarero) — file-based delivery of customer-configurable audit settings and mTLS client cert to ES nodes. *Coordinated via item 6.*

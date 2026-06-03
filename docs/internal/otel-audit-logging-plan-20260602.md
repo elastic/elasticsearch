@@ -35,7 +35,7 @@ One-line change: set `emit_node_id` and `emit_cluster_uuid` to `false` in `serve
 
 **PR 2 — Custom appender with ECS/semconv field mapping** *(plan item 1)*
 
-*Trigger: PR 6718 in `elastic/elasticsearch-serverless` merges.* To check: `ghool with-key elastic gh api repos/elastic/elasticsearch-serverless/pulls/6718 --jq '.merged'` — proceed when the result is `true`.
+*Trigger: PR 6718 in `elastic/elasticsearch-serverless` merges AND the OTel-vs-ECS field naming decision (open decision above) is resolved.* To check PR 6718: `ghool with-key elastic gh api repos/elastic/elasticsearch-serverless/pulls/6718 --jq '.merged'` — proceed when the result is `true`.
 
 Replaces the raw `OpenTelemetryAppender` with a custom appender that drops the `log4j.map_message.` prefix, applies the field rename table matching the now-merged `log4j2.serverless.properties` schema, and puts `trace.id` in native `LogRecord.traceId`. Updates IT assertions to use unprefixed names.
 
@@ -62,13 +62,14 @@ The PoC branch is the implementation basis for the in-scope items, not a throwaw
 **Settled architecture decisions (recorded here for clarity):**
 - **Transport**: OTLP/gRPC. Julio Camarero confirmed HTTP caused uneven K8s load distribution due to connection reuse. Implemented; see [§3.5](otel-audit-logging-poc.md#sec-3-5).
 - **Audit `project.id` source**: via `AuditLogCustomizer.enrich()`, registered through the `SecurityExtension.getAuditLogCustomizer(SecurityComponents, SystemIndices)` hook (PR 149210). `enrich()` is the first statement in `LogEntryBuilder.build()`, before `logger.info()`. The serverless wiring (`ServerlessAuditLogCustomizer`, PR 6718) sources `project.id` from `() -> PROJECT_ID.get(components.settings())` — the node's `serverless.project_id` cluster setting, tagged `@FixForMultiProject`. For project-per-cluster, the node setting is authoritative; multi-project implications are out of scope.
-- **Field naming**: The PR 6718 rewrite of `log4j2.serverless.properties` establishes the target names: `elasticsearch.audit.*` for custom fields (`apikey.{id,name}`, `indices`, `action`, `request.name`, `origin.{type,address}`, `request.id`, `security_config_change.*`); standard ECS/semconv for the remainder (`event.action`, `event.type`, `user.name`, `http.request.method`, `url.path`, `url.query`, `trace.id`, etc.). The OTel path adopts these names verbatim. Cross-product consistency with Kibana is a heads-up, not a blocker.
+- **Field naming**: *Under active cross-team review — see open decisions below.*
 - **`trace.id`**: native `LogRecord.traceId` field (confirmed acceptable per `logs-otel@mapping` component template).
 - **Module**: `modules/apm/` — `OtelSdkExportLogsSupplier` stays there for initial delivery. Longer-term reconsideration tracked in [§5.3](otel-audit-logging-poc.md#sec-5-3).
 - **`request.body`**: Deferred from initial implementation. The field contains potential PII and requires a security review before it can leave the cluster. May be revisited as a follow-on if customer demand warrants it; see [§4.11](otel-audit-logging-poc.md#sec-4-11).
 - **Multi-project**: Out of scope for initial delivery. Project-per-cluster is the assumption; multi-project considerations are preserved in [PoC Appendix C](otel-audit-logging-poc.md#sec-appendix-c).
 
 **Open decisions:**
+- **Field naming — OTel vs ECS where they diverge** ([Slack thread](https://elastic.slack.com/archives/C09PANY7FFS/p1780477555206229?thread_ts=1780477555.206229&cid=C09PANY7FFS), 2026-06-03). Where OTel semconv and ECS field names diverge, which schema should ES/Kibana/Control Plane use in `.otel` streams? Julio Camarero raised this for cross-client consistency. Sneha (Security) says the OTel envelope is fine as long as ECS queryability holds — specifically flagging `event.action/category/type/outcome` as critical for SIEM detection rules, with no clean OTel 1:1 mapping. PR 6718's `log4j2.serverless.properties` uses `event.action` and `event.type` but omits `event.category` and `event.outcome`. Decision is pending; owned by the o11y team (Andrew Wilkins) and Security Solution team (Yuliia Naumenko) — the teams that consume the stored documents, not Ankit's team which produces them. Patrick's role is implementer: once the decision lands, the field mapping table in PR 2 picks it up. *Directly gates PR 2.*
 - **Stateful vs serverless gating**. `OtelSdkExportLogsSupplier.install()` activates on any cluster where `telemetry.otel.logs.enabled=true`; there is no runtime check against serverless mode. Options: (a) rely on the setting being configured only in serverless deployments — simpler, and allows stateful operators with their own gateway to opt in; (b) add an explicit serverless-mode guard in `install()` — more defensive, locks out stateful use. Decide before the code hardens.
 **Implementation requirements from those decisions:**
 

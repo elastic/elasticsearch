@@ -490,16 +490,14 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             queryVector[i] = randomFloat();
         }
 
-        // Without a similarity_function override there is no metric to score with.
-        IllegalArgumentException missingSimilarity = expectThrows(
-            IllegalArgumentException.class,
-            () -> field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false)
-        );
-        assertThat(missingSimilarity.getMessage(), containsString("a [similarity_function] must be provided"));
+        // A non-indexed field has no mapped similarity; without an override it defaults to cosine and produces a
+        // doc-values-backed query (no codec/KNN values for a non-indexed field).
+        Query defaulted = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, null, false);
+        assertTrue(defaulted instanceof DenseVectorQuery.Floats);
 
-        // With an override, a doc-values-backed query is produced (no codec/KNN values for a non-indexed field).
-        Query query = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
-        assertTrue(query instanceof DenseVectorQuery.Floats);
+        // An explicit similarity_function override is also honored.
+        Query overridden = field.createExactKnnQuery(VectorData.fromFloats(queryVector), null, VectorSimilarity.COSINE, false);
+        assertTrue(overridden instanceof DenseVectorQuery.Floats);
 
         // The exact-knn entry point used by ExactKnnQueryBuilder/inner-hits still requires an indexed field.
         IllegalArgumentException requiresIndexed = expectThrows(

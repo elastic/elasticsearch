@@ -3072,18 +3072,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (useQuantized && similarityOverride != null) {
                 throw new IllegalArgumentException("[similarity_function] cannot be used when [quantized] is true");
             }
-            VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride : similarity;
-            // A non-indexed field has no configured [similarity] (it cannot be set when index:false), so the
-            // query must supply the metric explicitly via [similarity_function].
-            if (nonIndexed && effectiveSimilarity == null) {
-                throw new IllegalArgumentException(
-                    "to run an exact ["
-                        + CONTENT_TYPE
-                        + "] query on the non-indexed field ["
-                        + name()
-                        + "], a [similarity_function] must be provided"
-                );
-            }
+            // A non-indexed field has no configured [similarity] (it cannot be set when index:false). Default to
+            // cosine when the query does not override it.
+            VectorSimilarity effectiveSimilarity = similarityOverride != null ? similarityOverride
+                : similarity != null ? similarity
+                : VectorSimilarity.COSINE;
             VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = nonIndexed
                 ? createDocValuesExactKnnQuery(resolvedQueryVector, effectiveSimilarity)
@@ -3134,8 +3127,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         /**
          * Scores a non-indexed (index:false) field, whose vectors are stored as binary doc values rather than
          * KNN vector values, by decoding each document's vector and applying the
-         * {@link VectorSimilarity#rawVectorSimilarityFunction literal} similarity function. The caller supplies
-         * the metric via {@code similarity_function}, so {@code effectiveSimilarity} is always non-null here.
+         * {@link VectorSimilarity#rawVectorSimilarityFunction literal} similarity function. The metric is the
+         * query's {@code similarity_function} override, falling back to cosine since a non-indexed field has no
+         * mapped similarity.
          */
         private Query createDocValuesExactKnnQuery(VectorData resolvedQueryVector, VectorSimilarity effectiveSimilarity) {
             VectorSimilarityFunction function = effectiveSimilarity.rawVectorSimilarityFunction();

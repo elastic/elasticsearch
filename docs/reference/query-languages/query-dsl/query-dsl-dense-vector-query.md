@@ -84,10 +84,8 @@ both. See [`query_vector_builder`](/reference/query-languages/query-dsl/query-ds
 `similarity_function`
 :   (Optional, string) The similarity metric used for scoring, overriding the field's mapped similarity for
 this query. One of `l2_norm`, `dot_product`, `cosine`, or `max_inner_product`. Defaults to the field's
-configured similarity. Cannot be combined with `quantized: true`.
-
-    For a non-indexed field (`index: false`) there is no configured similarity, so `similarity_function` is
-    **required**.
+configured similarity, or to `cosine` for a non-indexed (`index: false`) field, which has no configured
+similarity. Cannot be combined with `quantized: true`.
 
 `quantized` [dense-vector-query-quantized]
 :   (Optional, Boolean) Defaults to `false`.
@@ -110,8 +108,9 @@ configured similarity. Cannot be combined with `quantized: true`.
 ## Scoring non-indexed fields [dense-vector-query-non-indexed]
 
 The `dense_vector` query can score a field mapped with `index: false`, whose vectors are stored as doc
-values rather than in an approximate-search index. Because a non-indexed field has no configured
-`similarity`, the query must specify the metric with [`similarity_function`](#dense-vector-query-params):
+values rather than in an approximate-search index. A non-indexed field has no configured `similarity`, so
+scoring uses `cosine` unless you specify a different metric with
+[`similarity_function`](#dense-vector-query-params):
 
 ```console
 POST my-image-index/_search

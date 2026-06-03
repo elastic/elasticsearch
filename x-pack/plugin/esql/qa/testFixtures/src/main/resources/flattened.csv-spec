@@ -962,6 +962,7 @@ firstOverTime
 required_capability: flattened_datatype
 required_capability: fn_first_over_time_flattened
 required_capability: ts_command_v0
+required_capability: metrics_group_by_all
 
 TS ts_flattened
 | WHERE host == "host-a"
@@ -976,6 +977,7 @@ lastOverTime
 required_capability: flattened_datatype
 required_capability: fn_last_over_time_flattened
 required_capability: ts_command_v0
+required_capability: metrics_group_by_all
 
 TS ts_flattened
 | WHERE host == "host-b"
@@ -990,6 +992,7 @@ countDistinctOverTime
 required_capability: flattened_datatype
 required_capability: fn_count_distinct_over_time_flattened
 required_capability: ts_command_v0
+required_capability: metrics_group_by_all
 
 TS ts_flattened
 | STATS n = COUNT_DISTINCT_OVER_TIME(metadata)

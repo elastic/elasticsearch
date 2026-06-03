@@ -30,7 +30,6 @@ import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -325,6 +324,8 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
             Status::new
         );
 
+        public static final TransportVersion ESQL_ENRICH_BYTES_READ = TransportVersion.fromName("esql_enrich_bytes_read");
+
         private final long bytesRead;
 
         Status(long bytesRead) {
@@ -332,12 +333,12 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         }
 
         Status(StreamInput in) throws IOException {
-            this.bytesRead = in.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ) ? in.readVLong() : 0L;
+            this.bytesRead = in.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ) ? in.readVLong() : 0L;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)) {
+            if (out.getTransportVersion().supports(ESQL_ENRICH_BYTES_READ)) {
                 out.writeVLong(bytesRead);
             }
         }

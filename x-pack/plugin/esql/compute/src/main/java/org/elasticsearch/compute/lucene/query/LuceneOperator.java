@@ -463,7 +463,9 @@ public abstract class LuceneOperator extends SourceOperator {
         );
 
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
-        public static final TransportVersion ESQL_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
+        private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName(
+            "esql_lucene_operator_bytes_read"
+        );
 
         private final int processedSlices;
         private final Set<String> processedQueries;
@@ -596,7 +598,7 @@ public abstract class LuceneOperator extends SourceOperator {
         }
 
         private static boolean serializeBytesRead(TransportVersion version) {
-            return version.supports(ESQL_OPERATOR_BYTES_READ);
+            return version.supports(ESQL_LUCENE_OPERATOR_BYTES_READ);
         }
 
         @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.injection.guice.Inject;
@@ -49,7 +50,6 @@ import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -367,9 +367,9 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
             "directory_metrics feature flag must be enabled to record store bytes",
             Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
         );
-        EsqlQueryRequest request = syncEsqlQueryRequest(
-            "FROM listens | " + enrichSongCommand() + " | STATS count(*) BY artist"
-        ).profile(true);
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM listens | " + enrichSongCommand() + " | STATS count(*) BY artist").profile(
+            true
+        );
         try (EsqlQueryResponse resp = run(request)) {
             assertThat(resp.bytesRead(), greaterThan(0L));
 

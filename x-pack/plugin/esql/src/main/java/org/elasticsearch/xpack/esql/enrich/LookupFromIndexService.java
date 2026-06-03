@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -32,6 +31,7 @@ import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeSer
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
@@ -555,7 +555,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 } else {
                     this.planString = null;
                 }
-                this.bytesRead = in.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)
+                this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
                     ? in.readVLong()
                     : 0L;
                 this.pages = readPages;
@@ -576,7 +576,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_PLAN_STRING)) {
                 out.writeOptionalString(planString);
             }
-            if (out.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)) {
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
                 out.writeVLong(bytesRead);
             }
         }

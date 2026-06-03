@@ -22,8 +22,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
@@ -280,7 +280,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 this.page = new Page(bsi);
             }
-            this.bytesRead = in.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ) ? in.readVLong() : 0L;
+            this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
+                ? in.readVLong()
+                : 0L;
         }
 
         @Override
@@ -294,7 +296,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
             reservedBytes += bytes;
             page.writeTo(out);
-            if (out.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)) {
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
                 out.writeVLong(bytesRead);
             }
         }

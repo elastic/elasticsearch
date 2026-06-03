@@ -13,10 +13,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -195,14 +195,16 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
         Status(StreamInput in) throws IOException {
             super(in);
             this.totalTerms = in.readVLong();
-            this.bytesRead = in.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ) ? in.readVLong() : 0L;
+            this.bytesRead = in.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)
+                ? in.readVLong()
+                : 0L;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVLong(totalTerms);
-            if (out.getTransportVersion().supports(LuceneOperator.Status.ESQL_OPERATOR_BYTES_READ)) {
+            if (out.getTransportVersion().supports(EnrichQuerySourceOperator.Status.ESQL_ENRICH_BYTES_READ)) {
                 out.writeVLong(bytesRead);
             }
         }

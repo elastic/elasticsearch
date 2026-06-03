@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThrea
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.ConsumingLongGaugeMetric;
-import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

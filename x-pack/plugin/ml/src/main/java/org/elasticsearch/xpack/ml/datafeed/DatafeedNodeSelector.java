@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -198,7 +199,8 @@ public class DatafeedNodeSelector {
             // IndexNotFoundException is expected and must not block assignment. Qualified alias:index
             // names are filtered out of `index` above and never resolved here, so a remote index
             // elsewhere in the datafeed does not justify ignoring a genuinely missing local index.
-            if (indicesOptions.resolveCrossProjectIndexExpression()) {
+            if (indicesOptions.resolveCrossProjectIndexExpression()
+                && org.elasticsearch.ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 return null;
             }
             String msg = format(

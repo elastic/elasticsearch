@@ -113,15 +113,13 @@ public class AbsentTests extends AbstractAggregationTestCase {
                     ? TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")
                         .withAppliesTo(flattenedPreviewAppliesTo)
                         .withPreview()
-                    : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
-            suppliers.add(
-                new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
-                    if (dataType == DataType.FLATTENED) {
-                        assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
-                    }
-                    return new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(true));
-                })
-            );
+                : TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field");
+            suppliers.add(new TestCaseSupplier("No rows (" + dataType + ")", List.of(dataType), () -> {
+                if (dataType == DataType.FLATTENED) {
+                    assumeTrue("Requires FLATTENED_DATATYPE capability", EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled());
+                }
+                return new TestCaseSupplier.TestCase(List.of(field), "Present", DataType.BOOLEAN, equalTo(true));
+            }));
         }
 
         // "No rows" expects 0 here instead of null

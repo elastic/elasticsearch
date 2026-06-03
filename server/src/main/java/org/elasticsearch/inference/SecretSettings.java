@@ -86,7 +86,7 @@ public interface SecretSettings extends ToXContentObject, VersionedNamedWriteabl
             var disallowed = new HashSet<>(provided.keySet());
             disallowed.remove(allowedField);
             throw new ValidationException().addValidationError(
-                Strings.format("[%s] only [%s] can be updated for this secret, received: %s", scope, allowedField, disallowed)
+                Strings.format("[%s] only the field [%s] can be updated for this secret, received: %s", scope, allowedField, disallowed)
             );
         }
         var newValue = provided.get(allowedField);

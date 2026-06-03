@@ -119,7 +119,7 @@ public class OpenAiSecretSettingsTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            containsString("[secret_settings] only [client_secret] can be updated for this secret, received: [api_key]")
+            containsString("[secret_settings] only the field [client_secret] can be updated for this secret, received: [api_key]")
         );
     }
 

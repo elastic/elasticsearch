@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.datasource.azure;
 
-import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.blob.BlobAsyncClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
@@ -20,6 +19,7 @@ import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.ListBlobsOptions;
 import com.azure.storage.common.StorageSharedKeyCredential;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -62,8 +62,10 @@ import java.util.NoSuchElementException;
  * The async dependencies ({@code azure-core-http-netty}, Reactor Netty, Netty) are already
  * bundled in this plugin's classloader. Versions are aligned with {@code repository-azure}.
  * <p>
- * Authentication can be provided via connection string, account+key, SAS token,
- * or DefaultAzureCredential when no explicit credentials are configured.
+ * Authentication must be provided explicitly via connection string, account+key, SAS token, or
+ * {@code auth=none} for public containers. The node's ambient credentials (DefaultAzureCredential) are
+ * never used: a data source must carry its own credentials, since the node may run in a different cloud
+ * than the container it targets.
  */
 public final class AzureStorageProvider implements StorageProvider {
 
@@ -121,19 +123,19 @@ public final class AzureStorageProvider implements StorageProvider {
                 );
             }
         } else if (config != null && config.hasCredentials()) {
-            if (config.connectionString() != null && config.connectionString().isEmpty() == false) {
+            if (Strings.hasText(config.connectionString())) {
                 builder.connectionString(config.connectionString());
                 if (config.endpoint() != null && config.endpoint().isEmpty() == false) {
                     builder.endpoint(config.endpoint());
                 }
-            } else if (config.account() != null && config.key() != null) {
+            } else if (Strings.hasText(config.account()) && Strings.hasText(config.key())) {
                 StorageSharedKeyCredential credential = new StorageSharedKeyCredential(config.account(), config.key());
                 String endpoint = config.endpoint();
                 if (endpoint == null || endpoint.isEmpty()) {
                     endpoint = "https://" + config.account() + ".blob.core.windows.net";
                 }
                 builder.endpoint(endpoint).credential(credential);
-            } else if (config.sasToken() != null && config.sasToken().isEmpty() == false && config.account() != null) {
+            } else if (Strings.hasText(config.sasToken()) && Strings.hasText(config.account())) {
                 String endpoint = config.endpoint();
                 if (endpoint == null || endpoint.isEmpty()) {
                     endpoint = "https://" + config.account() + ".blob.core.windows.net";
@@ -143,19 +145,12 @@ public final class AzureStorageProvider implements StorageProvider {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
         } else {
-            String account = accountFromPath;
-            if (account == null && config != null && config.account() != null) {
-                account = config.account();
-            }
-            if (account == null) {
-                throw new IllegalStateException(
-                    "Azure DefaultAzureCredential requires account from path (wasbs://account.blob.core.windows.net/...) or config"
-                );
-            }
-            String endpoint = config != null && config.endpoint() != null && config.endpoint().isEmpty() == false
-                ? config.endpoint()
-                : "https://" + account + ".blob.core.windows.net";
-            builder.endpoint(endpoint).credential(new DefaultAzureCredentialBuilder().build());
+            // No ambient fallback: the node may run in a different cloud than the container it targets.
+            throw new IllegalArgumentException(
+                "Azure data source requires credentials: provide WITH (connection_string = '...'), "
+                    + "WITH (account = '...', key = '...'), WITH (account = '...', sas_token = '...'), "
+                    + "or WITH (auth = 'none') for public containers"
+            );
         }
 
         return builder;

@@ -1,1 +1,3 @@
 org.elasticsearch.xpack.esql.datasources.datasource.DataSourceCrudIT$TestDataSourcePlugin
+org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionIT$CapturingDataSourcePlugin
+org.elasticsearch.xpack.esql.action.FileSourceSecretDecryptionAcrossNodesIT$CapturingDataSourcePlugin

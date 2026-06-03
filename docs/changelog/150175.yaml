@@ -1,0 +1,5 @@
+area: Search
+issues: []
+pr: 150175
+summary: "Blob store prefetching: Allow for all nodes"
+type: enhancement

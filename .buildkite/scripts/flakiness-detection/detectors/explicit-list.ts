@@ -1,5 +1,5 @@
-import { ClassifiedTest, TestRef } from "../domain";
-import { locateTest } from "./locator";
+import type { ClassifiedTest, TestRef } from "../domain.ts";
+import { locateTest } from "./locator.ts";
 
 export interface UnresolvedSpec {
   spec: string;

@@ -535,9 +535,6 @@ tests:
 - class: org.elasticsearch.datastreams.TSDBSyntheticIdsIT
   method: testTermInSetQueryWithSyntheticIds
   issue: https://github.com/elastic/elasticsearch/issues/150229
-- class: org.elasticsearch.snapshots.SnapshotsServiceIT
-  method: testDeleteSnapshotWhenNotWaitingForCompletion
-  issue: https://github.com/elastic/elasticsearch/issues/150257
 - class: org.elasticsearch.xpack.stateless.recovery.PointInTimeRelocationIT
   method: testPointInTimeRelocationClosingSourceContexts
   issue: https://github.com/elastic/elasticsearch/issues/150288

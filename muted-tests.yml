@@ -746,3 +746,6 @@ tests:
 - class: org.elasticsearch.index.IndexingPressureIT
   method: testWriteCanBeRejectedAtCoordinatingLevel
   issue: https://github.com/elastic/elasticsearch/issues/150694
+- class: org.elasticsearch.index.IndexingPressureIT
+  method: testWriteIndexingPressureMetricsAreIncremented
+  issue: https://github.com/elastic/elasticsearch/issues/150695

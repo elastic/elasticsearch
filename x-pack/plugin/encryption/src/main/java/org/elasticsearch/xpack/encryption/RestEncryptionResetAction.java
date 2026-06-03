@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST entry point for {@code POST /_encryption/_reset}. Requires the {@code accept_data_loss=true} query parameter to
  * acknowledge the destructive nature of the operation.
  */
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestEncryptionResetAction extends BaseRestHandler {
 
     @Override

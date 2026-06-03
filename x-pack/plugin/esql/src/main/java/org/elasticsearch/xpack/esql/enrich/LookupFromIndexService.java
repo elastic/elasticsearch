@@ -527,14 +527,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private final String planString;
         private final long bytesRead;
 
-        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
-            this(pages, blockFactory, null, 0L);
-        }
-
-        LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString) {
-            this(pages, blockFactory, planString, 0L);
-        }
-
         LookupResponse(List<Page> pages, BlockFactory blockFactory, @Nullable String planString, long bytesRead) {
             super(blockFactory);
             this.pages = pages;
@@ -802,7 +794,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             clusterService.getClusterName().value(),
             releasables,
             ActionListener.wrap(
-                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString)),
+                ignored -> responseListener.onResponse(new LookupResponse(List.of(), blockFactory, planString, 0L)),
                 responseListener::onFailure
             )
         );

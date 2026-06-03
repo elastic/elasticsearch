@@ -77,7 +77,13 @@ public record StatusReport(List<TaskEntry> tasks, List<TestEntry> tests, boolean
                 case '\n' -> sb.append("\\n");
                 case '\r' -> sb.append("\\r");
                 case '\t' -> sb.append("\\t");
-                default -> sb.append(c);
+                default -> {
+                    if (c < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        sb.append(c);
+                    }
+                }
             }
         }
         sb.append('"');

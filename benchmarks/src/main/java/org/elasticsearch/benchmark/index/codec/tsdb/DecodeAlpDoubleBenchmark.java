@@ -65,11 +65,15 @@ import java.util.concurrent.TimeUnit;
  * ./gradlew :benchmarks:run --args="DecodeAlpDoubleBenchmark -wi 1 -i 1 -f 1 -w 1 -r 1 -p blockSize=512 -p scale=2 -p exceptionFraction=0.0"
  * }</pre>
  */
+// Score is the average time to process one @Benchmark invocation, which decodes
+// blocksPerInvocation blocks (100 by default). Lower is better. NANOSECONDS keeps
+// per-block resolution visible: divide the score by blocksPerInvocation to read
+// per-block cost, and again by blockSize for per-value cost.
 @Fork(1)
 @Warmup(iterations = 3, time = 1)
 @Measurement(iterations = 5, time = 2)
-@BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
 public class DecodeAlpDoubleBenchmark {
 

@@ -2944,6 +2944,13 @@ public class EsqlCapabilities {
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
 
         /**
+         * Support for {@code unmapped_fields="load"} mode with {@code LOOKUP JOIN}.
+         * Previously the combination was rejected at query validation time.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/142026">Issue #142026</a>
+         */
+        OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN,
+
+        /**
          * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
          */
         FN_EQUALS_FLATTENED(Build.current().isSnapshot()),

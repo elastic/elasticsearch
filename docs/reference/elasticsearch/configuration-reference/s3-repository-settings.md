@@ -196,10 +196,34 @@ The following settings are supported:
 :   The S3 repository supports all [S3 canned ACLs](https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl) : `private`, `public-read`, `public-read-write`, `authenticated-read`, `log-delivery-write`, `bucket-owner-read`, `bucket-owner-full-control`. Defaults to `private`. You could specify a canned ACL using the `canned_acl` setting. When the S3 repository creates buckets and objects, it adds the canned ACL into the buckets and objects.
 
 `storage_class`
-:   Sets the S3 storage class for objects written to the repository. Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and `intelligent_tiering`. Defaults to `standard`. Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+:   Sets the S3 storage class for objects in the repository. `data_storage_class` and `metadata_storage_class` override this setting if specified, and it is generally recommended to set those values instead.
+
+    Accepted values are `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`.
+
+    Defaults to `standard` if not specified.
+
+    Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+
+`data_storage_class` {applies_to}`stack: ga 9.5`
+:   Sets the S3 storage class for data blobs in the repository. These blobs hold the files that make up each snapshotted shard and make up most of the repository volume, but are only read when restoring a shard or accessing its contents (for example, searchable snapshots read this data).
+
+    Accepted values are `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`.
+
+    Defaults to the value of `storage_class` if not specified.
+
+    Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+
+`metadata_storage_class` {applies_to}`stack: ga 9.5`
+:   Sets the S3 storage class for metadata blobs in the repository. These are generally smaller in size than data blobs but might be read more frequently for operations such as listing repository contents, taking snapshots, or otherwise manipulating the repository.
+
+    Accepted values are `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`.
+
+    Defaults to the value of `storage_class` if not specified.
+
+    Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
 
 `delete_objects_max_size`
-:   (integer) Sets the maxmimum batch size, betewen 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum number supported by the [AWS DeleteObjects API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html).
+:   (integer) Sets the maxmimum batch size, between 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum number supported by the [AWS DeleteObjects API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html).
 
 `max_multipart_upload_cleanup_size`
 :   (integer) Sets the maximum number of possibly-dangling multipart uploads to clean up in each batch of snapshot deletions. Defaults to `1000` which is the maximum number supported by the [AWS ListMultipartUploads API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html). If set to `0`, {{es}} will not attempt to clean up dangling multipart uploads.

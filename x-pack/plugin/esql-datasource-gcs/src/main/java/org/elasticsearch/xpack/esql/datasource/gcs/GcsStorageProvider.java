@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import com.google.auth.Credentials;
+import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.ExternalAccountCredentials;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.IdentityPoolCredentials;
@@ -18,6 +20,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
@@ -112,25 +115,7 @@ public final class GcsStorageProvider implements StorageProvider {
             }
 
             StorageOptions.Builder builder = StorageOptions.newBuilder();
-
-            if (config != null && config.hasCredentials()) {
-                ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
-                    new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
-                );
-                // Override the token server URI if provided (used for testing with mock GCS fixtures)
-                if (config.tokenUri() != null) {
-                    credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
-                }
-                builder.setCredentials(credentials);
-            } else if (config != null && config.hasKeylessAuth()) {
-                builder.setCredentials(buildIdentityPoolCredentials(config));
-            } else {
-                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
-                throw new IllegalArgumentException(
-                    "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
-                        + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
-                );
-            }
+            builder.setCredentials(credentials(config));
 
             if (config != null && config.projectId() != null) {
                 builder.setProjectId(config.projectId());
@@ -150,6 +135,43 @@ public final class GcsStorageProvider implements StorageProvider {
                 e
             );
         }
+    }
+
+    /**
+     * Builds the Google credentials for the given configuration:
+     * <ul>
+     *   <li>service account JSON — {@link ServiceAccountCredentials}</li>
+     *   <li>access_token — short-lived OAuth2 credentials</li>
+     *   <li>keyless workload-identity federation — {@link IdentityPoolCredentials}</li>
+     * </ul>
+     * When more than one is supplied, service account credentials take precedence, then access_token, then
+     * keyless federation. The node's ambient credential chain (Application Default Credentials) is deliberately
+     * never consulted: the node may run in a different cloud than the bucket it targets, so a data source must
+     * carry its own credentials.
+     */
+    static Credentials credentials(GcsConfiguration config) throws IOException {
+        if (config != null && Strings.hasText(config.serviceAccountCredentials())) {
+            ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
+                new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
+            );
+            // Override the token server URI if provided (used for testing with mock GCS fixtures)
+            if (config.tokenUri() != null) {
+                credentials = credentials.toBuilder().setTokenServerUri(URI.create(config.tokenUri())).build();
+            }
+            return credentials;
+        }
+        if (config != null && Strings.hasText(config.accessToken())) {
+            return GoogleCredentials.create(new AccessToken(config.accessToken(), null));
+        }
+        if (config != null && config.hasKeylessAuth()) {
+            return buildIdentityPoolCredentials(config);
+        }
+        // No ambient fallback: the node may run in a different cloud than the bucket it targets.
+        throw new IllegalArgumentException(
+            "GCS data source requires credentials: provide WITH (credentials = '...'), "
+                + "WITH (access_token = '...') for short-lived OAuth credentials, "
+                + "configure keyless authentication settings, or WITH (auth = 'none') for public buckets"
+        );
     }
 
     private static GoogleCredentials buildIdentityPoolCredentials(GcsConfiguration config) throws IOException {

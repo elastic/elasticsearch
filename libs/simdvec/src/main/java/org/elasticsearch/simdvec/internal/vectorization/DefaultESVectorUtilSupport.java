@@ -590,8 +590,8 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void packDibitPacked(int[] vector, byte[] packed) {
-        packDibitPackedImpl(vector, packed);
+    public void packDibitQuad(int[] vector, byte[] packed) {
+        packDibitQuadImpl(vector, packed);
     }
 
     @Override
@@ -641,7 +641,7 @@ public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         packed[index + packed.length / 2] = (byte) upperByte;
     }
 
-    public static void packDibitPackedImpl(int[] vector, byte[] packed) {
+    public static void packDibitQuadImpl(int[] vector, byte[] packed) {
         int limit = vector.length - 3;
         int i = 0;
         int index = 0;

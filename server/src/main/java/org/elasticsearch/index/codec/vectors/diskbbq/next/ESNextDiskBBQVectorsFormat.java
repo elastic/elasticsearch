@@ -112,7 +112,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         TWO_BIT_4BIT_QUERY(1, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packDibitPacked(quantized, destination);
+                ESVectorUtil.packDibitQuad(quantized, destination);
             }
 
             @Override

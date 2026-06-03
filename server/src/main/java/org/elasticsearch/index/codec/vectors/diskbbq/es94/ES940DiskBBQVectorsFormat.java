@@ -145,7 +145,7 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
         TWO_BIT_4BIT_QUERY_PACKED(5, (byte) 2, (byte) 4) {
             @Override
             public void pack(int[] quantized, byte[] destination) {
-                ESVectorUtil.packDibitPacked(quantized, destination);
+                ESVectorUtil.packDibitQuad(quantized, destination);
             }
 
             @Override

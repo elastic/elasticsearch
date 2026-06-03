@@ -1649,8 +1649,8 @@ public sealed class PanamaESVectorUtilSupport implements ESVectorUtilSupport per
     }
 
     @Override
-    public void packDibitPacked(int[] vector, byte[] packed) {
-        DefaultESVectorUtilSupport.packDibitPackedImpl(vector, packed);
+    public void packDibitQuad(int[] vector, byte[] packed) {
+        DefaultESVectorUtilSupport.packDibitQuadImpl(vector, packed);
     }
 
     @Override

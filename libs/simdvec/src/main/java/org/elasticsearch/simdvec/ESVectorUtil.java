@@ -717,11 +717,11 @@ public class ESVectorUtil {
         IMPL.packDibit(vector, packed);
     }
 
-    public static void packDibitPacked(int[] vector, byte[] packed) {
+    public static void packDibitQuad(int[] vector, byte[] packed) {
         if (packed.length * Byte.SIZE / 2 < vector.length) {
             throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
         }
-        IMPL.packDibitPacked(vector, packed);
+        IMPL.packDibitQuad(vector, packed);
     }
 
     /**

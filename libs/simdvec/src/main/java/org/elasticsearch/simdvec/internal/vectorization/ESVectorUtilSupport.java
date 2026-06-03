@@ -152,7 +152,7 @@ public interface ESVectorUtilSupport {
 
     void packDibit(int[] vector, byte[] packed);
 
-    void packDibitPacked(int[] vector, byte[] packed);
+    void packDibitQuad(int[] vector, byte[] packed);
 
     void transposeHalfByte(int[] q, byte[] quantQueryByte);
 

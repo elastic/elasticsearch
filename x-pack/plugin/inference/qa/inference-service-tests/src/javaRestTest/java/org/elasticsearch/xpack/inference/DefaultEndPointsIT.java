@@ -34,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -79,6 +80,31 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
         assertDefaultRerankConfig(rerankModel);
+    }
+
+    public void testUpdateDefaultEndpointReturnsBadRequest() throws IOException {
+        var e = expectThrows(
+            ResponseException.class,
+            () -> updateEndpoint(
+                ElasticsearchInternalService.DEFAULT_E5_ID,
+                """
+                    {
+                      "task_type": "text_embedding",
+                      "service_settings": {
+                        "num_threads": 2
+                      }
+                    }
+                    """,
+                TaskType.TEXT_EMBEDDING
+            )
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(RestStatus.BAD_REQUEST.getStatus()));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format("Default endpoint [%s] is not eligible for an update", ElasticsearchInternalService.DEFAULT_E5_ID)
+            )
+        );
     }
 
     public void testDefaultModels() throws IOException {

@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -207,10 +209,11 @@ final class ParquetPushedExpressions {
      * are excluded from this check on purpose — their downstream {@code FilterExec} still
      * re-applies them, masking the shortcut's over-inclusion.
      *
-     * <p>Today the only canConvert-but-not-translatable expression is {@link WildcardLike}
-     * (and {@code Not(WildcardLike)}), which is also the only YES-eligible non-comparator
-     * expression — so in practice this method returns {@code true} exactly when a {@code LIKE}
-     * conjunct is present alongside other translatable conjuncts.
+     * <p>Today the canConvert-but-not-translatable expressions are the LIKE-family predicates
+     * {@link WildcardLike}, {@code Contains}, {@code EndsWith} and any {@code Not} over them —
+     * none representable as a Parquet {@link FilterPredicate}. {@link StartsWith} and its
+     * negation both translate (bare → prefix range; negated → {@code FilterApi.not(range)}).
+     * All YES-eligible LIKE-family conjuncts that land here are untranslatable.
      *
      * <p>YES is determined here by {@link ParquetFilterPushdownSupport#isFullyEvaluable(Expression)}
      * rather than the full {@code canPush} check. The full check additionally probes
@@ -268,6 +271,14 @@ final class ParquetPushedExpressions {
             return true;
         }
         if (expr instanceof Range range && range.value() instanceof NamedExpression) {
+            return true;
+        }
+        // StartsWith is a leaf (no child sub-expressions that could untranslatably drop); its
+        // translateExpression path produces a pure prefix-range FilterPredicate, so Not(StartsWith)
+        // can safely push as FilterApi.not(range) for row-group/page pruning instead of relying
+        // solely on the late-mat evaluator. EndsWith/Contains/WildcardLike are NOT exactly
+        // translatable (they have no native FilterPredicate form at all).
+        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression && sw.prefix().foldable()) {
             return true;
         }
         return false;
@@ -697,6 +708,10 @@ final class ParquetPushedExpressions {
             collectColumnNames(not.field(), names);
         } else if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
             names.add(ne.name());
+        } else if (expr instanceof Contains c && c.singleValueField() instanceof NamedExpression ne) {
+            names.add(ne.name());
+        } else if (expr instanceof EndsWith ew && ew.singleValueField() instanceof NamedExpression ne) {
+            names.add(ne.name());
         } else if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
             names.add(ne.name());
         }
@@ -924,24 +939,24 @@ final class ParquetPushedExpressions {
             return null;
         }
         if (expr instanceof Not not) {
-            // Special case: NOT (col LIKE p) needs SQL three-valued logic so that
-            // NOT (NULL LIKE p) → UNKNOWN → row is filtered out (bit 0), not flipped
-            // to bit 1 by the generic negate. This is a hard requirement for the YES
-            // pushability of WildcardLike (see ParquetFilterPushdownSupport.isFullyEvaluable);
-            // without this branch, dropping FilterExec for NOT (LIKE) would let null rows
-            // survive the predicate, giving wrong results.
-            //
-            // Implementation: build the LIKE mask and the null mask, OR them ("matches OR
-            // null"), then negate to get "non-null AND no-match" — the TVL-correct survivor
-            // set. The mask for the inner WildcardLike already maps null rows to bit 0, so
-            // OR-ing the explicit null mask is what restores the missing TVL bit before
-            // the bitwise complement.
-            if (not.field() instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
-                Block block = blocks.get(ne.name());
-                if (block == null) {
-                    return null;
-                }
-                return evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+            // NOT (LIKE-family) needs TVL: null rows must stay filtered out, so each LIKE-family
+            // child routes through a tvlNegate helper instead of the generic bitwise negate below.
+            // YES pushability of WildcardLike/Contains/EndsWith depends on this branch.
+            if (not.field() instanceof WildcardLike wl) {
+                Block block = namedBlock(wl.field(), blocks);
+                return block == null ? null : evaluateNotWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+            }
+            if (not.field() instanceof StartsWith sw) {
+                Block block = namedBlock(sw.singleValueField(), blocks);
+                return block == null ? null : evaluateNotStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+            }
+            if (not.field() instanceof Contains c) {
+                Block block = namedBlock(c.singleValueField(), blocks);
+                return block == null ? null : evaluateNotContains(c, block, rowCount, intermediateMask, dictCache);
+            }
+            if (not.field() instanceof EndsWith ew) {
+                Block block = namedBlock(ew.singleValueField(), blocks);
+                return block == null ? null : evaluateNotEndsWith(ew, block, rowCount, intermediateMask, dictCache);
             }
             WordMask inner = evaluateExpression(not.field(), blocks, rowCount, intermediateMask, dictCache);
             if (inner != null) {
@@ -950,19 +965,34 @@ final class ParquetPushedExpressions {
             }
             return null;
         }
-        if (expr instanceof StartsWith sw && sw.singleValueField() instanceof NamedExpression ne) {
-            Block block = blocks.get(ne.name());
-            if (block == null) {
-                return null;
-            }
-            return evaluateStartsWith(sw, block, rowCount, intermediateMask, dictCache);
+        if (expr instanceof StartsWith sw) {
+            Block block = namedBlock(sw.singleValueField(), blocks);
+            return block == null ? null : evaluateStartsWith(sw, block, rowCount, intermediateMask, dictCache);
         }
-        if (expr instanceof WildcardLike wl && wl.field() instanceof NamedExpression ne) {
-            Block block = blocks.get(ne.name());
-            if (block == null) {
-                return null;
-            }
-            return evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        if (expr instanceof Contains c) {
+            Block block = namedBlock(c.singleValueField(), blocks);
+            return block == null ? null : evaluateContains(c, block, rowCount, intermediateMask, dictCache);
+        }
+        if (expr instanceof EndsWith ew) {
+            Block block = namedBlock(ew.singleValueField(), blocks);
+            return block == null ? null : evaluateEndsWith(ew, block, rowCount, intermediateMask, dictCache);
+        }
+        if (expr instanceof WildcardLike wl) {
+            Block block = namedBlock(wl.field(), blocks);
+            return block == null ? null : evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
+        }
+        return null;
+    }
+
+    /**
+     * Returns the {@link Block} mapped from {@code field}'s column name, or {@code null} when
+     * {@code field} is not a {@link NamedExpression} or no block is registered. Centralises the
+     * "field-as-name → block" dispatch idiom used by every per-predicate branch above.
+     */
+    @Nullable
+    private static Block namedBlock(Expression field, Map<String, Block> blocks) {
+        if (field instanceof NamedExpression ne) {
+            return blocks.get(ne.name());
         }
         return null;
     }
@@ -1251,15 +1281,69 @@ final class ParquetPushedExpressions {
         // x86 (AVX2/AVX-512) and ARM (NEON) with partial-inlining for sizes <= 64 bytes — typical
         // URL/path prefixes ("https://", "https://www.") fit comfortably in that fast path. The
         // helper performs the length pre-check internally.
+        return evaluateLiteralPredicate(sw, block, rowCount, intermediateMask, dictCache, entry -> ByteMatchers.startsWith(entry, prefix));
+    }
+
+    private static WordMask evaluateEndsWith(
+        EndsWith ew,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        Object suffixValue = literalValueOf(ew.suffix());
+        if (suffixValue == null) {
+            return null;
+        }
+        BytesRef suffix = toByteRef(suffixValue);
+        return evaluateLiteralPredicate(ew, block, rowCount, intermediateMask, dictCache, entry -> ByteMatchers.endsWith(entry, suffix));
+    }
+
+    private static WordMask evaluateContains(
+        Contains c,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        Object substrValue = literalValueOf(c.substr());
+        if (substrValue == null) {
+            return null;
+        }
+        BytesRef literal = toByteRef(substrValue);
+        return evaluateLiteralPredicate(
+            c,
+            block,
+            rowCount,
+            intermediateMask,
+            dictCache,
+            entry -> ByteMatchers.containsLiteral(entry, literal)
+        );
+    }
+
+    /**
+     * Shared mask-builder for the LIKE-family literal predicates (StartsWith, EndsWith, Contains).
+     * The dictionary path ignores {@code intermediateMask}, the scalar path honors it (same
+     * contract as evaluateWildcardLike).
+     *
+     * <p><b>Cache key.</b> {@code expr} is used as an <em>identity</em> key in {@code dictCache}
+     * (intentional, matching the WildcardLike path): two structurally-equal but distinct
+     * expression instances get separate cache slots. Switching to value-equality keying would
+     * be correctness-safe but is a deliberate non-goal — it would couple cache reuse to ESQL
+     * expression equality semantics, which evolve independently of this evaluator.
+     */
+    private static WordMask evaluateLiteralPredicate(
+        Expression expr,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache,
+        Predicate<BytesRef> matcher
+    ) {
         if (block instanceof OrdinalBytesRefBlock obb && shouldShortCircuitOnDictionary(obb)) {
             WordMask mask = new WordMask();
             mask.reset(rowCount);
-            boolean[] dictMatches = memoizedDictionaryMatches(
-                dictCache,
-                sw,
-                obb.getDictionaryVector(),
-                entry -> ByteMatchers.startsWith(entry, prefix)
-            );
+            boolean[] dictMatches = memoizedDictionaryMatches(dictCache, expr, obb.getDictionaryVector(), matcher);
             applyDictionaryMatches(obb, dictMatches, mask, rowCount);
             return mask;
         }
@@ -1273,7 +1357,7 @@ final class ParquetPushedExpressions {
                 }
                 if (block.isNull(i) == false) {
                     BytesRef val = bb.getBytesRef(i, scratch);
-                    if (ByteMatchers.startsWith(val, prefix)) {
+                    if (matcher.test(val)) {
                         mask.set(i);
                     }
                 }
@@ -1281,6 +1365,32 @@ final class ParquetPushedExpressions {
             return mask;
         }
         return null;
+    }
+
+    /**
+     * Adds TVL-correct null handling to an already-computed match mask from a LIKE-family
+     * predicate, then negates. Shared by {@code NOT (Contains)} and {@code NOT (EndsWith)};
+     * {@link #evaluateNotWildcardLike} inlines the same algorithm. Returns {@code null} when
+     * {@code likeMask} is {@code null} (block type unsupported), preserving the conservative
+     * "all rows survive" sentinel.
+     */
+    @Nullable
+    private static WordMask tvlNegate(@Nullable WordMask likeMask, Block block, int rowCount) {
+        if (likeMask == null) {
+            return null;
+        }
+        // Set bit i for null rows so the subsequent negate turns them into 0 (filtered out).
+        // mayHaveNulls() is a cheap pre-check that lets the all-non-nulls common case skip
+        // the per-row scan; matches the WildcardLike scalar path.
+        if (block.mayHaveNulls()) {
+            for (int i = 0; i < rowCount; i++) {
+                if (block.isNull(i)) {
+                    likeMask.set(i);
+                }
+            }
+        }
+        likeMask.negate();
+        return likeMask;
     }
 
     /**
@@ -1404,6 +1514,10 @@ final class ParquetPushedExpressions {
      * automaton build only throws {@code TooComplexToDeterminize} for pathological patterns
      * far beyond {@code "*google*"}). If a future change broadens the YES-eligible set, this
      * contract must be revisited.
+     *
+     * <p>Unlike {@link #evaluateNotContains} / {@link #evaluateNotEndsWith}, this method is an
+     * instance method because it delegates to {@link #evaluateWildcardLike}, which reads the
+     * per-instance automaton/affix cache populated by {@link #automatonFor(WildcardLike)}.
      */
     private WordMask evaluateNotWildcardLike(
         WildcardLike wl,
@@ -1412,22 +1526,37 @@ final class ParquetPushedExpressions {
         @Nullable WordMask intermediateMask,
         @Nullable Map<Expression, boolean[]> dictCache
     ) {
-        WordMask likeMask = evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache);
-        if (likeMask == null) {
-            return null;
-        }
-        // Set bit i for null rows so the subsequent negate turns them into 0 (filtered out).
-        // mayHaveNulls() is a cheap pre-check that lets the all-non-nulls common case skip
-        // the per-row scan; matches the WildcardLike scalar path.
-        if (block.mayHaveNulls()) {
-            for (int i = 0; i < rowCount; i++) {
-                if (block.isNull(i)) {
-                    likeMask.set(i);
-                }
-            }
-        }
-        likeMask.negate();
-        return likeMask;
+        return tvlNegate(evaluateWildcardLike(wl, block, rowCount, intermediateMask, dictCache), block, rowCount);
+    }
+
+    private static WordMask evaluateNotStartsWith(
+        StartsWith sw,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        return tvlNegate(evaluateStartsWith(sw, block, rowCount, intermediateMask, dictCache), block, rowCount);
+    }
+
+    private static WordMask evaluateNotContains(
+        Contains c,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        return tvlNegate(evaluateContains(c, block, rowCount, intermediateMask, dictCache), block, rowCount);
+    }
+
+    private static WordMask evaluateNotEndsWith(
+        EndsWith ew,
+        Block block,
+        int rowCount,
+        @Nullable WordMask intermediateMask,
+        @Nullable Map<Expression, boolean[]> dictCache
+    ) {
+        return tvlNegate(evaluateEndsWith(ew, block, rowCount, intermediateMask, dictCache), block, rowCount);
     }
 
     /**

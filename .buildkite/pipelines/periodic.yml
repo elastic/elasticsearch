@@ -12,6 +12,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.0.1
         retry:
@@ -34,6 +35,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.1.3
         retry:
@@ -56,6 +58,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.2.3
         retry:
@@ -78,6 +81,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.3.3
         retry:
@@ -100,6 +104,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.4.3
         retry:
@@ -122,6 +127,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.5.3
         retry:
@@ -144,6 +150,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.6.2
         retry:
@@ -166,6 +173,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.7.1
         retry:
@@ -188,6 +196,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.8.2
         retry:
@@ -210,6 +219,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.9.2
         retry:
@@ -232,6 +242,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.10.4
         retry:
@@ -254,6 +265,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.11.4
         retry:
@@ -276,6 +288,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.12.2
         retry:
@@ -298,6 +311,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.13.4
         retry:
@@ -320,6 +334,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.14.3
         retry:
@@ -342,6 +357,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.15.5
         retry:
@@ -364,6 +380,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.16.6
         retry:
@@ -386,6 +403,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.17.10
         retry:
@@ -408,6 +426,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 8.18.8
         retry:
@@ -420,8 +439,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 8.19.16 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.16#bwcTest
+      - label: 8.19.17 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v8.19.17#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -430,8 +449,9 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 8.19.16
+          BWC_VERSION: 8.19.17
         retry:
           automatic:
             - exit_status: "-1"
@@ -452,6 +472,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 9.0.8
         retry:
@@ -474,6 +495,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 9.1.9
         retry:
@@ -496,6 +518,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 9.2.8
         retry:
@@ -508,8 +531,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.3.5 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.5#bwcTest
+      - label: 9.3.6 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.3.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -518,8 +541,9 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 9.3.5
+          BWC_VERSION: 9.3.6
         retry:
           automatic:
             - exit_status: "-1"
@@ -530,8 +554,8 @@ steps:
             - exit_status: "1"
               limit: 1
 
-      - label: 9.4.2 / bwc
-        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.2#bwcTest
+      - label: 9.4.3 / bwc
+        command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v9.4.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -540,8 +564,9 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
-          BWC_VERSION: 9.4.2
+          BWC_VERSION: 9.4.3
         retry:
           automatic:
             - exit_status: "-1"
@@ -562,6 +587,7 @@ steps:
           diskType: hyperdisk-balanced
           buildDirectory: /dev/shm/bk
           preemptible: true
+          spotZones: 'asia-south2-a,asia-south2-b,asia-south2-c,europe-west2-a,europe-west2-b,europe-west2-c,northamerica-northeast2-b,northamerica-northeast2-c,southamerica-east1-a,southamerica-east1-b,southamerica-east1-c'
         env:
           BWC_VERSION: 9.5.0
         retry:
@@ -658,7 +684,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.16", "9.3.5", "9.4.2", "9.5.0"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -725,7 +751,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.19.16", "9.3.5", "9.4.2", "9.5.0"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -784,7 +810,7 @@ steps:
               - openjdk21
               - openjdk25
               - openjdk26
-            BWC_VERSION: ["8.19.16", "9.3.5", "9.4.2", "9.5.0"]
+            BWC_VERSION: ["8.19.17", "9.3.6", "9.4.3", "9.5.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

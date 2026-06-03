@@ -137,5 +137,20 @@ public interface Operator extends Releasable {
         default long valuesLoaded() {
             return 0;
         }
+
+        /** Rows emitted; source operators populate, summed for driver / response-root rollup. */
+        default long rowsEmitted() {
+            return 0;
+        }
+
+        /** Pre-decompression bytes from storage; external-source operators only. */
+        default long bytesRead() {
+            return 0;
+        }
+
+        /** Format-reader wall time on the producer thread; external-source operators only. */
+        default long readNanos() {
+            return 0;
+        }
     }
 }

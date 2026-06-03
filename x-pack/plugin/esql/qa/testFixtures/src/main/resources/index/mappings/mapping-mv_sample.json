@@ -1,0 +1,13 @@
+{
+    "properties": {
+        "id": {
+            "type": "integer"
+        },
+        "tags": {
+            "type": "keyword"
+        },
+        "score": {
+            "type": "integer"
+        }
+    }
+}

@@ -113,6 +113,60 @@ public final class PanamaZstd {
     }
 
     /**
+     * One-shot heap {@code byte[]} decompress for callers that hold the full compressed frame in a
+     * Java array — parquet-mr's {@code BytesInputDecompressor.decompress(BytesInput, int)} cold
+     * path is the primary consumer. Routed through Panama FFI's {@code critical(true)} downcall
+     * so the heap segments cross into libzstd with no off-heap staging copy. Drop-in replacement
+     * for {@code com.github.luben.zstd.Zstd.decompress(byte[], byte[])}.
+     *
+     * @throws IllegalStateException    if {@link #isAvailable()} is {@code false}
+     * @throws IllegalArgumentException if the offset/size pair is out of range or the native call
+     *                                  returns a zstd error
+     */
+    public int decompressHeap(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize) {
+        if (zstd == null) {
+            throw new IllegalStateException("Panama zstd binding is not available on this platform");
+        }
+        return zstd.decompress(dst, dstOffset, dstSize, src, srcOffset, srcSize);
+    }
+
+    /**
+     * Full-buffer convenience overload of {@link #decompressHeap(byte[], int, int, byte[], int, int)}.
+     * Decompresses {@code src[0..src.length)} into {@code dst[0..dst.length)}.
+     */
+    public int decompressHeap(byte[] dst, byte[] src) {
+        return decompressHeap(dst, 0, dst.length, src, 0, src.length);
+    }
+
+    /**
+     * One-shot heap {@code byte[]} compress at the given zstd {@code level}. Returns the number of
+     * compressed bytes written into {@code dst[dstOffset .. dstOffset+returned)}. The caller must
+     * size {@code dst} based on {@link Zstd#compressBound(int)}.
+     *
+     * @throws IllegalStateException    if {@link #isAvailable()} is {@code false}
+     * @throws IllegalArgumentException if the offset/size pair is out of range or libzstd returns
+     *                                  an error
+     */
+    public int compressHeap(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level) {
+        if (zstd == null) {
+            throw new IllegalStateException("Panama zstd binding is not available on this platform");
+        }
+        return zstd.compress(dst, dstOffset, dstSize, src, srcOffset, srcSize, level);
+    }
+
+    /**
+     * Returns the upper bound on the compressed size of an input of {@code srcLen} bytes. Mirrors
+     * libzstd's {@code ZSTD_compressBound}. Required by parquet-mr's {@code BytesInputCompressor}
+     * sizing logic, which has to allocate the output array up front.
+     */
+    public int compressBound(int srcLen) {
+        if (zstd == null) {
+            throw new IllegalStateException("Panama zstd binding is not available on this platform");
+        }
+        return zstd.compressBound(srcLen);
+    }
+
+    /**
      * Wrap {@code compressed} in a streaming zstd decompressing {@link InputStream}, backed by the
      * Panama {@code ZSTD_decompressStream} binding. Drop-in replacement for
      * {@code com.github.luben.zstd.ZstdInputStream} on the ESQL {@code .csv.zst} / {@code .ndjson.zstd}

@@ -61,6 +61,8 @@ final class BinaryDocValuesLengthQuery extends Query {
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 final DocIdSetIterator iterator;
                 if (countsSkipper.maxValue() == 1 && values instanceof BlockLoader.OptionalLengthReader direct) {
+                    // tryLengthIterator returns a TwoPhaseIterator-backed iterator (see the contract on
+                    // BlockLoader.OptionalLengthReader), so sub-segment slicing scales with cores.
                     iterator = direct.tryLengthIterator(length);
                 } else {
                     Predicate<BytesRef> lengthPredicate = bytes -> bytes.length == length;

@@ -12,11 +12,12 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
@@ -43,7 +44,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -54,12 +57,13 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,7 +71,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -93,6 +96,11 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String TASK_SETTINGS_VALUE = "some_task_value";
     private static final String SECRET_SETTINGS_KEY = "some_secret_key";
     private static final String SECRET_SETTINGS_VALUE = "some_secret_value";
+    private static final int NEW_CHUNK_SIZE_VALUE = 100;
+    private static final int NEW_OVERLAP_VALUE = 25;
+    private static final String UNKNOWN_SETTING_KEY = "unknown_setting";
+    private static final String UNKNOWN_SETTING_VALUE = "unknown_value";
+    private static final String ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN = "The inference endpoint [%s] does not exist and cannot be updated";
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -127,10 +135,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
@@ -151,10 +156,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
-        assertThat(
-            exception.getMessage(),
-            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
-        );
+        assertThat(exception.getMessage(), is(Strings.format(ENDPOINT_DOES_NOT_EXIST_ERROR_PATTERN, INFERENCE_ENTITY_ID_VALUE)));
         verifyNoModelRegistryMutations();
     }
 
@@ -197,15 +199,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockBuildModelFromConfigAndSecretsToReturnNewModel();
 
         doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(6);
             listener.onFailure(new RuntimeException("validation failed"));
             return Void.TYPE;
         }).when(service)
             .infer(
                 any(GoogleVertexAiEmbeddingsModel.class),
-                isNull(),
-                isNull(),
-                isNull(),
                 anyList(),
                 anyBoolean(),
                 anyMap(),
@@ -338,6 +337,140 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyModelRegistryUpdateInvoked();
     }
 
+    public void testMasterOperation_UnknownServiceSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    public void testMasterOperation_UnknownServiceSetting_ThrowsWhenParserUsedForServiceSettings() {
+        when(service.usesParserForServiceSettings()).thenReturn(true);
+        var serviceSettings = mock(ServiceSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(serviceSettings.updateServiceSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(serviceSettings, mock(TaskSettings.class), null, null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "service_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsBadRequest() {
+        assertMasterOperation_UnknownSetting_ThrowsBadRequest("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+    }
+
+    private void assertMasterOperation_UnknownSetting_ThrowsBadRequest(String requestBody) {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperationWithRequestBody(requestBody);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        assertThat(
+            exception.getMessage(),
+            is(
+                Strings.format(
+                    "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+                    UNKNOWN_SETTING_KEY,
+                    UNKNOWN_SETTING_VALUE,
+                    SERVICE_NAME_VALUE
+                )
+            )
+        );
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownTaskSetting_ThrowsWhenParserUsedForTaskSettings() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = mock(TaskSettings.class);
+        var parserException = new ElasticsearchStatusException(
+            Strings.format("unknown field [%s]", UNKNOWN_SETTING_KEY),
+            RestStatus.BAD_REQUEST
+        );
+        when(taskSettings.updatedTaskSettings(anyMap())).thenThrow(parserException);
+        var model = createMockedModel(mock(ServiceSettings.class), taskSettings, null, null);
+
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        when(service.parsePersistedConfig(any(UnparsedModel.class))).thenReturn(model);
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "task_settings": {
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception, sameInstance(parserException));
+        verifyNoModelRegistryMutations();
+    }
+
+    public void testMasterOperation_UnknownChunkingSetting_ThrowsBadRequest() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+
+        var listener = callMasterOperationWithRequestBody("""
+            {
+                "chunking_settings": {
+                    "strategy": "sentence",
+                    "max_chunk_size": 20,
+                    "sentence_overlap": 0,
+                    "unknown_setting": "unknown_value"
+                }
+            }
+            """);
+
+        var exception = expectThrows(ValidationException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
+        assertThat(exception.validationErrors().size(), is(1));
+        assertThat(
+            exception.validationErrors().getFirst(),
+            is("Sentence based chunking settings can not have the following settings: [unknown_setting]")
+        );
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
         var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
         mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
@@ -403,8 +536,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private void mockParsePersistedConfigWithSecretsToReturnModel(GoogleVertexAiEmbeddingsModel model) {
         doAnswer((Answer<Object>) invocation -> {
             UnparsedModel unparsedModel = invocation.getArgument(0);
-            assertThat(unparsedModel.inferenceEntityId(), equalTo(INFERENCE_ENTITY_ID_VALUE));
-            assertThat(unparsedModel.taskType(), equalTo(model.getTaskType()));
+            assertThat(unparsedModel.inferenceEntityId(), is(INFERENCE_ENTITY_ID_VALUE));
+            assertThat(unparsedModel.taskType(), is(model.getTaskType()));
             return model;
         }).when(service).parsePersistedConfig(any(UnparsedModel.class));
     }
@@ -424,7 +557,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
     private void mockServiceInferCallToReturnDenseEmbeddingFloatResults() {
         doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(6);
             listener.onResponse(
                 new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
             );
@@ -432,9 +565,6 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(service)
             .infer(
                 any(GoogleVertexAiEmbeddingsModel.class),
-                isNull(),
-                isNull(),
-                isNull(),
                 anyList(),
                 anyBoolean(),
                 anyMap(),
@@ -476,10 +606,8 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
-
-        var requestBody = """
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
+        return callMasterOperationWithRequestBody("""
             {
                 "task_type": "text_embedding",
                 "service_settings": {
@@ -490,7 +618,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
                     "input_type": "ingest",
                     "auto_truncate": true
                 }
-            }""";
+            }
+            """);
+    }
+
+    private TestPlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithRequestBody(String requestBody) {
+        var listener = new TestPlainActionFuture<UpdateInferenceModelAction.Response>();
 
         action.masterOperation(
             mock(Task.class),
@@ -507,14 +640,91 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         return listener;
     }
 
+    public void testValidateConsumedUpdateSettings_NullMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_EmptyMaps_DoesNotThrow() {
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, new HashMap<>(), new HashMap<>());
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownServiceSetting_ThrowsWhenParserNotUsed() {
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        Strings.format(
+            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+            UNKNOWN_SETTING_KEY,
+            UNKNOWN_SETTING_VALUE,
+            SERVICE_NAME_VALUE
+        );
+    }
+
+    /**
+     * Parser-based services do not remove service settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the service settings parser in {@link ServiceSettings#updateServiceSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceServiceSettingsMapEmptyWhenParserUsed() {
+        when(service.usesParserForServiceSettings()).thenReturn(true);
+        var serviceSettings = new HashMap<String, Object>();
+        serviceSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, serviceSettings, null);
+    }
+
+    public void testValidateConsumedUpdateSettings_UnknownTaskSetting_ThrowsWhenParserNotUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(false);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings)
+        );
+
+        assertThat(exception.status(), is(RestStatus.BAD_REQUEST));
+        Strings.format(
+            "Configuration contains settings [{%s=%s}] unknown to the [%s] service",
+            UNKNOWN_SETTING_KEY,
+            UNKNOWN_SETTING_VALUE,
+            SERVICE_NAME_VALUE
+        );
+    }
+
+    /**
+     * Parser-based services do not remove task settings keys from the request map, so this method must not require an
+     * empty map. Unknown fields are rejected later by the task settings parser in {@link TaskSettings#updatedTaskSettings}.
+     */
+    public void testValidateConsumedUpdateSettings_DoesNotEnforceTaskSettingsMapEmptyWhenParserUsed() {
+        when(service.usesParserForTaskSettings()).thenReturn(true);
+        var taskSettings = new HashMap<String, Object>();
+        taskSettings.put(UNKNOWN_SETTING_KEY, UNKNOWN_SETTING_VALUE);
+
+        TransportUpdateInferenceModelAction.validateConsumedUpdateSettings(service, SERVICE_NAME_VALUE, null, taskSettings);
+    }
+
     public void testCombineExistingModelConfigurationsWithNewSettings_NewConfigMapsAreNull_ReturnsExistingConfigs() {
         var serviceSettings = mock(ServiceSettings.class);
         var taskSettings = mock(TaskSettings.class);
+        var chunkingSettings = mock(ChunkingSettings.class);
 
-        var model = createMockedModel(serviceSettings, taskSettings, mock(SecretSettings.class));
-        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(model, null, null, SERVICE_NAME_VALUE);
+        var model = createMockedModel(serviceSettings, taskSettings, chunkingSettings, mock(SecretSettings.class));
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            null,
+            null,
+            SERVICE_NAME_VALUE
+        );
         verifyNoInteractions(serviceSettings);
         verifyNoInteractions(taskSettings);
+        verifyNoInteractions(chunkingSettings);
 
         assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
         assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
@@ -524,34 +734,129 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
     }
 
-    public void testCombineExistingModelConfigurationsWithNewSettings_NewServiceAndTaskSettings_UpdatesConfig() {
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewServiceSettings_UpdatesConfig() {
         Map<String, Object> newServiceSettingsMap = Map.of(SERVICE_SETTINGS_KEY, SERVICE_SETTINGS_VALUE);
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
         when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
 
-        Map<String, Object> newTaskSettingsMap = Map.of(TASK_SETTINGS_KEY, TASK_SETTINGS_VALUE);
         var originalTaskSettings = mock(TaskSettings.class);
-        var updatedTaskSettings = mock(TaskSettings.class);
-        when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
+        var originalChunkingSettings = mock(ChunkingSettings.class);
+        var model = createMockedModel(originalServiceSettings, originalTaskSettings, originalChunkingSettings, mock(SecretSettings.class));
 
-        var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
             newServiceSettingsMap,
-            newTaskSettingsMap,
+            null,
+            null,
             SERVICE_NAME_VALUE
         );
 
         verify(originalServiceSettings).updateServiceSettings(newServiceSettingsMap);
-        verify(originalTaskSettings).updatedTaskSettings(newTaskSettingsMap);
+        verifyNoInteractions(originalTaskSettings);
+        verifyNoInteractions(originalChunkingSettings);
 
         assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
         assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
         assertThat(resultModelConfigurations.getService(), sameInstance(SERVICE_NAME_VALUE));
         assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(updatedServiceSettings));
+        assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(originalTaskSettings));
+        assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(originalChunkingSettings));
+    }
+
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewTaskSettings_UpdatesConfig() {
+        Map<String, Object> newTaskSettingsMap = Map.of(TASK_SETTINGS_KEY, TASK_SETTINGS_VALUE);
+        var originalTaskSettings = mock(TaskSettings.class);
+        var updatedTaskSettings = mock(TaskSettings.class);
+        when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
+
+        var originalServiceSettings = mock(ServiceSettings.class);
+        var originalChunkingSettings = mock(ChunkingSettings.class);
+        var model = createMockedModel(originalServiceSettings, originalTaskSettings, originalChunkingSettings, mock(SecretSettings.class));
+
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            newTaskSettingsMap,
+            null,
+            SERVICE_NAME_VALUE
+        );
+
+        verify(originalTaskSettings).updatedTaskSettings(newTaskSettingsMap);
+        verifyNoInteractions(originalServiceSettings);
+        verifyNoInteractions(originalChunkingSettings);
+
+        assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
+        assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
+        assertThat(resultModelConfigurations.getService(), sameInstance(SERVICE_NAME_VALUE));
+        assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(originalServiceSettings));
         assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(updatedTaskSettings));
-        assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
+        assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(originalChunkingSettings));
+    }
+
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewChunkingSettings_UpdatesConfig() {
+        Map<String, Object> newChunkingSettingsMap = new HashMap<>();
+        newChunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), "word");
+        newChunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), NEW_CHUNK_SIZE_VALUE);
+        newChunkingSettingsMap.put(ChunkingSettingsOptions.OVERLAP.toString(), NEW_OVERLAP_VALUE);
+
+        var originalServiceSettings = mock(ServiceSettings.class);
+        var originalTaskSettings = mock(TaskSettings.class);
+        var originalChunkingSettings = mock(ChunkingSettings.class);
+        var model = createMockedModel(originalServiceSettings, originalTaskSettings, originalChunkingSettings, mock(SecretSettings.class));
+
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            null,
+            newChunkingSettingsMap,
+            SERVICE_NAME_VALUE
+        );
+
+        verifyNoInteractions(originalServiceSettings);
+        verifyNoInteractions(originalTaskSettings);
+        verifyNoInteractions(originalChunkingSettings);
+
+        assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));
+        assertThat(resultModelConfigurations.getTaskType(), sameInstance(model.getTaskType()));
+        assertThat(resultModelConfigurations.getService(), sameInstance(SERVICE_NAME_VALUE));
+        assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(originalServiceSettings));
+        assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(originalTaskSettings));
+        // Chunking settings are *replaced* (not merged) on update: the result must be a fresh
+        // ChunkingSettings built from the supplied map, regardless of the existing value.
+        assertThat(
+            resultModelConfigurations.getChunkingSettings(),
+            is(new WordBoundaryChunkingSettings(NEW_CHUNK_SIZE_VALUE, NEW_OVERLAP_VALUE))
+        );
+    }
+
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewChunkingSettingsEquivalentToExisting_StillReplacesInstance() {
+        // Guards the replace-not-merge contract: even with an equivalent map, the result must be
+        // a freshly built instance, not the existing one.
+        var existingChunkingSettings = new WordBoundaryChunkingSettings(NEW_CHUNK_SIZE_VALUE, NEW_OVERLAP_VALUE);
+        Map<String, Object> equivalentChunkingSettingsMap = new HashMap<>();
+        equivalentChunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), "word");
+        equivalentChunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), NEW_CHUNK_SIZE_VALUE);
+        equivalentChunkingSettingsMap.put(ChunkingSettingsOptions.OVERLAP.toString(), NEW_OVERLAP_VALUE);
+
+        var model = createMockedModel(
+            mock(ServiceSettings.class),
+            mock(TaskSettings.class),
+            existingChunkingSettings,
+            mock(SecretSettings.class)
+        );
+
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            null,
+            equivalentChunkingSettingsMap,
+            SERVICE_NAME_VALUE
+        );
+
+        var resultChunkingSettings = resultModelConfigurations.getChunkingSettings();
+        assertThat(resultChunkingSettings, is(existingChunkingSettings));
+        assertThat(resultChunkingSettings, not(sameInstance(existingChunkingSettings)));
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_PassesNewSettingsMapsThroughDirectlyToParsers() {
@@ -567,11 +872,17 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var updatedTaskSettings = mock(TaskSettings.class);
         when(originalTaskSettings.updatedTaskSettings(newTaskSettingsMap)).thenReturn(updatedTaskSettings);
 
-        var model = createMockedModel(originalServiceSettings, originalTaskSettings, mock(SecretSettings.class));
+        var model = createMockedModel(
+            originalServiceSettings,
+            originalTaskSettings,
+            mock(ChunkingSettings.class),
+            mock(SecretSettings.class)
+        );
         var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
             model,
             newServiceSettingsMap,
             newTaskSettingsMap,
+            null,
             SERVICE_NAME_VALUE
         );
 
@@ -585,7 +896,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     public void testCombineExistingSecretsWithNewSecrets_NewSecretsMapIsNull_ReturnsExistingSecrets() {
         var secretSettings = mock(SecretSettings.class);
 
-        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), secretSettings);
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), mock(ChunkingSettings.class), secretSettings);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, null);
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(secretSettings));
@@ -595,7 +906,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     public void testCombineExistingSecretsWithNewSecrets_ExistingSecretSettingsAreNull_ReturnsNull() {
         Map<String, Object> newSecretsMap = Map.of(SECRET_SETTINGS_KEY, SECRET_SETTINGS_VALUE);
 
-        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), null);
+        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), mock(ChunkingSettings.class), null);
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
 
         assertThat(modelSecrets.getSecretSettings(), nullValue());
@@ -607,7 +918,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var updatedSecretSettings = mock(SecretSettings.class);
         when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
 
-        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), originalSecretSettings);
+        var model = createMockedModel(
+            mock(ServiceSettings.class),
+            mock(TaskSettings.class),
+            mock(ChunkingSettings.class),
+            originalSecretSettings
+        );
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
@@ -622,7 +938,12 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var updatedSecretSettings = mock(SecretSettings.class);
         when(originalSecretSettings.newSecretSettings(newSecretsMap)).thenReturn(updatedSecretSettings);
 
-        var model = createMockedModel(mock(ServiceSettings.class), mock(TaskSettings.class), originalSecretSettings);
+        var model = createMockedModel(
+            mock(ServiceSettings.class),
+            mock(TaskSettings.class),
+            mock(ChunkingSettings.class),
+            originalSecretSettings
+        );
         var modelSecrets = action.combineExistingSecretsWithNewSecrets(model, newSecretsMap);
 
         assertThat(modelSecrets.getSecretSettings(), sameInstance(updatedSecretSettings));
@@ -632,13 +953,14 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static Model createMockedModel(
         ServiceSettings originalServiceSettings,
         TaskSettings originalTaskSettings,
+        ChunkingSettings originalChunkingSettings,
         SecretSettings originalSecretSettings
     ) {
         // Mock ModelConfigurations
         var modelConfigurations = mock(ModelConfigurations.class);
         when(modelConfigurations.getServiceSettings()).thenReturn(originalServiceSettings);
         when(modelConfigurations.getTaskSettings()).thenReturn(originalTaskSettings);
-        when(modelConfigurations.getChunkingSettings()).thenReturn(mock(ChunkingSettings.class));
+        when(modelConfigurations.getChunkingSettings()).thenReturn(originalChunkingSettings);
 
         // Mock Model
         var model = mock(Model.class);

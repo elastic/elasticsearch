@@ -104,7 +104,8 @@ public class ResolveImplicitTimeSeriesIdentityGrouping extends Rule<LogicalPlan,
             groupings,
             newAggregateFunctions,
             null,
-            aggregate.timestamp()
+            aggregate.timestamp(),
+            aggregate.origin()
         );
     }
 

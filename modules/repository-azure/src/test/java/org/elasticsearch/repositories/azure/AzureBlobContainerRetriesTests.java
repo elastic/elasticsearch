@@ -800,7 +800,15 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
 
         return new AzureBlobContainer(
             Objects.requireNonNullElse(blobContainerPath, randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add(randomIdentifier())),
-            new AzureBlobStore(ProjectId.DEFAULT, repositoryMetadata, service, BigArrays.NON_RECYCLING_INSTANCE, RepositoriesMetrics.NOOP)
+            new AzureBlobStore(
+                ProjectId.DEFAULT,
+                repositoryMetadata,
+                service,
+                BigArrays.NON_RECYCLING_INSTANCE,
+                RepositoriesMetrics.NOOP,
+                null,
+                null
+            )
         );
     }
 

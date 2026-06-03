@@ -28,7 +28,6 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         ValuesSourceReaderOperatorStatus::readFrom
     );
     private static final TransportVersion CONVERTERS_USED = TransportVersion.fromName("esql_vsr_converters_used");
-    private static final TransportVersion ESQL_LUCENE_OPERATOR_BYTES_READ = TransportVersion.fromName("esql_lucene_operator_bytes_read");
 
     private static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED = TransportVersion.fromName(
         "esql_documents_found_and_values_loaded"

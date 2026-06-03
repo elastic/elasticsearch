@@ -15,10 +15,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -59,30 +57,8 @@ public final class HistogramQuantile extends PromqlFunctionCall {
                 .stream()
                 .filter(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()) || LE_LABEL.equals(labelName(attr)) == false)
                 .toList();
-            if (output.isEmpty() && child().output().stream().anyMatch(attr -> MetadataAttribute.isTimeSeriesAttributeName(attr.name()))) {
-                List<Attribute> relationLabels = relationLabelsWithoutLe();
-                output = relationLabels.isEmpty() ? List.of(FieldAttribute.timeSeriesAttribute(source())) : relationLabels;
-            }
         }
         return output;
-    }
-
-    private List<Attribute> relationLabelsWithoutLe() {
-        List<Attribute> labels = new ArrayList<>();
-        boolean[] hasLe = new boolean[1];
-        child().forEachDown(EsRelation.class, relation -> {
-            for (Attribute attribute : relation.output()) {
-                if (attribute instanceof FieldAttribute fieldAttribute && fieldAttribute.isDimension()) {
-                    String labelName = labelName(attribute);
-                    if (LE_LABEL.equals(labelName)) {
-                        hasLe[0] = true;
-                    } else {
-                        labels.add(attribute.withName(labelName));
-                    }
-                }
-            }
-        });
-        return hasLe[0] ? labels : List.of();
     }
 
     @Override

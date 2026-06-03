@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -40,9 +41,8 @@ import static org.elasticsearch.xpack.esql.plan.logical.EsRelationSerializationT
  * <li>The node uses {@link org.elasticsearch.xpack.esql.expression.function.aggregate.PrometheusHistogramQuantile#PROMQL_DEFINITION},
  * not the generic {@code VECTOR} stub that {@link org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests} picks for
  * {@link org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition} arguments.</li>
- * <li>{@link HistogramQuantile#output()} filters the {@value HistogramQuantile#LE_LABEL} label and may synthesize
- * {@code _timeseries} from an {@link org.elasticsearch.xpack.esql.plan.logical.EsRelation} child, so believable children
- * need classic-histogram bucket dimensions.</li>
+ * <li>{@link HistogramQuantile#output()} filters the {@value HistogramQuantile#LE_LABEL} label, so believable children
+ * need classic-histogram bucket dimensions when they expose concrete labels.</li>
  * </ul>
  * Provides {@link #randomHistogramQuantile()} for {@link org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests} to delegate to.
  */
@@ -142,5 +142,46 @@ public class HistogramQuantileTests extends AbstractNodeTestCase<HistogramQuanti
         HistogramQuantile node = randomHistogramQuantile();
         LogicalPlan newChild = randomValueOtherThan(node.child(), () -> randomChildWithLeLabel());
         assertEquals(new HistogramQuantile(node.source(), newChild, node.definition(), node.parameters()), node.replaceChild(newChild));
+    }
+
+    public void testOutputPreservesTimeseriesInsteadOfRelationDimensions() {
+        Source source = randomSource();
+        EsRelation relation = randomEsRelationWithLeAndIrrelevantLabel(source);
+        LogicalPlan child = new WithinSeriesAggregate(source, relation, Rate.PROMQL_DEFINITION, List.of());
+
+        HistogramQuantile node = new HistogramQuantile(
+            source,
+            child,
+            PrometheusHistogramQuantile.PROMQL_DEFINITION,
+            List.of(randomQuantile(source))
+        );
+
+        assertEquals(List.of(MetadataAttribute.TIMESERIES), node.output().stream().map(Attribute::name).toList());
+    }
+
+    private static EsRelation randomEsRelationWithLeAndIrrelevantLabel(Source source) {
+        EsRelation relation = randomEsRelation();
+        List<Attribute> output = new ArrayList<>(relation.output());
+        output.add(dimension(source, "labels." + HistogramQuantile.LE_LABEL));
+        output.add(dimension(source, "labels.irrelevant"));
+        return new EsRelation(
+            source,
+            relation.indexPattern(),
+            relation.indexMode(),
+            relation.originalIndices(),
+            relation.concreteIndices(),
+            relation.indexNameWithModes(),
+            output
+        );
+    }
+
+    private static FieldAttribute dimension(Source source, String name) {
+        return new FieldAttribute(
+            source,
+            null,
+            null,
+            name,
+            new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.DIMENSION)
+        );
     }
 }

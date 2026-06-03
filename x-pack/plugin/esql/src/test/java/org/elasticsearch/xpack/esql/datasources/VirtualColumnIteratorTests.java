@@ -321,6 +321,49 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         assertEquals("iterator must release surplus blocks; breaker must return to zero", 0L, rootBreaker.getUsed());
     }
 
+    /**
+     * Failure mid-partition-allocation with a surplus-emitting producer must propagate the original
+     * throwable, not an {@code IllegalStateException} from double-closing a surplus block. The fix
+     * defers surplus close to the success path: in the catch arm,
+     * {@link Page#releaseBlocks()} on the input page closes the surplus once. An earlier shape
+     * closed the surplus pre-emptively and then re-released it via {@code releaseBlocks()},
+     * masking the real failure cause.
+     */
+    public void testInjectPropagatesOriginalThrowableWhenSurplusPresent() {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(1)).withCircuitBreaking();
+        CircuitBreaker rootBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        BlockFactory rootFactory = BlockFactory.builder(bigArrays).breaker(rootBreaker).build();
+
+        // Two partition columns. The second's value triggers the default arm of createConstantBlock,
+        // whose toString() throws — a stand-in for any allocation-time failure after partial success.
+        List<Attribute> fullOutput = List.of(partAttr("year", DataType.INTEGER), partAttr("tag", DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of("year", "tag"));
+        Object explodingValue = new Object() {
+            @Override
+            public String toString() {
+                throw new RuntimeException("synthetic partition-allocation failure");
+            }
+        };
+        Map<String, Object> partitionValues = Map.of("year", 2024, "tag", explodingValue);
+        VirtualColumnIterator it = new VirtualColumnIterator(
+            new SinglePageIterator(new Page(0)),
+            fullOutput,
+            partitionCols,
+            partitionValues,
+            rootFactory
+        );
+
+        // Producer over-projects: data page carries two surplus blocks the iterator never references.
+        IntBlock surplus1 = rootFactory.newConstantIntBlockWith(1, 4);
+        IntBlock surplus2 = rootFactory.newConstantIntBlockWith(2, 4);
+        Page overProjected = new Page(4, new Block[] { surplus1, surplus2 });
+        assertTrue("producer must reserve breaker bytes", rootBreaker.getUsed() > 0L);
+
+        RuntimeException thrown = expectThrows(RuntimeException.class, () -> it.inject(overProjected));
+        assertThat(thrown.getMessage(), containsString("synthetic partition-allocation failure"));
+        assertEquals("breaker must return to zero — partial partition allocs + surplus all released", 0L, rootBreaker.getUsed());
+    }
+
     public void testIteratorWrapsDelegate() {
         List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr("year", DataType.INTEGER));
         Set<String> partitionCols = new LinkedHashSet<>(List.of("year"));

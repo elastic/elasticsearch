@@ -214,17 +214,6 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         for (int idx : dataColumnIndices) {
             blocks[idx] = dataPage.getBlock(dataBlockIdx++);
         }
-        // Producer emitted more blocks than we project (e.g. a format reader that falls back to
-        // the full file schema when the projection list is empty). Release the surplus so their
-        // breaker bytes are returned; the kept blocks are still owned by {@code blocks}.
-        if (producedBlocks > expectedDataBlocks) {
-            for (int i = expectedDataBlocks; i < producedBlocks; i++) {
-                Block extra = dataPage.getBlock(i);
-                if (extra != null) {
-                    extra.close();
-                }
-            }
-        }
 
         int partitionBlocksAllocated = 0;
         try {
@@ -257,7 +246,20 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                 }
                 partitionBlocksAllocated++;
             }
-            return new Page(positions, blocks);
+            Page result = new Page(positions, blocks);
+            // Producer over-projected (e.g. format reader fell back to the full file schema when the
+            // projection list was empty). Release the surplus only on the success path: in the catch
+            // arm below, {@link Page#releaseBlocks} on dataPage closes every block in the page —
+            // including these — so an early surplus close here would double-close on failure.
+            if (producedBlocks > expectedDataBlocks) {
+                for (int i = expectedDataBlocks; i < producedBlocks; i++) {
+                    Block extra = dataPage.getBlock(i);
+                    if (extra != null) {
+                        extra.close();
+                    }
+                }
+            }
+            return result;
         } catch (Throwable t) {
             for (int i = 0, released = 0; i < partitionColumnIndices.length && released < partitionBlocksAllocated; i++) {
                 Block b = blocks[partitionColumnIndices[i]];

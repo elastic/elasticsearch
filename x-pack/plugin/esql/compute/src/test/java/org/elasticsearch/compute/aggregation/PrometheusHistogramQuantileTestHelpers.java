@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileStates.Bucket;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,8 +26,8 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 
-final class ClassicHistogramQuantileTestHelpers {
-    private ClassicHistogramQuantileTestHelpers() {}
+final class PrometheusHistogramQuantileTestHelpers {
+    private PrometheusHistogramQuantileTestHelpers() {}
 
     static List<Bucket> randomCumulativeHistogram() {
         int numFiniteBuckets = between(2, 5);
@@ -119,7 +119,7 @@ final class ClassicHistogramQuantileTestHelpers {
             for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
                 double upperBound;
                 try {
-                    upperBound = ClassicHistogramQuantileStates.parseUpperBound(upperBounds.getBytesRef(upperBoundOffset, scratch));
+                    upperBound = PrometheusHistogramQuantileStates.parseUpperBound(upperBounds.getBytesRef(upperBoundOffset, scratch));
                 } catch (NumberFormatException e) {
                     // Mirror the aggregator: buckets with an unparseable `le` label are skipped, not counted.
                     continue;
@@ -132,12 +132,12 @@ final class ClassicHistogramQuantileTestHelpers {
     static double expectedQuantile(double quantile, List<Bucket> buckets) {
         List<Bucket> sortedBuckets = new ArrayList<>(buckets);
         sortedBuckets.sort(Comparator.comparingDouble(Bucket::upperBound));
-        return ClassicHistogramQuantileStates.bucketQuantile(quantile, coalesceBuckets(sortedBuckets));
+        return PrometheusHistogramQuantileStates.bucketQuantile(quantile, coalesceBuckets(sortedBuckets));
     }
 
     /**
      * Merges buckets that share the same upper bound by summing their cumulative counts before calling
-     * {@link ClassicHistogramQuantileStates#bucketQuantile}. The production state does the same merge as raw and
+     * {@link PrometheusHistogramQuantileStates#bucketQuantile}. The production state does the same merge as raw and
      * intermediate buckets are added, so the quantile helper can assert that its input is already pre-aggregated.
      */
     private static List<Bucket> coalesceBuckets(List<Bucket> buckets) {

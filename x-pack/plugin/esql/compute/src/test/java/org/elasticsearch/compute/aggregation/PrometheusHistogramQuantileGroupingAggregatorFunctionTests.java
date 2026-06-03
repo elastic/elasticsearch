@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileStates.Bucket;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -19,7 +19,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ClassicHistogramQuantileGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
+public class PrometheusHistogramQuantileGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     private double quantile;
 
     @Before
@@ -29,12 +29,12 @@ public class ClassicHistogramQuantileGroupingAggregatorFunctionTests extends Gro
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new ClassicHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
+        return new PrometheusHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "classic_histogram_quantile";
+        return "prometheus_histogram_quantile";
     }
 
     @Override
@@ -49,20 +49,20 @@ public class ClassicHistogramQuantileGroupingAggregatorFunctionTests extends Gro
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return ClassicHistogramQuantileTestHelpers.groupedBucketRowsSource(blockFactory, size);
+        return PrometheusHistogramQuantileTestHelpers.groupedBucketRowsSource(blockFactory, size);
     }
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         List<Bucket> buckets = new ArrayList<>();
         for (Page page : input) {
-            matchingGroups(page, group).forEach(p -> ClassicHistogramQuantileTestHelpers.appendBuckets(page, 1, 2, p, buckets));
+            matchingGroups(page, group).forEach(p -> PrometheusHistogramQuantileTestHelpers.appendBuckets(page, 1, 2, p, buckets));
         }
         if (buckets.isEmpty()) {
             assertTrue(result.isNull(position));
             return;
         }
-        double expected = ClassicHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
-        ClassicHistogramQuantileAggregatorFunctionTests.assertQuantileResult((DoubleBlock) result, position, expected);
+        double expected = PrometheusHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
+        PrometheusHistogramQuantileAggregatorFunctionTests.assertQuantileResult((DoubleBlock) result, position, expected);
     }
 }

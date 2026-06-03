@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.aggregation.ClassicHistogramQuantileStates.Bucket;
+import org.elasticsearch.compute.aggregation.PrometheusHistogramQuantileStates.Bucket;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorFunctionTestCase {
+public class PrometheusHistogramQuantileAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private double quantile;
 
     @Before
@@ -40,12 +40,12 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new ClassicHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
+        return new PrometheusHistogramQuantileAggregatorFunctionSupplier(TestWarningsSource.INSTANCE, quantile);
     }
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "classic_histogram_quantile";
+        return "prometheus_histogram_quantile";
     }
 
     @Override
@@ -65,13 +65,13 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return ClassicHistogramQuantileTestHelpers.bucketRowsSource(blockFactory, size);
+        return PrometheusHistogramQuantileTestHelpers.bucketRowsSource(blockFactory, size);
     }
 
     @Override
     protected void assertSimpleOutput(List<Page> input, Block result) {
-        List<Bucket> buckets = ClassicHistogramQuantileTestHelpers.bucketsFromPages(input, 0, 1);
-        double expected = ClassicHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
+        List<Bucket> buckets = PrometheusHistogramQuantileTestHelpers.bucketsFromPages(input, 0, 1);
+        double expected = PrometheusHistogramQuantileTestHelpers.expectedQuantile(quantile, buckets);
         assertQuantileResult((DoubleBlock) result, 0, expected);
     }
 
@@ -98,7 +98,7 @@ public class ClassicHistogramQuantileAggregatorFunctionTests extends AggregatorF
         assertThat(
             ((DoubleBlock) results.get(0).getBlock(0)).getDouble(0),
             equalTo(
-                ClassicHistogramQuantileStates.bucketQuantile(
+                PrometheusHistogramQuantileStates.bucketQuantile(
                     quantile,
                     List.of(new Bucket(1.0, 2.0), new Bucket(Double.POSITIVE_INFINITY, 4.0))
                 )

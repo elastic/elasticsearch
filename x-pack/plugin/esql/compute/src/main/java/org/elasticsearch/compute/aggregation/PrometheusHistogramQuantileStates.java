@@ -26,14 +26,14 @@ import java.util.List;
 
 /**
  * Aggregation state and PromQL {@code histogram_quantile} evaluation for classic cumulative histogram buckets
- * ({@code le} upper bound plus cumulative count), used by {@link ClassicHistogramQuantileAggregator}.
+ * ({@code le} upper bound plus cumulative count), used by {@link PrometheusHistogramQuantileAggregator}.
  * <p>
  * Buckets are aggregated eagerly: each {@link SingleState} keeps a map from upper bound to the summed count for that
  * bound, so equal upper bounds (which are dimensions and therefore frequently repeated) collapse into a single entry
  * instead of being buffered as raw values. This keeps memory bounded by the number of distinct upper bounds and means
  * the intermediate state shipped to the coordinating node is already pre-aggregated.
  */
-final class ClassicHistogramQuantileStates {
+final class PrometheusHistogramQuantileStates {
     static final double SMALL_DELTA_TOLERANCE = 1e-12;
 
     /**
@@ -52,9 +52,9 @@ final class ClassicHistogramQuantileStates {
      */
     static final long BUCKET_RAM_BYTES_USED = (long) Math.ceil(2 * (Long.BYTES + Double.BYTES) / BUCKETS_LOAD_FACTOR);
 
-    private static final String BREAKER_LABEL = "<classic_histogram_quantile>";
+    private static final String BREAKER_LABEL = "<prometheus_histogram_quantile>";
 
-    private ClassicHistogramQuantileStates() {}
+    private PrometheusHistogramQuantileStates() {}
 
     /**
      * Parses a classic histogram bucket upper bound from its {@code le} keyword label. PromQL stores {@code le} as a

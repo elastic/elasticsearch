@@ -22,10 +22,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 
 /**
- * {@link AggregatorFunction} implementation for {@link ClassicHistogramQuantileAggregator}.
+ * {@link AggregatorFunction} implementation for {@link PrometheusHistogramQuantileAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
-public final class ClassicHistogramQuantileAggregatorFunction implements AggregatorFunction {
+public final class PrometheusHistogramQuantileAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("buckets", ElementType.DOUBLE)  );
 
@@ -33,19 +33,19 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
 
   private final DriverContext driverContext;
 
-  private final ClassicHistogramQuantileStates.SingleState state;
+  private final PrometheusHistogramQuantileStates.SingleState state;
 
   private final List<Integer> channels;
 
   private final double quantile;
 
-  ClassicHistogramQuantileAggregatorFunction(Warnings warnings, DriverContext driverContext,
+  PrometheusHistogramQuantileAggregatorFunction(Warnings warnings, DriverContext driverContext,
       List<Integer> channels, double quantile) {
     this.quantile = quantile;
     this.warnings = warnings;
     this.driverContext = driverContext;
     this.channels = channels;
-    this.state = ClassicHistogramQuantileAggregator.initSingle(driverContext, quantile, warnings);
+    this.state = PrometheusHistogramQuantileAggregator.initSingle(driverContext, quantile, warnings);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -153,7 +153,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
     for (int valuesPosition = 0; valuesPosition < countVector.getPositionCount(); valuesPosition++) {
       double countValue = countVector.getDouble(valuesPosition);
       BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
-      ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
+      PrometheusHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
     }
   }
 
@@ -166,7 +166,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
       }
       double countValue = countVector.getDouble(valuesPosition);
       BytesRef upperBoundValue = upperBoundVector.getBytesRef(valuesPosition, upperBoundScratch);
-      ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
+      PrometheusHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
     }
   }
 
@@ -189,7 +189,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
         int upperBoundEnd = upperBoundStart + upperBoundValueCount;
         for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
           BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
-          ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
+          PrometheusHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
         }
       }
     }
@@ -218,7 +218,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
         int upperBoundEnd = upperBoundStart + upperBoundValueCount;
         for (int upperBoundOffset = upperBoundStart; upperBoundOffset < upperBoundEnd; upperBoundOffset++) {
           BytesRef upperBoundValue = upperBoundBlock.getBytesRef(upperBoundOffset, upperBoundScratch);
-          ClassicHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
+          PrometheusHistogramQuantileAggregator.combine(state, countValue, upperBoundValue);
         }
       }
     }
@@ -243,7 +243,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
     }
     DoubleBlock buckets = (DoubleBlock) bucketsUncast;
     assert buckets.getPositionCount() == 1;
-    ClassicHistogramQuantileAggregator.combineIntermediate(state, buckets);
+    PrometheusHistogramQuantileAggregator.combineIntermediate(state, buckets);
   }
 
   @Override
@@ -253,7 +253,7 @@ public final class ClassicHistogramQuantileAggregatorFunction implements Aggrega
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = ClassicHistogramQuantileAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = PrometheusHistogramQuantileAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

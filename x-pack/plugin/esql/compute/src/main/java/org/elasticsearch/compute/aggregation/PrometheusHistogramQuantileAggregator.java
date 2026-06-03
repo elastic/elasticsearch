@@ -25,46 +25,46 @@ import org.elasticsearch.compute.operator.Warnings;
  */
 @Aggregator({ @IntermediateState(name = "buckets", type = "DOUBLE_BLOCK") })
 @GroupingAggregator(processNulls = true)
-class ClassicHistogramQuantileAggregator {
+class PrometheusHistogramQuantileAggregator {
     public static String describe() {
-        return "classic_histogram_quantile";
+        return "prometheus_histogram_quantile";
     }
 
-    public static ClassicHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
-        return new ClassicHistogramQuantileStates.SingleState(driverContext.breaker(), quantile, warnings);
+    public static PrometheusHistogramQuantileStates.SingleState initSingle(DriverContext driverContext, double quantile, Warnings warnings) {
+        return new PrometheusHistogramQuantileStates.SingleState(driverContext.breaker(), quantile, warnings);
     }
 
-    public static void combine(ClassicHistogramQuantileStates.SingleState state, double count, BytesRef upperBound) {
+    public static void combine(PrometheusHistogramQuantileStates.SingleState state, double count, BytesRef upperBound) {
         // The state parses the `le` keyword bound, skipping (and warning about) buckets whose label is not a number.
         state.add(upperBound, count);
     }
 
-    public static void combineIntermediate(ClassicHistogramQuantileStates.SingleState state, DoubleBlock buckets) {
+    public static void combineIntermediate(PrometheusHistogramQuantileStates.SingleState state, DoubleBlock buckets) {
         if (buckets.isNull(0)) {
             return;
         }
         state.addIntermediate(buckets, 0);
     }
 
-    public static Block evaluateFinal(ClassicHistogramQuantileStates.SingleState state, DriverContext driverContext) {
+    public static Block evaluateFinal(PrometheusHistogramQuantileStates.SingleState state, DriverContext driverContext) {
         return state.evaluateFinal(driverContext);
     }
 
-    public static ClassicHistogramQuantileStates.GroupingState initGrouping(
+    public static PrometheusHistogramQuantileStates.GroupingState initGrouping(
         DriverContext driverContext,
         double quantile,
         Warnings warnings
     ) {
-        return new ClassicHistogramQuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), quantile, warnings);
+        return new PrometheusHistogramQuantileStates.GroupingState(driverContext.breaker(), driverContext.bigArrays(), quantile, warnings);
     }
 
-    public static void combine(ClassicHistogramQuantileStates.GroupingState state, int groupId, double count, BytesRef upperBound) {
+    public static void combine(PrometheusHistogramQuantileStates.GroupingState state, int groupId, double count, BytesRef upperBound) {
         // The state parses the `le` keyword bound, skipping (and warning about) buckets whose label is not a number.
         state.add(groupId, upperBound, count);
     }
 
     public static void combineIntermediate(
-        ClassicHistogramQuantileStates.GroupingState state,
+        PrometheusHistogramQuantileStates.GroupingState state,
         int groupId,
         DoubleBlock buckets,
         int valuesPosition
@@ -76,7 +76,7 @@ class ClassicHistogramQuantileAggregator {
     }
 
     public static void combineIntermediate(
-        ClassicHistogramQuantileStates.GroupingState state,
+        PrometheusHistogramQuantileStates.GroupingState state,
         int positionOffset,
         IntVector groups,
         DoubleBlock buckets
@@ -91,7 +91,7 @@ class ClassicHistogramQuantileAggregator {
     }
 
     public static void combineIntermediate(
-        ClassicHistogramQuantileStates.GroupingState state,
+        PrometheusHistogramQuantileStates.GroupingState state,
         int positionOffset,
         IntBlock groups,
         DoubleBlock buckets
@@ -113,7 +113,7 @@ class ClassicHistogramQuantileAggregator {
     }
 
     public static Block evaluateFinal(
-        ClassicHistogramQuantileStates.GroupingState state,
+        PrometheusHistogramQuantileStates.GroupingState state,
         IntVector selected,
         GroupingAggregatorEvaluationContext context
     ) {

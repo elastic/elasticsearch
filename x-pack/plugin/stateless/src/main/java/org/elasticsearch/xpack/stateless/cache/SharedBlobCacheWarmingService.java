@@ -693,6 +693,7 @@ public class SharedBlobCacheWarmingService {
                                         );
                                     }
                                 },
+                                this,
                                 l1.map(aVoid -> offsetsToWarmComputed)
                             );
                         } else {
@@ -906,6 +907,55 @@ public class SharedBlobCacheWarmingService {
         }
     }
 
+    /**
+     * Best-effort prefetch of region 0 for referenced BCC blobs before sequential header reads. Per-blob failures are logged and ignored
+     * so header iteration can still proceed.
+     *
+     * @param directory        the cache directory to use (e.g. relocation prewarm's copied directory, not necessarily {@code store})
+     * @param maxOffsetPerBlob maximum referenced offset per blob (from {@code groupReferencedFilesByBlob})
+     * @param skipBlob         latest BCC blob to skip when already materialized in memory, or {@code null}
+     * @param scheduleExecutor executor on which prefetch tasks are scheduled (typically {@code bccHeaderReadExecutor})
+     */
+    public void prefetchRegion0OfReferencedBccBlobs(
+        BlobStoreCacheDirectory directory,
+        Map<BlobFile, Long> maxOffsetPerBlob,
+        @Nullable BlobFile skipBlob,
+        Executor scheduleExecutor,
+        ActionListener<Void> listener
+    ) {
+        if (maxOffsetPerBlob.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+        final int regionSize = cacheService.getRegionSize();
+        final ByteRange region0 = ByteRange.of(0, regionSize);
+        final ShardId shardId = directory.getShardId();
+        try (var listeners = new RefCountingListener(listener)) {
+            for (var entry : maxOffsetPerBlob.entrySet()) {
+                final BlobFile blobFile = entry.getKey();
+                if (Objects.equals(skipBlob, blobFile)) {
+                    continue;
+                }
+                final long blobLength = Math.max(entry.getValue(), regionSize);
+                final ActionListener<Void> perBlobListener = listeners.acquire().delegateResponse((l, e) -> {
+                    logger.warn(() -> format("failed to prefetch region 0 of %s for %s", blobFile, shardId), e);
+                    l.onResponse(null);
+                });
+                scheduleExecutor.execute(() -> warmBlobByteRangeOnDirectory(
+                    Type.INDEXING,
+                    shardId,
+                    directory,
+                    blobFile,
+                    region0,
+                    blobLength,
+                    () -> false,
+                    "bcc_region0_prefetch",
+                    perBlobListener
+                ));
+            }
+        }
+    }
+
     private void warmBlobByteRange(
         Type type,
         IndexShard indexShard,
@@ -915,22 +965,47 @@ public class SharedBlobCacheWarmingService {
     ) {
         final Store store = indexShard.store();
         final ShardId shardId = indexShard.shardId();
-        final var warmingRun = new WarmingRun(type, shardId, "prewarm", Map.of("prewarming_type", type.name()));
         if (store.isClosing() || store.tryIncRef() == false) {
             listener.onFailure(new AlreadyClosedException("Failed to warm cache [" + type + "] for " + shardId + ", store is closing"));
         } else {
-            try (
-                var warmer = new BlobByteRangeWarmer(
-                    warmingRun,
-                    blobFile,
-                    byteRangeToWarm,
-                    store::isClosing,
-                    BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
-                    ActionListener.runAfter(listener, store::decRef)
-                )
-            ) {
-                warmer.run();
-            }
+            warmBlobByteRangeOnDirectory(
+                type,
+                shardId,
+                BlobStoreCacheDirectory.unwrapDirectory(store.directory()),
+                blobFile,
+                byteRangeToWarm,
+                byteRangeToWarm.end(),
+                store::isClosing,
+                "prewarm",
+                ActionListener.runAfter(listener, store::decRef)
+            );
+        }
+    }
+
+    void warmBlobByteRangeOnDirectory(
+        Type type,
+        ShardId shardId,
+        BlobStoreCacheDirectory directory,
+        BlobFile blobFile,
+        ByteRange byteRangeToWarm,
+        long blobLength,
+        Supplier<Boolean> isCancelled,
+        String logIdentifier,
+        ActionListener<Void> listener
+    ) {
+        final var warmingRun = new WarmingRun(type, shardId, logIdentifier, Map.of("prewarming_type", type.name()));
+        try (
+            var warmer = new BlobByteRangeWarmer(
+                warmingRun,
+                blobFile,
+                byteRangeToWarm,
+                blobLength,
+                isCancelled,
+                directory,
+                listener
+            )
+        ) {
+            warmer.run();
         }
     }
 
@@ -1253,11 +1328,13 @@ public class SharedBlobCacheWarmingService {
     private class BlobByteRangeWarmer extends SharedBlobCacheWarmingService.AbstractWarmer {
         private final BlobFile blobFile;
         private final ByteRange byteRangeToWarm;
+        private final long blobLength;
 
         BlobByteRangeWarmer(
             SharedBlobCacheWarmingService.WarmingRun warmingRun,
             BlobFile blobFile,
             ByteRange byteRangeToWarm,
+            long blobLength,
             Supplier<Boolean> isStoreClosing,
             BlobStoreCacheDirectory directory,
             ActionListener<Void> listener
@@ -1265,10 +1342,11 @@ public class SharedBlobCacheWarmingService {
             super(warmingRun, isStoreClosing, directory, listener);
             this.blobFile = blobFile;
             this.byteRangeToWarm = byteRangeToWarm;
+            this.blobLength = blobLength;
         }
 
         void run() {
-            scheduleWarmingTask(new WarmBlobByteRangeTask(blobFile, byteRangeToWarm, listeners.acquire()));
+            scheduleWarmingTask(new WarmBlobByteRangeTask(blobFile, byteRangeToWarm, blobLength, listeners.acquire()));
         }
 
         @Override
@@ -1549,11 +1627,13 @@ public class SharedBlobCacheWarmingService {
             protected final BlobFile blobFile;
             // protected for tests
             protected final ByteRange byteRangeToWarm;
+            private final long blobLength;
             private final ActionListener<Void> listener;
 
-            WarmBlobByteRangeTask(BlobFile blobFile, ByteRange byteRangeToWarm, ActionListener<Void> listener) {
+            WarmBlobByteRangeTask(BlobFile blobFile, ByteRange byteRangeToWarm, long blobLength, ActionListener<Void> listener) {
                 this.blobFile = Objects.requireNonNull(blobFile);
                 this.byteRangeToWarm = byteRangeToWarm;
+                this.blobLength = blobLength;
                 this.listener = listener;
                 logger.trace("{} {}: scheduled {} {}", warmingRun.shardId(), warmingRun.type(), blobFile, byteRangeToWarm);
             }
@@ -1579,6 +1659,7 @@ public class SharedBlobCacheWarmingService {
                 cacheService.fetchRange(
                     cacheKey,
                     byteRangeToWarm,
+                    blobLength,
                     cacheBlobReader,
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,

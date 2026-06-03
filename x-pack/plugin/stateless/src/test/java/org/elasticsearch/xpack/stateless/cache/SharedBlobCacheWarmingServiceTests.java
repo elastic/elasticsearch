@@ -75,6 +75,15 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceTestHelper.WarmTaskInfo;
+import org.elasticsearch.xpack.stateless.cache.WarmingRatioProvider;
+import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
+import org.elasticsearch.xpack.stateless.lucene.IndexBlobStoreCacheDirectory;
+import java.util.stream.Collectors;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -475,6 +484,128 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 readReferencedCommitsListener
             );
             safeGet(readReferencedCommitsListener);
+        }
+    }
+
+    public void testPrefetchRegion0OfReferencedBccBlobsBeforeHeaderReads() throws Exception {
+        final long primaryTerm = randomLongBetween(10, 42);
+        Map<String, WarmTaskInfo> warmTasksForBCCs = ConcurrentCollections.newConcurrentMap();
+        long regionSizeInBytes = SharedBytes.PAGE_SIZE * randomLongBetween(1, 3);
+        long rangeSizeInBytes = regionSizeInBytes + SharedBytes.PAGE_SIZE * randomFrom(0L, 1L, 2L);
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                new RecordingMeterRegistry()
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    Settings settings = super.nodeSettings();
+                    return Settings.builder()
+                        .put(settings)
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(4))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
+                        .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(rangeSizeInBytes))
+                        .put(
+                            SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP.getKey(),
+                            ByteSizeValue.ofBytes(SharedBytes.PAGE_SIZE)
+                        )
+                        .build();
+                }
+
+                @Override
+                protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
+                    StatelessSharedBlobCacheService cacheService,
+                    ThreadPool threadPool,
+                    TelemetryProvider telemetryProvider,
+                    ClusterSettings clusterSettings,
+                    WarmingRatioProvider warmingRatioProvider
+                ) {
+                    return SharedBlobCacheWarmingServiceTestHelper.createInstrumentedWarmingService(
+                        cacheService,
+                        threadPool,
+                        telemetryProvider,
+                        clusterSettings,
+                        warmingRatioProvider,
+                        warmTasksForBCCs
+                    );
+                }
+
+            }
+        ) {
+            int bccCount = randomIntBetween(2, 5);
+            Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+            VirtualBatchedCompoundCommit vbcc = null;
+            for (int i = 0; i < bccCount; i++) {
+                var indexCommits = fakeNode.generateIndexCommits(
+                    randomIntBetween(1, 8),
+                    randomBoolean(),
+                    randomBoolean(),
+                    generation -> {}
+                );
+                vbcc = new VirtualBatchedCompoundCommit(
+                    fakeNode.shardId,
+                    "fake-node-id",
+                    primaryTerm,
+                    indexCommits.getFirst().getGeneration(),
+                    fileName -> uploadedBlobLocations.get(fileName),
+                    ESTestCase::randomNonNegativeLong,
+                    fakeNode.sharedCacheService.getRegionSize(),
+                    randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+                );
+                for (StatelessCommitRef ref : indexCommits) {
+                    assertTrue(vbcc.appendCommit(ref, randomBoolean(), null));
+                }
+                vbcc.freeze();
+                var indexBlobContainer = fakeNode.getShardContainer();
+                try (var vbccInputStream = vbcc.getFrozenInputStreamForUpload()) {
+                    indexBlobContainer.writeBlobAtomic(
+                        OperationPurpose.INDICES,
+                        vbcc.getBlobName(),
+                        vbccInputStream,
+                        vbcc.getTotalSizeInBytes(),
+                        true
+                    );
+                }
+                uploadedBlobLocations.putAll(vbcc.lastCompoundCommit().commitFiles());
+            }
+            BatchedCompoundCommit latestBcc = vbcc.getFrozenBatchedCompoundCommit();
+            var lastCommit = latestBcc.lastCompoundCommit();
+            var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(fakeNode.indexingDirectory);
+            int regionSize = fakeNode.sharedCacheService.getRegionSize();
+            ByteRange expectedRegion0 = ByteRange.of(0, regionSize);
+            String skippedBlobName = latestBcc.toBlobFile().blobName();
+
+            PlainActionFuture<Void> readReferencedCommitsListener = new PlainActionFuture<>();
+            ObjectStoreService.readReferencedCompoundCommitsUsingCache(
+                lastCommit.commitFiles(),
+                latestBcc,
+                directory,
+                IOContext.DEFAULT,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                referencedCC -> {},
+                fakeNode.warmingService,
+                readReferencedCommitsListener
+            );
+            safeGet(readReferencedCommitsListener);
+
+            Set<String> referencedBlobNames = lastCommit.commitFiles()
+                .values()
+                .stream()
+                .map(location -> location.blobFile().blobName())
+                .collect(Collectors.toSet());
+            assertThat(referencedBlobNames.size(), greaterThan(1));
+            for (String blobName : referencedBlobNames) {
+                if (blobName.equals(skippedBlobName)) {
+                    continue;
+                }
+                assertTrue("expected region 0 prefetch for " + blobName, warmTasksForBCCs.containsKey(blobName));
+                assertThat(warmTasksForBCCs.get(blobName).byteRangeToWarm(), equalTo(expectedRegion0));
+            }
+            assertFalse("latest BCC blob should be skipped", warmTasksForBCCs.containsKey(skippedBlobName));
         }
     }
 

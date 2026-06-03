@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -979,6 +980,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Executor bccHeaderReadExecutor,
         boolean readSingleBlobIfHollow,
         @Nullable StatelessCommitService.SourceBlobsInfo blobsInfo,
+        @Nullable SharedBlobCacheWarmingService warmingService,
         ActionListener<IndexingShardState> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
@@ -1048,6 +1050,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                                 )
                             );
                         },
+                        warmingService,
                         l.map(aVoid -> new IndexingShardState(latestBcc, otherBlobs, blobFileRanges))
                     );
                 }
@@ -1253,9 +1256,34 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
         ActionListener<Void> listener
     ) {
+        readReferencedCompoundCommitsUsingCache(
+            commitFiles,
+            bcc,
+            directory,
+            context,
+            bccHeaderReadExecutor,
+            referencedCCsConsumer,
+            null,
+            listener
+        );
+    }
+
+    public static void readReferencedCompoundCommitsUsingCache(
+        Map<String, BlobLocation> commitFiles,
+        @Nullable BatchedCompoundCommit bcc,
+        BlobStoreCacheDirectory directory,
+        IOContext context,
+        Executor bccHeaderReadExecutor,
+        Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
+        @Nullable SharedBlobCacheWarmingService warmingService,
+        ActionListener<Void> listener
+    ) {
         readReferencedCompoundCommits(
             commitFiles,
+            bcc,
+            directory,
             bccHeaderReadExecutor,
+            warmingService,
             (referencedBlob, maxBlobOffset) -> bcc != null && referencedBlob.termAndGeneration().equals(bcc.primaryTermAndGeneration())
                 ? bcc.compoundCommits().iterator()
                 : readBatchedCompoundCommitIncrementallyUsingCache(directory, context, referencedBlob, maxBlobOffset),
@@ -1266,12 +1294,51 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
 
     private static void readReferencedCompoundCommits(
         Map<String, BlobLocation> commitFiles,
+        @Nullable BatchedCompoundCommit bcc,
+        BlobStoreCacheDirectory directory,
         Executor bccHeaderReadExecutor,
+        @Nullable SharedBlobCacheWarmingService warmingService,
         BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
         Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
         ActionListener<Void> listener
     ) {
         var referencedFilesByBlob = groupReferencedFilesByBlob(commitFiles);
+        if (warmingService == null) {
+            readReferencedCompoundCommitHeaders(
+                referencedFilesByBlob,
+                bccHeaderReadExecutor,
+                getCompoundCommitsIteratorForBlobFile,
+                referencedCCsConsumer,
+                listener
+            );
+        } else {
+            var maxOffsetPerBlob = referencedFilesByBlob.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().maxBlobOffset()));
+            final BlobFile skipBlob = bcc != null ? bcc.toBlobFile() : null;
+            warmingService.prefetchRegion0OfReferencedBccBlobs(
+                directory,
+                maxOffsetPerBlob,
+                skipBlob,
+                bccHeaderReadExecutor,
+                listener.delegateFailureAndWrap((l, ignored) -> readReferencedCompoundCommitHeaders(
+                    referencedFilesByBlob,
+                    bccHeaderReadExecutor,
+                    getCompoundCommitsIteratorForBlobFile,
+                    referencedCCsConsumer,
+                    l
+                ))
+            );
+        }
+    }
+
+    private static void readReferencedCompoundCommitHeaders(
+        Map<BlobFile, ReferencedFilesAndMaxBlobOffset> referencedFilesByBlob,
+        Executor bccHeaderReadExecutor,
+        BiFunction<BlobFile, Long, Iterator<StatelessCompoundCommit>> getCompoundCommitsIteratorForBlobFile,
+        Consumer<StatelessCompoundCommitReferenceWithInternalFiles> referencedCCsConsumer,
+        ActionListener<Void> listener
+    ) {
         try (var listeners = new RefCountingListener(listener)) {
             for (var referencedFilesForBlob : referencedFilesByBlob.entrySet()) {
                 var referencedBlob = referencedFilesForBlob.getKey();

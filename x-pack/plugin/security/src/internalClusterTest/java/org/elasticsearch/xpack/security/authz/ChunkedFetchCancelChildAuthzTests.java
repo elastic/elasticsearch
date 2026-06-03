@@ -115,9 +115,7 @@ public class ChunkedFetchCancelChildAuthzTests extends SecurityIntegTestCase {
                 )
             );
 
-            final ActionFuture<SearchResponse> searchFuture = userClient.prepareSearch(INDEX)
-                .setAllowPartialSearchResults(false)
-                .execute();
+            final ActionFuture<SearchResponse> searchFuture = userClient.prepareSearch(INDEX).setAllowPartialSearchResults(false).execute();
 
             // The search fails because every shard fetch failed and partial results are disallowed.
             expectThrows(Exception.class, searchFuture::actionGet);

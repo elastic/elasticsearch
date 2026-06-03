@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.MergeState;
-import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.engine.PruningMergePolicy;
 
@@ -73,10 +72,6 @@ public class DocValuesConsumerUtil {
                 if (pdv.shouldPruneNumericDocValues(mergedFieldInfo.name)) {
                     return UNSUPPORTED;
                 }
-            }
-
-            if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
-                docValuesProducer = filterDocValuesProducer.getIn();
             }
 
             if (docValuesProducer instanceof XPerFieldDocValuesFormat.FieldsReader perFieldReader) {

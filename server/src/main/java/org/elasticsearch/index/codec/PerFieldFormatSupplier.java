@@ -26,17 +26,11 @@ import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -49,21 +43,9 @@ import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
  */
 public class PerFieldFormatSupplier {
 
-    private static final Set<String> INCLUDE_META_FIELDS;
     private static final Set<String> EXCLUDE_MAPPER_TYPES;
 
     static {
-        // TODO: should we just allow all fields to use tsdb doc values codec?
-        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
-        // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        Set<String> includeMetaField = new HashSet<>(3);
-        includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
-        includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
-        includeMetaField.add(SeqNoFieldMapper.NAME);
-        includeMetaField.add(IgnoredSourceFieldMapper.NAME);
-        // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
-        // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
-        INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
         EXCLUDE_MAPPER_TYPES = Set.of("geo_shape");
     }
 
@@ -218,10 +200,6 @@ public class PerFieldFormatSupplier {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        if (excludeFields(field)) {
-            return false;
-        }
-
         if (excludeMapperTypes(field)) {
             return false;
         }
@@ -229,10 +207,6 @@ public class PerFieldFormatSupplier {
         return mapperService != null
             && mapperService.getIndexSettings().useTimeSeriesDocValuesFormat()
             && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
-    }
-
-    private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
     }
 
     private boolean excludeMapperTypes(String fieldName) {

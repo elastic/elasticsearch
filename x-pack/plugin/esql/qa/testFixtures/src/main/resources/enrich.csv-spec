@@ -655,7 +655,7 @@ required_capability: enrich_load
 required_capability: fix_replace_missing_field_with_null_duplicate_name_id_in_layout
 required_capability: dense_vector_agg_metric_double_if_fns
 
-from *,-addresses_*
+from *,-addresses_*,-keyword_languages_lookup
 | keep author.keyword, book_no, scalerank, street, bytes_in, @timestamp, abbrev, city_location, distance, description, birth_date, language_code, intersects, client_ip, event_duration, version
 | enrich languages_policy on author.keyword
 | sort book_no
@@ -908,4 +908,25 @@ ROW x = 1, y = null
 
 x:integer | y:null | language_name:keyword
 1         | null   | null
+;
+
+// An unmapped field in _source is loaded from the primary index downstream of ENRICH.
+// Rows from sample_data have no unmapped_message in _source (null);
+// the row from partial_mapping_sample_data has it (real value).
+loadUnmappedFieldAfterEnrich
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM sample_data, partial_mapping_sample_data
+| EVAL client_ip_str = TO_STRING(client_ip)
+| ENRICH clientip_policy ON client_ip_str WITH env
+| WHERE TO_STRING(client_ip) IN ("172.21.2.162", "172.21.2.113", "173.21.2.162")
+| KEEP @timestamp, env, unmapped_message
+| SORT @timestamp ASC
+;
+
+@timestamp:date          | env:keyword | unmapped_message:keyword
+2023-10-23T12:15:03.360Z | QA          | null
+2023-10-23T12:27:28.948Z | QA          | null
+2024-10-23T12:15:03.360Z | null        | Disconnected from 10.1.0.3
 ;

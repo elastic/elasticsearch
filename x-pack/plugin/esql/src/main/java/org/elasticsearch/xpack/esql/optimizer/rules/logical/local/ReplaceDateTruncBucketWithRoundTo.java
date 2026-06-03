@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.UnionTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
@@ -98,7 +98,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         Eval eval,
         TriFunction<Object, Long, Long, Rounding.Prepared> roundingFunction
     ) {
-        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
+        if (field instanceof FieldAttribute fa && fa.field() instanceof UnionTypeEsField == false && isDateTime(fa.dataType())) {
             DataType fieldType = fa.dataType();
             FieldAttribute.FieldName fieldName = fa.fieldName();
             // Extract min/max from SearchStats

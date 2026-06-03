@@ -59,7 +59,9 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testBracketMvcNewlineDoesNotTerminateRecord() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.DEFAULT);
+        // CsvFormatOptions.DEFAULT now defaults to MultiValueSyntax.NONE, so a literal `[..\n..]` does
+        // terminate at the first newline; construct an explicit BRACKETS options to test the bracket-aware path.
+        RecordSplitter splitter = splitter(bracketsDefault());
         String row1 = "before,[line1\nline2\nline3],after\n";
         byte[] buf = bytes(row1 + "next\n");
 
@@ -68,7 +70,7 @@ public class CsvRecordSplitterTests extends ESTestCase {
     }
 
     public void testBracketMvcFindLastHonorsOffset() throws IOException {
-        RecordSplitter splitter = splitter(CsvFormatOptions.DEFAULT);
+        RecordSplitter splitter = splitter(bracketsDefault());
         byte[] prefix = bytes("xx");
         byte[] payload = bytes("a,[v1\nv2],b\nrow2,plain,c\n");
         byte[] buf = new byte[prefix.length + payload.length];
@@ -76,6 +78,22 @@ public class CsvRecordSplitterTests extends ESTestCase {
         System.arraycopy(payload, 0, buf, prefix.length, payload.length);
 
         assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, prefix.length, payload.length));
+    }
+
+    private static CsvFormatOptions bracketsDefault() {
+        return new CsvFormatOptions(
+            ',',
+            '"',
+            '\\',
+            "//",
+            "",
+            StandardCharsets.UTF_8,
+            null,
+            CsvFormatOptions.DEFAULT_MAX_FIELD_SIZE,
+            CsvFormatOptions.MultiValueSyntax.BRACKETS,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX
+        );
     }
 
     public void testMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
@@ -122,7 +140,14 @@ public class CsvRecordSplitterTests extends ESTestCase {
 
             int parserRecords = 0;
             try (BufferedReader br = new BufferedReader(new StringReader(data))) {
-                while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), delim, bracketAware) != null) {
+                CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                    br,
+                    options.quoteChar(),
+                    delim,
+                    SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                    options.encoding()
+                );
+                while (recordReader.readRecord(bracketAware) != null) {
                     parserRecords++;
                 }
             }
@@ -136,6 +161,36 @@ public class CsvRecordSplitterTests extends ESTestCase {
             assertEquals("record count mismatch (tsv=" + tsv + ") for data:\n" + data, parserRecords, scannerRecords);
             assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
         }
+    }
+
+    public void testLoneCrBoundaryCountAgreesWithReadCsvRecord() throws IOException {
+        CsvFormatOptions options = CsvFormatOptions.DEFAULT;
+        RecordSplitter splitter = splitter(options);
+        String data = "a,b\rc,d\r\"e\rf\",g\r";
+        byte[] buf = bytes(data);
+
+        int parserRecords = 0;
+        try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+            CsvLogicalRecordReader recordReader = new CsvLogicalRecordReader(
+                br,
+                options.quoteChar(),
+                options.delimiter(),
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                options.encoding()
+            );
+            while (recordReader.readRecord(false) != null) {
+                parserRecords++;
+            }
+        }
+
+        int scannerRecords = 0;
+        BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
+        while (splitter.findNextRecordBoundary(in) >= 0) {
+            scannerRecords++;
+        }
+
+        assertEquals(parserRecords, scannerRecords);
+        assertEquals(buf.length - 1, splitter.findLastRecordBoundary(buf, buf.length));
     }
 
     private static RecordSplitter splitter(CsvFormatOptions options) {

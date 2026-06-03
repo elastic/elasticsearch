@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -106,14 +108,19 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
 
     public void testParseArrayOfValues() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        assumeTrue(
+            "binary doc values for keyword fields requires extended doc values feature flag",
+            FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()
+        );
         DocumentMapper mapper = createMapperService(
             columnarSettings(),
             mapping(b -> b.startObject("tags").field("type", "keyword").endObject())
         ).documentMapper();
 
         ParsedDocument doc = mapper.parse(source(b -> b.array("tags", "a", "b", "c")));
-        // keyword field should index each element
-        assertEquals(3, doc.rootDoc().getFields("tags").size());
+        var tagsField = (MultiValuedBinaryDocValuesField.SeparateCount) doc.rootDoc().getByKey("tags");
+        assertNotNull(tagsField);
+        assertThat(tagsField.values, contains(new BytesRef("a"), new BytesRef("b"), new BytesRef("c")));
     }
 
     public void testParseArrayOfObjects() throws IOException {
@@ -136,7 +143,9 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
                     .endArray()
             )
         );
-        assertEquals(2, doc.rootDoc().getFields("host.name").size());
+        var hostNameField = (MultiValuedBinaryDocValuesField.SeparateCount) doc.rootDoc().getByKey("host.name");
+        assertNotNull(hostNameField);
+        assertThat(hostNameField.values, contains(new BytesRef("a"), new BytesRef("b")));
     }
 
     // -----------------------------------------------------------------------
@@ -297,7 +306,7 @@ public class FlatDocumentParserTests extends MapperServiceTestCase {
         // binary fields have no doc values by default, so they use fallback synthetic source
         MapperService mapperService = createMapperService(
             columnarSettings(),
-            mapping(b -> b.startObject("data").field("type", "binary").endObject())
+            mapping(b -> b.startObject("data").field("type", "completion").field("analyzer", "default").endObject())
         );
         assertThat(mapperService.documentParser(), instanceOf(DefaultDocumentParser.class));
     }

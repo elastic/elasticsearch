@@ -617,6 +617,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // TODO: can we even have concurrent updates here?
         synchronized (this) {
             Mapping mapping = mergeBuilders(incomingBuilder, reason);
+            if (indexMode.isStrictColumnar() && documentParser instanceof DefaultDocumentParser) {
+                this.documentParser = selectDocumentParser(mapping);
+            }
             DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
             this.mapper = newMapper;
             assert assertSerialization(newMapper, reason);

@@ -941,17 +941,19 @@ public class SharedBlobCacheWarmingService {
                     logger.warn(() -> format("failed to prefetch region 0 of %s for %s", blobFile, shardId), e);
                     l.onResponse(null);
                 });
-                scheduleExecutor.execute(() -> warmBlobByteRangeOnDirectory(
-                    Type.INDEXING,
-                    shardId,
-                    directory,
-                    blobFile,
-                    region0,
-                    blobLength,
-                    () -> false,
-                    "bcc_region0_prefetch",
-                    perBlobListener
-                ));
+                scheduleExecutor.execute(
+                    () -> warmBlobByteRangeOnDirectory(
+                        Type.INDEXING,
+                        shardId,
+                        directory,
+                        blobFile,
+                        region0,
+                        blobLength,
+                        () -> false,
+                        "bcc_region0_prefetch",
+                        perBlobListener
+                    )
+                );
             }
         }
     }
@@ -994,17 +996,7 @@ public class SharedBlobCacheWarmingService {
         ActionListener<Void> listener
     ) {
         final var warmingRun = new WarmingRun(type, shardId, logIdentifier, Map.of("prewarming_type", type.name()));
-        try (
-            var warmer = new BlobByteRangeWarmer(
-                warmingRun,
-                blobFile,
-                byteRangeToWarm,
-                blobLength,
-                isCancelled,
-                directory,
-                listener
-            )
-        ) {
+        try (var warmer = new BlobByteRangeWarmer(warmingRun, blobFile, byteRangeToWarm, blobLength, isCancelled, directory, listener)) {
             warmer.run();
         }
     }

@@ -66,6 +66,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -73,7 +74,6 @@ import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StaleCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -1321,13 +1321,15 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
                 maxOffsetPerBlob,
                 skipBlob,
                 bccHeaderReadExecutor,
-                listener.delegateFailureAndWrap((l, ignored) -> readReferencedCompoundCommitHeaders(
-                    referencedFilesByBlob,
-                    bccHeaderReadExecutor,
-                    getCompoundCommitsIteratorForBlobFile,
-                    referencedCCsConsumer,
-                    l
-                ))
+                listener.delegateFailureAndWrap(
+                    (l, ignored) -> readReferencedCompoundCommitHeaders(
+                        referencedFilesByBlob,
+                        bccHeaderReadExecutor,
+                        getCompoundCommitsIteratorForBlobFile,
+                        referencedCCsConsumer,
+                        l
+                    )
+                )
             );
         }
     }

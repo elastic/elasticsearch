@@ -179,6 +179,6 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
     }
 
     public boolean hasCredentials() {
-        return serviceAccountCredentials() != null || Strings.hasText(accessToken());
+        return Strings.hasText(serviceAccountCredentials()) || Strings.hasText(accessToken());
     }
 }

@@ -150,7 +150,7 @@ public final class GcsStorageProvider implements StorageProvider {
      * carry its own credentials.
      */
     static Credentials credentials(GcsConfiguration config) throws IOException {
-        if (config != null && config.serviceAccountCredentials() != null) {
+        if (config != null && Strings.hasText(config.serviceAccountCredentials())) {
             ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
                 new ByteArrayInputStream(config.serviceAccountCredentials().getBytes(StandardCharsets.UTF_8))
             );

@@ -116,6 +116,13 @@ public class AzureConfigurationTests extends ESTestCase {
         assertFalse(config.hasCredentials());
     }
 
+    public void testHasCredentialsWithWhitespaceSasTokenIsAbsent() {
+        // A whitespace-only SAS token is treated as absent (consistent with S3/GCS short-lived tokens),
+        // so it does not count as credentials.
+        AzureConfiguration config = AzureConfiguration.fromFields(null, "account", null, "   ", null);
+        assertFalse(config.hasCredentials());
+    }
+
     public void testEqualsAndHashCodeSameValues() {
         AzureConfiguration config1 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");
         AzureConfiguration config2 = AzureConfiguration.fromFields("cs", "acc", "key", "sas", "ep");

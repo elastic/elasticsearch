@@ -177,4 +177,13 @@ public class GcsStorageProviderTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
         assertTrue(e.getMessage().contains("GCS data source requires credentials"));
     }
+
+    public void testWhitespaceServiceAccountTreatedAsAbsent() {
+        // A whitespace-only service-account credentials blob is treated as absent (consistent with the
+        // access_token path) rather than handed to ServiceAccountCredentials.fromStream as garbage JSON.
+        GcsConfiguration config = GcsConfiguration.fromMap(Map.of("credentials", "   ", "project_id", "my-project"));
+        assertFalse(config.hasCredentials());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GcsStorageProvider.credentials(config));
+        assertTrue(e.getMessage().contains("GCS data source requires credentials"));
+    }
 }

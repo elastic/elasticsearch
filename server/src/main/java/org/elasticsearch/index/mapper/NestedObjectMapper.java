@@ -409,7 +409,14 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(
+        SourceFilter filter,
+        Collection<Mapper> mappers,
+        boolean isFragment,
+        boolean columnarStored
+    ) {
+        assert columnarStored == false : "nested fields are not supported in columnar mode";
+
         // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects that enabled store_array_source.
         if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
             // IgnoredSourceFieldMapper integration takes care of writing the source for the nested object.
@@ -418,7 +425,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
         SourceLoader sourceLoader = new SourceLoader.Synthetic(
             filter,
-            () -> super.syntheticFieldLoader(filter, mappers, true),
+            () -> super.syntheticFieldLoader(filter, mappers, true, columnarStored),
             NOOP,
             IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings)
         );

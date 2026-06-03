@@ -242,6 +242,30 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertThat(TermVectorsService.getValues(doc.rootDoc().getFields("field")), contains("1234"));
     }
 
+    public void testDefaultsColumnarMode() throws Exception {
+        assumeTrue("feature under test must be present", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        XContentBuilder mapping = fieldMapping(this::minimalMapping);
+        DocumentMapper mapper = createColumnarModeDocumentMapper(mapping);
+        assertEquals(Strings.toString(mapping), mapper.mappingSource().toString());
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+
+        IndexableField field = fields.get(0);
+
+        assertEquals(new BytesRef("1234"), field.binaryValue());
+        IndexableFieldType fieldType = field.fieldType();
+        assertThat(fieldType.omitNorms(), equalTo(true));
+        assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
+        assertFalse(fieldType.stored());
+        assertThat(fieldType.storeTermVectors(), equalTo(false));
+        assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
+        assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
+        assertEquals(DocValuesType.BINARY, fieldType.docValuesType());
+    }
+
     public void testHighCardinalityFieldType() throws Exception {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
 
@@ -1533,7 +1557,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().indexType().hasTerms());
-        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {
@@ -1713,6 +1737,27 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // Binary values have no text representation; the keyword field must be skipped without NPE.
         ParsedDocument doc = mapper.parse(source);
         assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testHighCardinalityRejectedForIndexSortField() {
+        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .build();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.startObject("doc_values").field("cardinality", "high").endObject();
+            b.endObject();
+        })));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "field [host.name] cannot use [cardinality: high] because it is configured as an"
+                    + " index sort field, which requires sortable doc values"
+            )
+        );
     }
 
     public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {

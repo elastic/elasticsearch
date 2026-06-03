@@ -20,7 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
@@ -242,7 +242,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
             awaitPutConnectorSyncJob(syncJobRequest);
         }
 
-        BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+        BulkByPaginatedSearchResponse response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
         // 5 jobs should be deleted
         assertEquals(numJobs, response.getDeleted());
 
@@ -252,7 +252,7 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testDeleteAllSyncJobsByConnectorId_NonExistentConnector() throws Exception {
-        BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId("non-existent-connector");
+        BulkByPaginatedSearchResponse response = awaitDeleteAllSyncJobsByConnectorId("non-existent-connector");
         // 0 jobs should be deleted
         assertEquals(0, response.getDeleted());
     }
@@ -1347,13 +1347,13 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         return resp.get();
     }
 
-    private BulkByScrollResponse awaitDeleteAllSyncJobsByConnectorId(String connectorSyncJobId) throws Exception {
+    private BulkByPaginatedSearchResponse awaitDeleteAllSyncJobsByConnectorId(String connectorSyncJobId) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<BulkByScrollResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<BulkByPaginatedSearchResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         connectorSyncJobIndexService.deleteAllSyncJobsByConnectorId(connectorSyncJobId, new ActionListener<>() {
             @Override
-            public void onResponse(BulkByScrollResponse deleteResponse) {
+            public void onResponse(BulkByPaginatedSearchResponse deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }

@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
@@ -147,5 +149,27 @@ public final class PushdownPredicates {
             && isVirtualColumn(ne) == false
             && typeSupported.test(ne.dataType())
             && sw.prefix().foldable();
+    }
+
+    /**
+     * Checks if an EndsWith expression can be pushed down: field is a single-value
+     * named expression with a supported data type, and the suffix is foldable.
+     */
+    public static boolean isEndsWith(EndsWith ew, Predicate<DataType> typeSupported) {
+        return ew.singleValueField() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && ew.suffix().foldable();
+    }
+
+    /**
+     * Checks if a Contains expression can be pushed down: field is a single-value
+     * named expression with a supported data type, and the substring is foldable.
+     */
+    public static boolean isContains(Contains c, Predicate<DataType> typeSupported) {
+        return c.singleValueField() instanceof NamedExpression ne
+            && isVirtualColumn(ne) == false
+            && typeSupported.test(ne.dataType())
+            && c.substr().foldable();
     }
 }

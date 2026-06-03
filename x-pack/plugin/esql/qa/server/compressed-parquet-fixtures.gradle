@@ -43,6 +43,7 @@ compressedCodecs.each { entry ->
       inputs.file(csvInput)
       outputs.file(parquetFile)
       systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+      systemProperty 'slf4j.internal.verbosity', 'WARN'
     }
     parquetTasks.add(tasks.named(taskName))
   }
@@ -70,6 +71,7 @@ compressedMultifileCodecs.each { entry ->
     inputs.file(multifileSplitCsv)
     outputs.dir(codecMultifileDir)
     systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    systemProperty 'slf4j.internal.verbosity', 'WARN'
   }
   parquetTasks.add(tasks.named(taskName))
 }

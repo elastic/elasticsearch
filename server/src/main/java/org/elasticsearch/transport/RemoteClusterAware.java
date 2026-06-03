@@ -142,6 +142,9 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
      * remote1, remote2, remote3, and this index expression is provided: blogs,rem*:blogs,-rem*1:*. That would successfully
      * remove remote1 from the list of clusters to be included.
      *
+     * This method also supports excluding indices on remote clusters by using {@code -cluster:index} as an alternative
+     * form of {@code cluster:-index}. For example, {@code -remote:foo*} is equivalent to {@code remote:-foo*}.
+     *
      * @param remoteClusterNames the remote cluster names. If a clusterAlias is preceded by a minus sign that cluster will be excluded.
      * @param requestIndices the indices in the search request to filter
      *
@@ -169,39 +172,51 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                 );
                 if (isNegative) {
                     Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
-                    indexName = indexAndSelector.v1();
+                    String indexPart = indexAndSelector.v1();
                     String selectorString = indexAndSelector.v2();
-                    if (indexName.equals("*") == false) {
-                        throw new IllegalArgumentException(
-                            Strings.format(
-                                "To exclude a cluster you must specify the '*' wildcard for the index expression, but found: [%s]",
-                                indexName
-                            )
-                        );
-                    }
-                    if (selectorString != null) {
-                        throw new IllegalArgumentException(
-                            Strings.format("To exclude a cluster you must not specify a selector, but found selector: [%s]", selectorString)
-                        );
-                    }
                     hasExclusions = true;
-                    List<String> excludeFailed = new ArrayList<>();
-                    for (String cluster : clusters) {
-                        perClusterIndices.remove(cluster);
-                        if (everIncluded.contains(cluster) == false) {
-                            excludeFailed.add(cluster);
+                    if (indexPart.equals("*")) {
+                        if (selectorString != null) {
+                            throw new IllegalArgumentException(
+                                Strings.format(
+                                    "To exclude a cluster you must not specify a selector, but found selector: [%s]",
+                                    selectorString
+                                )
+                            );
                         }
-                    }
-                    if (excludeFailed.isEmpty() == false) {
+                        List<String> excludeFailed = new ArrayList<>();
+                        for (String cluster : clusters) {
+                            perClusterIndices.remove(cluster);
+                            if (everIncluded.contains(cluster) == false) {
+                                excludeFailed.add(cluster);
+                            }
+                        }
+                        if (excludeFailed.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                Strings.format(
+                                    "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included"
+                                        + " (note: the \"include\" expression must precede the \"exclude\" expression)",
+                                    excludeFailed.size() == 1 ? "" : "s",
+                                    excludeFailed,
+                                    excludeFailed.size() == 1 ? "it is" : "they are"
+                                )
+                            );
+                        }
+                    } else if (indexPart.startsWith("-")) {
                         throw new IllegalArgumentException(
                             Strings.format(
-                                "Attempt to exclude cluster%s %s failed as %s not included in the list of clusters to be included"
-                                    + " (note: the \"include\" expression must precede the \"exclude\" expression)",
-                                excludeFailed.size() == 1 ? "" : "s",
-                                excludeFailed,
-                                excludeFailed.size() == 1 ? "it is" : "they are"
+                                "cannot apply exclusion for both the cluster and the index expression, but found: [%s]",
+                                remoteClusterName + ":" + indexPart
                             )
                         );
+                    } else {
+                        // an index exclusion like -remote:logs is syntactic sugar for including the cluster but excluding the index,
+                        // so we need to add the cluster to the list of included clusters
+                        assert indexName.startsWith("-") == false : "index name should not start with - but was [" + indexName + "]";
+                        everIncluded.addAll(clusters);
+                        for (String clusterName : clusters) {
+                            perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add("-" + indexName);
+                        }
                     }
                 } else {
                     everIncluded.addAll(clusters);

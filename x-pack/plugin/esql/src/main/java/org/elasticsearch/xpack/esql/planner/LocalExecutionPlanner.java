@@ -71,6 +71,8 @@ import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
 import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
+import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -111,12 +113,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
@@ -176,6 +180,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNByExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.TsInfoExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -231,7 +236,7 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final UserAgentParserRegistry userAgentParserRegistry;
-    private final PhysicalOperationProviders physicalOperationProviders;
+    private final AbstractPhysicalOperationProviders physicalOperationProviders;
     private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     public LocalExecutionPlanner(
@@ -248,7 +253,7 @@ public class LocalExecutionPlanner {
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
         UserAgentParserRegistry userAgentParserRegistry,
-        PhysicalOperationProviders physicalOperationProviders,
+        AbstractPhysicalOperationProviders physicalOperationProviders,
         OperatorFactoryRegistry operatorFactoryRegistry
     ) {
 
@@ -700,6 +705,18 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNExec.estimatedRowSize();
         PhysicalOperation source = plan(topNExec.child(), context);
+        // Specialisation: a single-key sort over an ExternalSourceExec narrowed by
+        // InsertExternalFieldExtraction to {@code [sortKey, _rowPosition]} can run on the
+        // primitive {@link NumericTopNOperator} instead of the generic byte-encoding one. We
+        // make the decision here — rather than as a separate plan node + optimizer rule — because
+        // the choice is purely an implementation detail (same TopN semantics, different operator)
+        // and every input we need is already on hand at translation time. If the predicate
+        // doesn't match we fall through to the generic factory below; the rule predicate and the
+        // generic fallback share the same plan node.
+        NumericTopNOperator.NumericTopNOperatorFactory numericFactory = tryBuildNumericTopN(topNExec, source, context);
+        if (numericFactory != null) {
+            return source.with(numericFactory, source.layout);
+        }
         var common = topNCommon(rowSize, topNExec.order(), topNExec.limit(), topNExec.docValuesAttributes(), source, context);
         return source.with(
             new TopNOperatorFactory(
@@ -714,6 +731,181 @@ public class LocalExecutionPlanner {
             ),
             source.layout
         );
+    }
+
+    /**
+     * Decide whether the {@code TopNExec} qualifies for the specialised {@link NumericTopNOperator}
+     * and, if so, return its factory; otherwise {@code null} and the caller falls back to the
+     * generic operator. The predicate is intentionally narrow — every check has a documented
+     * reason — so any plan that fails to qualify gets the functionally-correct generic path.
+     *
+     * <p>Preconditions, all checked here:
+     * <ul>
+     *     <li>Exactly one sort {@link Order} (Tier 1 is single-key).</li>
+     *     <li>The sort attribute is a plain {@link Attribute} (no expressions over the field) of
+     *         a fixed-width numeric type — currently LONG, INTEGER, DOUBLE, BOOLEAN, DATETIME, or
+     *         DATE_NANOS. FLOAT, UNSIGNED_LONG, HALF_FLOAT, and SCALED_FLOAT are deferred to a
+     *         follow-up PR; they need a tiny encoding addition but no operator surface change.</li>
+     *     <li>The limit is a literal foldable to a positive {@code int}. Non-literal limits go
+     *         to the generic operator (the bytes-encoding path doesn't need a literal).</li>
+     *     <li>The {@code TopNExec} sits directly above (or via a {@link UnaryExec} spine ending
+     *         in) an {@link ExternalSourceExec}.</li>
+     *     <li>The source's narrowed output is exactly {@code [sortKey, _rowPosition]} — two
+     *         channels, sort key at channel 0, synthetic row-position column at channel 1.
+     *         {@code InsertExternalFieldExtraction} produces this shape; any extra eager column
+     *         (pushed-filter input, virtual {@code _file.*}) leaves more than two channels and
+     *         disqualifies the substitution because the specialised operator's 2-channel layout
+     *         cannot pass extra columns through.</li>
+     *     <li>The source carries no {@code pushedTopN} hint. If
+     *         {@code PushTopNIntoExternalSource} already annotated the source, the BlockHash will
+     *         prune during aggregation and the generic TopN above must remain as the safety net
+     *         (replacing it would double-count the budget).</li>
+     *     <li>If the source operator factory is an {@link AsyncExternalSourceOperatorFactory},
+     *         the planner shares the live threshold with external format readers.</li>
+     * </ul>
+     *
+     * <p>No plan-time multi-value exclude: the operator supports multi-valued sort keys natively
+     * via {@code NumericSortKeyExtractor} (MV-min for ASC, MV-max for DESC, empty MV slot treated
+     * as null). This matches the generic {@code TopNOperator}'s behaviour through its
+     * {@code KeyExtractorForX} family, so the substitution is semantics-preserving on MV input.
+     */
+    private NumericTopNOperator.NumericTopNOperatorFactory tryBuildNumericTopN(
+        TopNExec topNExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
+        List<Order> orders = topNExec.order();
+        if (orders.size() != 1) {
+            return null;
+        }
+        Order sortOrder = orders.get(0);
+        Attribute sortAttribute = Expressions.attribute(sortOrder.child());
+        if (sortAttribute == null) {
+            return null;
+        }
+        if (isNumericTopNSupportedSortType(sortAttribute.dataType()) == false) {
+            return null;
+        }
+        // Two guards, working at different layers. The first one (the layout check) is the real
+        // gate on what {@link NumericTopNOperator#addInput} actually sees: if any intervening
+        // {@link UnaryExec} on the spine — pushed filter, residual evaluator, future plan-node
+        // insertion — adds a column, it shows up in {@code source.layout} and disqualifies the
+        // rewrite. The second one (the source-output check below) is a belt-and-braces guard
+        // against an ExternalSourceExec that was never narrowed in the first place (e.g. the
+        // rule didn't run, or kept extras). Together they reject everything that isn't the exact
+        // narrowed shape the operator expects: [sortKey, _rowPosition] with sortKey at channel 0.
+        if (source.layout.numberOfChannels() != 2) {
+            return null;
+        }
+        Layout.ChannelAndType sortEntry = source.layout.get(sortAttribute.id());
+        if (sortEntry == null || sortEntry.channel() != NumericTopNOperator.SORT_KEY_CHANNEL) {
+            return null;
+        }
+        // Walk down the UnaryExec spine to confirm we're sitting over a narrowed ExternalSourceExec
+        // and to inspect its pushedTopN hint. Same traversal {@code InsertExternalFieldExtraction}
+        // uses (inlined here to keep the planner from depending on an optimizer-rule class).
+        ExternalSourceExec externalSource = findExternalSourceBelow(topNExec.child());
+        if (externalSource == null) {
+            return null;
+        }
+        List<Attribute> sourceOutput = externalSource.output();
+        if (sourceOutput.size() != 2) {
+            return null;
+        }
+        if (ColumnExtractor.ROW_POSITION_COLUMN.equals(sourceOutput.get(1).name()) == false) {
+            return null;
+        }
+        if (externalSource.pushedTopN() != null) {
+            return null;
+        }
+        // Limit must be a positive integer literal. We re-fold here (rather than carrying a
+        // rule-folded value) so the planner remains the single source of truth for the literal's
+        // primitive form.
+        Expression limitExpr = topNExec.limit();
+        if (limitExpr.foldable() == false) {
+            return null;
+        }
+        Object folded = limitExpr.fold(context.foldCtx());
+        Integer limit = numericTopNFoldedLimit(folded);
+        if (limit == null || limit <= 0) {
+            return null;
+        }
+        ElementType keyElementType = PlannerUtils.toElementType(sortAttribute.dataType());
+        boolean asc = sortOrder.direction() == Order.OrderDirection.ASC;
+        boolean nullsFirst = sortOrder.nullsPosition() == Order.NullsPosition.FIRST;
+        SharedNumericThreshold.Supplier thresholdSupplier = null;
+        if (source.sourceOperatorFactory instanceof AsyncExternalSourceOperatorFactory externalSourceFactory) {
+            thresholdSupplier = new SharedNumericThreshold.Supplier(asc, nullsFirst);
+            externalSourceFactory.setNumericThresholdSupplier(thresholdSupplier, sortAttribute.name(), keyElementType, asc, nullsFirst);
+        }
+        return new NumericTopNOperator.NumericTopNOperatorFactory(limit, keyElementType, asc, nullsFirst, thresholdSupplier);
+    }
+
+    /**
+     * Sort-key element types the specialised {@link NumericTopNOperator} can rank. Mirrors the
+     * operator's own {@code assertSupportedType} — DATETIME and DATE_NANOS collapse to
+     * {@link ElementType#LONG} at planning time (see {@link PlannerUtils#toElementType}), so they
+     * go through the LONG path. Keeping the predicate here rather than on the operator lets the
+     * planner cleanly skip the optimisation without instantiating the factory.
+     *
+     * <p>Deliberately excluded:
+     * <ul>
+     *     <li>{@code UNSIGNED_LONG}: maps to {@link ElementType#LONG} but the operator's
+     *         {@code ~raw} encoding does not preserve unsigned ordering. Supporting it needs a
+     *         different encoding ({@code raw ^ Long.MIN_VALUE}, sign-bit flip) and is parked for
+     *         a follow-up.</li>
+     *     <li>{@code FLOAT}, {@code HALF_FLOAT}, {@code SCALED_FLOAT}: ESQL widens these to
+     *         {@link DataType#DOUBLE} at load time, so a sort attribute with one of these data
+     *         types never reaches this predicate in practice — {@link PlannerUtils#toElementType}
+     *         throws on them outright. Listing them here as "rejected" would be misleading; the
+     *         load-time widening already routes them through the DOUBLE branch.</li>
+     * </ul>
+     */
+    private static boolean isNumericTopNSupportedSortType(DataType dataType) {
+        return dataType == DataType.LONG
+            || dataType == DataType.INTEGER
+            || dataType == DataType.DOUBLE
+            || dataType == DataType.BOOLEAN
+            || dataType == DataType.DATETIME
+            || dataType == DataType.DATE_NANOS;
+    }
+
+    /**
+     * Folds a TopN limit expression to a positive {@link Integer}, returning {@code null} when
+     * the limit is non-integral, negative, or out of {@code int} range.
+     */
+    private static Integer numericTopNFoldedLimit(Object folded) {
+        if (folded instanceof Integer i) {
+            return i;
+        }
+        if (folded instanceof Number n) {
+            long l = n.longValue();
+            if (l < 0 || l > Integer.MAX_VALUE) {
+                return null;
+            }
+            return (int) l;
+        }
+        return null;
+    }
+
+    /**
+     * Walk down a {@link UnaryExec} spine looking for an {@link ExternalSourceExec}; returns
+     * {@code null} when the spine ends in any other leaf. Mirrors the traversal used by
+     * {@code InsertExternalFieldExtraction#findExternalSource} (inlined here so the planner does
+     * not depend on an optimizer-rule class).
+     */
+    private static ExternalSourceExec findExternalSourceBelow(PhysicalPlan start) {
+        PhysicalPlan p = start;
+        while (true) {
+            if (p instanceof ExternalSourceExec es) {
+                return es;
+            }
+            if (p instanceof UnaryExec u) {
+                p = u.child();
+                continue;
+            }
+            return null;
+        }
     }
 
     private PhysicalOperation planTopNBy(TopNByExec topNByExec, LocalExecutionPlannerContext context) {
@@ -1463,12 +1655,15 @@ public class LocalExecutionPlanner {
         int instanceCount = 1;
 
         /*
-         * Data nodes don't have a resolved FileList (it isn't serialized), so they must rely on explicit splits.
-         * If we received a single coalesced split, we still need to route execution through the slice queue so
-         * the operator can expand it into its leaf FileSplits. Otherwise we'd fall back to opening the original
-         * (potentially globbed) source path as a single object.
+         * Whenever explicit splits are assigned to this instance, route execution through the slice queue so
+         * the operator reads exactly those splits (expanding a single coalesced split into its leaf
+         * FileSplits). This must hold even when a resolved FileList is also present — the coordinator keeps
+         * one, but a data node does not (it isn't serialized). Falling through to the resolved-FileList
+         * multi-file read when splits are assigned would re-read the entire glob behind the assigned splits,
+         * double-counting the rows the slice-queue instances also read. The multi-file read path is therefore
+         * only for the no-splits case, where this instance owns the whole resolved FileList.
          */
-        boolean useSliceQueue = splitCount > 0 && (splitCount > 1 || fileList == null || fileList.isResolved() == false);
+        boolean useSliceQueue = splitCount > 0;
         if (useSliceQueue) {
             sliceQueue = new ExternalSliceQueue(externalSource.splits());
         }
@@ -1518,6 +1713,8 @@ public class LocalExecutionPlanner {
             .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
+            .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .build();
 

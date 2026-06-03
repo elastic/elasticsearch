@@ -364,43 +364,37 @@ public class Analysis {
     }
 
     public static Reader getReaderFromIndex(
-        String synonymsSet,
+        Set<String> synonymsSets,
         SynonymsManagementAPIService synonymsManagementAPIService,
         boolean ignoreMissing
     ) {
-        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
+        PlainActionFuture<PagedResult<SynonymRule>> future = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSets, ignoreMissing, future);
 
-        PagedResult<SynonymRule> results;
-
+        PagedResult<SynonymRule> result;
         try {
-            results = synonymsLoadingFuture.actionGet();
+            result = future.actionGet();
         } catch (Exception e) {
             if (ignoreMissing == false) {
                 throw e;
             }
-
             boolean notFound = e instanceof ResourceNotFoundException;
-            String message = String.format(
-                Locale.ROOT,
-                "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
-                synonymsSet,
+            String message = Strings.format(
+                "Synonyms sets %s %s. Synonyms will not be applied to search results on indices that use this synonym filter",
+                synonymsSets,
                 notFound ? "not found" : "could not be loaded"
             );
-
             if (notFound) {
                 logger.warn(message);
             } else {
                 logger.error(message, e);
             }
-
-            results = new PagedResult<>(0, new SynonymRule[0]);
+            result = new PagedResult<>(0, new SynonymRule[0]);
         }
 
-        SynonymRule[] synonymRules = results.pageResults();
         StringBuilder sb = new StringBuilder();
-        for (SynonymRule synonymRule : synonymRules) {
-            sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+        for (SynonymRule rule : result.pageResults()) {
+            sb.append(rule.synonyms()).append(System.lineSeparator());
         }
         return new StringReader(sb.toString());
     }

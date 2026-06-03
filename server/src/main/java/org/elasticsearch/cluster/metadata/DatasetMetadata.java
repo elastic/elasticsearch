@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -36,6 +37,16 @@ import java.util.Objects;
  * Datasets participate in the index namespace (via {@link IndexAbstraction.Type#DATASET}).
  */
 public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
+
+    /**
+     * Gates the ES|QL external data sources + datasets feature end-to-end. Lives on this server-resident
+     * custom so {@code server} and {@code x-pack} consumers share one source of truth (the data-source
+     * types live in x-pack). System property: {@code es.esql_external_datasources_feature_flag_enabled}.
+     */
+    public static final FeatureFlag ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG = new FeatureFlag("esql_external_datasources");
+
+    /** Shared transport version for {@code DataSourceMetadata} and {@link DatasetMetadata} — introduced and evolved together. */
+    public static final TransportVersion ESQL_DATASOURCES = TransportVersion.fromName("esql_datasources");
 
     public static final String TYPE = "esql_dataset";
     public static final List<NamedWriteableRegistry.Entry> ENTRIES = List.of(
@@ -100,7 +111,7 @@ public final class DatasetMetadata extends AbstractNamedDiffable<Metadata.Projec
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         // Shared with DataSourceMetadata — both metadata containers ship together
-        return DataSourceMetadata.ESQL_DATASOURCES;
+        return ESQL_DATASOURCES;
     }
 
     @Override

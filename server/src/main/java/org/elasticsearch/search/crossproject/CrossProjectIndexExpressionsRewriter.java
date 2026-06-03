@@ -12,7 +12,6 @@ package org.elasticsearch.search.crossproject;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
@@ -168,8 +167,6 @@ public class CrossProjectIndexExpressionsRewriter {
         final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
         final Set<String> includedProjects = new LinkedHashSet<>();
         final Set<String> excludedProjects = new LinkedHashSet<>();
-        // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
-        // We could consider supporting it all the way through, see also ES-13767
         for (String project : allProjectsMatchingAlias) {
             if (project.equals(originProjectAlias)) {
                 localExpression = isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression;
@@ -239,23 +236,6 @@ public class CrossProjectIndexExpressionsRewriter {
     static boolean isExclusionExpression(String expression) {
         assert expression != null && expression.isEmpty() == false : "expression must be a non-empty string";
         return expression.charAt(0) == EXCLUSION_PREFIX;
-    }
-
-    /**
-     * Returns {@code true} if {@code pattern} fully excludes the origin project via a project-wildcard exclusion of the shape
-     * {@code -<alias>:*}, where {@code <alias>} is either the special {@code _origin} alias or a {@link Regex#simpleMatch simple-match}
-     * against {@code originProjectAlias}.
-     */
-    public static boolean isOriginProjectWildcardExclusion(String pattern, String originProjectAlias) {
-        assert originProjectAlias != null : "originProjectAlias must not be null";
-        if (pattern.isEmpty() || pattern.charAt(0) != EXCLUSION_PREFIX) {
-            return false;
-        }
-        var split = RemoteClusterAware.splitIndexName(pattern.substring(1));
-        if (split.clusterAlias() == null || "*".equals(split.indexExpression()) == false) {
-            return false;
-        }
-        return ProjectRoutingResolver.ORIGIN.equals(split.clusterAlias()) || Regex.simpleMatch(split.clusterAlias(), originProjectAlias);
     }
 
     public record IndexRewriteResult(

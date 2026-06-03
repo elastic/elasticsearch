@@ -195,7 +195,7 @@ public class ParquetReaderFilterDifferentialTests extends ESTestCase {
     }
 
     public void testStartsWithKeyword() throws IOException {
-        // StartsWith pushes as RECHECK + translates to a prefix-range FilterPredicate.
+        // StartsWith pushes as YES + translates to a prefix-range FilterPredicate.
         // The reader must produce identical rows whether the row group is fully matched
         // (all URLs share the prefix) or partially.
         runDifferential(startsWith(URL, "https://google"));

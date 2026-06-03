@@ -26,7 +26,6 @@ import static org.elasticsearch.simdvec.internal.Similarities.dotProductDBF16QF3
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductDBF16QF32BulkSparse;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceDBF16QF32;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceDBF16QF32BulkSparse;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -39,9 +38,6 @@ public abstract sealed class BFloat16VectorScorer extends RandomVectorScorer.Abs
     final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         IndexInput input = values instanceof HasIndexSlice slice ? slice.getSlice() : null;
         if (input == null) {

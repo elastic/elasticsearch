@@ -15,9 +15,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.RecordSplitter;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -27,9 +30,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -93,24 +99,43 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, decompressedStream, projectedColumns, batchSize, parallelism, executor, errorPolicy, null);
+        return parallelRead(
+            reader,
+            decompressedStream,
+            null,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null
+        );
     }
 
     /**
-     * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
-     * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
-     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
-     * Pass {@code null} when no read schema is bound.
+     * Full-control overload that takes both the {@code max_record_size} grow-loop bound and an
+     * explicit consumer-owned {@code captureSink} for per-chunk source-stats contributions. Each
+     * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
+     * around the per-chunk {@link CloseableIterator#close()} so text-format readers' close hooks
+     * publish into the same map the consumer-thread wrapper sees. Pass {@code null} for the sink
+     * when no capture is desired (tests, benchmarks). When {@code storageObject} is non-null its
+     * path and mtime are stamped on every chunk so per-chunk partials and the outer finalize marker
+     * reconcile under the real file key (see {@link ParallelParsingCoordinator}).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
         InputStream decompressedStream,
+        @Nullable StorageObject storageObject,
         List<String> projectedColumns,
         int batchSize,
         int parallelism,
         Executor executor,
         ErrorPolicy errorPolicy,
-        @Nullable List<Attribute> readSchema
+        @Nullable List<Attribute> readSchema,
+        int maxRecordBytes,
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -128,6 +153,7 @@ public final class StreamingParallelParsingCoordinator {
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
+                .maxRecordBytes(maxRecordBytes)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -135,12 +161,15 @@ public final class StreamingParallelParsingCoordinator {
         return new StreamingParallelIterator(
             reader,
             decompressedStream,
+            storageObject,
             projectedColumns,
             batchSize,
             parallelism,
             executor,
             effectivePolicy,
-            readSchema
+            readSchema,
+            maxRecordBytes,
+            captureSink
         );
     }
 
@@ -165,6 +194,16 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /**
+         * Consumer-owned per-file stats sink. Captured at construction so each chunk's parser worker
+         * can bind it around {@code reader.read(...).close()} — see {@link ExternalStatsCapture} for
+         * why this can't piggyback on the thread-local in production.
+         */
+        @Nullable
+        private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
+        /** Compressed file being decompressed; {@code null} in tests that only supply a stream. */
+        @Nullable
+        private final StorageObject storageObject;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -173,7 +212,14 @@ public final class StreamingParallelParsingCoordinator {
         /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
         private final int pageQueueRingSize;
         private final int chunkSize;
+        /**
+         * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
+         * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
+         */
+        private final int maxRecordBytes;
         private final ArrayBlockingQueue<Page>[] pageQueues;
+        private volatile SegmentableFormatReader recordSplitterReader;
+        private volatile RecordSplitter recordSplitter;
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
         /**
@@ -213,18 +259,24 @@ public final class StreamingParallelParsingCoordinator {
         StreamingParallelIterator(
             SegmentableFormatReader reader,
             InputStream decompressedStream,
+            @Nullable StorageObject storageObject,
             List<String> projectedColumns,
             int batchSize,
             int parallelism,
             Executor executor,
             ErrorPolicy errorPolicy,
-            @Nullable List<Attribute> readSchema
+            @Nullable List<Attribute> readSchema,
+            int maxRecordBytes,
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
         ) {
             this.reader = reader;
+            this.storageObject = storageObject;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
             this.readSchema = readSchema;
+            this.maxRecordBytes = maxRecordBytes;
+            this.captureSink = captureSink;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -264,6 +316,34 @@ public final class StreamingParallelParsingCoordinator {
             }
         }
 
+        private RecordSplitter recordSplitter() {
+            SegmentableFormatReader currentReader = reader;
+            RecordSplitter currentSplitter = recordSplitter;
+            if (currentSplitter == null || recordSplitterReader != currentReader) {
+                currentSplitter = currentReader.recordSplitter(maxRecordBytes);
+                recordSplitterReader = currentReader;
+                recordSplitter = currentSplitter;
+            }
+            return currentSplitter;
+        }
+
+        private IOException recordTooLargeException(int scannedBytes) {
+            String hint = switch (reader.formatName()) {
+                case "csv", "tsv" -> "; possible unclosed quote or bracket cell";
+                default -> "";
+            };
+            return new IOException(
+                "record exceeded max_record_size ["
+                    + maxRecordBytes
+                    + "] after scanning ["
+                    + scannedBytes
+                    + "] bytes for format ["
+                    + reader.formatName()
+                    + "]"
+                    + hint
+            );
+        }
+
         private void runSegmentator(InputStream stream, int chunkSize) {
             byte[] carry = null;
             int carryLen = 0;
@@ -296,7 +376,10 @@ public final class StreamingParallelParsingCoordinator {
                     int totalBytes = offset + Math.max(bytesRead, 0);
                     boolean isEof = bytesRead < 0 || totalBytes < buf.length;
 
-                    int lastNewline = reader.findLastRecordBoundary(buf, totalBytes);
+                    int lastNewline = recordSplitter().findLastRecordBoundary(buf, 0, totalBytes);
+                    if (lastNewline == RecordSplitter.RECORD_TOO_LARGE) {
+                        throw recordTooLargeException(totalBytes);
+                    }
 
                     if (lastNewline < 0) {
                         if (isEof) {
@@ -390,12 +473,7 @@ public final class StreamingParallelParsingCoordinator {
          * skip per-chunk inference. Same approach as ClickHouse / DuckDB / Spark.
          */
         private void bindSchemaFromFirstChunk(byte[] buffer, int length) throws IOException {
-            ByteArrayStorageObject firstChunkObj = new ByteArrayStorageObject(
-                StoragePath.of("mem://chunk-schema-probe"),
-                buffer,
-                0,
-                length
-            );
+            ByteArrayStorageObject firstChunkObj = chunkStorageObject(0, buffer, 0, length);
             SourceMetadata metadata = reader.metadata(firstChunkObj);
             List<Attribute> schema = metadata == null ? null : metadata.schema();
             if (schema == null) {
@@ -486,12 +564,7 @@ public final class StreamingParallelParsingCoordinator {
                 }
                 int queueSlot = chunk.index % pageQueueRingSize;
                 queue = pageQueues[queueSlot];
-                ByteArrayStorageObject chunkObj = new ByteArrayStorageObject(
-                    StoragePath.of("mem://chunk-" + chunk.index),
-                    chunk.buffer,
-                    0,
-                    chunk.length
-                );
+                ByteArrayStorageObject chunkObj = chunkStorageObject(chunk.index, chunk.buffer, 0, chunk.length);
                 // - firstSplit: only chunk 0 carries the file's leading bytes (header for CSV).
                 // - lastSplit: every chunk is aligned to a record boundary by the segmentator, so
                 // line-oriented readers (NDJSON) can skip TrimLastPartialLineInputStream.
@@ -505,13 +578,24 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .maxRecordBytes(maxRecordBytes)
                     .build();
-                try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
-                    while (pages.hasNext()) {
-                        if (firstError.get() != null || closed) {
-                            break;
+                // Bind the consumer-owned sink on this worker so the reader's close hook reaches
+                // the same map the consumer-thread StatsCapturingIterator binds. The pages iterator
+                // is opened inside the bound's try-with-resources so a failing reader.read still
+                // restores the previous ThreadLocal binding — workers in this executor are reused
+                // across queries, a leaked binding would route subsequent tasks' record() calls
+                // into the prior query's sink. Inner closes first, so record() runs with the sink
+                // still bound, then the handle restores the previous binding.
+                ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+                try (bound) {
+                    try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
+                        while (pages.hasNext()) {
+                            if (firstError.get() != null || closed) {
+                                break;
+                            }
+                            putPageAndSignal(queue, pages.next());
                         }
-                        putPageAndSignal(queue, pages.next());
                     }
                 }
             } catch (Exception e) {
@@ -577,7 +661,7 @@ public final class StreamingParallelParsingCoordinator {
 
         /**
          * Like {@link #growUntilNewline} but keeps growing until the accumulated buffer contains at
-         * least one record boundary (as determined by {@link SegmentableFormatReader#findLastRecordBoundary}).
+         * least one record boundary (as determined by {@link RecordSplitter#findLastRecordBoundary}).
          * Multi-line quoted fields may contain {@code \n} bytes that are not record boundaries; this
          * method avoids splitting in the middle of such a field.
          * <p>
@@ -594,12 +678,21 @@ public final class StreamingParallelParsingCoordinator {
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] buf = existing;
             int len = existingLen;
+            // Bound the grow loop: a record past maxRecordBytes means the scanner won't find a boundary
+            // (a format/quoting mismatch), so fail rather than read the input without bound.
             while (true) {
+                if (len + growBy > maxRecordBytes) {
+                    throw recordTooLargeException(len);
+                }
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
                     return new GrowResult(grown, -1);
                 }
-                int boundary = reader.findLastRecordBoundary(grown, grown.length);
+                // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
+                int boundary = recordSplitter().findLastRecordBoundary(grown, 0, grown.length);
+                if (boundary == RecordSplitter.RECORD_TOO_LARGE) {
+                    throw recordTooLargeException(grown.length);
+                }
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);
                 }
@@ -854,11 +947,30 @@ public final class StreamingParallelParsingCoordinator {
          * interrupt could disrupt unrelated tasks. The timeout is intentionally generous (60s) to make
          * the leak window an exceptional condition; production workloads should not hit it.
          */
+        private ByteArrayStorageObject chunkStorageObject(int chunkIndex, byte[] buffer, int offset, int length) {
+            StoragePath path = storageObject != null ? storageObject.path() : StoragePath.of("mem://chunk-" + chunkIndex);
+            Instant mtime = Instant.EPOCH;
+            if (storageObject != null) {
+                try {
+                    Instant fileMtime = storageObject.lastModified();
+                    if (fileMtime != null) {
+                        mtime = fileMtime;
+                    }
+                } catch (IOException e) {
+                    // Fall back to EPOCH — chunk stats may be uncacheable without a pinned mtime.
+                }
+            }
+            return new ByteArrayStorageObject(path, buffer, offset, length, mtime);
+        }
+
         @Override
         public void close() throws IOException {
             if (closed) {
                 return;
             }
+            // Mirror ParallelParsingCoordinator: decide clean completion before flipping closed so
+            // an in-flight segmentator/parser cannot enqueue after we've observed full consumption.
+            boolean cleanCompletion = firstError.get() == null && currentChunk >= chunksDispatched.get();
             closed = true;
             // Wake any consumer parked on {@link #waitForReady()}; isReadyNow now returns true on closed.
             signalReady();
@@ -885,6 +997,36 @@ public final class StreamingParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
+            if (cleanCompletion && firstError.get() == null && captureSink != null) {
+                publishFinalizeMarker();
+            }
+        }
+
+        /**
+         * Signals the coordinator-side reconciler that the per-chunk partials shipped via
+         * {@link ExternalStatsCapture#record} cover the entire decompressed file cleanly.
+         */
+        private void publishFinalizeMarker() {
+            if (storageObject == null) {
+                return;
+            }
+            try {
+                Instant mtime = storageObject.lastModified();
+                if (mtime == null) {
+                    return;
+                }
+                Map<String, Object> marker = new HashMap<>();
+                marker.put(ExternalStats.MTIME_MILLIS_KEY, mtime.toEpochMilli());
+                marker.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+                ExternalStatsCapture.record(storageObject.path().toString(), marker);
+            } catch (IOException e) {
+                logger.debug(
+                    () -> "StreamingParallelParsingCoordinator: skipping finalize marker for ["
+                        + storageObject.path()
+                        + "] — lastModified() unavailable",
+                    e
+                );
+            }
         }
 
         private void drainAllQueues() {

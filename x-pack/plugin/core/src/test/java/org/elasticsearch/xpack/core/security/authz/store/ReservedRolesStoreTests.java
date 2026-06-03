@@ -621,6 +621,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".apm-agent-configuration",
             ".apm-custom-link",
             ".apm-source-map",
+            ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_INDEXES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.CASES_ANALYTICS_ALIASES + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_LEGACY_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -2109,12 +2110,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-cyera.datastore-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-ironscales.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.adapter-" + randomAlphaOfLength(randomIntBetween(1, 10)),
-            "logs-axonius.alert_and_incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.alert_finding-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.compute-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.exposure-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.gateway-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.identity-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-axonius.incident-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.network-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.storage-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-axonius.ticket-" + randomAlphaOfLength(randomIntBetween(1, 10)),
@@ -3989,6 +3991,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
 
+        assertOnlyReadAllowed(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+        assertViewIndexMetadata(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));
         assertNoAccessAllowed(role, "ilm-history-" + randomIntBetween(0, 5));
@@ -4072,6 +4077,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
         assertReadWriteAndManage(role, ".slo-observability." + randomIntBetween(0, 5));
+
+        assertViewIndexMetadata(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".evaluation-" + randomAlphaOfLength(randomIntBetween(0, 13)));
 
         assertNoAccessAllowed(role, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

@@ -36,8 +36,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -2434,11 +2436,11 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
 
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.groupings()), contains("extracted_first"));
         assertThat(Expressions.names(agg.aggregates()), contains("count", "extracted_first"));
         // Dissect is fully pruned since extracted_first/extracted_last are overwritten by EVAL
         var eval = as(agg.child(), Eval.class);
         assertThat(Expressions.names(eval.fields()), contains("extracted_first"));
-        // Dissect is fully pruned — next node is EsRelation, no Dissect in the tree
         as(eval.child(), EsRelation.class);
     }
 
@@ -2703,4 +2705,271 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         assertThat(Expressions.names(resultProject.projections()), contains("cpu"));
     }
 
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS d2#10]]
+     *   \_UnionAll[[_meta_field{r}#33, emp_no{r}#34, first_name{r}#35, gender{r}#36, hire_date{r}#37, job{r}#38, job.raw{r}#39,
+     *               languages{r}#40, last_name{r}#41, long_noidx{r}#42, salary{r}#43]]
+     *     |_Project[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     *                languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     *     | \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, gender{f}#24, hire_date{f}#29, job{f}#30, job.raw{f}#31,
+     *                languages{f}#25, last_name{f}#26, long_noidx{f}#32, salary{f}#27]]
+     *       \_Subquery[]
+     *         \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     */
+    public void testInlineStatsOverSubqueryUnusedOutput() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d = max(x)
+            | STATS d2 = count(*)
+            """;
+
+        var plan = planSubquery(query);
+
+        // No InlineJoin should survive: the right side reduces to StubRelation and gets pruned away.
+        assertFalse("InlineJoin should have been pruned", plan.anyMatch(p -> p instanceof InlineJoin));
+        // The EVAL that defined `x` is gone too since `d` (its only consumer) was dropped.
+        assertFalse("EVAL feeding the dropped aggregate should have been pruned", plan.anyMatch(p -> p instanceof Eval));
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("d2"));
+        var count = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
+        assertTrue("expected count(*)", count.field().foldable());
+
+        var unionAll = as(agg.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+
+        var firstChild = as(unionAll.children().get(0), Project.class);
+        var firstRelation = as(firstChild.child(), EsRelation.class);
+        assertEquals("test", firstRelation.indexPattern());
+
+        var secondChild = as(unionAll.children().get(1), Project.class);
+        var subquery = as(secondChild.child(), Subquery.class);
+        var secondRelation = as(subquery.child(), EsRelation.class);
+        assertEquals("test", secondRelation.indexPattern());
+    }
+
+    /*
+     * Project[[d{r}#8]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#33, emp_no{r}#33 AS x#5]]
+     *     | \_UnionAll[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                   languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42]]
+     *     |   |_Project[[_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18, job.raw{f}#19,
+     *                    languages{f}#13, last_name{f}#14, long_noidx{f}#20, salary{f}#15]]
+     *     |   | \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     *     |   \_Project[[_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, gender{f}#23, hire_date{f}#28, job{f}#29, job.raw{f}#30,
+     *                    languages{f}#24, last_name{f}#25, long_noidx{f}#31, salary{f}#26]]
+     *     |     \_Subquery[]
+     *     |       \_EsRelation[test][_meta_field{f}#27, emp_no{f}#21, first_name{f}#22, ..]
+     *     \_Aggregate[[],[MAX(x{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS d#8]]
+     *       \_StubRelation[[_meta_field{r}#32, emp_no{r}#33, first_name{r}#34, gender{r}#35, hire_date{r}#36, job{r}#37, job.raw{r}#38,
+     *                       languages{r}#39, last_name{r}#40, long_noidx{r}#41, salary{r}#42, x{r}#5]]
+     */
+    public void testInlineStatsOverSubqueryWithUsedOutput() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d = max(x)
+            | KEEP d
+            """;
+
+        var plan = planSubquery(query);
+
+        // d is used by KEEP so the InlineJoin must remain.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // The right side must still compute d = max(x).
+        assertTrue(
+            "Right side must compute d = max(x)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d"))
+        );
+
+        // The left side must contain the UnionAll produced by FROM test, (FROM test).
+        assertTrue("Left side must contain UnionAll", ij.left().anyMatch(p -> p instanceof UnionAll));
+    }
+
+    /*
+     * Project[[d1{r}#11]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#39, emp_no{r}#39 AS x#5]]
+     *     | \_UnionAll[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44,
+     *                   languages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48]]
+     *     |   |_Project[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
+     *                    languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21]]
+     *     |   | \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     *     |   \_Project[[_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, gender{f}#29, hire_date{f}#34, job{f}#35, job.raw{f}#36,
+     *                    languages{f}#30, last_name{f}#31, long_noidx{f}#37, salary{f}#32]]
+     *     |     \_Subquery[]
+     *     |       \_EsRelation[test][_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, ..]
+     *     \_Aggregate[[],[MAX(x{r}#5,true[BOOLEAN],PT0S[TIME_DURATION]) AS d1#11]]
+     *       \_StubRelation[[_meta_field{r}#38, emp_no{r}#39, first_name{r}#40, gender{r}#41, hire_date{r}#42, job{r}#43, job.raw{r}#44,
+     *                       languages{r}#45, last_name{r}#46, long_noidx{r}#47, salary{r}#48, x{r}#5, y{r}#8]]
+     */
+    public void testInlineStatsOverSubqueryPartialOutputPruning() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no, y = salary
+            | INLINE STATS d1 = max(x), d2 = max(y)
+            | KEEP d1
+            """;
+
+        var plan = planSubquery(query);
+
+        // d1 is kept by KEEP so the InlineJoin must still be present.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d1 is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // d1 must still be in the right-side aggregate.
+        assertTrue(
+            "d1 must remain in InlineJoin right side",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d1"))
+        );
+
+        // d2 must have been pruned — the key assertion that catches the pre-fix bug.
+        assertFalse(
+            "d2 must be pruned from InlineJoin right side (was unused)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d2"))
+        );
+
+        // y was only needed for d2, so it must also be pruned from all EVALs on the left side.
+        assertFalse(
+            "y must be pruned from all EVALs on the left side",
+            ij.left().anyMatch(p -> p instanceof Eval eval && Expressions.names(eval.fields()).contains("y"))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#16]]
+     *   \_UnionAll[[_meta_field{r}#39, emp_no{r}#40, first_name{r}#41, gender{r}#42, hire_date{r}#43, job{r}#44, job.raw{r}#45,
+     *               languages{r}#46, last_name{r}#47, long_noidx{r}#48, salary{r}#49]]
+     *     |_Project[[_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, gender{f}#19, hire_date{f}#24, job{f}#25, job.raw{f}#26,
+     *                languages{f}#20, last_name{f}#21, long_noidx{f}#27, salary{f}#22]]
+     *     | \_EsRelation[test][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
+     *     \_Project[[_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, gender{f}#30, hire_date{f}#35, job{f}#36, job.raw{f}#37,
+     *                languages{f}#31, last_name{f}#32, long_noidx{f}#38, salary{f}#33]]
+     *       \_Subquery[]
+     *         \_EsRelation[test][_meta_field{f}#34, emp_no{f}#28, first_name{f}#29, ..]
+     */
+    public void testMultipleInlineStatsOverSubqueryBothUnused() {
+        var query = """
+            FROM test, (FROM test)
+            | EVAL x = emp_no
+            | INLINE STATS d1 = max(x)
+            | EVAL z = salary
+            | INLINE STATS d2 = max(z)
+            | STATS cnt = count(*)
+            """;
+
+        var plan = planSubquery(query);
+
+        // Both d1 and d2 are unused, so both InlineJoins must be eliminated.
+        assertFalse("Both InlineJoins must be pruned", plan.anyMatch(p -> p instanceof InlineJoin));
+        // x and z were only needed to feed the pruned aggregates, so their EVALs must also be gone.
+        assertFalse("All EVALs must be pruned", plan.anyMatch(p -> p instanceof Eval));
+
+        // The surviving plan is just count(*) over the raw UnionAll.
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("cnt"));
+        assertTrue("UnionAll must be present below the outer aggregate", agg.child().anyMatch(p -> p instanceof UnionAll));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[COUNT(*[KEYWORD],true[BOOLEAN],PT0S[TIME_DURATION]) AS cnt#14]]
+     *   \_Fork[[]]
+     *     |_Project[[]]
+     *     | \_Filter[emp_no{f}#15 > 100[INTEGER]]
+     *     |   \_EsRelation[employees][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
+     *     \_Project[[]]
+     *       \_Filter[emp_no{f}#26 < 200[INTEGER]]
+     *         \_EsRelation[employees][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
+     */
+    public void testInlineStatsOverForkUnusedOutput() {
+        var query = """
+            from employees
+            | fork (where emp_no > 100)
+                   (where emp_no < 200)
+            | eval x = emp_no
+            | inline stats d = max(x)
+            | stats cnt = count(*)
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // d is not used by the final STATS, so the InlineJoin must be pruned entirely.
+        assertFalse("InlineJoin must be pruned when its output is unused", plan.anyMatch(p -> p instanceof InlineJoin));
+        // The EVAL that defined x is also gone since d (its only consumer) was dropped.
+        assertFalse("EVAL feeding the dropped aggregate must be pruned", plan.anyMatch(p -> p instanceof Eval));
+        // The Fork must still be present — it feeds the outer count(*).
+        assertTrue("Fork must be present below the outer aggregate", plan.anyMatch(p -> p instanceof Fork));
+    }
+
+    /*
+     * Project[[d1{r}#15]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_InlineJoin[LEFT,[],[]]
+     *     |_Project[[emp_no{r}#43, emp_no{r}#43 AS x#9]]
+     *     | \_Fork[[emp_no{r}#43]]
+     *     |   |_Project[[emp_no{f}#20]]
+     *     |   | \_Filter[emp_no{f}#20 > 100[INTEGER]]
+     *     |   |   \_EsRelation[employees][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     *     |   \_Project[[emp_no{f}#31]]
+     *     |     \_Filter[emp_no{f}#31 < 200[INTEGER]]
+     *     |       \_EsRelation[employees][_meta_field{f}#37, emp_no{f}#31, first_name{f}#32, ..]
+     *     \_Aggregate[[],[MAX(x{r}#9,true[BOOLEAN],PT0S[TIME_DURATION]) AS d1#15]]
+     *       \_StubRelation[[_meta_field{r}#42, emp_no{r}#43, first_name{r}#44, gender{r}#45, hire_date{r}#46, job{r}#47, job.raw{r}#48,
+     *                       languages{r}#49, last_name{r}#50, long_noidx{r}#51, salary{r}#52, _fork{r}#53, x{r}#9, y{r}#12]]
+     */
+    public void testInlineStatsOverForkPartialOutputPruning() {
+        var query = """
+            from employees
+            | fork (where emp_no > 100)
+                   (where emp_no < 200)
+            | eval x = emp_no, y = salary
+            | inline stats d1 = max(x), d2 = max(y)
+            | keep d1
+            """;
+
+        var plan = optimizedPlan(query);
+
+        // d1 is kept by KEEP so the InlineJoin must remain.
+        var inlineJoins = plan.collect(InlineJoin.class);
+        assertFalse("InlineJoin must be present because d1 is used", inlineJoins.isEmpty());
+
+        var ij = inlineJoins.get(0);
+
+        // d1 must still be in the right-side aggregate.
+        assertTrue(
+            "d1 must remain in InlineJoin right side",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d1"))
+        );
+
+        // d2 must have been pruned — the key assertion that catches the pre-fix bug.
+        assertFalse(
+            "d2 must be pruned from InlineJoin right side (was unused)",
+            ij.right().anyMatch(p -> p instanceof Aggregate agg && Expressions.names(agg.aggregates()).contains("d2"))
+        );
+
+        // y was only needed for d2, so it must be pruned from all EVALs on the left side.
+        assertFalse(
+            "y must be pruned from all EVALs on the left side",
+            ij.left().anyMatch(p -> p instanceof Eval eval && Expressions.names(eval.fields()).contains("y"))
+        );
+
+        // The Fork must still be present on the left of the InlineJoin.
+        assertTrue("Fork must be present on the left of the InlineJoin", ij.left().anyMatch(p -> p instanceof Fork));
+    }
 }

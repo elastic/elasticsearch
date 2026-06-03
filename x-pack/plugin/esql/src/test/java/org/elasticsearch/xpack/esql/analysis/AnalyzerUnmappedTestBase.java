@@ -21,7 +21,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 
 abstract class AnalyzerUnmappedTestBase extends ESTestCase {
 
@@ -86,6 +85,6 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }
